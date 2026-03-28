@@ -56,8 +56,8 @@
     "websocket",
     "hub"
   ],
-  "author": "",
-  "license": "MIT",
+  "author": "castor.io / Nico Kempe",
+  "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/bcryptjs": "^2.4.6",

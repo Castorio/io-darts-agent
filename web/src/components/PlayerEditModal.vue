@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import BaseButton from './BaseButton.vue'
 import BaseInput from './BaseInput.vue'
 import PlayerAvatar from './PlayerAvatar.vue'
 import { PLAYER_COLORS, PLAYER_AVATARS } from '../types/player'
 import type { Player, CreatePlayerRequest, UpdatePlayerRequest } from '../types/player'
+
+const { t } = useI18n()
 
 interface Props {
   show: boolean
@@ -31,7 +34,7 @@ const showDeleteConfirm = ref(false)
 
 // Computed
 const isEdit = computed(() => !!props.player)
-const title = computed(() => (isEdit.value ? 'Spieler bearbeiten' : 'Neuer Spieler'))
+const title = computed(() => (isEdit.value ? t('players.editPlayer') : t('players.addPlayer')))
 
 const isValid = computed(() => name.value.trim().length >= 2)
 
@@ -130,14 +133,14 @@ function handleDelete() {
           <!-- Name -->
           <BaseInput
             v-model="name"
-            label="Name"
-            placeholder="Spielername eingeben"
+            :label="t('players.playerName')"
+            :placeholder="t('players.playerNamePlaceholder')"
             required
           />
 
           <!-- Color Selection -->
           <div>
-            <label class="block text-sm font-medium text-dark-200 mb-3">Farbe</label>
+            <label class="block text-sm font-medium text-dark-200 mb-3">{{ t('players.color') }}</label>
             <div class="grid grid-cols-9 gap-2">
               <button
                 v-for="c in PLAYER_COLORS"
@@ -155,7 +158,7 @@ function handleDelete() {
 
           <!-- Avatar Selection -->
           <div>
-            <label class="block text-sm font-medium text-dark-200 mb-3">Avatar</label>
+            <label class="block text-sm font-medium text-dark-200 mb-3">{{ t('players.avatar') }}</label>
             <div class="grid grid-cols-8 gap-2">
               <button
                 v-for="a in PLAYER_AVATARS"
@@ -208,11 +211,11 @@ function handleDelete() {
           <!-- Autodarts User ID (optional) -->
           <BaseInput
             v-model="autodartsUserId"
-            label="Autodarts Benutzer-ID (optional)"
-            placeholder="Zum Verknüpfen mit Autodarts-Account"
+            :label="t('players.autodartsUserId')"
+            :placeholder="t('players.autodartsUserIdPlaceholder')"
           />
           <p class="text-sm text-dark-400 -mt-4">
-            Falls angegeben, wird dieser Spieler automatisch erkannt wenn er auf Autodarts spielt.
+            {{ t('players.autodartsLinkDescription') }}
           </p>
         </div>
 
@@ -225,24 +228,24 @@ function handleDelete() {
               variant="danger"
               @click="showDeleteConfirm = true"
             >
-              Löschen
+              {{ t('common.delete') }}
             </BaseButton>
             <div v-else-if="showDeleteConfirm" class="flex items-center gap-2">
-              <span class="text-sm text-red-400">Wirklich löschen?</span>
+              <span class="text-sm text-red-400">{{ t('players.confirmDelete') }}</span>
               <BaseButton
                 variant="danger"
                 size="sm"
                 :loading="isLoading"
                 @click="handleDelete"
               >
-                Ja
+                {{ t('common.yes') }}
               </BaseButton>
               <BaseButton
                 variant="ghost"
                 size="sm"
                 @click="showDeleteConfirm = false"
               >
-                Nein
+                {{ t('common.no') }}
               </BaseButton>
             </div>
           </div>
@@ -250,14 +253,14 @@ function handleDelete() {
           <!-- Save/Cancel -->
           <div class="flex items-center gap-3">
             <BaseButton variant="ghost" @click="$emit('close')">
-              Abbrechen
+              {{ t('common.cancel') }}
             </BaseButton>
             <BaseButton
               :loading="isLoading"
               :disabled="!isValid"
               @click="handleSave"
             >
-              {{ isEdit ? 'Speichern' : 'Erstellen' }}
+              {{ isEdit ? t('common.save') : t('common.create') }}
             </BaseButton>
           </div>
         </div>

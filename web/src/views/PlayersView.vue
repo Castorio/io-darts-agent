@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { usePlayersStore } from '../stores/players'
 import AppLayout from '../components/AppLayout.vue'
 import BaseCard from '../components/BaseCard.vue'
@@ -8,6 +9,7 @@ import PlayerAvatar from '../components/PlayerAvatar.vue'
 import PlayerEditModal from '../components/PlayerEditModal.vue'
 import type { Player, CreatePlayerRequest, UpdatePlayerRequest } from '../types/player'
 
+const { t } = useI18n()
 const playersStore = usePlayersStore()
 
 // Modal state
@@ -38,10 +40,10 @@ async function handleSave(data: CreatePlayerRequest | UpdatePlayerRequest) {
   try {
     if (editingPlayer.value) {
       await playersStore.updatePlayer(editingPlayer.value.id, data)
-      message.value = { type: 'success', text: 'Spieler aktualisiert' }
+      message.value = { type: 'success', text: t('common.success') }
     } else {
       await playersStore.createPlayer(data as CreatePlayerRequest)
-      message.value = { type: 'success', text: 'Spieler erstellt' }
+      message.value = { type: 'success', text: t('common.success') }
     }
     closeModal()
     setTimeout(() => {
@@ -71,7 +73,7 @@ async function handleDelete(id: string) {
   } catch (e) {
     message.value = {
       type: 'error',
-      text: e instanceof Error ? e.message : 'Fehler beim Löschen',
+      text: e instanceof Error ? e.message : t('common.error'),
     }
   } finally {
     isSaving.value = false
@@ -89,14 +91,14 @@ onMounted(() => {
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold text-white">Spieler</h1>
-          <p class="text-dark-400">Verwalten Sie Ihre lokalen Spieler</p>
+          <h1 class="text-2xl font-bold text-white">{{ t('players.title') }}</h1>
+          <p class="text-dark-400">{{ t('players.subtitle') }}</p>
         </div>
         <BaseButton @click="openCreateModal">
           <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          Neuer Spieler
+          {{ t('players.addPlayer') }}
         </BaseButton>
       </div>
 
@@ -152,13 +154,12 @@ onMounted(() => {
               d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             />
           </svg>
-          <h3 class="text-lg font-medium text-white mt-4">Keine Spieler vorhanden</h3>
+          <h3 class="text-lg font-medium text-white mt-4">{{ t('players.noPlayers') }}</h3>
           <p class="text-dark-400 mt-2 max-w-md mx-auto">
-            Erstellen Sie Spieler um sie in Modulen für individuelle Aktionen nutzen zu können.
-            Spieler können auch mit einem Autodarts-Account verknüpft werden.
+            {{ t('players.playerInfo') }}
           </p>
           <BaseButton class="mt-6" @click="openCreateModal">
-            Ersten Spieler erstellen
+            {{ t('players.addPlayer') }}
           </BaseButton>
         </div>
       </BaseCard>
@@ -214,10 +215,9 @@ onMounted(() => {
       </div>
 
       <!-- Info Card -->
-      <BaseCard title="Spieler-Einstellungen in Modulen">
+      <BaseCard :title="t('common.info')">
         <p class="text-dark-400 mb-4">
-          Sobald Sie Spieler erstellt haben, können Sie in Modulen wie WLED individuelle Aktionen für jeden Spieler festlegen.
-          Die Zuordnung erfolgt automatisch über die Autodarts Benutzer-ID oder manuell.
+          {{ t('players.playerInfo') }}
         </p>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="p-4 rounded-lg bg-dark-700/50">

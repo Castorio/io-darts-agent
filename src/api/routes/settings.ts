@@ -52,6 +52,7 @@ export function registerSettingsRoutes(
 
     // Return settings with sensitive data masked
     return {
+      language: config.language || 'en',
       server: {
         port: config.server.port,
         host: config.server.host,
@@ -89,6 +90,11 @@ export function registerSettingsRoutes(
     const updates = request.body;
 
     try {
+      // Update language
+      if (updates.language !== undefined) {
+        config.language = updates.language;
+      }
+
       // Update server settings
       if (updates.server) {
         if (updates.server.port !== undefined) {

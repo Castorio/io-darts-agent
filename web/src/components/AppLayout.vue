@@ -1,20 +1,22 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
 import StatusBadge from './StatusBadge.vue'
 
+const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
 const isMobileMenuOpen = ref(false)
 
-const navigation = [
-  { name: 'Dashboard', path: '/', icon: 'dashboard' },
-  { name: 'Module', path: '/modules', icon: 'modules' },
-  { name: 'Spieler', path: '/players', icon: 'players' },
-  { name: 'Konsole', path: '/logs', icon: 'logs' },
-  { name: 'Einstellungen', path: '/settings', icon: 'settings' },
-]
+const navigation = computed(() => [
+  { name: t('nav.dashboard'), path: '/', icon: 'dashboard' },
+  { name: t('nav.modules'), path: '/modules', icon: 'modules' },
+  { name: t('nav.players'), path: '/players', icon: 'players' },
+  { name: t('nav.logs'), path: '/logs', icon: 'logs' },
+  { name: t('nav.settings'), path: '/settings', icon: 'settings' },
+])
 
 async function handleLogout() {
   await appStore.logout()
@@ -168,7 +170,7 @@ async function handleLogout() {
             v-if="appStore.authRequired"
             @click="handleLogout"
             class="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
-            title="Logout"
+            :title="t('nav.logout')"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path

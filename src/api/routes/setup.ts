@@ -116,6 +116,7 @@ export function registerSetupRoutes(
       // Create configuration
       const config: HubConfiguration = {
         setupCompleted: true,
+        language: 'en',
         webAuth: {
           enabled: webAuth?.enabled ?? false,
           username: webAuth?.username ?? '',

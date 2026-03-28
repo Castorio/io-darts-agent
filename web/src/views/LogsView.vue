@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AppLayout from '../components/AppLayout.vue'
 import BaseCard from '../components/BaseCard.vue'
 import { api, type LogEntry } from '../api/client'
+
+const { t } = useI18n()
 
 const logs = ref<LogEntry[]>([])
 const isConnected = ref(false)
@@ -233,8 +236,8 @@ onUnmounted(() => {
       <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-white">Konsole</h1>
-        <p class="text-dark-400 mt-1">Echtzeit-Überwachung von Events und Modul-Aktivitäten</p>
+        <h1 class="text-2xl font-bold text-white">{{ t('logs.title') }}</h1>
+        <p class="text-dark-400 mt-1">{{ t('logs.subtitle') }}</p>
       </div>
 
       <!-- Connection Status -->
@@ -246,7 +249,7 @@ onUnmounted(() => {
           ]"
         />
         <span class="text-sm text-dark-300">
-          {{ isConnected ? 'Verbunden' : 'Getrennt' }}
+          {{ isConnected ? t('logs.connected') : t('logs.disconnected') }}
         </span>
       </div>
     </div>
@@ -260,7 +263,7 @@ onUnmounted(() => {
           </div>
           <div>
             <p class="text-2xl font-bold text-white">{{ stats.total }}</p>
-            <p class="text-xs text-dark-400">Gesamt</p>
+            <p class="text-xs text-dark-400">{{ t('logs.total') }}</p>
           </div>
         </div>
       </BaseCard>
@@ -272,7 +275,7 @@ onUnmounted(() => {
           </div>
           <div>
             <p class="text-2xl font-bold text-blue-400">{{ stats.events }}</p>
-            <p class="text-xs text-dark-400">Events</p>
+            <p class="text-xs text-dark-400">{{ t('logs.events') }}</p>
           </div>
         </div>
       </BaseCard>
@@ -284,7 +287,7 @@ onUnmounted(() => {
           </div>
           <div>
             <p class="text-2xl font-bold text-green-400">{{ stats.modules }}</p>
-            <p class="text-xs text-dark-400">Module</p>
+            <p class="text-xs text-dark-400">{{ t('logs.moduleLogs') }}</p>
           </div>
         </div>
       </BaseCard>
@@ -296,7 +299,7 @@ onUnmounted(() => {
           </div>
           <div>
             <p class="text-2xl font-bold text-dark-300">{{ stats.system }}</p>
-            <p class="text-xs text-dark-400">System</p>
+            <p class="text-xs text-dark-400">{{ t('logs.system') }}</p>
           </div>
         </div>
       </BaseCard>
@@ -324,7 +327,7 @@ onUnmounted(() => {
             <input
               v-model="searchQuery"
               type="text"
-              placeholder="Logs durchsuchen..."
+              :placeholder="t('logs.searchPlaceholder')"
               class="w-full pl-10 pr-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-autodarts-500 focus:border-transparent"
             />
           </div>
@@ -343,7 +346,7 @@ onUnmounted(() => {
                 : 'bg-dark-700 text-dark-300 hover:bg-dark-600',
             ]"
           >
-            {{ f === 'all' ? 'Alle' : f === 'event' ? 'Events' : f === 'module' ? 'Module' : 'System' }}
+            {{ f === 'all' ? t('common.all') : f === 'event' ? t('logs.events') : f === 'module' ? t('logs.moduleLogs') : t('logs.system') }}
           </button>
         </div>
 
@@ -357,7 +360,7 @@ onUnmounted(() => {
                 ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
                 : 'bg-dark-700 text-dark-300 hover:bg-dark-600',
             ]"
-            :title="isPaused ? 'Fortsetzen' : 'Pausieren'"
+            :title="isPaused ? t('logs.resume') : t('logs.pause')"
           >
             <svg v-if="isPaused" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
@@ -375,7 +378,7 @@ onUnmounted(() => {
                 ? 'bg-autodarts-600/20 text-autodarts-400 hover:bg-autodarts-600/30'
                 : 'bg-dark-700 text-dark-300 hover:bg-dark-600',
             ]"
-            title="Auto-Scroll"
+            :title="t('logs.autoScroll')"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -390,7 +393,7 @@ onUnmounted(() => {
           <button
             @click="exportLogs"
             class="p-2 rounded-lg bg-dark-700 text-dark-300 hover:bg-dark-600 transition-colors"
-            title="Logs exportieren"
+            :title="t('logs.exportLogs')"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -405,7 +408,7 @@ onUnmounted(() => {
           <button
             @click="clearLogs"
             class="p-2 rounded-lg bg-dark-700 text-dark-300 hover:bg-dark-600 hover:text-red-400 transition-colors"
-            title="Logs löschen"
+            :title="t('logs.clearLogs')"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -439,8 +442,8 @@ onUnmounted(() => {
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
             />
           </svg>
-          <p class="text-lg font-medium">Keine Logs vorhanden</p>
-          <p class="text-sm mt-1">Warte auf eingehende Events...</p>
+          <p class="text-lg font-medium">{{ t('logs.noLogs') }}</p>
+          <p class="text-sm mt-1">{{ t('logs.waitingForEvents') }}</p>
         </div>
 
         <!-- Log Entries -->
@@ -499,10 +502,10 @@ onUnmounted(() => {
         class="px-4 py-2 bg-dark-800 border-t border-dark-700 flex items-center justify-between text-xs text-dark-400"
       >
         <span>
-          {{ filteredLogs.length }} von {{ logs.length }} Einträgen
-          <span v-if="isPaused" class="text-yellow-400 ml-2">⏸ Pausiert</span>
+          {{ filteredLogs.length }} / {{ logs.length }}
+          <span v-if="isPaused" class="text-yellow-400 ml-2">⏸ {{ t('logs.paused') }}</span>
         </span>
-        <span>Max: {{ maxLogs }} Einträge</span>
+        <span>{{ t('logs.maxEntries') }}: {{ maxLogs }}</span>
       </div>
     </BaseCard>
 
@@ -510,15 +513,15 @@ onUnmounted(() => {
     <div class="flex flex-wrap gap-4 text-sm text-dark-400">
       <div class="flex items-center gap-2">
         <span class="w-3 h-3 rounded bg-blue-500/20 border border-blue-500/30" />
-        <span>Event (Autodarts → Hub)</span>
+        <span>{{ t('logs.legend.event') }}</span>
       </div>
       <div class="flex items-center gap-2">
         <span class="w-3 h-3 rounded bg-green-500/20 border border-green-500/30" />
-        <span>Modul (Hub → Geräte)</span>
+        <span>{{ t('logs.legend.module') }}</span>
       </div>
       <div class="flex items-center gap-2">
         <span class="w-3 h-3 rounded bg-dark-600 border border-dark-500" />
-        <span>System</span>
+        <span>{{ t('logs.legend.system') }}</span>
       </div>
     </div>
     </div>

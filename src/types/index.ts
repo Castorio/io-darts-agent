@@ -324,3 +324,6 @@ export * from './api.js';
 
 // Re-export player types
 export * from './player.js';
+
+// Re-export i18n types
+export * from './i18n.js';

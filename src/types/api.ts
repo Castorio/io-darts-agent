@@ -10,6 +10,7 @@ import type { ModuleStatus, AutodartsEventType } from './index.js';
 
 export interface HubConfiguration {
   setupCompleted: boolean;
+  language: import('./i18n.js').SupportedLanguage;
   webAuth: WebAuthConfig;
   autodarts: AutodartsConfig;
   server: ServerConfig;
@@ -188,6 +189,7 @@ export interface ModuleActionResponse {
 // ============================================
 
 export interface SettingsResponse {
+  language: import('./i18n.js').SupportedLanguage;
   server: {
     port: number;
     host: string;
@@ -204,6 +206,7 @@ export interface SettingsResponse {
 }
 
 export interface UpdateSettingsRequest {
+  language?: import('./i18n.js').SupportedLanguage;
   server?: {
     port?: number;
     host?: string;

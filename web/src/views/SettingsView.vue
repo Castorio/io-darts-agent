@@ -1,15 +1,26 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '../api/client'
 import AppLayout from '../components/AppLayout.vue'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import BaseInput from '../components/BaseInput.vue'
+import { SUPPORTED_LOCALES, setLocale, getLocale, type SupportedLocale } from '../i18n'
+
+const { t } = useI18n()
 
 interface Settings {
   server: { port: number; host: string }
   webAuth: { enabled: boolean; username: string }
   autodarts: { email: string; boardId: string }
+}
+
+const currentLocale = ref<SupportedLocale>(getLocale())
+
+function changeLocale(locale: SupportedLocale) {
+  currentLocale.value = locale
+  setLocale(locale)
 }
 
 const settings = ref<Settings | null>(null)
@@ -123,8 +134,8 @@ onMounted(loadSettings)
     <div class="space-y-6 max-w-2xl">
       <!-- Header -->
       <div>
-        <h1 class="text-2xl font-bold text-white">Einstellungen</h1>
-        <p class="text-dark-400">Konfigurieren Sie Ihren IO-Darts-Agent</p>
+        <h1 class="text-2xl font-bold text-white">{{ t('settings.title') }}</h1>
+        <p class="text-dark-400">{{ t('settings.subtitle') }}</p>
       </div>
 
       <!-- Loading State -->
@@ -151,6 +162,32 @@ onMounted(loadSettings)
       </div>
 
       <form v-else @submit.prevent="saveSettings" class="space-y-6">
+        <!-- Language Settings -->
+        <BaseCard :title="t('settings.appearance')" :subtitle="t('settings.languageDescription')">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-dark-200 mb-3">{{ t('settings.language') }}</label>
+              <div class="grid grid-cols-3 gap-3">
+                <button
+                  v-for="locale in SUPPORTED_LOCALES"
+                  :key="locale.code"
+                  type="button"
+                  @click="changeLocale(locale.code)"
+                  :class="[
+                    'flex items-center gap-3 p-4 rounded-lg border transition-all',
+                    currentLocale === locale.code
+                      ? 'bg-autodarts-600/20 border-autodarts-500 text-white'
+                      : 'bg-dark-700/50 border-dark-600 text-dark-300 hover:bg-dark-700 hover:border-dark-500',
+                  ]"
+                >
+                  <span class="text-2xl">{{ locale.flag }}</span>
+                  <span class="font-medium">{{ locale.name }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </BaseCard>
+
         <!-- Server Settings -->
         <BaseCard title="Server" subtitle="HTTP-Server Konfiguration">
           <div class="grid grid-cols-2 gap-4">
@@ -258,7 +295,7 @@ onMounted(loadSettings)
         <!-- Save Button -->
         <div class="flex justify-end">
           <BaseButton type="submit" :loading="isSaving">
-            Einstellungen speichern
+            {{ t('common.save') }}
           </BaseButton>
         </div>
       </form>

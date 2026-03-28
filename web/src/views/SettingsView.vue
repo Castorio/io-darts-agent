@@ -189,7 +189,7 @@ onMounted(loadSettings)
         </BaseCard>
 
         <!-- Server Settings -->
-        <BaseCard title="Server" subtitle="HTTP-Server Konfiguration">
+        <BaseCard :title="t('settings.server')" :subtitle="t('settings.serverDescription')">
           <div class="grid grid-cols-2 gap-4">
             <BaseInput
               v-model="serverHost"
@@ -208,19 +208,19 @@ onMounted(loadSettings)
             </div>
           </div>
           <p class="text-sm text-dark-400 mt-4">
-            Änderungen am Server erfordern einen Neustart des Hubs.
+            {{ t('settings.serverRestartRequired') }}
           </p>
         </BaseCard>
 
         <!-- Web Auth Settings -->
-        <BaseCard title="Web-Authentifizierung" subtitle="Schützen Sie den Zugriff auf das Web-Interface">
+        <BaseCard :title="t('settings.webAuth')" :subtitle="t('settings.webAuthDescription')">
           <div class="space-y-4">
             <!-- Toggle -->
             <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50">
               <div>
-                <p class="text-white font-medium">Authentifizierung aktiviert</p>
+                <p class="text-white font-medium">{{ t('settings.authEnabled') }}</p>
                 <p class="text-sm text-dark-400">
-                  {{ webAuthEnabled ? 'Login erforderlich' : 'Kein Login erforderlich' }}
+                  {{ webAuthEnabled ? t('settings.loginRequired') : t('settings.noLoginRequired') }}
                 </p>
               </div>
               <button
@@ -243,37 +243,37 @@ onMounted(loadSettings)
             <template v-if="webAuthEnabled">
               <BaseInput
                 v-model="webAuthUsername"
-                label="Benutzername"
+                :label="t('auth.username')"
                 placeholder="admin"
               />
               <BaseInput
                 v-model="webAuthPassword"
                 type="password"
-                label="Neues Passwort"
-                placeholder="Leer lassen um beizubehalten"
+                :label="t('settings.newPassword')"
+                :placeholder="t('settings.leaveEmptyToKeep')"
               />
             </template>
           </div>
         </BaseCard>
 
         <!-- Autodarts Settings -->
-        <BaseCard title="Autodarts" subtitle="Verbindung zu Ihrem Autodarts-Board">
+        <BaseCard :title="t('settings.autodartsAccount')" :subtitle="t('settings.autodartsAccountDescription')">
           <div class="space-y-4">
             <BaseInput
               v-model="autodartsEmail"
               type="email"
-              label="E-Mail"
-              placeholder="ihre@email.de"
+              :label="t('setup.email')"
+              :placeholder="t('setup.emailPlaceholder')"
             />
             <BaseInput
               v-model="autodartsPassword"
               type="password"
-              label="Neues Passwort"
-              placeholder="Leer lassen um beizubehalten"
+              :label="t('settings.newPassword')"
+              :placeholder="t('settings.leaveEmptyToKeep')"
             />
             <BaseInput
               v-model="boardId"
-              label="Board-ID"
+              :label="t('settings.boardId')"
               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
             />
           </div>

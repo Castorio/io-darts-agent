@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
 import { useModulesStore } from '../stores/modules'
 import { useEventsStore } from '../stores/events'
@@ -9,6 +10,7 @@ import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 
+const { t } = useI18n()
 const appStore = useAppStore()
 const modulesStore = useModulesStore()
 const eventsStore = useEventsStore()
@@ -66,8 +68,8 @@ onMounted(async () => {
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold text-white">Dashboard</h1>
-          <p class="text-dark-400">Übersicht über Ihren IO-Darts-Agent</p>
+          <h1 class="text-2xl font-bold text-white">{{ t('dashboard.title') }}</h1>
+          <p class="text-dark-400">{{ t('dashboard.subtitle') }}</p>
         </div>
       </div>
 
@@ -105,7 +107,7 @@ onMounted(async () => {
         <BaseCard>
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm text-dark-400">Aktive Module</p>
+              <p class="text-sm text-dark-400">{{ t('dashboard.activeModules') }}</p>
               <p class="text-2xl font-bold text-white mt-1">
                 {{ modulesStore.runningCount }}
                 <span class="text-sm font-normal text-dark-400">
@@ -130,7 +132,7 @@ onMounted(async () => {
         <BaseCard>
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm text-dark-400">Laufzeit</p>
+              <p class="text-sm text-dark-400">{{ t('dashboard.uptime') }}</p>
               <p class="text-2xl font-bold text-white mt-1">{{ uptime }}</p>
             </div>
             <div class="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
@@ -150,7 +152,7 @@ onMounted(async () => {
         <BaseCard>
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm text-dark-400">Events heute</p>
+              <p class="text-sm text-dark-400">{{ t('dashboard.totalEvents') }}</p>
               <p class="text-2xl font-bold text-white mt-1">
                 {{ eventsStore.eventLog.length }}
               </p>
@@ -172,7 +174,7 @@ onMounted(async () => {
       <!-- Main Content Grid -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Connection Control -->
-        <BaseCard title="Autodarts Verbindung" subtitle="Steuern Sie die Verbindung zum Board">
+        <BaseCard :title="t('dashboard.connectionStatus')" :subtitle="t('dashboard.boardName')">
           <div class="space-y-4">
             <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50">
               <div class="flex items-center gap-3">
@@ -184,7 +186,7 @@ onMounted(async () => {
                 />
                 <div>
                   <p class="text-white font-medium">
-                    {{ isConnected ? 'Verbunden' : 'Nicht verbunden' }}
+                    {{ isConnected ? t('common.connected') : t('common.disconnected') }}
                   </p>
                   <p class="text-sm text-dark-400">
                     Board: {{ appStore.hubStatus?.autodarts.boardId?.slice(0, 8) || 'N/A' }}...
@@ -197,20 +199,20 @@ onMounted(async () => {
                 size="sm"
                 @click="disconnectAutodarts"
               >
-                Trennen
+                {{ t('settings.disconnectAccount') }}
               </BaseButton>
               <BaseButton
                 v-else
                 size="sm"
                 @click="connectAutodarts"
               >
-                Verbinden
+                {{ t('common.connected') }}
               </BaseButton>
             </div>
 
             <!-- Match Info -->
             <div v-if="eventsStore.currentMatchId" class="p-4 rounded-lg bg-autodarts-600/10 border border-autodarts-600/30">
-              <p class="text-sm text-autodarts-400 font-medium">Aktives Match</p>
+              <p class="text-sm text-autodarts-400 font-medium">{{ t('dashboard.activeMatch') }}</p>
               <p class="text-white font-mono text-sm mt-1">
                 {{ eventsStore.currentMatchId }}
               </p>
@@ -219,7 +221,7 @@ onMounted(async () => {
         </BaseCard>
 
         <!-- Active Modules -->
-        <BaseCard title="Module" subtitle="Status Ihrer installierten Module">
+        <BaseCard :title="t('nav.modules')" :subtitle="t('modules.subtitle')">
           <div v-if="modulesStore.modules.length === 0" class="text-center py-8">
             <svg
               class="w-12 h-12 mx-auto text-dark-500"
@@ -234,12 +236,12 @@ onMounted(async () => {
                 d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
               />
             </svg>
-            <p class="text-dark-400 mt-3">Keine Module installiert</p>
+            <p class="text-dark-400 mt-3">{{ t('modules.noModules') }}</p>
             <router-link
               to="/modules/install"
               class="inline-block mt-4 text-autodarts-400 hover:text-autodarts-300 text-sm"
             >
-              Modul installieren →
+              {{ t('modules.installNew') }} →
             </router-link>
           </div>
 
@@ -287,14 +289,14 @@ onMounted(async () => {
               to="/modules"
               class="block text-center text-sm text-autodarts-400 hover:text-autodarts-300 mt-4"
             >
-              Alle {{ modulesStore.modules.length }} Module anzeigen →
+              {{ t('dashboard.showAllModules', { count: modulesStore.modules.length }) }} →
             </router-link>
           </div>
         </BaseCard>
       </div>
 
       <!-- Recent Events -->
-      <BaseCard title="Letzte Events" subtitle="Live-Events von Autodarts">
+      <BaseCard :title="t('dashboard.recentActivity')" :subtitle="t('dashboard.recentActivitySubtitle')">
         <div v-if="eventsStore.recentEvents.length === 0" class="text-center py-8">
           <svg
             class="w-12 h-12 mx-auto text-dark-500"
@@ -310,7 +312,7 @@ onMounted(async () => {
             />
           </svg>
           <p class="text-dark-400 mt-3">
-            {{ isConnected ? 'Warte auf Events...' : 'Nicht verbunden' }}
+            {{ isConnected ? t('logs.waitingForEvents') : t('common.disconnected') }}
           </p>
         </div>
 
@@ -350,7 +352,7 @@ onMounted(async () => {
               @click="eventsStore.clearLog"
               class="text-sm text-dark-400 hover:text-white transition-colors"
             >
-              Log leeren
+              {{ t('logs.clearLogs') }}
             </button>
           </div>
         </template>

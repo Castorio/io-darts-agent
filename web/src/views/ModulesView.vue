@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useModulesStore } from '../stores/modules'
 import AppLayout from '../components/AppLayout.vue'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 
+const { t } = useI18n()
 const modulesStore = useModulesStore()
 const actionLoading = ref<string | null>(null)
 
@@ -42,8 +44,8 @@ onMounted(() => {
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold text-white">Module</h1>
-          <p class="text-dark-400">Verwalten Sie Ihre installierten Module</p>
+          <h1 class="text-2xl font-bold text-white">{{ t('modules.title') }}</h1>
+          <p class="text-dark-400">{{ t('modules.subtitle') }}</p>
         </div>
         <router-link to="/modules/install">
           <BaseButton>
@@ -55,7 +57,7 @@ onMounted(() => {
                 d="M12 4v16m8-8H4"
               />
             </svg>
-            Modul installieren
+            {{ t('modules.installNew') }}
           </BaseButton>
         </router-link>
       </div>
@@ -99,13 +101,13 @@ onMounted(() => {
               d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
             />
           </svg>
-          <h3 class="text-lg font-medium text-white mt-4">Keine Module installiert</h3>
+          <h3 class="text-lg font-medium text-white mt-4">{{ t('modules.noModules') }}</h3>
           <p class="text-dark-400 mt-2">
-            Installieren Sie Module, um die Funktionalität des Hubs zu erweitern.
+            {{ t('modules.noModulesDescription') }}
           </p>
           <router-link to="/modules/install" class="inline-block mt-6">
             <BaseButton>
-              Erstes Modul installieren
+              {{ t('modules.installNew') }}
             </BaseButton>
           </router-link>
         </div>
@@ -171,7 +173,7 @@ onMounted(() => {
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
                     <circle cx="12" cy="12" r="3"/>
                   </svg>
-                  Event-Aktionen
+                  {{ t('modules.eventActions') }}
                 </BaseButton>
               </router-link>
               <router-link :to="`/modules/${module.id}`">
@@ -190,7 +192,7 @@ onMounted(() => {
                       d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                     />
                   </svg>
-                  Konfigurieren
+                  {{ t('modules.configure') }}
                 </BaseButton>
               </router-link>
 
@@ -215,7 +217,7 @@ onMounted(() => {
                     d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
                   />
                 </svg>
-                Stoppen
+                {{ t('modules.stop') }}
               </BaseButton>
               <BaseButton
                 v-else
@@ -237,7 +239,7 @@ onMounted(() => {
                     d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                Starten
+                {{ t('modules.start') }}
               </BaseButton>
             </div>
           </div>

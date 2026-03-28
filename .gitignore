@@ -1,0 +1,125 @@
+# ===================
+# IO-Darts-Agent
+# ===================
+
+# Dependencies
+node_modules/
+modules_installed/
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+releases/
+*.tsbuildinfo
+
+# Electron builds
+*.dmg
+*.exe
+*.AppImage
+*.deb
+*.rpm
+*.snap
+*.blockmap
+*.zip
+
+# Test outputs
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ===================
+# SECRETS & CONFIG
+# ===================
+
+# Config files with credentials - NEVER COMMIT!
+config/hub.config.json
+config/*.config.json
+!config/*.example.json
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+
+# Autodarts credentials
+credentials.json
+auth.json
+tokens.json
+
+# ===================
+# IDE & OS
+# ===================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Claude Code / Claw
+.claudeclaw.json
+.claude/
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ===================
+# Misc
+# ===================
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# Local development
+*.local
+
+# Debug
+.debug/
+
+# pkg cache
+.pkg-cache/

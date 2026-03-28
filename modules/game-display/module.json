@@ -1,0 +1,57 @@
+{
+  "id": "game-display",
+  "name": "Game Display",
+  "version": "1.0.0",
+  "description": "Zeigt den aktuellen Spielstand auf einem separaten Display an. Perfekt für große Bildschirme neben dem Dartboard.",
+  "author": "IO-Darts-Agent Team",
+  "entry": "internal",
+  "events": [
+    "match.start",
+    "match.delete",
+    "match.finished",
+    "match.state",
+    "throw.detected",
+    "player.change",
+    "turn.finished",
+    "game.finished"
+  ],
+  "config": {
+    "displayName": {
+      "type": "string",
+      "label": "Display Name",
+      "description": "Name dieses Displays (für mehrere Displays)",
+      "default": "Main Display"
+    },
+    "showCheckouts": {
+      "type": "boolean",
+      "label": "Checkout-Vorschläge anzeigen",
+      "description": "Zeigt mögliche Checkout-Wege an",
+      "default": true
+    },
+    "checkoutThreshold": {
+      "type": "number",
+      "label": "Checkout ab Punktzahl",
+      "description": "Ab welcher Punktzahl Checkout-Vorschläge angezeigt werden",
+      "default": 170,
+      "min": 2,
+      "max": 170
+    },
+    "animationSpeed": {
+      "type": "select",
+      "label": "Animationsgeschwindigkeit",
+      "description": "Geschwindigkeit der Animationen",
+      "default": "normal",
+      "options": [
+        { "value": "slow", "label": "Langsam" },
+        { "value": "normal", "label": "Normal" },
+        { "value": "fast", "label": "Schnell" }
+      ]
+    },
+    "showOtherPlayers": {
+      "type": "boolean",
+      "label": "Andere Spieler anzeigen",
+      "description": "Zeigt die anderen Spieler am unteren Rand",
+      "default": true
+    }
+  }
+}

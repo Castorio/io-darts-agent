@@ -1,0 +1,45 @@
+{
+  "id": "example-caller",
+  "name": "Example Caller",
+  "version": "1.0.0",
+  "description": "An example module that calls out dart scores",
+  "author": "IO-Darts-Agent",
+  "entry": "index.js",
+  "events": [
+    "throw.detected",
+    "match.start",
+    "match.finished",
+    "player.change",
+    "game.finished"
+  ],
+  "config": {
+    "enabled": {
+      "type": "boolean",
+      "label": "Enable Caller",
+      "description": "Enable or disable the caller",
+      "default": true
+    },
+    "callHighScores": {
+      "type": "boolean",
+      "label": "Call High Scores",
+      "description": "Call out 100+ scores",
+      "default": true
+    },
+    "callCheckouts": {
+      "type": "boolean",
+      "label": "Call Checkouts",
+      "description": "Announce checkout opportunities",
+      "default": true
+    },
+    "language": {
+      "type": "select",
+      "label": "Language",
+      "description": "Language for announcements",
+      "default": "en",
+      "options": [
+        { "value": "en", "label": "English" },
+        { "value": "de", "label": "Deutsch" }
+      ]
+    }
+  }
+}

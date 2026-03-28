@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#1e293b"/>
+
+  <!-- Dartboard outer ring -->
+  <circle cx="256" cy="256" r="200" fill="none" stroke="#ef4444" stroke-width="20"/>
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#22c55e" stroke-width="20"/>
+  <circle cx="256" cy="256" r="120" fill="none" stroke="#ef4444" stroke-width="20"/>
+  <circle cx="256" cy="256" r="80" fill="none" stroke="#22c55e" stroke-width="20"/>
+
+  <!-- Inner bulls eye -->
+  <circle cx="256" cy="256" r="40" fill="#22c55e"/>
+  <circle cx="256" cy="256" r="20" fill="#ef4444"/>
+
+  <!-- Dart -->
+  <g transform="translate(256, 256) rotate(-45)">
+    <!-- Dart body -->
+    <rect x="-8" y="-120" width="16" height="100" fill="#3b82f6" rx="2"/>
+    <!-- Dart tip -->
+    <polygon points="0,-140 -6,-120 6,-120" fill="#94a3b8"/>
+    <!-- Dart flights -->
+    <polygon points="-8,-20 -30,20 -8,10" fill="#f59e0b"/>
+    <polygon points="8,-20 30,20 8,10" fill="#f59e0b"/>
+  </g>
+
+  <!-- "HUB" text -->
+  <text x="256" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="white">HUB</text>
+</svg>

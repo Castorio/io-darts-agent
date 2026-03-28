@@ -1,0 +1,7 @@
+# Ignore all config files with credentials
+*.config.json
+players.json
+modules/
+
+# But keep example files
+!*.example.json

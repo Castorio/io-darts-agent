@@ -1,0 +1,57 @@
+{
+  "id": "wled",
+  "name": "WLED Lighting Controller",
+  "version": "1.1.0",
+  "description": "Controls WLED-based LED strips based on Autodarts game events. Flash colors on throws, show player colors, celebrate 180s, and more!",
+  "author": "IO-Darts-Agent Team",
+  "repository": "https://github.com/autodarts/autodarts-wled-module",
+  "entry": "dist/index.js",
+  "events": [
+    "match.start",
+    "match.delete",
+    "match.finished",
+    "throw.detected",
+    "player.change",
+    "turn.finished",
+    "takeout.started",
+    "takeout.finished",
+    "game.finished"
+  ],
+  "config": {
+    "wledHost": {
+      "type": "string",
+      "label": "WLED IP-Adresse",
+      "description": "Die IP-Adresse oder Hostname des WLED Controllers",
+      "required": true,
+      "default": ""
+    },
+    "wledPort": {
+      "type": "number",
+      "label": "WLED Port",
+      "description": "HTTP Port des WLED Controllers",
+      "default": 80,
+      "min": 1,
+      "max": 65535
+    }
+  },
+  "effects": [
+    { "id": 0, "name": "Solid" },
+    { "id": 1, "name": "Blink" },
+    { "id": 2, "name": "Breathe" },
+    { "id": 9, "name": "Rainbow" },
+    { "id": 12, "name": "Fade" },
+    { "id": 17, "name": "Twinkle" },
+    { "id": 20, "name": "Sparkle" },
+    { "id": 23, "name": "Strobe" },
+    { "id": 43, "name": "Lightning" },
+    { "id": 52, "name": "Fire 2012" },
+    { "id": 53, "name": "Colorwaves" },
+    { "id": 62, "name": "Meteor" },
+    { "id": 65, "name": "Ripple" },
+    { "id": 79, "name": "Heartbeat" },
+    { "id": 80, "name": "Pacifica" },
+    { "id": 82, "name": "Fireworks" },
+    { "id": 83, "name": "Fireworks Starburst" },
+    { "id": 84, "name": "Fireworks 1D" }
+  ]
+}

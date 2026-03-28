@@ -1,0 +1,90 @@
+{
+  "name": "io-darts-agent",
+  "version": "1.0.0",
+  "description": "Modular Agent for Autodarts with WebSocket connection and module system",
+  "main": "electron/main.js",
+  "bin": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "test": "vitest",
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "prebuild:dist": "npm run build && npm run build:frontend && npm run build:modules",
+    "build:frontend": "cd web && npm run build",
+    "build:modules": "cd modules/game-display/web && npm run build",
+    "build:linux": "pkg . --targets node18-linux-x64 --output releases/io-darts-agent-linux-x64",
+    "build:linux-arm": "pkg . --targets node18-linux-arm64 --output releases/io-darts-agent-linux-arm64",
+    "build:macos": "pkg . --targets node18-macos-x64 --output releases/io-darts-agent-macos-x64",
+    "build:macos-arm": "pkg . --targets node18-macos-arm64 --output releases/io-darts-agent-macos-arm64",
+    "build:windows": "pkg . --targets node18-win-x64 --output releases/io-darts-agent-win-x64.exe",
+    "build:all": "npm run prebuild:dist && npm run build:linux && npm run build:linux-arm && npm run build:macos && npm run build:macos-arm && npm run build:windows",
+    "package": "node scripts/package.js",
+    "electron:dev": "npm run build && electron .",
+    "electron:start": "electron .",
+    "electron:build": "npm run prebuild:dist && electron-builder",
+    "electron:build:win": "npm run prebuild:dist && electron-builder --win",
+    "electron:build:mac": "npm run prebuild:dist && electron-builder --mac",
+    "electron:build:linux": "npm run prebuild:dist && electron-builder --linux",
+    "electron:build:all": "npm run prebuild:dist && electron-builder --win --mac --linux",
+    "dist": "npm run electron:build",
+    "dist:win": "npm run electron:build:win",
+    "dist:mac": "npm run electron:build:mac",
+    "dist:linux": "npm run electron:build:linux",
+    "dist:all": "npm run electron:build:all"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": [
+      "web/dist/**/*",
+      "modules/*/module.json",
+      "modules/*/web/dist/**/*",
+      "modules_installed/*/module.json"
+    ],
+    "outputPath": "releases"
+  },
+  "build": {
+    "extends": null
+  },
+  "keywords": [
+    "autodarts",
+    "darts",
+    "websocket",
+    "hub"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.10",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "@vitest/coverage-v8": "^1.2.0",
+    "@yao-pkg/pkg": "^6.14.1",
+    "electron": "^41.1.0",
+    "electron-builder": "^26.8.1",
+    "eslint": "^8.56.0",
+    "pino-pretty": "^13.1.3",
+    "playwright": "^1.58.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^9.3.1",
+    "@fastify/cors": "^9.0.1",
+    "@fastify/static": "^7.0.1",
+    "@fastify/websocket": "^10.0.1",
+    "axios": "^1.13.6",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^17.3.1",
+    "fastify": "^4.26.0",
+    "ws": "^8.20.0"
+  }
+}

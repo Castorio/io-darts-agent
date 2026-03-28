@@ -1,0 +1,22 @@
+{
+  "name": "@autodarts-hub/module-sdk",
+  "version": "1.0.0",
+  "description": "SDK for building IO-Darts-Agent modules",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["autodarts", "darts", "module", "sdk"],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

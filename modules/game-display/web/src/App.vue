@@ -1,0 +1,378 @@
+<script setup lang="ts">
+import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { useGameDisplayStore } from './stores/gameDisplay'
+import { getCheckoutSuggestion, getDartLabel } from './utils/checkouts'
+
+const store = useGameDisplayStore()
+const isDemo = ref(false)
+
+// Animation states
+const scoreAnimating = ref(false)
+const dartAnimating = ref<number | null>(null)
+const previousScore = ref<number | null>(null)
+
+// Computed values
+const gameState = computed(() => store.gameState)
+const activePlayer = computed(() => store.activePlayer)
+const otherPlayers = computed(() => store.otherPlayers)
+const currentDarts = computed(() => store.currentDarts)
+const turnScore = computed(() => store.turnScore)
+const remainingScore = computed(() => store.remainingScore)
+const isBusted = computed(() => store.isBusted)
+
+// Player color with fallback
+const playerColor = computed(() => {
+  return activePlayer.value?.color || '#3b82f6'
+})
+
+// Darker version of player color for gradients
+const playerColorDark = computed(() => {
+  const hex = playerColor.value.replace('#', '')
+  const r = Math.max(0, parseInt(hex.substr(0, 2), 16) - 80)
+  const g = Math.max(0, parseInt(hex.substr(2, 2), 16) - 80)
+  const b = Math.max(0, parseInt(hex.substr(4, 2), 16) - 80)
+  return `rgb(${r}, ${g}, ${b})`
+})
+
+// Even darker for deep background
+const playerColorDeep = computed(() => {
+  const hex = playerColor.value.replace('#', '')
+  const r = Math.max(0, parseInt(hex.substr(0, 2), 16) - 150)
+  const g = Math.max(0, parseInt(hex.substr(2, 2), 16) - 150)
+  const b = Math.max(0, parseInt(hex.substr(4, 2), 16) - 150)
+  return `rgb(${r}, ${g}, ${b})`
+})
+
+// Checkout suggestion
+const checkout = computed(() => {
+  if (!activePlayer.value || isBusted.value) return null
+  const dartsRemaining = 3 - currentDarts.value.length
+  return getCheckoutSuggestion(remainingScore.value, dartsRemaining)
+})
+
+// Status text
+const statusText = computed(() => {
+  if (!gameState.value.isActive) return 'Warte auf Spiel...'
+
+  const leg = `Leg ${gameState.value.currentLeg}`
+  const set = gameState.value.setsToWin > 1 ? `Set ${gameState.value.currentSet}` : ''
+
+  return [set, leg].filter(Boolean).join(' • ')
+})
+
+// Watch for score changes to animate
+watch(() => activePlayer.value?.score, (newScore, oldScore) => {
+  if (oldScore !== undefined && newScore !== oldScore) {
+    previousScore.value = oldScore
+    scoreAnimating.value = true
+    setTimeout(() => {
+      scoreAnimating.value = false
+    }, 500)
+  }
+})
+
+// Watch for new darts
+watch(() => currentDarts.value.length, (newLen, oldLen) => {
+  if (newLen > oldLen) {
+    dartAnimating.value = newLen - 1
+    setTimeout(() => {
+      dartAnimating.value = null
+    }, 400)
+  }
+})
+
+// Format dart for display
+function formatDart(dart: { segment: { number: number; multiplier: number; bed: string }; points: number } | undefined): string {
+  if (!dart) return '-'
+  return getDartLabel(dart.segment)
+}
+
+// Toggle demo mode
+function toggleDemo() {
+  if (isDemo.value) {
+    store.resetGame()
+  } else {
+    store.startDemo()
+  }
+  isDemo.value = !isDemo.value
+}
+
+onMounted(() => {
+  store.connect()
+})
+
+onUnmounted(() => {
+  store.disconnect()
+})
+</script>
+
+<template>
+  <div
+    class="game-display min-h-screen flex flex-col overflow-hidden transition-colors duration-700"
+    :style="{
+      '--player-color': playerColor,
+      '--player-color-dark': playerColorDark,
+      '--player-color-deep': playerColorDeep,
+    }"
+  >
+    <!-- Animated Background -->
+    <div class="absolute inset-0 overflow-hidden">
+      <!-- Base gradient -->
+      <div
+        class="absolute inset-0 transition-all duration-700"
+        :style="{
+          background: `radial-gradient(ellipse at 50% 0%, ${playerColorDark} 0%, ${playerColorDeep} 50%, #0a0a0f 100%)`
+        }"
+      />
+      <!-- Animated glow orbs -->
+      <div
+        class="absolute w-[800px] h-[800px] rounded-full blur-[150px] opacity-30 animate-pulse-slow transition-colors duration-700"
+        :style="{
+          background: playerColor,
+          top: '-200px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+        }"
+      />
+      <div
+        class="absolute w-[400px] h-[400px] rounded-full blur-[100px] opacity-20 animate-float transition-colors duration-700"
+        :style="{
+          background: playerColor,
+          bottom: '20%',
+          right: '-100px',
+        }"
+      />
+      <!-- Subtle grid overlay -->
+      <div class="absolute inset-0 opacity-5" style="background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 50px 50px;" />
+    </div>
+
+    <!-- Content -->
+    <div class="relative z-10 flex flex-col min-h-screen p-6 lg:p-10">
+
+      <!-- Demo Toggle (development) -->
+      <button
+        @click="toggleDemo"
+        class="absolute top-4 right-4 px-3 py-1.5 rounded-lg bg-white/10 text-white/60 text-sm hover:bg-white/20 transition-colors z-50"
+      >
+        {{ isDemo ? 'Demo beenden' : 'Demo starten' }}
+      </button>
+
+      <!-- Waiting State -->
+      <div
+        v-if="!gameState.isActive"
+        class="flex-1 flex items-center justify-center"
+      >
+        <div class="text-center">
+          <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-white/5 flex items-center justify-center">
+            <svg class="w-12 h-12 text-white/30 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 class="text-2xl font-light text-white/50">Warte auf Spiel...</h2>
+          <p class="text-white/30 mt-2">Das Display aktualisiert sich automatisch</p>
+        </div>
+      </div>
+
+      <!-- Active Game -->
+      <template v-else>
+        <!-- Header: Player Name + Status -->
+        <header class="text-center mb-6 lg:mb-10">
+          <!-- Player Name -->
+          <h1
+            class="text-4xl lg:text-6xl font-bold text-white tracking-tight transition-all duration-300"
+            :style="{ textShadow: `0 0 60px ${playerColor}40` }"
+          >
+            {{ activePlayer?.name || 'Spieler' }}
+          </h1>
+
+          <!-- Status Line -->
+          <div class="flex items-center justify-center gap-4 mt-3 text-white/60">
+            <span class="text-lg">{{ statusText }}</span>
+            <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            <span class="text-lg">Am Zug</span>
+          </div>
+
+          <!-- Legs/Sets Won -->
+          <div class="flex items-center justify-center gap-6 mt-4">
+            <div v-if="gameState.setsToWin > 1" class="flex items-center gap-2">
+              <span class="text-white/40 text-sm uppercase tracking-wider">Sets</span>
+              <span class="text-xl font-semibold text-white">{{ activePlayer?.setsWon || 0 }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-white/40 text-sm uppercase tracking-wider">Legs</span>
+              <span class="text-xl font-semibold text-white">{{ activePlayer?.legsWon || 0 }}</span>
+            </div>
+          </div>
+        </header>
+
+        <!-- Main Score -->
+        <div class="flex-1 flex flex-col items-center justify-center -mt-10">
+          <!-- Remaining Score -->
+          <div class="relative">
+            <!-- Glow effect -->
+            <div
+              class="absolute inset-0 blur-3xl opacity-40 transition-colors duration-700"
+              :style="{ background: playerColor }"
+            />
+
+            <!-- Score Number -->
+            <div
+              class="relative text-[12rem] lg:text-[18rem] font-black leading-none tracking-tighter transition-all duration-300"
+              :class="{
+                'text-white': !isBusted,
+                'text-red-500 animate-shake': isBusted,
+                'scale-95 opacity-80': scoreAnimating,
+              }"
+              :style="{ textShadow: isBusted ? '0 0 80px rgba(239, 68, 68, 0.5)' : `0 0 100px ${playerColor}60` }"
+            >
+              {{ remainingScore }}
+            </div>
+
+            <!-- Bust Indicator -->
+            <div
+              v-if="isBusted"
+              class="absolute -top-4 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full bg-red-500 text-white font-bold text-xl uppercase tracking-widest animate-bounce"
+            >
+              Bust!
+            </div>
+          </div>
+
+          <!-- Checkout Suggestion -->
+          <div
+            v-if="checkout && !checkout.isImpossible && checkout.path.length > 0"
+            class="mt-8 px-8 py-4 rounded-2xl border transition-all duration-500"
+            :class="checkout.dartsNeeded <= (3 - currentDarts.length) ? 'border-green-500/50 bg-green-500/10' : 'border-white/10 bg-white/5'"
+          >
+            <div class="flex items-center gap-4">
+              <span class="text-white/50 text-sm uppercase tracking-wider">Checkout</span>
+              <div class="flex items-center gap-2">
+                <span
+                  v-for="(dart, i) in checkout.path"
+                  :key="i"
+                  class="text-2xl lg:text-3xl font-bold text-white"
+                >
+                  {{ dart }}
+                  <span v-if="i < checkout.path.length - 1" class="text-white/30 mx-1">→</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Darts Thrown -->
+        <div class="mt-auto">
+          <!-- Three Dart Boxes -->
+          <div class="grid grid-cols-3 gap-4 lg:gap-6 max-w-2xl mx-auto mb-6">
+            <div
+              v-for="i in 3"
+              :key="i"
+              class="relative aspect-square rounded-2xl border-2 flex items-center justify-center transition-all duration-300"
+              :class="{
+                'border-white/30 bg-white/5': currentDarts[i-1],
+                'border-white/10 bg-white/[0.02]': !currentDarts[i-1],
+                'scale-110 border-white/60': dartAnimating === i-1,
+              }"
+            >
+              <!-- Dart number indicator -->
+              <span class="absolute top-2 left-3 text-xs text-white/30 font-medium">{{ i }}</span>
+
+              <!-- Dart value -->
+              <span
+                class="text-3xl lg:text-5xl font-bold transition-all duration-300"
+                :class="currentDarts[i-1] ? 'text-white' : 'text-white/20'"
+              >
+                {{ formatDart(currentDarts[i-1]) }}
+              </span>
+
+              <!-- Points -->
+              <span
+                v-if="currentDarts[i-1]"
+                class="absolute bottom-2 right-3 text-sm text-white/50"
+              >
+                {{ currentDarts[i-1]?.points }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Turn Score -->
+          <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-4 px-8 py-3 rounded-full bg-white/5 border border-white/10">
+              <span class="text-white/50 uppercase text-sm tracking-wider">Aufnahme</span>
+              <span
+                class="text-4xl lg:text-5xl font-bold text-white transition-all duration-300"
+                :class="{ 'text-red-400': isBusted }"
+              >
+                {{ turnScore }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Other Players Bar -->
+          <div
+            v-if="otherPlayers.length > 0"
+            class="flex items-center justify-center gap-4 py-4 border-t border-white/10"
+          >
+            <div
+              v-for="player in otherPlayers"
+              :key="player.index"
+              class="flex items-center gap-3 px-5 py-3 rounded-xl bg-white/5 border border-white/10 transition-all hover:bg-white/10"
+            >
+              <!-- Color indicator -->
+              <div
+                class="w-3 h-3 rounded-full"
+                :style="{ backgroundColor: player.color }"
+              />
+              <!-- Name and score -->
+              <span class="text-white/70 font-medium">{{ player.name }}</span>
+              <span class="text-2xl font-bold text-white">{{ player.score }}</span>
+              <!-- Legs won -->
+              <span class="text-white/40 text-sm">
+                ({{ player.legsWon }} Leg{{ player.legsWon !== 1 ? 's' : '' }})
+              </span>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.game-display {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.3; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.4; transform: translateX(-50%) scale(1.05); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-30px); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px); }
+  75% { transform: translateX(10px); }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 8s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 12s ease-in-out infinite;
+}
+
+.animate-shake {
+  animation: shake 0.3s ease-in-out;
+}
+
+/* Ensure crisp text rendering */
+.game-display * {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+</style>

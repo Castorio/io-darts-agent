@@ -494,12 +494,22 @@ async function testAutodartsConnection(
   boardName?: string;
   error?: string;
 }> {
+  const clientId = process.env.AUTODARTS_CLIENT_ID;
+  const clientSecret = process.env.AUTODARTS_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    return {
+      success: false,
+      error: 'Client credentials not configured. Please set AUTODARTS_CLIENT_ID and AUTODARTS_CLIENT_SECRET.',
+    };
+  }
+
   try {
     const authService = new AuthService({
       email,
       password,
-      clientId: 'developer-darts-caller',
-      clientSecret: '***REMOVED***',
+      clientId,
+      clientSecret,
     });
 
     await authService.login();

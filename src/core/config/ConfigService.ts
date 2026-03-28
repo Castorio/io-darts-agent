@@ -167,8 +167,8 @@ export class ConfigService {
       auth: {
         email: '',
         password: '',
-        clientId: 'developer-darts-caller',
-        clientSecret: '***REMOVED***',
+        clientId: process.env.AUTODARTS_CLIENT_ID || '',
+        clientSecret: process.env.AUTODARTS_CLIENT_SECRET || '',
       },
       boardId: '',
       server: {
@@ -185,10 +185,15 @@ export class ConfigService {
 export function loadConfigFromEnv(): HubConfig {
   const email = process.env.AUTODARTS_EMAIL;
   const password = process.env.AUTODARTS_PASSWORD;
-  const clientId = process.env.AUTODARTS_CLIENT_ID ?? 'developer-darts-caller';
-  const clientSecret =
-    process.env.AUTODARTS_CLIENT_SECRET ?? '***REMOVED***';
+  const clientId = process.env.AUTODARTS_CLIENT_ID;
+  const clientSecret = process.env.AUTODARTS_CLIENT_SECRET;
   const boardId = process.env.AUTODARTS_BOARD_ID;
+
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'Missing required environment variables: AUTODARTS_CLIENT_ID, AUTODARTS_CLIENT_SECRET'
+    );
+  }
 
   if (!email || !password || !boardId) {
     throw new Error(
@@ -218,8 +223,10 @@ export function loadConfigFromEnv(): HubConfig {
 
 import type { HubConfiguration } from '../../types/api.js';
 
-const DEFAULT_CLIENT_ID = 'developer-darts-caller';
-const DEFAULT_CLIENT_SECRET = '***REMOVED***';
+// Client credentials are injected via environment variables during build
+// or can be set at runtime via AUTODARTS_CLIENT_ID and AUTODARTS_CLIENT_SECRET
+const DEFAULT_CLIENT_ID = process.env.AUTODARTS_CLIENT_ID || '';
+const DEFAULT_CLIENT_SECRET = process.env.AUTODARTS_CLIENT_SECRET || '';
 
 /**
  * Extended ConfigService for API (with Setup Wizard support)

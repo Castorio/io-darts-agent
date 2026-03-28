@@ -31,7 +31,7 @@ Diese Anleitung ist für Entwickler, die am IO-Darts-Agent mitarbeiten oder eige
 ### Projekt klonen
 
 ```bash
-git clone https://github.com/nicokempe/io-darts-agent.git
+git clone https://github.com/Castorio/io-darts-agent.git
 cd io-darts-agent
 ```
 

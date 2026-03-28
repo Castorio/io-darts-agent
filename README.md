@@ -21,10 +21,10 @@ Lade das passende Paket für dein System herunter:
 
 | System | Download | Beschreibung |
 |--------|----------|--------------|
-| **Windows** | [`IO-Darts-Agent Setup.exe`](https://github.com/nicokempe/io-darts-agent/releases/latest) | One-Click Installer |
-| **macOS** | [`IO-Darts-Agent.dmg`](https://github.com/nicokempe/io-darts-agent/releases/latest) | Disk Image |
-| **Ubuntu/Debian** | [`io-darts-agent.deb`](https://github.com/nicokempe/io-darts-agent/releases/latest) | Debian-Paket |
-| **Linux** | [`IO-Darts-Agent.AppImage`](https://github.com/nicokempe/io-darts-agent/releases/latest) | Universal Linux |
+| **Windows** | [`IO-Darts-Agent Setup.exe`](https://github.com/Castorio/io-darts-agent/releases/latest) | One-Click Installer |
+| **macOS** | [`IO-Darts-Agent.dmg`](https://github.com/Castorio/io-darts-agent/releases/latest) | Disk Image |
+| **Ubuntu/Debian** | [`io-darts-agent.deb`](https://github.com/Castorio/io-darts-agent/releases/latest) | Debian-Paket |
+| **Linux** | [`IO-Darts-Agent.AppImage`](https://github.com/Castorio/io-darts-agent/releases/latest) | Universal Linux |
 
 > **Node.js ist NICHT erforderlich!** Die App enthält alles, was benötigt wird.
 
@@ -87,7 +87,7 @@ Lade das passende Paket für dein System herunter:
 
 ```bash
 # Repository klonen
-git clone https://github.com/nicokempe/io-darts-agent.git
+git clone https://github.com/Castorio/io-darts-agent.git
 cd io-darts-agent
 
 # Dependencies installieren
@@ -179,15 +179,15 @@ MIT License - siehe [LICENSE](LICENSE)
 
 Beiträge sind willkommen!
 
-- **Bug Reports**: Öffne ein [Issue](https://github.com/nicokempe/io-darts-agent/issues)
-- **Feature Requests**: Öffne ein [Issue](https://github.com/nicokempe/io-darts-agent/issues)
+- **Bug Reports**: Öffne ein [Issue](https://github.com/Castorio/io-darts-agent/issues)
+- **Feature Requests**: Öffne ein [Issue](https://github.com/Castorio/io-darts-agent/issues)
 - **Pull Requests**: Fork & PR erstellen
 
 ---
 
 ## Support
 
-- [GitHub Issues](https://github.com/nicokempe/io-darts-agent/issues)
+- [GitHub Issues](https://github.com/Castorio/io-darts-agent/issues)
 - [Dokumentation](docs/)
 
 ---

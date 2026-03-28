@@ -56,7 +56,7 @@
     "websocket",
     "hub"
   ],
-  "author": "castor.io / Nico Kempe",
+  "author": "castor.io / Christoph Castor",
   "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "@playwright/test": "^1.58.2",

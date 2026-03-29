@@ -47,6 +47,7 @@ export default {
     dashboard: 'ダッシュボード',
     modules: 'モジュール',
     players: 'プレイヤー',
+    media: 'メディアライブラリ',
     logs: 'コンソール',
     settings: '設定',
     logout: 'ログアウト',

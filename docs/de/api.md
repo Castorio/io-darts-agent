@@ -209,6 +209,48 @@ Installiert ein neues Modul.
 #### DELETE /api/modules/:id
 Deinstalliert ein Modul.
 
+#### GET /api/modules/:id/translations/:language
+Gibt das übersetzte Modul-Manifest für die angegebene Sprache zurück.
+
+**Parameter:**
+- `language`: Sprachcode (`en`, `de`, `es`)
+
+**Response:**
+```json
+{
+  "success": true,
+  "manifest": {
+    "id": "wled",
+    "name": "WLED Beleuchtungssteuerung",
+    "version": "1.2.0",
+    "description": "Steuert WLED-basierte LED-Streifen...",
+    "config": {
+      "wledHost": {
+        "type": "string",
+        "label": "WLED IP-Adresse",
+        "description": "IP-Adresse oder Hostname des WLED-Geräts"
+      }
+    }
+  },
+  "strings": {
+    "connectionSuccess": "Erfolgreich mit WLED verbunden!",
+    "connectionFailed": "Verbindung zu WLED fehlgeschlagen"
+  },
+  "availableLanguages": ["en", "de", "es"]
+}
+```
+
+#### GET /api/modules/:id/languages
+Gibt die verfügbaren Sprachen für ein Modul zurück.
+
+**Response:**
+```json
+{
+  "success": true,
+  "languages": ["en", "de", "es"]
+}
+```
+
 ---
 
 ### Spieler

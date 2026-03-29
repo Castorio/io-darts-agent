@@ -47,6 +47,7 @@ export default {
     dashboard: 'Dashboard',
     modules: 'Modules',
     players: 'Spelers',
+    media: 'Mediabibliotheek',
     logs: 'Console',
     settings: 'Instellingen',
     logout: 'Uitloggen',

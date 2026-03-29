@@ -47,6 +47,7 @@ export default {
     dashboard: 'Tableau de bord',
     modules: 'Modules',
     players: 'Joueurs',
+    media: 'Médiathèque',
     logs: 'Console',
     settings: 'Paramètres',
     logout: 'Déconnexion',

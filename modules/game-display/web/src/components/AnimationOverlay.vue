@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useGameDisplayStore, type AnimationEventType } from '../stores/gameDisplay'
 
+const { t } = useI18n()
 const store = useGameDisplayStore()
 
 const animation = computed(() => store.activeAnimation)
@@ -18,18 +20,7 @@ const isVideo = computed(() => {
 // Get animation title for display
 const animationTitle = computed((): string => {
   if (!animation.value) return ''
-  const titles: Record<AnimationEventType, string> = {
-    '180': '180!',
-    'bull': 'BULL!',
-    'doubleBull': 'DOUBLE BULL!',
-    'highScore': 'HIGH SCORE!',
-    'checkout': 'CHECKOUT!',
-    'legWin': 'LEG GEWONNEN!',
-    'setWin': 'SET GEWONNEN!',
-    'matchWin': 'MATCH GEWONNEN!',
-    'bust': 'BUST!',
-  }
-  return titles[animation.value.type] || ''
+  return t(`animations.${animation.value.type}`)
 })
 
 // Get animation color scheme
@@ -210,7 +201,7 @@ onUnmounted(() => {
 
         <!-- Dismiss hint -->
         <p class="text-white/40 text-sm animate-fade-in-delayed">
-          Klicken oder Leertaste zum Schließen
+          {{ t('animations.clickToClose') }}
         </p>
       </div>
 

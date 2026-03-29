@@ -97,13 +97,15 @@ export class ModuleProtocol {
     moduleId: string,
     config: Record<string, unknown>,
     subscribedEvents: AutodartsEventType[],
-    hubVersion = '1.0.0'
+    hubVersion = '1.0.0',
+    language = 'en'
   ): IPCMessage<InitPayload> {
     return this.createMessage('init', {
       moduleId,
       config,
       hubVersion,
       subscribedEvents,
+      language,
     });
   }
 

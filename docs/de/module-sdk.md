@@ -82,13 +82,14 @@ Das Manifest definiert alle Metadaten und die Konfiguration deines Moduls:
 | Feld | Typ | Erforderlich | Beschreibung |
 |------|-----|--------------|--------------|
 | `id` | string | Ja | Eindeutige Modul-ID (kebab-case) |
-| `name` | string | Ja | Anzeigename |
+| `name` | string | Ja | Anzeigename (Englisch) |
 | `version` | string | Ja | Semantic Version (x.y.z) |
-| `description` | string | Nein | Kurzbeschreibung |
+| `description` | string | Nein | Kurzbeschreibung (Englisch) |
 | `author` | string | Nein | Autor/Entwickler |
 | `entry` | string | Ja | "internal" für Hub-Module |
 | `events` | string[] | Nein | Events, auf die reagiert wird |
 | `config` | object | Nein | Konfigurationsschema |
+| `i18n` | object | Nein | Mehrsprachige Übersetzungen |
 
 ### Konfigurations-Feldtypen
 
@@ -142,6 +143,157 @@ Das Manifest definiert alle Metadaten und die Konfiguration deines Moduls:
   "type": "color",
   "label": "Farbe",
   "default": "#3b82f6"
+}
+```
+
+## Internationalisierung (i18n)
+
+Module können Übersetzungen für mehrere Sprachen bereitstellen. Die Standardsprache ist Englisch, welche für alle Labels im `config`-Abschnitt verwendet werden sollte. Übersetzungen werden im `i18n`-Abschnitt definiert.
+
+### Unterstützte Sprachen
+
+| Code | Sprache |
+|------|---------|
+| `en` | Englisch (Standard) |
+| `de` | Deutsch |
+| `es` | Spanisch |
+
+### i18n-Struktur
+
+```json
+{
+  "id": "my-module",
+  "name": "My Module",
+  "description": "Module description in English",
+  "config": {
+    "hostAddress": {
+      "type": "string",
+      "label": "Host Address",
+      "description": "IP address of the server"
+    },
+    "mode": {
+      "type": "select",
+      "label": "Mode",
+      "options": [
+        { "value": "normal", "label": "Normal" },
+        { "value": "fast", "label": "Fast" }
+      ]
+    }
+  },
+  "i18n": {
+    "en": {
+      "name": "My Module",
+      "description": "Module description in English",
+      "config": {
+        "hostAddress": {
+          "label": "Host Address",
+          "description": "IP address of the server"
+        },
+        "mode": {
+          "label": "Mode",
+          "options": {
+            "normal": "Normal",
+            "fast": "Fast"
+          }
+        }
+      },
+      "strings": {
+        "connectionSuccess": "Connected successfully!",
+        "connectionFailed": "Connection failed"
+      }
+    },
+    "de": {
+      "name": "Mein Modul",
+      "description": "Modulbeschreibung auf Deutsch",
+      "config": {
+        "hostAddress": {
+          "label": "Host-Adresse",
+          "description": "IP-Adresse des Servers"
+        },
+        "mode": {
+          "label": "Modus",
+          "options": {
+            "normal": "Normal",
+            "fast": "Schnell"
+          }
+        }
+      },
+      "strings": {
+        "connectionSuccess": "Erfolgreich verbunden!",
+        "connectionFailed": "Verbindung fehlgeschlagen"
+      }
+    },
+    "es": {
+      "name": "Mi Módulo",
+      "description": "Descripción del módulo en español",
+      "config": {
+        "hostAddress": {
+          "label": "Dirección del Host",
+          "description": "Dirección IP del servidor"
+        },
+        "mode": {
+          "label": "Modo",
+          "options": {
+            "normal": "Normal",
+            "fast": "Rápido"
+          }
+        }
+      },
+      "strings": {
+        "connectionSuccess": "¡Conectado correctamente!",
+        "connectionFailed": "Conexión fallida"
+      }
+    }
+  }
+}
+```
+
+### i18n-Übersetzungsfelder
+
+| Feld | Beschreibung |
+|------|--------------|
+| `name` | Übersetzter Modulname |
+| `description` | Übersetzte Modulbeschreibung |
+| `config` | Übersetzungen für Config-Felder |
+| `config.[key].label` | Übersetztes Feld-Label |
+| `config.[key].description` | Übersetzte Feld-Beschreibung |
+| `config.[key].options` | Übersetzungen für Select-Optionen (Key: Value Paare) |
+| `strings` | Eigene Strings, die vom Modul-Frontend verwendet werden |
+
+### Übersetzungen im Frontend nutzen
+
+```typescript
+// Übersetztes Modul-Manifest laden
+const response = await fetch(`/api/modules/${moduleId}/translations/${language}`)
+const { manifest, strings, availableLanguages } = await response.json()
+
+// Übersetzte Strings verwenden
+const successMessage = strings.connectionSuccess || 'Connected!'
+
+// Verfügbare Sprachen prüfen
+console.log('Verfügbare Sprachen:', availableLanguages) // ['en', 'de', 'es']
+```
+
+### Sprach-Fallback
+
+Das Übersetzungssystem verwendet folgende Fallback-Reihenfolge:
+1. Angeforderte Sprache (z.B. `de`)
+2. Englisch (`en`) als Fallback
+3. Originalwerte aus dem Manifest
+
+Dies stellt sicher, dass Module auch funktionieren, wenn Übersetzungen unvollständig sind.
+
+### Modul-Init-Payload
+
+Wenn ein Modul initialisiert wird, erhält es die aktuelle Spracheinstellung:
+
+```typescript
+interface InitPayload {
+  moduleId: string;
+  config: Record<string, unknown>;
+  hubVersion: string;
+  subscribedEvents: string[];
+  language: string; // Aktuelle UI-Sprache (z.B. 'de')
 }
 ```
 

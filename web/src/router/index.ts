@@ -71,6 +71,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/media',
+      name: 'media',
+      component: () => import('../views/MediaLibraryView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/logs',
       name: 'logs',
       component: () => import('../views/LogsView.vue'),

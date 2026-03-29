@@ -1,8 +1,8 @@
 {
   "id": "game-display",
   "name": "Game Display",
-  "version": "1.2.0",
-  "description": "Zeigt den aktuellen Spielstand auf einem separaten Display an. Perfekt für große Bildschirme neben dem Dartboard.",
+  "version": "1.3.0",
+  "description": "Displays the current game score on a separate display. Perfect for large screens next to the dartboard.",
   "author": "IO-Darts-Agent Team",
   "entry": "internal",
   "events": [
@@ -19,72 +19,72 @@
     "displayName": {
       "type": "string",
       "label": "Display Name",
-      "description": "Name dieses Displays (für mehrere Displays)",
+      "description": "Name of this display (for multiple displays)",
       "default": "Main Display"
     },
     "idleMode": {
       "type": "select",
-      "label": "Idle-Modus",
-      "description": "Was angezeigt wird, wenn kein Spiel aktiv ist",
+      "label": "Idle Mode",
+      "description": "What to show when no game is active",
       "default": "lastGame",
       "options": [
-        { "value": "black", "label": "Schwarzer Bildschirm" },
-        { "value": "image", "label": "Eigenes Bild" },
-        { "value": "lastGame", "label": "Letzten Spielstand anzeigen" }
+        { "value": "black", "label": "Black Screen" },
+        { "value": "image", "label": "Custom Image" },
+        { "value": "lastGame", "label": "Show Last Game Score" }
       ]
     },
     "idleImageUrl": {
       "type": "string",
-      "label": "Idle-Bild URL",
-      "description": "URL zum Bild, das im Idle-Modus angezeigt wird (nur bei 'Eigenes Bild')",
+      "label": "Idle Image URL",
+      "description": "URL to the image shown in idle mode (only for 'Custom Image')",
       "default": ""
     },
     "showCheckouts": {
       "type": "boolean",
-      "label": "Checkout-Vorschläge anzeigen",
-      "description": "Zeigt mögliche Checkout-Wege an",
+      "label": "Show Checkout Suggestions",
+      "description": "Shows possible checkout paths",
       "default": true
     },
     "checkoutThreshold": {
       "type": "number",
-      "label": "Checkout ab Punktzahl",
-      "description": "Ab welcher Punktzahl Checkout-Vorschläge angezeigt werden",
+      "label": "Checkout From Score",
+      "description": "From which score checkout suggestions are shown",
       "default": 170,
       "min": 2,
       "max": 170
     },
     "animationSpeed": {
       "type": "select",
-      "label": "Animationsgeschwindigkeit",
-      "description": "Geschwindigkeit der Animationen",
+      "label": "Animation Speed",
+      "description": "Speed of animations",
       "default": "normal",
       "options": [
-        { "value": "slow", "label": "Langsam" },
+        { "value": "slow", "label": "Slow" },
         { "value": "normal", "label": "Normal" },
-        { "value": "fast", "label": "Schnell" }
+        { "value": "fast", "label": "Fast" }
       ]
     },
     "showOtherPlayers": {
       "type": "boolean",
-      "label": "Andere Spieler anzeigen",
-      "description": "Zeigt die anderen Spieler am unteren Rand",
+      "label": "Show Other Players",
+      "description": "Shows other players at the bottom",
       "default": true
     },
     "animations": {
       "type": "group",
-      "label": "Animationen",
-      "description": "Konfiguriere Animationen für besondere Ereignisse",
+      "label": "Animations",
+      "description": "Configure animations for special events",
       "fields": {
         "enabled": {
           "type": "boolean",
-          "label": "Animationen aktivieren",
-          "description": "Globaler Schalter für alle Event-Animationen",
+          "label": "Enable Animations",
+          "description": "Global switch for all event animations",
           "default": true
         },
         "duration": {
           "type": "number",
-          "label": "Animationsdauer (ms)",
-          "description": "Standard-Anzeigedauer für Animationen",
+          "label": "Animation Duration (ms)",
+          "description": "Default display duration for animations",
           "default": 3000,
           "min": 500,
           "max": 10000
@@ -95,39 +95,39 @@
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
-              "description": "URL zu GIF oder Video (nur bei GIF/Video Typ)",
+              "label": "Media URL",
+              "description": "URL to GIF or video (only for GIF/Video type)",
               "default": ""
             },
             "sound": {
               "type": "boolean",
-              "label": "Sound abspielen",
+              "label": "Play Sound",
               "default": true
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
-              "description": "URL zur Sound-Datei (MP3, WAV)",
+              "label": "Sound URL",
+              "description": "URL to sound file (MP3, WAV)",
               "default": ""
             },
             "duration": {
               "type": "number",
-              "label": "Dauer (ms)",
+              "label": "Duration (ms)",
               "default": 4000,
               "min": 1000,
               "max": 10000
@@ -140,37 +140,37 @@
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
+              "label": "Media URL",
               "default": ""
             },
             "sound": {
               "type": "boolean",
-              "label": "Sound abspielen",
+              "label": "Play Sound",
               "default": true
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
+              "label": "Sound URL",
               "default": ""
             },
             "duration": {
               "type": "number",
-              "label": "Dauer (ms)",
+              "label": "Duration (ms)",
               "default": 2000,
               "min": 500,
               "max": 5000
@@ -183,37 +183,37 @@
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
+              "label": "Media URL",
               "default": ""
             },
             "sound": {
               "type": "boolean",
-              "label": "Sound abspielen",
+              "label": "Play Sound",
               "default": true
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
+              "label": "Sound URL",
               "default": ""
             },
             "duration": {
               "type": "number",
-              "label": "Dauer (ms)",
+              "label": "Duration (ms)",
               "default": 2500,
               "min": 500,
               "max": 5000
@@ -222,41 +222,41 @@
         },
         "legWin": {
           "type": "object",
-          "label": "Leg-Gewinn Animation",
+          "label": "Leg Win Animation",
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
+              "label": "Media URL",
               "default": ""
             },
             "sound": {
               "type": "boolean",
-              "label": "Sound abspielen",
+              "label": "Play Sound",
               "default": true
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
+              "label": "Sound URL",
               "default": ""
             },
             "duration": {
               "type": "number",
-              "label": "Dauer (ms)",
+              "label": "Duration (ms)",
               "default": 3000,
               "min": 1000,
               "max": 8000
@@ -265,41 +265,41 @@
         },
         "matchWin": {
           "type": "object",
-          "label": "Match-Gewinn Animation",
+          "label": "Match Win Animation",
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
+              "label": "Media URL",
               "default": ""
             },
             "sound": {
               "type": "boolean",
-              "label": "Sound abspielen",
+              "label": "Play Sound",
               "default": true
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
+              "label": "Sound URL",
               "default": ""
             },
             "duration": {
               "type": "number",
-              "label": "Dauer (ms)",
+              "label": "Duration (ms)",
               "default": 5000,
               "min": 2000,
               "max": 15000
@@ -312,44 +312,44 @@
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "threshold": {
               "type": "number",
-              "label": "Ab Punktzahl",
+              "label": "From Score",
               "default": 140,
               "min": 100,
               "max": 179
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
+              "label": "Media URL",
               "default": ""
             },
             "sound": {
               "type": "boolean",
-              "label": "Sound abspielen",
+              "label": "Play Sound",
               "default": false
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
+              "label": "Sound URL",
               "default": ""
             },
             "duration": {
               "type": "number",
-              "label": "Dauer (ms)",
+              "label": "Duration (ms)",
               "default": 2000,
               "min": 500,
               "max": 5000
@@ -362,37 +362,37 @@
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
+              "label": "Media URL",
               "default": ""
             },
             "sound": {
               "type": "boolean",
-              "label": "Sound abspielen",
+              "label": "Play Sound",
               "default": true
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
+              "label": "Sound URL",
               "default": ""
             },
             "duration": {
               "type": "number",
-              "label": "Dauer (ms)",
+              "label": "Duration (ms)",
               "default": 2500,
               "min": 1000,
               "max": 5000
@@ -405,37 +405,37 @@
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
+              "label": "Media URL",
               "default": ""
             },
             "sound": {
               "type": "boolean",
-              "label": "Sound abspielen",
+              "label": "Play Sound",
               "default": false
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
+              "label": "Sound URL",
               "default": ""
             },
             "duration": {
               "type": "number",
-              "label": "Dauer (ms)",
+              "label": "Duration (ms)",
               "default": 1500,
               "min": 500,
               "max": 3000
@@ -446,19 +446,19 @@
     },
     "playerAnimations": {
       "type": "array",
-      "label": "Spieler-spezifische Animationen",
-      "description": "Individuelle Animationen pro Spieler (überschreibt globale Einstellungen)",
+      "label": "Player-specific Animations",
+      "description": "Individual animations per player (overrides global settings)",
       "itemType": "object",
       "itemFields": {
         "playerId": {
           "type": "string",
-          "label": "Spieler-ID",
-          "description": "ID des lokalen Spielers"
+          "label": "Player ID",
+          "description": "ID of the local player"
         },
         "playerName": {
           "type": "string",
-          "label": "Spieler-Name",
-          "description": "Name zur einfacheren Identifikation"
+          "label": "Player Name",
+          "description": "Name for easier identification"
         },
         "throw180": {
           "type": "object",
@@ -466,95 +466,277 @@
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
+              "label": "Media URL",
               "default": ""
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
+              "label": "Sound URL",
               "default": ""
             }
           }
         },
         "legWin": {
           "type": "object",
-          "label": "Leg-Gewinn Animation",
+          "label": "Leg Win Animation",
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
+              "label": "Media URL",
               "default": ""
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
+              "label": "Sound URL",
               "default": ""
             }
           }
         },
         "matchWin": {
           "type": "object",
-          "label": "Match-Gewinn Animation",
+          "label": "Match Win Animation",
           "fields": {
             "enabled": {
               "type": "boolean",
-              "label": "Aktiviert",
+              "label": "Enabled",
               "default": true
             },
             "type": {
               "type": "select",
-              "label": "Animationstyp",
+              "label": "Animation Type",
               "default": "builtin",
               "options": [
-                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "builtin", "label": "Built-in" },
                 { "value": "gif", "label": "GIF" },
                 { "value": "video", "label": "Video" }
               ]
             },
             "url": {
               "type": "string",
-              "label": "Medien-URL",
+              "label": "Media URL",
               "default": ""
             },
             "soundUrl": {
               "type": "string",
-              "label": "Sound-URL",
+              "label": "Sound URL",
               "default": ""
             }
           }
         }
       },
       "default": []
+    }
+  },
+  "i18n": {
+    "en": {
+      "name": "Game Display",
+      "description": "Displays the current game score on a separate display. Perfect for large screens next to the dartboard.",
+      "config": {
+        "displayName": {
+          "label": "Display Name",
+          "description": "Name of this display (for multiple displays)"
+        },
+        "idleMode": {
+          "label": "Idle Mode",
+          "description": "What to show when no game is active",
+          "options": {
+            "black": "Black Screen",
+            "image": "Custom Image",
+            "lastGame": "Show Last Game Score"
+          }
+        },
+        "idleImageUrl": {
+          "label": "Idle Image URL",
+          "description": "URL to the image shown in idle mode (only for 'Custom Image')"
+        },
+        "showCheckouts": {
+          "label": "Show Checkout Suggestions",
+          "description": "Shows possible checkout paths"
+        },
+        "checkoutThreshold": {
+          "label": "Checkout From Score",
+          "description": "From which score checkout suggestions are shown"
+        },
+        "animationSpeed": {
+          "label": "Animation Speed",
+          "description": "Speed of animations",
+          "options": {
+            "slow": "Slow",
+            "normal": "Normal",
+            "fast": "Fast"
+          }
+        },
+        "showOtherPlayers": {
+          "label": "Show Other Players",
+          "description": "Shows other players at the bottom"
+        },
+        "animations": {
+          "label": "Animations",
+          "description": "Configure animations for special events"
+        }
+      },
+      "strings": {
+        "currentPlayer": "Current Player",
+        "checkout": "Checkout",
+        "bust": "BUST!",
+        "legWon": "Leg Won!",
+        "matchWon": "Match Won!",
+        "waitingForGame": "Waiting for game...",
+        "dartsRemaining": "darts remaining",
+        "average": "Average",
+        "legs": "Legs",
+        "sets": "Sets"
+      }
+    },
+    "de": {
+      "name": "Spielanzeige",
+      "description": "Zeigt den aktuellen Spielstand auf einem separaten Display an. Perfekt für große Bildschirme neben der Dartscheibe.",
+      "config": {
+        "displayName": {
+          "label": "Anzeigename",
+          "description": "Name dieses Displays (für mehrere Displays)"
+        },
+        "idleMode": {
+          "label": "Idle-Modus",
+          "description": "Was angezeigt wird, wenn kein Spiel aktiv ist",
+          "options": {
+            "black": "Schwarzer Bildschirm",
+            "image": "Eigenes Bild",
+            "lastGame": "Letzten Spielstand anzeigen"
+          }
+        },
+        "idleImageUrl": {
+          "label": "Idle-Bild URL",
+          "description": "URL zum Bild, das im Idle-Modus angezeigt wird (nur bei 'Eigenes Bild')"
+        },
+        "showCheckouts": {
+          "label": "Checkout-Vorschläge anzeigen",
+          "description": "Zeigt mögliche Checkout-Wege an"
+        },
+        "checkoutThreshold": {
+          "label": "Checkout ab Punktzahl",
+          "description": "Ab welcher Punktzahl Checkout-Vorschläge angezeigt werden"
+        },
+        "animationSpeed": {
+          "label": "Animationsgeschwindigkeit",
+          "description": "Geschwindigkeit der Animationen",
+          "options": {
+            "slow": "Langsam",
+            "normal": "Normal",
+            "fast": "Schnell"
+          }
+        },
+        "showOtherPlayers": {
+          "label": "Andere Spieler anzeigen",
+          "description": "Zeigt die anderen Spieler am unteren Rand"
+        },
+        "animations": {
+          "label": "Animationen",
+          "description": "Konfiguriere Animationen für besondere Ereignisse"
+        }
+      },
+      "strings": {
+        "currentPlayer": "Aktueller Spieler",
+        "checkout": "Checkout",
+        "bust": "ÜBERWORFEN!",
+        "legWon": "Leg gewonnen!",
+        "matchWon": "Match gewonnen!",
+        "waitingForGame": "Warte auf Spiel...",
+        "dartsRemaining": "Darts übrig",
+        "average": "Durchschnitt",
+        "legs": "Legs",
+        "sets": "Sätze"
+      }
+    },
+    "es": {
+      "name": "Pantalla de Juego",
+      "description": "Muestra la puntuación actual del juego en una pantalla separada. Perfecto para pantallas grandes junto a la diana.",
+      "config": {
+        "displayName": {
+          "label": "Nombre de Pantalla",
+          "description": "Nombre de esta pantalla (para múltiples pantallas)"
+        },
+        "idleMode": {
+          "label": "Modo Inactivo",
+          "description": "Qué mostrar cuando no hay juego activo",
+          "options": {
+            "black": "Pantalla Negra",
+            "image": "Imagen Personalizada",
+            "lastGame": "Mostrar Última Puntuación"
+          }
+        },
+        "idleImageUrl": {
+          "label": "URL de Imagen Inactiva",
+          "description": "URL de la imagen mostrada en modo inactivo (solo para 'Imagen Personalizada')"
+        },
+        "showCheckouts": {
+          "label": "Mostrar Sugerencias de Checkout",
+          "description": "Muestra posibles rutas de checkout"
+        },
+        "checkoutThreshold": {
+          "label": "Checkout Desde Puntuación",
+          "description": "Desde qué puntuación se muestran las sugerencias de checkout"
+        },
+        "animationSpeed": {
+          "label": "Velocidad de Animación",
+          "description": "Velocidad de las animaciones",
+          "options": {
+            "slow": "Lento",
+            "normal": "Normal",
+            "fast": "Rápido"
+          }
+        },
+        "showOtherPlayers": {
+          "label": "Mostrar Otros Jugadores",
+          "description": "Muestra otros jugadores en la parte inferior"
+        },
+        "animations": {
+          "label": "Animaciones",
+          "description": "Configura animaciones para eventos especiales"
+        }
+      },
+      "strings": {
+        "currentPlayer": "Jugador Actual",
+        "checkout": "Checkout",
+        "bust": "¡PASADO!",
+        "legWon": "¡Leg Ganado!",
+        "matchWon": "¡Partida Ganada!",
+        "waitingForGame": "Esperando juego...",
+        "dartsRemaining": "dardos restantes",
+        "average": "Promedio",
+        "legs": "Legs",
+        "sets": "Sets"
+      }
     }
   }
 }

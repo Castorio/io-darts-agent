@@ -3,6 +3,7 @@ import fastifyCors from '@fastify/cors';
 import fastifyCookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
+import fastifyMultipart from '@fastify/multipart';
 import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
@@ -82,6 +83,13 @@ export class APIServer extends EventEmitter {
 
     // Register WebSocket support
     await this.fastify.register(fastifyWebsocket);
+
+    // Register multipart (file upload) support
+    await this.fastify.register(fastifyMultipart, {
+      limits: {
+        fileSize: 50 * 1024 * 1024, // 50MB max
+      },
+    });
 
     // Register static file serving (for Vue frontend)
     if (this.options.staticDir && fs.existsSync(this.options.staticDir)) {

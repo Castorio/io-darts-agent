@@ -47,6 +47,7 @@ export default {
     dashboard: 'Panel',
     modules: 'Módulos',
     players: 'Jugadores',
+    media: 'Mediateca',
     logs: 'Consola',
     settings: 'Configuración',
     logout: 'Cerrar sesión',

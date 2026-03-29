@@ -82,13 +82,14 @@ The manifest defines all metadata and configuration for your module:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | string | Yes | Unique module ID (kebab-case) |
-| `name` | string | Yes | Display name |
+| `name` | string | Yes | Display name (English) |
 | `version` | string | Yes | Semantic Version (x.y.z) |
-| `description` | string | No | Short description |
+| `description` | string | No | Short description (English) |
 | `author` | string | No | Author/Developer |
 | `entry` | string | Yes | "internal" for hub modules |
 | `events` | string[] | No | Events to react to |
 | `config` | object | No | Configuration schema |
+| `i18n` | object | No | Multi-language translations |
 
 ### Configuration Field Types
 
@@ -142,6 +143,157 @@ The manifest defines all metadata and configuration for your module:
   "type": "color",
   "label": "Color",
   "default": "#3b82f6"
+}
+```
+
+## Internationalization (i18n)
+
+Modules can provide translations for multiple languages. The default language is English, which should be used for all labels in the `config` section. Translations are provided in the `i18n` section.
+
+### Supported Languages
+
+| Code | Language |
+|------|----------|
+| `en` | English (Default) |
+| `de` | German |
+| `es` | Spanish |
+
+### i18n Structure
+
+```json
+{
+  "id": "my-module",
+  "name": "My Module",
+  "description": "Module description in English",
+  "config": {
+    "hostAddress": {
+      "type": "string",
+      "label": "Host Address",
+      "description": "IP address of the server"
+    },
+    "mode": {
+      "type": "select",
+      "label": "Mode",
+      "options": [
+        { "value": "normal", "label": "Normal" },
+        { "value": "fast", "label": "Fast" }
+      ]
+    }
+  },
+  "i18n": {
+    "en": {
+      "name": "My Module",
+      "description": "Module description in English",
+      "config": {
+        "hostAddress": {
+          "label": "Host Address",
+          "description": "IP address of the server"
+        },
+        "mode": {
+          "label": "Mode",
+          "options": {
+            "normal": "Normal",
+            "fast": "Fast"
+          }
+        }
+      },
+      "strings": {
+        "connectionSuccess": "Connected successfully!",
+        "connectionFailed": "Connection failed"
+      }
+    },
+    "de": {
+      "name": "Mein Modul",
+      "description": "Modulbeschreibung auf Deutsch",
+      "config": {
+        "hostAddress": {
+          "label": "Host-Adresse",
+          "description": "IP-Adresse des Servers"
+        },
+        "mode": {
+          "label": "Modus",
+          "options": {
+            "normal": "Normal",
+            "fast": "Schnell"
+          }
+        }
+      },
+      "strings": {
+        "connectionSuccess": "Erfolgreich verbunden!",
+        "connectionFailed": "Verbindung fehlgeschlagen"
+      }
+    },
+    "es": {
+      "name": "Mi Módulo",
+      "description": "Descripción del módulo en español",
+      "config": {
+        "hostAddress": {
+          "label": "Dirección del Host",
+          "description": "Dirección IP del servidor"
+        },
+        "mode": {
+          "label": "Modo",
+          "options": {
+            "normal": "Normal",
+            "fast": "Rápido"
+          }
+        }
+      },
+      "strings": {
+        "connectionSuccess": "¡Conectado correctamente!",
+        "connectionFailed": "Conexión fallida"
+      }
+    }
+  }
+}
+```
+
+### i18n Translation Fields
+
+| Field | Description |
+|-------|-------------|
+| `name` | Translated module name |
+| `description` | Translated module description |
+| `config` | Translations for config fields |
+| `config.[key].label` | Translated field label |
+| `config.[key].description` | Translated field description |
+| `config.[key].options` | Translations for select options (key: value pairs) |
+| `strings` | Custom strings used by the module's frontend |
+
+### Using Translations in Frontend
+
+```typescript
+// Load translated module manifest
+const response = await fetch(`/api/modules/${moduleId}/translations/${language}`)
+const { manifest, strings, availableLanguages } = await response.json()
+
+// Use translated strings
+const successMessage = strings.connectionSuccess || 'Connected!'
+
+// Check available languages
+console.log('Available languages:', availableLanguages) // ['en', 'de', 'es']
+```
+
+### Language Fallback
+
+The translation system uses the following fallback order:
+1. Requested language (e.g., `de`)
+2. English (`en`) as fallback
+3. Original values from the manifest
+
+This ensures modules work even if translations are incomplete.
+
+### Module Init Payload
+
+When a module is initialized, it receives the current language setting:
+
+```typescript
+interface InitPayload {
+  moduleId: string;
+  config: Record<string, unknown>;
+  hubVersion: string;
+  subscribedEvents: string[];
+  language: string; // Current UI language (e.g., 'de')
 }
 ```
 

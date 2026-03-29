@@ -47,6 +47,7 @@ export default {
     dashboard: 'Панель керування',
     modules: 'Модулі',
     players: 'Гравці',
+    media: 'Медіатека',
     logs: 'Консоль',
     settings: 'Налаштування',
     logout: 'Вийти',

@@ -18,6 +18,50 @@ export interface ModuleManifest {
   entry: string; // Main file (e.g., "index.js")
   events: AutodartsEventType[]; // Events this module subscribes to
   config?: ModuleConfigSchema;
+  i18n?: ModuleI18n; // Multi-language support
+}
+
+// ============================================
+// Module Internationalization
+// ============================================
+
+/**
+ * Module i18n configuration
+ * Keys are language codes (en, de, es, etc.)
+ */
+export interface ModuleI18n {
+  [languageCode: string]: ModuleTranslations;
+}
+
+/**
+ * Translations for a single language
+ */
+export interface ModuleTranslations {
+  // Module metadata translations
+  name?: string;
+  description?: string;
+
+  // Config field translations
+  config?: {
+    [fieldKey: string]: ConfigFieldTranslation;
+  };
+
+  // Custom strings used by the module
+  strings?: {
+    [key: string]: string;
+  };
+}
+
+/**
+ * Translation for a config field
+ */
+export interface ConfigFieldTranslation {
+  label?: string;
+  description?: string;
+  // For select type options
+  options?: {
+    [value: string]: string;
+  };
 }
 
 export interface ModuleConfigSchema {
@@ -96,6 +140,7 @@ export interface InitPayload {
   config: Record<string, unknown>;
   hubVersion: string;
   subscribedEvents: AutodartsEventType[];
+  language: string; // Current language setting
 }
 
 export interface EventPayload {

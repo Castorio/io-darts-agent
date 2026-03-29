@@ -47,6 +47,7 @@ export default {
     dashboard: '仪表板',
     modules: '模块',
     players: '玩家',
+    media: '媒体库',
     logs: '控制台',
     settings: '设置',
     logout: '退出登录',

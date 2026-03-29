@@ -8,6 +8,10 @@ import type {
   InstallModuleResponse,
   ModuleActionResponse,
 } from '../../types/api.js';
+import type { ModuleManifest } from '../../types/modules.js';
+import type { SupportedLanguage } from '../../types/i18n.js';
+import type { TranslatedModuleManifest } from '../../core/modules/ModuleI18n.js';
+import { getTranslatedManifest, getModuleStrings, getAvailableLanguages } from '../../core/modules/ModuleI18n.js';
 
 // WLED Test Action Request
 export interface WledTestActionRequest {
@@ -25,6 +29,7 @@ export interface WledTestActionRequest {
 export interface ModuleDependencies {
   listModules: () => ModuleListItem[];
   getModule: (id: string) => ModuleDetailResponse | null;
+  getModuleManifest: (id: string) => ModuleManifest | null;
   getModuleConfig: (id: string) => Record<string, unknown> | null;
   updateModuleConfig: (id: string, config: Record<string, unknown>) => Promise<void>;
   startModule: (id: string) => Promise<void>;
@@ -34,6 +39,17 @@ export interface ModuleDependencies {
   uninstallModule: (id: string) => Promise<void>;
   isModuleInstalled: (id: string) => boolean;
   testWledAction?: (host: string, port: number, action: WledTestActionRequest) => Promise<void>;
+}
+
+/**
+ * Module translation response
+ */
+export interface ModuleTranslationResponse {
+  success: boolean;
+  manifest?: TranslatedModuleManifest;
+  strings?: Record<string, string>;
+  availableLanguages?: string[];
+  error?: string;
 }
 
 /**
@@ -92,6 +108,24 @@ export function registerModuleRoutes(
     }
 
     return module;
+  });
+
+  /**
+   * GET /api/modules/:id/config - Get module configuration
+   * This endpoint is public (no auth required) so module UIs can load their config
+   */
+  fastify.get<{
+    Params: { id: string };
+    Reply: Record<string, unknown> | { error: string };
+  }>('/api/modules/:id/config', async (request, reply) => {
+    const module = deps.getModule(request.params.id);
+    if (!module) {
+      reply.code(404);
+      return { error: 'Module not found' };
+    }
+
+    // Return the config values directly
+    return module.config?.values || {};
   });
 
   /**
@@ -602,5 +636,75 @@ export function registerModuleRoutes(
         error: error instanceof Error ? error.message : 'Failed to fetch palettes from WLED',
       };
     }
+  });
+
+  /**
+   * GET /api/modules/:id/translations/:language - Get translated module manifest
+   * Returns the module manifest with all fields translated to the requested language
+   */
+  fastify.get<{
+    Params: { id: string; language: string };
+    Reply: ModuleTranslationResponse;
+  }>('/api/modules/:id/translations/:language', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    const { id, language } = request.params;
+
+    // Validate language
+    const validLanguages: SupportedLanguage[] = ['en', 'de', 'es'];
+    if (!validLanguages.includes(language as SupportedLanguage)) {
+      reply.code(400);
+      return { success: false, error: `Invalid language. Supported: ${validLanguages.join(', ')}` };
+    }
+
+    const manifest = deps.getModuleManifest(id);
+    if (!manifest) {
+      reply.code(404);
+      return { success: false, error: 'Module not found' };
+    }
+
+    const translatedManifest = getTranslatedManifest(manifest, language as SupportedLanguage);
+    const strings = getModuleStrings(manifest, language as SupportedLanguage);
+    const availableLanguages = getAvailableLanguages(manifest);
+
+    return {
+      success: true,
+      manifest: translatedManifest,
+      strings,
+      availableLanguages,
+    };
+  });
+
+  /**
+   * GET /api/modules/:id/languages - Get available languages for a module
+   */
+  fastify.get<{
+    Params: { id: string };
+    Reply: { success: boolean; languages?: string[]; error?: string };
+  }>('/api/modules/:id/languages', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    const { id } = request.params;
+
+    const manifest = deps.getModuleManifest(id);
+    if (!manifest) {
+      reply.code(404);
+      return { success: false, error: 'Module not found' };
+    }
+
+    const languages = getAvailableLanguages(manifest);
+
+    return {
+      success: true,
+      languages,
+    };
   });
 }

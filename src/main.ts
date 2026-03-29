@@ -11,7 +11,10 @@ import {
   registerSettingsRoutes,
   registerWebSocketRoutes,
   registerPlayerRoutes,
+  registerMediaRoutes,
+  registerMatchRoutes,
 } from './api/routes/index.js';
+import { MediaService } from './core/media/MediaService.js';
 import { APIConfigService } from './core/config/ConfigService.js';
 import { AuthService } from './core/auth/AuthService.js';
 import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
@@ -844,6 +847,11 @@ async function main(): Promise<void> {
         },
       };
     },
+    getModuleManifest: (id: string) => {
+      const mod = installedModules.get(id);
+      if (!mod) return null;
+      return mod.manifest;
+    },
     getModuleConfig: (id: string): Record<string, unknown> | null => {
       const mod = installedModules.get(id);
       if (!mod) return null;
@@ -962,6 +970,22 @@ async function main(): Promise<void> {
     playerService,
   });
   console.log('👥 Player management initialized');
+
+  // Register Media Routes (core media library for all modules)
+  const mediaDir = path.join(__dirname, '..', 'media');
+  const mediaService = new MediaService({ mediaPath: mediaDir });
+  await mediaService.init();
+
+  registerMediaRoutes(fastify, server, {
+    mediaService,
+  });
+  console.log('📁 Media library initialized');
+
+  // Register Match Routes (for current match state)
+  registerMatchRoutes(fastify, server, {
+    getCurrentMatch: () => hub?.getCurrentMatchState() ?? null,
+    getLastMatchUpdate: () => hub?.getLastMatchUpdate() ?? null,
+  });
 
   // Register WebSocket Routes
   const wsManager = registerWebSocketRoutes(fastify, server, {

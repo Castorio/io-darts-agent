@@ -36,6 +36,8 @@ interface PlayerAnimations {
 
 interface GameDisplayConfig {
   displayName: string
+  idleMode: 'black' | 'image' | 'lastGame'
+  idleImageUrl: string
   showCheckouts: boolean
   checkoutThreshold: number
   animationSpeed: 'slow' | 'normal' | 'fast'
@@ -69,6 +71,8 @@ const module = computed(() => modulesStore.selectedModule)
 // Configuration state
 const config = ref<GameDisplayConfig>({
   displayName: 'Main Display',
+  idleMode: 'lastGame',
+  idleImageUrl: '',
   showCheckouts: true,
   checkoutThreshold: 170,
   animationSpeed: 'normal',
@@ -101,6 +105,8 @@ watch(
     if (values) {
       config.value = {
         displayName: (values.displayName as string) || 'Main Display',
+        idleMode: (values.idleMode as 'black' | 'image' | 'lastGame') || 'lastGame',
+        idleImageUrl: (values.idleImageUrl as string) || '',
         showCheckouts: values.showCheckouts !== false,
         checkoutThreshold: (values.checkoutThreshold as number) || 170,
         animationSpeed: (values.animationSpeed as 'slow' | 'normal' | 'fast') || 'normal',
@@ -358,6 +364,81 @@ onMounted(() => {
             />
             <p class="text-sm text-dark-400 mt-1">
               Ein Name zur Identifikation dieses Displays (für zukünftige Multi-Display-Unterstützung)
+            </p>
+          </div>
+
+          <!-- Idle Mode -->
+          <div>
+            <label class="block text-sm font-medium text-dark-200 mb-3">Idle-Modus (wenn kein Spiel aktiv ist)</label>
+            <div class="grid grid-cols-3 gap-3">
+              <button
+                type="button"
+                @click="config.idleMode = 'black'"
+                :class="[
+                  'px-4 py-4 rounded-lg border-2 text-center transition-all',
+                  config.idleMode === 'black'
+                    ? 'border-autodarts-500 bg-autodarts-500/10 text-white'
+                    : 'border-dark-600 text-dark-400 hover:border-dark-500',
+                ]"
+              >
+                <svg class="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+                Schwarzer Bildschirm
+              </button>
+              <button
+                type="button"
+                @click="config.idleMode = 'image'"
+                :class="[
+                  'px-4 py-4 rounded-lg border-2 text-center transition-all',
+                  config.idleMode === 'image'
+                    ? 'border-autodarts-500 bg-autodarts-500/10 text-white'
+                    : 'border-dark-600 text-dark-400 hover:border-dark-500',
+                ]"
+              >
+                <svg class="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Eigenes Bild
+              </button>
+              <button
+                type="button"
+                @click="config.idleMode = 'lastGame'"
+                :class="[
+                  'px-4 py-4 rounded-lg border-2 text-center transition-all',
+                  config.idleMode === 'lastGame'
+                    ? 'border-autodarts-500 bg-autodarts-500/10 text-white'
+                    : 'border-dark-600 text-dark-400 hover:border-dark-500',
+                ]"
+              >
+                <svg class="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Letztes Spiel
+              </button>
+            </div>
+            <p class="text-sm text-dark-400 mt-2">
+              {{
+                config.idleMode === 'black'
+                  ? 'Der Bildschirm wird komplett schwarz, wenn kein Spiel läuft.'
+                  : config.idleMode === 'image'
+                  ? 'Ein eigenes Bild wird angezeigt, wenn kein Spiel läuft.'
+                  : 'Der Endstand des letzten Spiels wird angezeigt, bis ein neues Spiel startet.'
+              }}
+            </p>
+          </div>
+
+          <!-- Idle Image URL (only when image mode selected) -->
+          <div v-if="config.idleMode === 'image'" class="pl-4 border-l-2 border-autodarts-500/30">
+            <MediaUpload
+              v-model="config.idleImageUrl"
+              label="Idle-Bild"
+              placeholder="URL eingeben oder Bild hochladen"
+              media-type="image"
+              accept="image/*"
+            />
+            <p class="text-sm text-dark-400 mt-1">
+              Dieses Bild wird angezeigt, wenn kein Spiel aktiv ist.
             </p>
           </div>
 

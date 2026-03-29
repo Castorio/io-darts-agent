@@ -116,6 +116,20 @@ export class AutodartsHub {
   getCurrentMatchId(): string | null {
     return this.socketService.getMatchId();
   }
+
+  /**
+   * Get current match state (if any)
+   */
+  getCurrentMatchState(): import('./types/index.js').MatchStateData | null {
+    return this.socketService.getCurrentMatchState();
+  }
+
+  /**
+   * Get timestamp of last match update
+   */
+  getLastMatchUpdate(): Date | null {
+    return this.socketService.getLastMatchUpdate();
+  }
 }
 
 // Export all components for module use

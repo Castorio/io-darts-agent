@@ -171,6 +171,20 @@ export class SocketService {
   }
 
   /**
+   * Get current match state
+   */
+  getCurrentMatchState(): import('../../types/index.js').MatchStateData | null {
+    return this.eventParser.getCurrentMatchState();
+  }
+
+  /**
+   * Get timestamp of last match update
+   */
+  getLastMatchUpdate(): Date | null {
+    return this.eventParser.getLastMatchUpdate();
+  }
+
+  /**
    * Set connection state change callback
    */
   onStateChange(callback: (state: ConnectionState) => void): void {

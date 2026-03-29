@@ -1,7 +1,7 @@
 {
   "id": "wled",
   "name": "WLED Lighting Controller",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Controls WLED-based LED strips based on Autodarts game events. Flash colors on throws, show player colors, celebrate 180s, and more!",
   "author": "IO-Darts-Agent Team",
   "repository": "https://github.com/autodarts/autodarts-wled-module",
@@ -20,15 +20,15 @@
   "config": {
     "wledHost": {
       "type": "string",
-      "label": "WLED IP-Adresse",
-      "description": "Die IP-Adresse oder Hostname des WLED Controllers",
+      "label": "WLED IP Address",
+      "description": "The IP address or hostname of the WLED controller",
       "required": true,
       "default": ""
     },
     "wledPort": {
       "type": "number",
       "label": "WLED Port",
-      "description": "HTTP Port des WLED Controllers",
+      "description": "HTTP port of the WLED controller",
       "default": 80,
       "min": 1,
       "max": 65535
@@ -53,5 +53,70 @@
     { "id": 82, "name": "Fireworks" },
     { "id": 83, "name": "Fireworks Starburst" },
     { "id": 84, "name": "Fireworks 1D" }
-  ]
+  ],
+  "i18n": {
+    "en": {
+      "name": "WLED Lighting Controller",
+      "description": "Controls WLED-based LED strips based on Autodarts game events. Flash colors on throws, show player colors, celebrate 180s, and more!",
+      "config": {
+        "wledHost": {
+          "label": "WLED IP Address",
+          "description": "The IP address or hostname of the WLED controller"
+        },
+        "wledPort": {
+          "label": "WLED Port",
+          "description": "HTTP port of the WLED controller"
+        }
+      },
+      "strings": {
+        "connectionSuccess": "Successfully connected to WLED!",
+        "connectionFailed": "Failed to connect to WLED",
+        "testConnection": "Test Connection",
+        "eventActions": "Event Actions",
+        "playerColors": "Player Colors"
+      }
+    },
+    "de": {
+      "name": "WLED Lichtsteuerung",
+      "description": "Steuert WLED-basierte LED-Streifen basierend auf Autodarts-Spielereignissen. Blitze bei Würfen, Spielerfarben, 180er-Feier und mehr!",
+      "config": {
+        "wledHost": {
+          "label": "WLED IP-Adresse",
+          "description": "Die IP-Adresse oder Hostname des WLED Controllers"
+        },
+        "wledPort": {
+          "label": "WLED Port",
+          "description": "HTTP Port des WLED Controllers"
+        }
+      },
+      "strings": {
+        "connectionSuccess": "Erfolgreich mit WLED verbunden!",
+        "connectionFailed": "Verbindung zu WLED fehlgeschlagen",
+        "testConnection": "Verbindung testen",
+        "eventActions": "Ereignis-Aktionen",
+        "playerColors": "Spielerfarben"
+      }
+    },
+    "es": {
+      "name": "Control de Iluminación WLED",
+      "description": "Controla tiras LED basadas en WLED según los eventos del juego Autodarts. Destella colores en los tiros, muestra colores de jugadores, celebra los 180 y más!",
+      "config": {
+        "wledHost": {
+          "label": "Dirección IP de WLED",
+          "description": "La dirección IP o nombre de host del controlador WLED"
+        },
+        "wledPort": {
+          "label": "Puerto WLED",
+          "description": "Puerto HTTP del controlador WLED"
+        }
+      },
+      "strings": {
+        "connectionSuccess": "¡Conectado exitosamente a WLED!",
+        "connectionFailed": "Error al conectar con WLED",
+        "testConnection": "Probar Conexión",
+        "eventActions": "Acciones de Eventos",
+        "playerColors": "Colores de Jugadores"
+      }
+    }
+  }
 }

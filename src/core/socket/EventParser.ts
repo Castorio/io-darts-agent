@@ -14,6 +14,8 @@ export class EventParser {
   private boardId: string;
   private currentMatchId: string | null = null;
   private lastPlayerIndex: number | null = null;
+  private currentMatchState: MatchStateData | null = null;
+  private lastMatchUpdate: Date | null = null;
 
   constructor(boardId: string) {
     this.boardId = boardId;
@@ -33,7 +35,23 @@ export class EventParser {
     this.currentMatchId = matchId;
     if (!matchId) {
       this.lastPlayerIndex = null;
+      this.currentMatchState = null;
+      this.lastMatchUpdate = null;
     }
+  }
+
+  /**
+   * Get the current match state (if any)
+   */
+  getCurrentMatchState(): MatchStateData | null {
+    return this.currentMatchState;
+  }
+
+  /**
+   * Get the timestamp of the last match update
+   */
+  getLastMatchUpdate(): Date | null {
+    return this.lastMatchUpdate;
   }
 
   /**
@@ -199,6 +217,10 @@ export class EventParser {
   ): ParsedEvent | ParsedEvent[] {
     const events: ParsedEvent[] = [];
 
+    // Store the current match state
+    this.currentMatchState = data;
+    this.lastMatchUpdate = timestamp;
+
     // Check for player change
     if (this.lastPlayerIndex !== null && this.lastPlayerIndex !== data.player) {
       events.push({
@@ -244,6 +266,8 @@ export class EventParser {
       });
       this.currentMatchId = null;
       this.lastPlayerIndex = null;
+      this.currentMatchState = null;
+      this.lastMatchUpdate = null;
     }
 
     // Always emit match state event

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useGameDisplayStore } from './stores/gameDisplay'
 import { getCheckoutSuggestion, getDartLabel } from './utils/checkouts'
 import AnimationOverlay from './components/AnimationOverlay.vue'
 
+const { t } = useI18n()
 const store = useGameDisplayStore()
 const isDemo = ref(false)
 
@@ -58,10 +60,10 @@ const checkout = computed(() => {
 
 // Status text
 const statusText = computed(() => {
-  if (!gameState.value.isActive) return 'Warte auf Spiel...'
+  if (!gameState.value.isActive) return t('game.waitingForGame')
 
-  const leg = `Leg ${gameState.value.currentLeg}`
-  const set = gameState.value.setsToWin > 1 ? `Set ${gameState.value.currentSet}` : ''
+  const leg = `${t('score.leg')} ${gameState.value.currentLeg}`
+  const set = gameState.value.setsToWin > 1 ? `${t('score.set')} ${gameState.value.currentSet}` : ''
 
   return [set, leg].filter(Boolean).join(' • ')
 })
@@ -160,7 +162,7 @@ onUnmounted(() => {
         @click="toggleDemo"
         class="absolute top-4 right-4 px-3 py-1.5 rounded-lg bg-white/10 text-white/60 text-sm hover:bg-white/20 transition-colors z-50"
       >
-        {{ isDemo ? 'Demo beenden' : 'Demo starten' }}
+        {{ isDemo ? t('demo.stop') : t('demo.start') }}
       </button>
 
       <!-- Waiting State / Idle Mode -->
@@ -185,7 +187,7 @@ onUnmounted(() => {
         <div v-else-if="config.idleMode === 'lastGame' && hasLastGame && lastGameState" class="text-center">
           <div class="mb-6">
             <span class="px-4 py-2 rounded-full bg-white/10 text-white/60 text-sm uppercase tracking-wider">
-              Letztes Spiel
+              {{ t('game.lastGame') }}
             </span>
           </div>
           <!-- Show last game players and scores -->
@@ -201,7 +203,7 @@ onUnmounted(() => {
                 v-if="lastGameState.winner?.index === player.index"
                 class="mb-2 px-3 py-1 rounded-full bg-yellow-400 text-black text-xs font-bold uppercase"
               >
-                Gewinner
+                {{ t('game.winner') }}
               </div>
               <!-- Color indicator -->
               <div
@@ -214,12 +216,12 @@ onUnmounted(() => {
               <span class="text-5xl font-bold text-white mt-2">{{ player.score }}</span>
               <!-- Legs/Sets -->
               <div class="flex items-center gap-4 mt-3 text-white/50 text-sm">
-                <span>{{ player.legsWon }} Leg{{ player.legsWon !== 1 ? 's' : '' }}</span>
-                <span v-if="lastGameState.setsToWin > 1">{{ player.setsWon }} Set{{ player.setsWon !== 1 ? 's' : '' }}</span>
+                <span>{{ player.legsWon }} {{ player.legsWon !== 1 ? t('score.legs') : t('score.leg') }}</span>
+                <span v-if="lastGameState.setsToWin > 1">{{ player.setsWon }} {{ player.setsWon !== 1 ? t('score.sets') : t('score.set') }}</span>
               </div>
             </div>
           </div>
-          <p class="text-white/30 mt-8">Warte auf nächstes Spiel...</p>
+          <p class="text-white/30 mt-8">{{ t('game.waitingForNextGame') }}</p>
         </div>
 
         <!-- Fallback: Default waiting message -->
@@ -229,8 +231,8 @@ onUnmounted(() => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h2 class="text-2xl font-light text-white/50">Warte auf Spiel...</h2>
-          <p class="text-white/30 mt-2">Das Display aktualisiert sich automatisch</p>
+          <h2 class="text-2xl font-light text-white/50">{{ t('game.waitingForGame') }}</h2>
+          <p class="text-white/30 mt-2">{{ t('game.displayUpdatesAutomatically') }}</p>
         </div>
       </div>
 
@@ -243,24 +245,24 @@ onUnmounted(() => {
             class="text-4xl lg:text-6xl font-bold text-white tracking-tight transition-all duration-300 uppercase"
             :style="{ textShadow: `0 0 60px ${playerColor}40` }"
           >
-            {{ activePlayer?.name || 'Spieler' }}
+            {{ activePlayer?.name || t('player.defaultName') }}
           </h1>
 
           <!-- Status Line -->
           <div class="flex items-center justify-center gap-4 mt-3 text-white/60">
             <span class="text-lg">{{ statusText }}</span>
             <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            <span class="text-lg">Am Zug</span>
+            <span class="text-lg">{{ t('game.atTurn') }}</span>
           </div>
 
           <!-- Legs/Sets Won -->
           <div class="flex items-center justify-center gap-6 mt-4">
             <div v-if="gameState.setsToWin > 1" class="flex items-center gap-2">
-              <span class="text-white/40 text-sm uppercase tracking-wider">Sets</span>
+              <span class="text-white/40 text-sm uppercase tracking-wider">{{ t('score.sets') }}</span>
               <span class="text-xl font-semibold text-white">{{ activePlayer?.setsWon || 0 }}</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-white/40 text-sm uppercase tracking-wider">Legs</span>
+              <span class="text-white/40 text-sm uppercase tracking-wider">{{ t('score.legs') }}</span>
               <span class="text-xl font-semibold text-white">{{ activePlayer?.legsWon || 0 }}</span>
             </div>
           </div>
@@ -294,7 +296,7 @@ onUnmounted(() => {
               v-if="isBusted"
               class="absolute -top-4 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full bg-red-500 text-white font-bold text-xl uppercase tracking-widest animate-bounce"
             >
-              Bust!
+              {{ t('game.bust') }}
             </div>
           </div>
 
@@ -305,7 +307,7 @@ onUnmounted(() => {
             :class="checkout.dartsNeeded <= (3 - currentDarts.length) ? 'border-green-500/50 bg-green-500/10' : 'border-white/10 bg-white/5'"
           >
             <div class="flex items-center gap-4">
-              <span class="text-white/50 text-sm uppercase tracking-wider">Checkout</span>
+              <span class="text-white/50 text-sm uppercase tracking-wider">{{ t('score.checkout') }}</span>
               <div class="flex items-center gap-2">
                 <span
                   v-for="(dart, i) in checkout.path"
@@ -358,7 +360,7 @@ onUnmounted(() => {
           <!-- Turn Score -->
           <div class="text-center mb-8">
             <div class="inline-flex items-center gap-4 px-8 py-3 rounded-full bg-white/5 border border-white/10">
-              <span class="text-white/50 uppercase text-sm tracking-wider">Aufnahme</span>
+              <span class="text-white/50 uppercase text-sm tracking-wider">{{ t('score.turn') }}</span>
               <span
                 class="text-4xl lg:text-5xl font-bold text-white transition-all duration-300"
                 :class="{ 'text-red-400': isBusted }"
@@ -388,7 +390,7 @@ onUnmounted(() => {
               <span class="text-2xl font-bold text-white">{{ player.score }}</span>
               <!-- Legs won -->
               <span class="text-white/40 text-sm">
-                ({{ player.legsWon }} Leg{{ player.legsWon !== 1 ? 's' : '' }})
+                ({{ player.legsWon }} {{ player.legsWon !== 1 ? t('score.legs') : t('score.leg') }})
               </span>
             </div>
           </div>

@@ -1,0 +1,232 @@
+# Developer Quick Start Guide
+
+This guide shows you how to create your own module for IO-Darts-Agent in just a few minutes.
+
+> **Note:** This guide is for **module developers**. If you want to work on the hub itself, see [Developer Guide](developer-guide.md).
+
+## TL;DR - Module in 5 Minutes
+
+```bash
+# 1. Create module folder
+mkdir -p modules/my-module
+
+# 2. Create manifest
+cat > modules/my-module/module.json << 'EOF'
+{
+  "id": "my-module",
+  "name": "My Module",
+  "version": "1.0.0",
+  "description": "My first module",
+  "entry": "internal",
+  "events": ["throw.detected"]
+}
+EOF
+
+# 3. Link to modules_installed
+ln -s ../modules/my-module modules_installed/my-module
+
+# 4. Restart server
+npm run dev
+```
+
+Done! Your module now appears in the web interface under "Modules".
+
+---
+
+## Step-by-Step Guide
+
+### 1. Understand Module Structure
+
+A module consists of at least a `module.json`:
+
+```
+my-module/
+├── module.json      # Required: Module definition
+├── README.md        # Optional: Documentation
+└── web/             # Optional: Custom frontend
+    └── ...
+```
+
+### 2. Create Manifest (module.json)
+
+The manifest defines your module:
+
+```json
+{
+  "id": "my-module",
+  "name": "My Module",
+  "version": "1.0.0",
+  "description": "Description of what the module does",
+  "author": "Your Name",
+  "entry": "internal",
+  "events": [
+    "throw.detected",
+    "player.changed",
+    "match.started"
+  ],
+  "config": {
+    "serverUrl": {
+      "type": "string",
+      "label": "Server URL",
+      "required": true
+    },
+    "enabled": {
+      "type": "boolean",
+      "label": "Enabled",
+      "default": true
+    }
+  }
+}
+```
+
+### 3. Configuration Fields
+
+| Type | Example |
+|------|---------|
+| `string` | Text input |
+| `number` | Number input with min/max |
+| `boolean` | Toggle/Checkbox |
+| `select` | Dropdown with options[] |
+| `color` | Color picker |
+
+```json
+{
+  "config": {
+    "text": { "type": "string", "label": "Text", "default": "Hello" },
+    "port": { "type": "number", "label": "Port", "default": 80, "min": 1, "max": 65535 },
+    "active": { "type": "boolean", "label": "Active", "default": true },
+    "mode": {
+      "type": "select",
+      "label": "Mode",
+      "options": [
+        { "value": "a", "label": "Option A" },
+        { "value": "b", "label": "Option B" }
+      ]
+    },
+    "color": { "type": "color", "label": "Color", "default": "#ff0000" }
+  }
+}
+```
+
+### 4. Receive Events
+
+Your module can react to these events:
+
+| Event | When | Important Data |
+|-------|------|----------------|
+| `match.started` | Game starts | `players`, `mode` |
+| `match.finished` | Game ends | `winner` |
+| `throw.detected` | Throw detected | `segment`, `points`, `remaining` |
+| `player.changed` | Player change | `playerIndex`, `playerName` |
+| `turn.finished` | Turn finished | `darts[]`, `turnScore` |
+| `game.finished` | Leg won | `winner` |
+
+### 5. Custom Frontend (optional)
+
+If your module needs a UI:
+
+```bash
+cd modules/my-module
+mkdir web && cd web
+npm init -y
+npm install vue vite @vitejs/plugin-vue
+```
+
+**vite.config.ts:**
+```typescript
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+export default defineConfig({
+  plugins: [vue()],
+  base: '/module-ui/my-module/',  // Important!
+  build: { outDir: 'dist' }
+})
+```
+
+**WebSocket Connection:**
+```typescript
+const ws = new WebSocket(`ws://${location.host}/api/events`)
+
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data)
+  if (msg.type === 'event') {
+    console.log('Event:', msg.data.type, msg.data)
+  }
+}
+```
+
+### 6. Test Module
+
+```bash
+# Build frontend (if present)
+cd modules/my-module/web && npm run build
+
+# Start server
+cd ../../..
+npm run dev
+```
+
+Open `http://localhost:3000/modules` and check if your module appears.
+
+---
+
+## Example: Webhook Module
+
+A simple module that calls a webhook on every throw:
+
+**modules/webhook/module.json:**
+```json
+{
+  "id": "webhook",
+  "name": "Webhook Notifier",
+  "version": "1.0.0",
+  "description": "Sends events to a webhook",
+  "entry": "internal",
+  "events": ["throw.detected", "match.started", "match.finished"],
+  "config": {
+    "webhookUrl": {
+      "type": "string",
+      "label": "Webhook URL",
+      "description": "The URL to send events to",
+      "required": true
+    },
+    "sendThrows": {
+      "type": "boolean",
+      "label": "Send Throws",
+      "default": true
+    }
+  }
+}
+```
+
+---
+
+## Tips
+
+### Debugging
+
+1. Open `http://localhost:3000/logs` for live events
+2. Browser DevTools for frontend errors
+3. Terminal for backend logs
+
+### Best Practices
+
+- **Error Handling**: Catch all errors so your module doesn't crash
+- **Player Colors**: Use `event.data.color` for player colors
+- **Temporary Effects**: Save previous state and restore it after X ms
+
+### Publishing
+
+1. Create a Git repository
+2. Push your module
+3. Users can install it via: Modules → Install → Git URL
+
+---
+
+## Reference
+
+- [Full API Documentation](api.md)
+- [Detailed SDK Documentation](module-sdk.md)
+- [WLED Module as Example](../modules/wled/)
+- [Game Display as Example with UI](../modules/game-display/)

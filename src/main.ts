@@ -541,23 +541,93 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
   const hubConfig = configService.toHubConfig(config);
   hub = new AutodartsHub(hubConfig);
 
+  // Default player colors for fallback
+  const defaultPlayerColors = [
+    '#3b82f6', // Blue
+    '#ef4444', // Red
+    '#22c55e', // Green
+    '#f59e0b', // Amber
+    '#8b5cf6', // Purple
+    '#ec4899', // Pink
+  ];
+
+  // Function to enrich events with player colors from the local player database
+  async function enrichEventWithPlayerColors(event: ParsedEvent): Promise<ParsedEvent> {
+    // Only enrich match.state and match.start events that have player data
+    if (event.type !== 'match.state' && event.type !== 'match.start') {
+      return event;
+    }
+
+    const data = event.data as Record<string, unknown>;
+    const players = data.players as Array<Record<string, unknown>> | undefined;
+
+    if (!players || !playerService) {
+      return event;
+    }
+
+    // Enrich each player with their color from the local database
+    const enrichedPlayers = await Promise.all(
+      players.map(async (player, index) => {
+        const playerName = player.name as string;
+        if (!playerName) {
+          return {
+            ...player,
+            color: player.color || defaultPlayerColors[index % defaultPlayerColors.length],
+          };
+        }
+
+        try {
+          // Try to match player by name (case-insensitive)
+          const matchedPlayer = await playerService!.matchPlayer(playerName);
+          if (matchedPlayer && matchedPlayer.color) {
+            console.log(`🎨 Matched player "${playerName}" with color ${matchedPlayer.color}`);
+            return {
+              ...player,
+              color: matchedPlayer.color,
+            };
+          }
+        } catch (err) {
+          console.error(`Error matching player color for ${playerName}:`, err);
+        }
+
+        // Fallback to default color
+        return {
+          ...player,
+          color: player.color || defaultPlayerColors[index % defaultPlayerColors.length],
+        };
+      })
+    );
+
+    // Return enriched event
+    return {
+      ...event,
+      data: {
+        ...data,
+        players: enrichedPlayers,
+      },
+    };
+  }
+
   // Setup event forwarding
   const eventBus = hub.getEventBus();
-  eventBus.on('*', (event) => {
+  eventBus.on('*', async (event) => {
     // Log incoming event
     addLog('event', 'autodarts', `Received: ${event.type}`, event.data);
     console.log(`📥 Event: ${event.type}`);
 
+    // Enrich event with player colors
+    const enrichedEvent = await enrichEventWithPlayerColors(event);
+
     // Forward to WebSocket subscribers
     for (const subscriber of eventSubscribers) {
-      subscriber(event);
+      subscriber(enrichedEvent);
     }
 
     // Forward to running modules
     for (const mod of installedModules.values()) {
       if (mod.status === 'running' && mod.eventHandler) {
         addLog('module', mod.id, `Processing event: ${event.type}`);
-        mod.eventHandler(event).catch((err) => {
+        mod.eventHandler(enrichedEvent).catch((err) => {
           addLog('module', mod.id, `Error: ${err instanceof Error ? err.message : String(err)}`);
           console.error(`Module ${mod.id} event handler error:`, err);
         });

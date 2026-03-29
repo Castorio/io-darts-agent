@@ -1,129 +1,131 @@
 # IO-Darts-Agent
 
-Ein modularer Agent für [Autodarts](https://autodarts.io), der Echtzeit-Events verarbeitet und über erweiterbare Module verschiedene Aktionen auslösen kann.
+A modular agent for [Autodarts](https://autodarts.io) that processes real-time events and can trigger various actions through extensible modules.
+
+**[Deutsche Version / German Version](README.de.md)**
 
 ## Features
 
-- **Autodarts Integration** - Verbindet sich mit dem Autodarts WebSocket und empfängt alle Spiel-Events in Echtzeit
-- **Modulares System** - Erweiterbares Plugin-System für verschiedene Aktionen (WLED-Steuerung, Game Display, etc.)
-- **Web-Interface** - Moderne Vue.js-basierte Konfigurationsoberfläche
-- **Spielerverwaltung** - Eigene Spielerprofile mit individuellen Farben für Lichteffekte
-- **Echtzeit-Logs** - Live-Ansicht aller Events und Modul-Aktivitäten
-- **Desktop App** - Native Anwendung für Windows, macOS und Linux
+- **Autodarts Integration** - Connects to the Autodarts WebSocket and receives all game events in real-time
+- **Modular System** - Extensible plugin system for various actions (WLED control, Game Display, etc.)
+- **Web Interface** - Modern Vue.js-based configuration interface
+- **Player Management** - Custom player profiles with individual colors for light effects
+- **Real-time Logs** - Live view of all events and module activities
+- **Desktop App** - Native application for Windows, macOS and Linux
 
 ---
 
 ## Download & Installation
 
-### Fertige Pakete (empfohlen)
+### Pre-built Packages (Recommended)
 
-Lade das passende Paket für dein System herunter:
+Download the appropriate package for your system:
 
-| System | Download | Beschreibung |
-|--------|----------|--------------|
-| **Windows** | [`IO-Darts-Agent Setup.exe`](https://github.com/Castorio/io-darts-agent/releases/latest) | One-Click Installer |
-| **macOS** | [`IO-Darts-Agent.dmg`](https://github.com/Castorio/io-darts-agent/releases/latest) | Disk Image |
-| **Ubuntu/Debian** | [`io-darts-agent.deb`](https://github.com/Castorio/io-darts-agent/releases/latest) | Debian-Paket |
-| **Linux** | [`IO-Darts-Agent.AppImage`](https://github.com/Castorio/io-darts-agent/releases/latest) | Universal Linux |
+| System | Download | Description |
+|--------|----------|-------------|
+| **Windows** | [`IO-Darts-Agent Setup.exe`](https://github.com/user/io-darts-agent/releases/latest) | One-Click Installer |
+| **macOS** | [`IO-Darts-Agent.dmg`](https://github.com/user/io-darts-agent/releases/latest) | Disk Image |
+| **Ubuntu/Debian** | [`io-darts-agent.deb`](https://github.com/user/io-darts-agent/releases/latest) | Debian Package |
+| **Linux** | [`IO-Darts-Agent.AppImage`](https://github.com/user/io-darts-agent/releases/latest) | Universal Linux |
 
-> **Node.js ist NICHT erforderlich!** Die App enthält alles, was benötigt wird.
+> **Node.js is NOT required!** The app contains everything needed.
 
-**Detaillierte Anleitung:** [Installation](docs/installation.md)
+**Detailed Guide:** [Installation](docs/en/installation.md)
 
-### Erster Start
+### First Start
 
-1. Starte die App (findet sich im Start-Menü / Launchpad)
-2. Das Web-Interface öffnet sich automatisch
-3. Folge dem Setup-Wizard:
-   - Gib deine Autodarts-Zugangsdaten ein
-   - Wähle dein Board
-   - Fertig!
-
----
-
-## Module
-
-### Integrierte Module
-
-| Modul | Beschreibung |
-|-------|-------------|
-| **WLED** | Steuert WLED-kompatible LED-Strips bei Triples, 180ern, etc. |
-| **Game Display** | Zeigt Spielstand auf externen Displays/Tablets an |
-
-### Module aus Git installieren
-
-1. Öffne **Module** → **Modul installieren**
-2. Gib die Git-URL ein
-3. Klicke auf **Installieren**
+1. Launch the app (found in Start Menu / Launchpad)
+2. The web interface opens automatically
+3. Follow the setup wizard:
+   - Enter your Autodarts credentials
+   - Select your board
+   - Done!
 
 ---
 
-## Dokumentation
+## Modules
 
-### Für Benutzer
+### Built-in Modules
 
-- [**Installation**](docs/installation.md) - Schritt-für-Schritt Anleitung
-- [**Benutzerhandbuch**](docs/user-guide.md) - Komplette Anleitung mit Screenshots
-- [**Features**](docs/features.md) - Alle Features im Detail
+| Module | Description |
+|--------|-------------|
+| **WLED** | Controls WLED-compatible LED strips on Triples, 180s, etc. |
+| **Game Display** | Shows game score on external displays/tablets |
 
-### Für Entwickler
+### Installing Modules from Git
 
-- [**Developer Guide**](docs/developer-guide.md) - Entwicklungsumgebung & Architektur
-- [**Developer Quick Start**](docs/developer-quickstart.md) - Modul in 5 Minuten erstellen
-- [**Module SDK**](docs/module-sdk.md) - Vollständige Modul-API
-- [**API Referenz**](docs/api.md) - REST API & WebSocket Events
+1. Open **Modules** → **Install Module**
+2. Enter the Git URL
+3. Click **Install**
 
 ---
 
-## Für Entwickler
+## Documentation
 
-### Voraussetzungen
+### For Users
+
+- [**Installation**](docs/en/installation.md) - Step-by-step guide
+- [**User Guide**](docs/en/user-guide.md) - Complete guide with screenshots
+- [**Features**](docs/en/features.md) - All features in detail
+
+### For Developers
+
+- [**Developer Guide**](docs/en/developer-guide.md) - Development environment & architecture
+- [**Developer Quick Start**](docs/en/developer-quickstart.md) - Create a module in 5 minutes
+- [**Module SDK**](docs/en/module-sdk.md) - Complete module API
+- [**API Reference**](docs/en/api.md) - REST API & WebSocket events
+
+---
+
+## For Developers
+
+### Prerequisites
 
 - Node.js 18+
 - npm 9+
 - Git
 
-### Entwicklungsumgebung
+### Development Environment
 
 ```bash
-# Repository klonen
-git clone https://github.com/Castorio/io-darts-agent.git
+# Clone repository
+git clone https://github.com/user/io-darts-agent.git
 cd io-darts-agent
 
-# Dependencies installieren
+# Install dependencies
 npm install
 cd web && npm install && cd ..
 cd modules/game-display/web && npm install && cd ../../..
 
-# Development Server starten
+# Start development server
 npm run dev
 ```
 
 ### Build
 
 ```bash
-# Alles bauen (Backend + Frontend + Module)
+# Build everything (Backend + Frontend + Modules)
 npm run prebuild:dist
 
-# Desktop-App bauen
+# Build desktop app
 npm run dist:mac      # macOS .dmg
 npm run dist:win      # Windows .exe
 npm run dist:linux    # Linux .deb, .AppImage
-npm run dist:all      # Alle Plattformen
+npm run dist:all      # All platforms
 ```
 
-### Release erstellen
+### Create Release
 
 ```bash
-# Version taggen & GitHub Actions triggern
+# Tag version & trigger GitHub Actions
 ./scripts/create-release.sh 1.0.0
 ```
 
-GitHub Actions baut automatisch alle Plattformen und erstellt ein Release.
+GitHub Actions automatically builds all platforms and creates a release.
 
 ---
 
-## Architektur
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -154,42 +156,42 @@ GitHub Actions baut automatisch alle Plattformen und erstellt ein Release.
 
 ## Events
 
-Der Agent verarbeitet folgende Autodarts Events:
+The agent processes the following Autodarts events:
 
-| Event | Beschreibung |
+| Event | Description |
 |-------|-------------|
-| `match.started` | Match wurde gestartet |
-| `match.finished` | Match wurde beendet |
-| `match.deleted` | Match wurde abgebrochen |
-| `throw.detected` | Wurf wurde erkannt |
-| `player.changed` | Spielerwechsel |
-| `turn.started` | Neue Aufnahme gestartet |
-| `turn.finished` | Aufnahme beendet |
-| `game.finished` | Leg/Set gewonnen |
+| `match.started` | Match was started |
+| `match.finished` | Match was finished |
+| `match.deleted` | Match was cancelled |
+| `throw.detected` | Throw was detected |
+| `player.changed` | Player changed |
+| `turn.started` | New turn started |
+| `turn.finished` | Turn finished |
+| `game.finished` | Leg/Set won |
 
 ---
 
-## Lizenz
+## License
 
-MIT License - siehe [LICENSE](LICENSE)
+MIT License - see [LICENSE](LICENSE)
 
 ---
 
-## Beitragen
+## Contributing
 
-Beiträge sind willkommen!
+Contributions are welcome!
 
-- **Bug Reports**: Öffne ein [Issue](https://github.com/Castorio/io-darts-agent/issues)
-- **Feature Requests**: Öffne ein [Issue](https://github.com/Castorio/io-darts-agent/issues)
-- **Pull Requests**: Fork & PR erstellen
+- **Bug Reports**: Open an [Issue](https://github.com/user/io-darts-agent/issues)
+- **Feature Requests**: Open an [Issue](https://github.com/user/io-darts-agent/issues)
+- **Pull Requests**: Fork & create PR
 
 ---
 
 ## Support
 
-- [GitHub Issues](https://github.com/Castorio/io-darts-agent/issues)
-- [Dokumentation](docs/)
+- [GitHub Issues](https://github.com/user/io-darts-agent/issues)
+- [Documentation](docs/)
 
 ---
 
-Ein Projekt von [castor.io](https://castor.io)
+A project by [castor.io](https://castor.io)

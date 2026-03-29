@@ -2,9 +2,15 @@
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
 import { useGameDisplayStore } from './stores/gameDisplay'
 import { getCheckoutSuggestion, getDartLabel } from './utils/checkouts'
+import AnimationOverlay from './components/AnimationOverlay.vue'
 
 const store = useGameDisplayStore()
 const isDemo = ref(false)
+
+// Configuration
+const config = computed(() => store.config)
+const hasLastGame = computed(() => store.hasLastGame)
+const lastGameState = computed(() => store.lastGameState)
 
 // Animation states
 const scoreAnimating = ref(false)
@@ -157,12 +163,67 @@ onUnmounted(() => {
         {{ isDemo ? 'Demo beenden' : 'Demo starten' }}
       </button>
 
-      <!-- Waiting State -->
+      <!-- Waiting State / Idle Mode -->
       <div
         v-if="!gameState.isActive"
         class="flex-1 flex items-center justify-center"
       >
-        <div class="text-center">
+        <!-- Mode: Black Screen -->
+        <div v-if="config.idleMode === 'black'" class="fixed inset-0 bg-black z-50" />
+
+        <!-- Mode: Custom Image -->
+        <div v-else-if="config.idleMode === 'image' && config.idleImageUrl" class="fixed inset-0 z-50">
+          <img
+            :src="config.idleImageUrl"
+            alt="Idle Image"
+            class="w-full h-full object-contain bg-black"
+            @error="(e: Event) => (e.target as HTMLImageElement).style.display = 'none'"
+          />
+        </div>
+
+        <!-- Mode: Last Game State (or fallback waiting message) -->
+        <div v-else-if="config.idleMode === 'lastGame' && hasLastGame && lastGameState" class="text-center">
+          <div class="mb-6">
+            <span class="px-4 py-2 rounded-full bg-white/10 text-white/60 text-sm uppercase tracking-wider">
+              Letztes Spiel
+            </span>
+          </div>
+          <!-- Show last game players and scores -->
+          <div class="flex flex-wrap items-center justify-center gap-6">
+            <div
+              v-for="player in lastGameState.players"
+              :key="player.index"
+              class="flex flex-col items-center px-8 py-6 rounded-2xl bg-white/5 border border-white/10"
+              :class="{ 'ring-2 ring-yellow-400': lastGameState.winner?.index === player.index }"
+            >
+              <!-- Winner badge -->
+              <div
+                v-if="lastGameState.winner?.index === player.index"
+                class="mb-2 px-3 py-1 rounded-full bg-yellow-400 text-black text-xs font-bold uppercase"
+              >
+                Gewinner
+              </div>
+              <!-- Color indicator -->
+              <div
+                class="w-4 h-4 rounded-full mb-3"
+                :style="{ backgroundColor: player.color }"
+              />
+              <!-- Name -->
+              <span class="text-white/80 font-medium text-lg uppercase">{{ player.name }}</span>
+              <!-- Final Score -->
+              <span class="text-5xl font-bold text-white mt-2">{{ player.score }}</span>
+              <!-- Legs/Sets -->
+              <div class="flex items-center gap-4 mt-3 text-white/50 text-sm">
+                <span>{{ player.legsWon }} Leg{{ player.legsWon !== 1 ? 's' : '' }}</span>
+                <span v-if="lastGameState.setsToWin > 1">{{ player.setsWon }} Set{{ player.setsWon !== 1 ? 's' : '' }}</span>
+              </div>
+            </div>
+          </div>
+          <p class="text-white/30 mt-8">Warte auf nächstes Spiel...</p>
+        </div>
+
+        <!-- Fallback: Default waiting message -->
+        <div v-else class="text-center">
           <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-white/5 flex items-center justify-center">
             <svg class="w-12 h-12 text-white/30 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -179,7 +240,7 @@ onUnmounted(() => {
         <header class="text-center mb-6 lg:mb-10">
           <!-- Player Name -->
           <h1
-            class="text-4xl lg:text-6xl font-bold text-white tracking-tight transition-all duration-300"
+            class="text-4xl lg:text-6xl font-bold text-white tracking-tight transition-all duration-300 uppercase"
             :style="{ textShadow: `0 0 60px ${playerColor}40` }"
           >
             {{ activePlayer?.name || 'Spieler' }}
@@ -323,7 +384,7 @@ onUnmounted(() => {
                 :style="{ backgroundColor: player.color }"
               />
               <!-- Name and score -->
-              <span class="text-white/70 font-medium">{{ player.name }}</span>
+              <span class="text-white/70 font-medium uppercase">{{ player.name }}</span>
               <span class="text-2xl font-bold text-white">{{ player.score }}</span>
               <!-- Legs won -->
               <span class="text-white/40 text-sm">
@@ -334,6 +395,9 @@ onUnmounted(() => {
         </div>
       </template>
     </div>
+
+    <!-- Animation Overlay -->
+    <AnimationOverlay />
   </div>
 </template>
 

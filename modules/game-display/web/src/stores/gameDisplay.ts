@@ -1,6 +1,31 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+// Animation event types
+export type AnimationEventType =
+  | '180'
+  | 'bull'
+  | 'doubleBull'
+  | 'highScore' // 140+
+  | 'checkout'
+  | 'legWin'
+  | 'setWin'
+  | 'matchWin'
+  | 'bust'
+
+export interface AnimationConfig {
+  enabled: boolean
+  url: string // URL to GIF, WebM, or MP4
+  duration: number // Display duration in ms (0 = auto for videos)
+  sound?: string // Optional sound URL
+}
+
+export interface PlayerAnimations {
+  playerId?: string // Autodarts user ID or local player ID
+  playerName?: string // Match by name if no ID
+  animations: Partial<Record<AnimationEventType, AnimationConfig>>
+}
+
 // Types
 export interface Player {
   index: number
@@ -12,6 +37,7 @@ export interface Player {
   color: string
   average?: number
   dartsThrown?: number
+  odId?: string // Autodarts user ID for player-specific animations
 }
 
 export interface DartThrow {
@@ -46,6 +72,29 @@ export interface GameState {
   winner: Player | null
 }
 
+export interface DisplayConfig {
+  idleMode: 'black' | 'image' | 'lastGame'
+  idleImageUrl: string
+  showCheckouts: boolean
+  checkoutThreshold: number
+  animationSpeed: 'slow' | 'normal' | 'fast'
+  showOtherPlayers: boolean
+  // Animation settings
+  animationsEnabled: boolean
+  defaultAnimations: Partial<Record<AnimationEventType, AnimationConfig>>
+  playerAnimations: PlayerAnimations[]
+}
+
+// Active animation state
+export interface ActiveAnimation {
+  id: string
+  type: AnimationEventType
+  url: string
+  duration: number
+  sound?: string
+  startTime: number
+}
+
 export const useGameDisplayStore = defineStore('gameDisplay', () => {
   // State
   const gameState = ref<GameState>({
@@ -73,6 +122,28 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   const wsConnection = ref<WebSocket | null>(null)
   const isConnected = ref(false)
 
+  // Configuration
+  const config = ref<DisplayConfig>({
+    idleMode: 'lastGame',
+    idleImageUrl: '',
+    showCheckouts: true,
+    checkoutThreshold: 170,
+    animationSpeed: 'normal',
+    showOtherPlayers: true,
+    // Animation defaults
+    animationsEnabled: true,
+    defaultAnimations: {},
+    playerAnimations: [],
+  })
+
+  // Active animation queue
+  const activeAnimation = ref<ActiveAnimation | null>(null)
+  const animationQueue = ref<ActiveAnimation[]>([])
+
+  // Track if we have a "last game" to show
+  const hasLastGame = ref(false)
+  const lastGameState = ref<GameState | null>(null)
+
   // Computed
   const activePlayer = computed(() => {
     return gameState.value.players[gameState.value.activePlayerIndex] || null
@@ -91,8 +162,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   })
 
   const remainingScore = computed(() => {
-    if (!activePlayer.value) return 0
-    return activePlayer.value.score - gameState.value.currentTurn.turnScore
+    // Use the remaining score from currentTurn (comes from server)
+    return gameState.value.currentTurn.remaining
   })
 
   const isBusted = computed(() => {
@@ -110,6 +181,42 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   ]
 
   // Actions
+  async function fetchConfig() {
+    try {
+      const response = await fetch('/api/modules/game-display/config')
+      const data = await response.json()
+      console.log('Fetched config:', data)
+      if (data) {
+        config.value = {
+          idleMode: data.idleMode || 'lastGame',
+          idleImageUrl: data.idleImageUrl || '',
+          showCheckouts: data.showCheckouts !== false,
+          checkoutThreshold: data.checkoutThreshold || 170,
+          animationSpeed: data.animationSpeed || 'normal',
+          showOtherPlayers: data.showOtherPlayers !== false,
+          animationsEnabled: data.animationsEnabled !== false,
+          defaultAnimations: data.defaultAnimations || {},
+          playerAnimations: data.playerAnimations || [],
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch config:', e)
+    }
+  }
+
+  async function fetchCurrentMatch() {
+    try {
+      const response = await fetch('/api/match/current')
+      const data = await response.json()
+      console.log('Fetched current match:', data)
+      if (data.active) {
+        handleMatchState(data)
+      }
+    } catch (e) {
+      console.error('Failed to fetch current match:', e)
+    }
+  }
+
   function connect() {
     if (wsConnection.value?.readyState === WebSocket.OPEN) return
 
@@ -120,9 +227,14 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     wsConnection.value = new WebSocket(wsUrl)
 
-    wsConnection.value.onopen = () => {
+    wsConnection.value.onopen = async () => {
       console.log('Game Display WebSocket connected')
       isConnected.value = true
+      // Load configuration and current match in parallel
+      await Promise.all([
+        fetchConfig(),
+        fetchCurrentMatch()
+      ])
     }
 
     wsConnection.value.onclose = () => {
@@ -204,7 +316,6 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     gameState.value.matchId = data.matchId as string
     gameState.value.isActive = true
-    gameState.value.winner = null
 
     // Parse game settings
     const settings = data.settings as Record<string, unknown> | undefined
@@ -242,50 +353,127 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     // Current turn score
     const turnScore = (data.turnScore as number) || 0
+    const turnBusted = (data.turnBusted as boolean) || false
 
-    // Reset current turn
+    // Extract throws from the current turn in the turns array
+    // The last turn in the array is the current active turn
+    const turns = data.turns as Array<Record<string, unknown>> | undefined
+    let currentTurnDarts: DartThrow[] = []
+
+    if (turns && turns.length > 0) {
+      // Simply get the last turn - it's the current active one
+      const activeTurn = turns[turns.length - 1]
+
+      if (activeTurn) {
+        const throwsData = activeTurn.throws as Array<Record<string, unknown>> | undefined
+        if (throwsData && throwsData.length > 0) {
+          currentTurnDarts = throwsData.map((t, index) => {
+            const segment = t.segment as Record<string, unknown>
+            const number = (segment?.number as number) || 0
+            const multiplier = (segment?.multiplier as number) || 1
+            // Use 'name' field for display (e.g. "S1", "T20", "D16")
+            // 'bed' contains description like "Single", "Double", "Triple"
+            const name = (segment?.name as string) || ''
+            return {
+              segment: {
+                number,
+                multiplier,
+                bed: name, // Store name in bed field for getDartLabel()
+              },
+              points: number * multiplier,
+              index,
+            }
+          })
+        }
+      }
+    }
+
+    // gameScores contains the current remaining score for each player
+    // This is already the score AFTER the current turn's throws are subtracted
+    // (Autodarts updates gameScores in real-time with each throw)
+    const playerRemainingScore = gameScores?.[gameState.value.activePlayerIndex] ?? gameState.value.startScore
+
     gameState.value.currentTurn = {
-      darts: [],
+      darts: currentTurnDarts,
       turnScore: turnScore,
-      remaining: (gameScores?.[gameState.value.activePlayerIndex] ?? gameState.value.startScore) - turnScore,
-      isBusted: false,
+      remaining: playerRemainingScore,
+      isBusted: turnBusted,
     }
 
     // Check checkout possibility
     updateCheckoutStatus()
+
+    // Check if this leg/game is finished
+    const finished = data.finished as boolean | undefined
+    const winnerIndex = data.winner as number | undefined
+
+    if (finished && winnerIndex !== undefined) {
+      // Leg/Game finished - set winner
+      const winner = gameState.value.players[winnerIndex]
+      if (winner) {
+        gameState.value.winner = winner
+      }
+    } else {
+      // Game continues or new leg started - clear winner
+      gameState.value.winner = null
+    }
   }
 
   function handleThrow(data: Record<string, unknown>) {
+    // throw.detected events only have segment info, no scores
+    // The next match.state event will have the complete data including scores
+    // We just add the dart visually here for immediate feedback
     const segment = data.segment as Record<string, unknown> | undefined
-    const points = (data.points as number) || 0
-    const turnPoints = (data.turnPoints as number) || 0
-    const busted = data.busted as boolean || false
     const dartIndex = gameState.value.currentTurn.darts.length
 
     if (dartIndex < 3 && segment) {
+      const number = (segment.number as number) || 0
+      const multiplier = (segment.multiplier as number) || 1
+      const calculatedPoints = number * multiplier
+      // Use 'name' field for display (e.g. "S1", "T20", "D16")
+      const name = (segment.name as string) || ''
+
       const dart: DartThrow = {
         segment: {
-          number: (segment.number as number) || 0,
-          multiplier: (segment.multiplier as number) || 1,
-          bed: (segment.bed as string) || '',
+          number,
+          multiplier,
+          bed: name, // Store name in bed field for getDartLabel()
         },
-        points,
+        points: calculatedPoints,
         index: dartIndex,
       }
 
       gameState.value.currentTurn.darts.push(dart)
+
+      // Update turn score for immediate visual feedback
+      // The next match.state will provide the authoritative values
+      const newTurnScore = gameState.value.currentTurn.darts.reduce((sum, d) => sum + d.points, 0)
+      gameState.value.currentTurn.turnScore = newTurnScore
+
+      // Check for special throws - trigger animations
+      const player = activePlayer.value
+      if (number === 25 && multiplier === 1) {
+        triggerAnimation('bull', player || undefined)
+      } else if (number === 25 && multiplier === 2) {
+        triggerAnimation('doubleBull', player || undefined)
+      }
+
+      // Check for 180 (after 3 darts, all T20)
+      if (newTurnScore === 180 && gameState.value.currentTurn.darts.length === 3) {
+        triggerAnimation('180', player || undefined)
+      }
+
+      // Check for high score (140+)
+      if (newTurnScore >= 140 && newTurnScore < 180 && gameState.value.currentTurn.darts.length === 3) {
+        triggerAnimation('highScore', player || undefined)
+      }
+
+      // Subtract the thrown points from the CURRENT remaining score
+      // (not from activePlayer.score, which already reflects the server state)
+      gameState.value.currentTurn.remaining -= calculatedPoints
+
+      updateCheckoutStatus()
     }
-
-    gameState.value.currentTurn.turnScore = turnPoints
-    gameState.value.currentTurn.isBusted = busted
-
-    // Update remaining score
-    const activePlayer = gameState.value.players[gameState.value.activePlayerIndex]
-    if (activePlayer) {
-      gameState.value.currentTurn.remaining = activePlayer.score - turnPoints
-    }
-
-    updateCheckoutStatus()
   }
 
   function handlePlayerChange(data: Record<string, unknown>) {
@@ -328,6 +516,19 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     const playerIndex = (data.playerIndex as number) || gameState.value.activePlayerIndex
     const newScore = data.remaining as number | undefined
 
+    // Check for bust
+    const busted = data.busted as boolean | undefined
+    if (busted) {
+      const player = gameState.value.players[playerIndex]
+      triggerAnimation('bust', player || undefined)
+    }
+
+    // Check for checkout (remaining = 0 and finished with double)
+    if (newScore === 0) {
+      const player = gameState.value.players[playerIndex]
+      triggerAnimation('checkout', player || undefined)
+    }
+
     if (newScore !== undefined && gameState.value.players[playerIndex]) {
       gameState.value.players[playerIndex].score = newScore
     }
@@ -342,6 +543,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     if (winner) {
       winner.legsWon++
       gameState.value.winner = winner
+      // Trigger leg win animation
+      triggerAnimation('legWin', winner)
     }
 
     // Update leg count from data if available
@@ -360,6 +563,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     if (winner) {
       gameState.value.winner = winner
+      // Trigger match win animation
+      triggerAnimation('matchWin', winner)
     }
 
     gameState.value.isActive = false
@@ -374,7 +579,90 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       remaining <= 170
   }
 
+  // Animation functions
+  function getAnimationForEvent(
+    eventType: AnimationEventType,
+    player?: Player
+  ): AnimationConfig | null {
+    if (!config.value.animationsEnabled) return null
+
+    // First check player-specific animations
+    if (player) {
+      const playerAnim = config.value.playerAnimations.find(
+        (pa) =>
+          (pa.playerId && pa.playerId === player.odId) ||
+          (pa.playerName && pa.playerName.toLowerCase() === player.name.toLowerCase())
+      )
+      if (playerAnim?.animations[eventType]?.enabled) {
+        return playerAnim.animations[eventType]!
+      }
+    }
+
+    // Fall back to default animations
+    const defaultAnim = config.value.defaultAnimations[eventType]
+    if (defaultAnim?.enabled) {
+      return defaultAnim
+    }
+
+    return null
+  }
+
+  function triggerAnimation(eventType: AnimationEventType, player?: Player) {
+    const animConfig = getAnimationForEvent(eventType, player)
+    if (!animConfig) return
+
+    const animation: ActiveAnimation = {
+      id: `${eventType}-${Date.now()}`,
+      type: eventType,
+      url: animConfig.url,
+      duration: animConfig.duration || 3000,
+      sound: animConfig.sound,
+      startTime: Date.now(),
+    }
+
+    // Add to queue
+    animationQueue.value.push(animation)
+
+    // If no animation is playing, start this one
+    if (!activeAnimation.value) {
+      playNextAnimation()
+    }
+  }
+
+  function playNextAnimation() {
+    if (animationQueue.value.length === 0) {
+      activeAnimation.value = null
+      return
+    }
+
+    const next = animationQueue.value.shift()!
+    activeAnimation.value = next
+
+    // Auto-dismiss after duration
+    setTimeout(() => {
+      if (activeAnimation.value?.id === next.id) {
+        playNextAnimation()
+      }
+    }, next.duration)
+  }
+
+  function dismissAnimation() {
+    activeAnimation.value = null
+    playNextAnimation()
+  }
+
+  function clearAnimationQueue() {
+    animationQueue.value = []
+    activeAnimation.value = null
+  }
+
   function resetGame() {
+    // Save last game state before resetting (if there was an active game)
+    if (gameState.value.isActive || gameState.value.players.length > 0) {
+      lastGameState.value = JSON.parse(JSON.stringify(gameState.value))
+      hasLastGame.value = true
+    }
+
     gameState.value = {
       matchId: null,
       isActive: false,
@@ -453,6 +741,11 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // State
     gameState,
     isConnected,
+    config,
+    hasLastGame,
+    lastGameState,
+    activeAnimation,
+    animationQueue,
     // Computed
     activePlayer,
     otherPlayers,
@@ -463,8 +756,15 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // Actions
     connect,
     disconnect,
+    fetchConfig,
+    fetchCurrentMatch,
     handleEvent,
     resetGame,
     startDemo,
+    // Animation actions
+    triggerAnimation,
+    dismissAnimation,
+    clearAnimationQueue,
+    getAnimationForEvent,
   }
 })

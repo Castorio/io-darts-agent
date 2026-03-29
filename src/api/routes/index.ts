@@ -6,3 +6,5 @@ export { registerSettingsRoutes, type SettingsDependencies } from './settings.js
 export { registerWebSocketRoutes, WebSocketManager, type WebSocketDependencies } from './websocket.js';
 export { registerPlayerRoutes, type PlayerDependencies } from './players.js';
 export { registerI18nRoutes, type I18nDependencies } from './i18n.js';
+export { registerMatchRoutes, type MatchDependencies, type CurrentMatchResponse, type MatchPlayerInfo } from './match.js';
+export { registerMediaRoutes, type MediaDependencies, type MediaListResponse, type UploadResponse } from './media.js';

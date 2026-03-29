@@ -18,6 +18,10 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
+      '/module-ui': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
     },
   },
   build: {

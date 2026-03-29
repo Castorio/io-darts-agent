@@ -2,13 +2,27 @@ import { createI18n } from 'vue-i18n'
 import de from './locales/de'
 import en from './locales/en'
 import es from './locales/es'
+import fr from './locales/fr'
+import it from './locales/it'
+import ja from './locales/ja'
+import nl from './locales/nl'
+import ru from './locales/ru'
+import uk from './locales/uk'
+import zh from './locales/zh'
 
-export type SupportedLocale = 'de' | 'en' | 'es'
+export type SupportedLocale = 'de' | 'en' | 'es' | 'fr' | 'it' | 'ja' | 'nl' | 'ru' | 'uk' | 'zh'
 
 export const SUPPORTED_LOCALES: { code: SupportedLocale; name: string; flag: string }[] = [
   { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
   { code: 'en', name: 'English', flag: '🇬🇧' },
   { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+  { code: 'it', name: 'Italiano', flag: '🇮🇹' },
+  { code: 'ja', name: '日本語', flag: '🇯🇵' },
+  { code: 'nl', name: 'Nederlands', flag: '🇳🇱' },
+  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
+  { code: 'uk', name: 'Українська', flag: '🇺🇦' },
+  { code: 'zh', name: '中文', flag: '🇨🇳' },
 ]
 
 // Get saved locale from localStorage or detect from browser
@@ -37,6 +51,13 @@ const i18n = createI18n({
     de,
     en,
     es,
+    fr,
+    it,
+    ja,
+    nl,
+    ru,
+    uk,
+    zh,
   },
 })
 

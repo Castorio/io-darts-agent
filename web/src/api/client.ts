@@ -376,6 +376,61 @@ export const api = {
       }>
     >('/logs')
   },
+
+  // Media upload - uses the existing media service API
+  // mediaType: 'animation' | 'sound' | 'image'
+  async uploadMedia(file: File, mediaType: 'animation' | 'sound' | 'image' = 'animation') {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${API_BASE}/media/${mediaType}/upload`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new APIError(
+        response.status,
+        data.message || data.error || 'Upload failed'
+      )
+    }
+
+    // Transform response to include URL
+    const fileInfo = data.file as { name: string; url: string; size: number; mimeType: string } | undefined
+    return {
+      success: data.success as boolean,
+      url: fileInfo?.url || `/api/media/files/${mediaType}/${fileInfo?.name || ''}`,
+      filename: fileInfo?.name || '',
+      error: data.error as string | undefined,
+    }
+  },
+
+  async listMedia(mediaType: 'animation' | 'sound' | 'image' = 'animation') {
+    const result = await request<{
+      files: Array<{ name: string; url: string; size: number; mimeType: string }>
+      total: number
+    }>(`/media/${mediaType}`)
+
+    return {
+      success: true,
+      files: result.files.map((f) => ({
+        name: f.name,
+        url: f.url || `/api/media/files/${mediaType}/${f.name}`,
+        size: f.size,
+        type: f.mimeType,
+      })),
+    }
+  },
+
+  async deleteMedia(mediaType: 'animation' | 'sound' | 'image', filename: string) {
+    return request<{ success: boolean; error?: string }>(
+      `/media/${mediaType}/${filename}`,
+      { method: 'DELETE' }
+    )
+  },
 }
 
 export { APIError }

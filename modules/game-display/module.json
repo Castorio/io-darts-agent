@@ -1,7 +1,7 @@
 {
   "id": "game-display",
   "name": "Game Display",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Zeigt den aktuellen Spielstand auf einem separaten Display an. Perfekt für große Bildschirme neben dem Dartboard.",
   "author": "IO-Darts-Agent Team",
   "entry": "internal",
@@ -21,6 +21,23 @@
       "label": "Display Name",
       "description": "Name dieses Displays (für mehrere Displays)",
       "default": "Main Display"
+    },
+    "idleMode": {
+      "type": "select",
+      "label": "Idle-Modus",
+      "description": "Was angezeigt wird, wenn kein Spiel aktiv ist",
+      "default": "lastGame",
+      "options": [
+        { "value": "black", "label": "Schwarzer Bildschirm" },
+        { "value": "image", "label": "Eigenes Bild" },
+        { "value": "lastGame", "label": "Letzten Spielstand anzeigen" }
+      ]
+    },
+    "idleImageUrl": {
+      "type": "string",
+      "label": "Idle-Bild URL",
+      "description": "URL zum Bild, das im Idle-Modus angezeigt wird (nur bei 'Eigenes Bild')",
+      "default": ""
     },
     "showCheckouts": {
       "type": "boolean",
@@ -52,6 +69,492 @@
       "label": "Andere Spieler anzeigen",
       "description": "Zeigt die anderen Spieler am unteren Rand",
       "default": true
+    },
+    "animations": {
+      "type": "group",
+      "label": "Animationen",
+      "description": "Konfiguriere Animationen für besondere Ereignisse",
+      "fields": {
+        "enabled": {
+          "type": "boolean",
+          "label": "Animationen aktivieren",
+          "description": "Globaler Schalter für alle Event-Animationen",
+          "default": true
+        },
+        "duration": {
+          "type": "number",
+          "label": "Animationsdauer (ms)",
+          "description": "Standard-Anzeigedauer für Animationen",
+          "default": 3000,
+          "min": 500,
+          "max": 10000
+        },
+        "throw180": {
+          "type": "object",
+          "label": "180 Animation",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "description": "URL zu GIF oder Video (nur bei GIF/Video Typ)",
+              "default": ""
+            },
+            "sound": {
+              "type": "boolean",
+              "label": "Sound abspielen",
+              "default": true
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "description": "URL zur Sound-Datei (MP3, WAV)",
+              "default": ""
+            },
+            "duration": {
+              "type": "number",
+              "label": "Dauer (ms)",
+              "default": 4000,
+              "min": 1000,
+              "max": 10000
+            }
+          }
+        },
+        "bull": {
+          "type": "object",
+          "label": "Bull Animation",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "default": ""
+            },
+            "sound": {
+              "type": "boolean",
+              "label": "Sound abspielen",
+              "default": true
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "default": ""
+            },
+            "duration": {
+              "type": "number",
+              "label": "Dauer (ms)",
+              "default": 2000,
+              "min": 500,
+              "max": 5000
+            }
+          }
+        },
+        "doubleBull": {
+          "type": "object",
+          "label": "Double Bull Animation",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "default": ""
+            },
+            "sound": {
+              "type": "boolean",
+              "label": "Sound abspielen",
+              "default": true
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "default": ""
+            },
+            "duration": {
+              "type": "number",
+              "label": "Dauer (ms)",
+              "default": 2500,
+              "min": 500,
+              "max": 5000
+            }
+          }
+        },
+        "legWin": {
+          "type": "object",
+          "label": "Leg-Gewinn Animation",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "default": ""
+            },
+            "sound": {
+              "type": "boolean",
+              "label": "Sound abspielen",
+              "default": true
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "default": ""
+            },
+            "duration": {
+              "type": "number",
+              "label": "Dauer (ms)",
+              "default": 3000,
+              "min": 1000,
+              "max": 8000
+            }
+          }
+        },
+        "matchWin": {
+          "type": "object",
+          "label": "Match-Gewinn Animation",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "default": ""
+            },
+            "sound": {
+              "type": "boolean",
+              "label": "Sound abspielen",
+              "default": true
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "default": ""
+            },
+            "duration": {
+              "type": "number",
+              "label": "Dauer (ms)",
+              "default": 5000,
+              "min": 2000,
+              "max": 15000
+            }
+          }
+        },
+        "highScore": {
+          "type": "object",
+          "label": "High Score Animation (140+)",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "threshold": {
+              "type": "number",
+              "label": "Ab Punktzahl",
+              "default": 140,
+              "min": 100,
+              "max": 179
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "default": ""
+            },
+            "sound": {
+              "type": "boolean",
+              "label": "Sound abspielen",
+              "default": false
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "default": ""
+            },
+            "duration": {
+              "type": "number",
+              "label": "Dauer (ms)",
+              "default": 2000,
+              "min": 500,
+              "max": 5000
+            }
+          }
+        },
+        "checkout": {
+          "type": "object",
+          "label": "Checkout Animation",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "default": ""
+            },
+            "sound": {
+              "type": "boolean",
+              "label": "Sound abspielen",
+              "default": true
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "default": ""
+            },
+            "duration": {
+              "type": "number",
+              "label": "Dauer (ms)",
+              "default": 2500,
+              "min": 1000,
+              "max": 5000
+            }
+          }
+        },
+        "bust": {
+          "type": "object",
+          "label": "Bust Animation",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "default": ""
+            },
+            "sound": {
+              "type": "boolean",
+              "label": "Sound abspielen",
+              "default": false
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "default": ""
+            },
+            "duration": {
+              "type": "number",
+              "label": "Dauer (ms)",
+              "default": 1500,
+              "min": 500,
+              "max": 3000
+            }
+          }
+        }
+      }
+    },
+    "playerAnimations": {
+      "type": "array",
+      "label": "Spieler-spezifische Animationen",
+      "description": "Individuelle Animationen pro Spieler (überschreibt globale Einstellungen)",
+      "itemType": "object",
+      "itemFields": {
+        "playerId": {
+          "type": "string",
+          "label": "Spieler-ID",
+          "description": "ID des lokalen Spielers"
+        },
+        "playerName": {
+          "type": "string",
+          "label": "Spieler-Name",
+          "description": "Name zur einfacheren Identifikation"
+        },
+        "throw180": {
+          "type": "object",
+          "label": "180 Animation",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "default": ""
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "default": ""
+            }
+          }
+        },
+        "legWin": {
+          "type": "object",
+          "label": "Leg-Gewinn Animation",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "default": ""
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "default": ""
+            }
+          }
+        },
+        "matchWin": {
+          "type": "object",
+          "label": "Match-Gewinn Animation",
+          "fields": {
+            "enabled": {
+              "type": "boolean",
+              "label": "Aktiviert",
+              "default": true
+            },
+            "type": {
+              "type": "select",
+              "label": "Animationstyp",
+              "default": "builtin",
+              "options": [
+                { "value": "builtin", "label": "Eingebaut" },
+                { "value": "gif", "label": "GIF" },
+                { "value": "video", "label": "Video" }
+              ]
+            },
+            "url": {
+              "type": "string",
+              "label": "Medien-URL",
+              "default": ""
+            },
+            "soundUrl": {
+              "type": "string",
+              "label": "Sound-URL",
+              "default": ""
+            }
+          }
+        }
+      },
+      "default": []
     }
   }
 }

@@ -52,7 +52,7 @@ async function handleSave(data: CreatePlayerRequest | UpdatePlayerRequest) {
   } catch (e) {
     message.value = {
       type: 'error',
-      text: e instanceof Error ? e.message : 'Fehler beim Speichern',
+      text: e instanceof Error ? e.message : t('players.saveError'),
     }
   } finally {
     isSaving.value = false
@@ -65,7 +65,7 @@ async function handleDelete(id: string) {
 
   try {
     await playersStore.deletePlayer(id)
-    message.value = { type: 'success', text: 'Spieler gelöscht' }
+    message.value = { type: 'success', text: t('players.playerDeleted') }
     closeModal()
     setTimeout(() => {
       message.value = null
@@ -226,8 +226,8 @@ onMounted(() => {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
               </svg>
             </div>
-            <h4 class="text-white font-medium">Individuelle Farben</h4>
-            <p class="text-sm text-dark-400 mt-1">Jeder Spieler kann seine eigene LED-Farbe haben</p>
+            <h4 class="text-white font-medium">{{ t('players.infoIndividualColors') }}</h4>
+            <p class="text-sm text-dark-400 mt-1">{{ t('players.infoIndividualColorsDesc') }}</p>
           </div>
           <div class="p-4 rounded-lg bg-dark-700/50">
             <div class="w-10 h-10 rounded-lg bg-blue-600/20 flex items-center justify-center mb-3">
@@ -235,8 +235,8 @@ onMounted(() => {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
             </div>
-            <h4 class="text-white font-medium">Persönliche Effekte</h4>
-            <p class="text-sm text-dark-400 mt-1">Unterschiedliche Lichteffekte pro Spieler möglich</p>
+            <h4 class="text-white font-medium">{{ t('players.infoPersonalEffects') }}</h4>
+            <p class="text-sm text-dark-400 mt-1">{{ t('players.infoPersonalEffectsDesc') }}</p>
           </div>
           <div class="p-4 rounded-lg bg-dark-700/50">
             <div class="w-10 h-10 rounded-lg bg-purple-600/20 flex items-center justify-center mb-3">
@@ -244,8 +244,8 @@ onMounted(() => {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
             </div>
-            <h4 class="text-white font-medium">Auto-Erkennung</h4>
-            <p class="text-sm text-dark-400 mt-1">Automatische Zuordnung über Autodarts-Account</p>
+            <h4 class="text-white font-medium">{{ t('players.infoAutoDetection') }}</h4>
+            <p class="text-sm text-dark-400 mt-1">{{ t('players.infoAutoDetectionDesc') }}</p>
           </div>
         </div>
       </BaseCard>

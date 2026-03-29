@@ -1,0 +1,407 @@
+# IO-Darts-Agent - Module SDK
+
+This documentation describes how to develop custom modules for IO-Darts-Agent.
+
+## Overview
+
+Modules are standalone extensions that can react to Autodarts events and perform various actions. Each module consists of:
+
+1. **Manifest** (`module.json`) - Metadata and configuration schema
+2. **Event Handler** - Code that reacts to events (optional, for internal modules)
+3. **Web UI** - Custom user interface (optional)
+
+## Module Structure
+
+```
+my-module/
+├── module.json          # Manifest (required)
+├── README.md            # Documentation
+├── web/                 # Frontend (optional)
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── src/
+│       ├── main.ts
+│       ├── App.vue
+│       └── ...
+└── dist/                # Build output of frontend
+```
+
+## Manifest (module.json)
+
+The manifest defines all metadata and configuration for your module:
+
+```json
+{
+  "id": "my-module",
+  "name": "My Awesome Module",
+  "version": "1.0.0",
+  "description": "Description of the module",
+  "author": "Your Name",
+  "entry": "internal",
+  "events": [
+    "throw.detected",
+    "player.change",
+    "match.started",
+    "match.finished"
+  ],
+  "config": {
+    "hostAddress": {
+      "type": "string",
+      "label": "Server Address",
+      "description": "IP address or hostname of the server",
+      "required": true,
+      "default": "192.168.1.100"
+    },
+    "port": {
+      "type": "number",
+      "label": "Port",
+      "default": 80,
+      "min": 1,
+      "max": 65535
+    },
+    "enabled": {
+      "type": "boolean",
+      "label": "Enabled",
+      "default": true
+    },
+    "mode": {
+      "type": "select",
+      "label": "Mode",
+      "default": "normal",
+      "options": [
+        { "value": "normal", "label": "Normal" },
+        { "value": "advanced", "label": "Advanced" }
+      ]
+    }
+  }
+}
+```
+
+### Manifest Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Unique module ID (kebab-case) |
+| `name` | string | Yes | Display name |
+| `version` | string | Yes | Semantic Version (x.y.z) |
+| `description` | string | No | Short description |
+| `author` | string | No | Author/Developer |
+| `entry` | string | Yes | "internal" for hub modules |
+| `events` | string[] | No | Events to react to |
+| `config` | object | No | Configuration schema |
+
+### Configuration Field Types
+
+#### string
+```json
+{
+  "type": "string",
+  "label": "Name",
+  "description": "Help text",
+  "required": true,
+  "default": "Default value"
+}
+```
+
+#### number
+```json
+{
+  "type": "number",
+  "label": "Port",
+  "default": 80,
+  "min": 1,
+  "max": 65535
+}
+```
+
+#### boolean
+```json
+{
+  "type": "boolean",
+  "label": "Enabled",
+  "default": true
+}
+```
+
+#### select
+```json
+{
+  "type": "select",
+  "label": "Mode",
+  "default": "normal",
+  "options": [
+    { "value": "normal", "label": "Normal" },
+    { "value": "fast", "label": "Fast" }
+  ]
+}
+```
+
+#### color
+```json
+{
+  "type": "color",
+  "label": "Color",
+  "default": "#3b82f6"
+}
+```
+
+## Events
+
+Modules can react to the following Autodarts events:
+
+### Match Events
+
+| Event | Description | Important Data |
+|-------|-------------|----------------|
+| `match.started` | Match started | `players`, `mode`, `startScore` |
+| `match.finished` | Match finished | `winner`, `finalScores` |
+| `match.deleted` | Match cancelled | `matchId` |
+| `match.state` | Match status update | Complete match state |
+
+### Throw Events
+
+| Event | Description | Important Data |
+|-------|-------------|----------------|
+| `throw.detected` | Throw detected | `segment`, `points`, `remaining` |
+| `throw.180` | 180 thrown | - |
+| `throw.triple` | Triple hit | `segment` |
+| `throw.double` | Double hit | `segment` |
+| `throw.bullseye` | Bullseye (D25) | - |
+| `throw.bull` | Single Bull (S25) | - |
+| `throw.miss` | Miss (0 points) | - |
+| `throw.bust` | Busted | - |
+
+### Player Events
+
+| Event | Description | Important Data |
+|-------|-------------|----------------|
+| `player.changed` | Player change | `playerIndex`, `playerName`, `color` |
+| `turn.started` | Turn started | `playerIndex` |
+| `turn.finished` | Turn finished | `darts`, `turnScore` |
+
+### Game Events
+
+| Event | Description | Important Data |
+|-------|-------------|----------------|
+| `game.finished` | Leg/Set won | `winner`, `checkoutPath` |
+| `takeout.started` | Dart removal | - |
+| `takeout.finished` | Dart removal done | - |
+
+## Frontend Development
+
+Modules can include their own frontend, served at `/module-ui/<module-id>/`.
+
+### Setup
+
+```bash
+cd modules/my-module/web
+npm init -y
+npm install vue vite @vitejs/plugin-vue
+```
+
+### vite.config.ts
+
+```typescript
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+export default defineConfig({
+  plugins: [vue()],
+  base: '/module-ui/my-module/',
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        ws: true,
+      },
+    },
+  },
+})
+```
+
+### WebSocket Connection
+
+Modules can connect to the hub WebSocket:
+
+```typescript
+const ws = new WebSocket(`ws://${window.location.host}/api/events`)
+
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data)
+
+  switch (message.type) {
+    case 'status':
+      // Connection status
+      break
+    case 'event':
+      // Autodarts event
+      handleEvent(message.data)
+      break
+    case 'log':
+      // Log entry
+      break
+  }
+}
+
+function handleEvent(event) {
+  switch (event.type) {
+    case 'throw.detected':
+      // Process throw
+      break
+    case 'player.changed':
+      // Player change
+      break
+  }
+}
+```
+
+### API Calls
+
+Modules can use the hub API:
+
+```typescript
+// Load module configuration
+const config = await fetch('/api/modules/my-module/config')
+  .then(r => r.json())
+
+// Save configuration
+await fetch('/api/modules/my-module/config', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ key: 'value' })
+})
+
+// Load players (for colors etc.)
+const players = await fetch('/api/players').then(r => r.json())
+```
+
+## Installation
+
+### From Git Repository
+
+Modules can be installed directly from Git:
+
+```bash
+# Via web UI
+# Or via API:
+curl -X POST http://localhost:3000/api/modules/install \
+  -H "Content-Type: application/json" \
+  -d '{"source": "git", "url": "https://github.com/user/my-module.git"}'
+```
+
+### Local Installation
+
+For development, modules can be installed locally:
+
+```bash
+# Link module folder
+ln -s /path/to/my-module modules_installed/my-module
+```
+
+## Best Practices
+
+### 1. Error Handling
+
+```typescript
+try {
+  await sendToDevice(payload)
+} catch (error) {
+  console.error(`Module error: ${error.message}`)
+  // Module should not crash
+}
+```
+
+### 2. Validate Configuration
+
+```typescript
+function validateConfig(config) {
+  if (!config.hostAddress) {
+    throw new Error('Host address is required')
+  }
+  // Additional validations...
+}
+```
+
+### 3. Release Resources
+
+```typescript
+// Close connections when module stops
+function onStop() {
+  if (wsConnection) {
+    wsConnection.close()
+  }
+}
+```
+
+### 4. Use Player Colors
+
+```typescript
+// Color from event or player management
+const playerColor = event.data.color || '#ffffff'
+```
+
+### 5. Temporary Effects
+
+```typescript
+// Effect with automatic restore
+async function flashEffect(duration = 1000) {
+  const previousState = await getDeviceState()
+  await setEffect('flash')
+
+  setTimeout(async () => {
+    await restoreState(previousState)
+  }, duration)
+}
+```
+
+## Example Modules
+
+### Minimal Module
+
+```json
+{
+  "id": "minimal",
+  "name": "Minimal Module",
+  "version": "1.0.0",
+  "entry": "internal",
+  "events": ["throw.detected"]
+}
+```
+
+### Module with UI
+
+See [Game Display Module](/modules/game-display/) as reference for a module with custom frontend.
+
+### Module with External Hardware
+
+See [WLED Module](/modules/wled/) as reference for a module that controls external hardware.
+
+## Debugging
+
+### Logs
+
+Module activities are shown in the hub log:
+
+1. Open the web interface
+2. Go to "Logs"
+3. Filter by your module
+
+### Browser DevTools
+
+For frontend modules:
+
+1. Open `/module-ui/my-module/`
+2. Open browser developer tools (F12)
+3. Check Console and Network tab
+
+## Support
+
+For questions or problems:
+
+1. Check the [API Documentation](api.md)
+2. Look at the example modules
+3. Open an issue in the GitHub repository

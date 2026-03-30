@@ -28,6 +28,13 @@ export interface AnalyticsLoggerInterface {
 }
 
 /**
+ * Intent emitter interface
+ */
+export interface IntentEmitterInterface {
+  emit(intentId: string, payload?: Record<string, unknown>): Promise<void>;
+}
+
+/**
  * Default configuration
  */
 const DEFAULT_CONFIG: PlayerAnalyticsConfig = {
@@ -47,6 +54,7 @@ export class PlayerAnalyticsHandler {
   private eventMapper: EventMapper;
   private tipsGenerator: AITipsGenerator;
   private logger: AnalyticsLoggerInterface | null = null;
+  private intentEmitter: IntentEmitterInterface | null = null;
 
   // Current active match tracking
   private activeMatchId: string | null = null;
@@ -73,6 +81,27 @@ export class PlayerAnalyticsHandler {
    */
   setLogger(logger: AnalyticsLoggerInterface | null): void {
     this.logger = logger;
+  }
+
+  /**
+   * Set intent emitter for inter-module communication
+   */
+  setIntentEmitter(emitter: IntentEmitterInterface | null): void {
+    this.intentEmitter = emitter;
+  }
+
+  /**
+   * Emit an intent
+   */
+  private async emitIntent(intentId: string, payload: Record<string, unknown> = {}): Promise<void> {
+    if (this.intentEmitter) {
+      try {
+        await this.intentEmitter.emit(intentId, payload);
+        this.log(`Intent emitted: ${intentId}`, payload);
+      } catch (error) {
+        this.log(`Failed to emit intent: ${intentId}`, { error });
+      }
+    }
   }
 
   /**
@@ -254,9 +283,57 @@ export class PlayerAnalyticsHandler {
     this.currentLeg.turns.push(data.turnData);
     this.currentLeg.dartsThrown += data.turnData.throws.length;
 
+    // Emit achievement intents based on turn score
+    const turnScore = data.turnData.totalScore;
+    const intentPayload = {
+      playerId: matchPlayer?.playerId,
+      playerName: data.playerName,
+      matchId: this.activeMatchId,
+      gameType: match.gameType,
+      score: turnScore,
+    };
+
+    if (turnScore === 180) {
+      await this.emitIntent('player.achievement.180', intentPayload);
+    } else if (turnScore === 171) {
+      await this.emitIntent('player.achievement.171', intentPayload);
+    } else if (turnScore >= 140) {
+      await this.emitIntent('player.achievement.highScore', {
+        ...intentPayload,
+        threshold: 140,
+      });
+    } else if (turnScore >= 100) {
+      await this.emitIntent('player.achievement.100plus', {
+        ...intentPayload,
+        threshold: 100,
+      });
+    }
+
     // Check for leg end (checkout)
     if (data.turnData.isCheckout) {
+      // Emit checkout intent
+      const checkoutScore = data.turnData.startingScore;
+      await this.emitIntent('player.achievement.checkout', {
+        ...intentPayload,
+        checkout: checkoutScore,
+        darts: data.turnData.throws.length,
+      });
+
+      // High checkout (100+)
+      if (checkoutScore >= 100) {
+        await this.emitIntent('player.achievement.highCheckout', {
+          ...intentPayload,
+          checkout: checkoutScore,
+          darts: data.turnData.throws.length,
+        });
+      }
+
       await this.handleLegEnd(matchPlayer?.playerId);
+    }
+
+    // Check for bust
+    if (data.turnData.isBust) {
+      await this.emitIntent('player.achievement.bust', intentPayload);
     }
 
     this.log('Turn recorded', {

@@ -340,3 +340,6 @@ export * from './player.js';
 
 // Re-export i18n types
 export * from './i18n.js';
+
+// Re-export intent types
+export * from './intents.js';

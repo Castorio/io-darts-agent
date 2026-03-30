@@ -6,6 +6,11 @@
   "author": "IO-Darts-Agent Team",
   "repository": "https://github.com/autodarts/autodarts-player-analytics-module",
   "entry": "dist/index.js",
+  "web": {
+    "path": "web/dist",
+    "label": "Player Dashboard",
+    "icon": "chart-bar"
+  },
   "events": [
     "match.start",
     "match.delete",
@@ -15,6 +20,112 @@
     "turn.finished",
     "game.finished"
   ],
+  "intents": {
+    "emits": [
+      {
+        "id": "player.achievement.180",
+        "description": "Player scored 180 (maximum score with 3 darts)",
+        "category": "player.achievement",
+        "payload": {
+          "playerId": { "type": "string", "description": "Player ID" },
+          "playerName": { "type": "string", "description": "Player name" },
+          "matchId": { "type": "string", "description": "Match ID" },
+          "gameType": { "type": "string", "description": "Game type (e.g. X01)" }
+        }
+      },
+      {
+        "id": "player.achievement.171",
+        "description": "Player scored 171 (highest checkout possible with 3 darts)",
+        "category": "player.achievement",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" }
+        }
+      },
+      {
+        "id": "player.achievement.highScore",
+        "description": "Player scored 140+ in a single turn",
+        "category": "player.achievement",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" },
+          "score": { "type": "number", "description": "Actual score" },
+          "threshold": { "type": "number", "description": "Threshold that was met (140)" }
+        }
+      },
+      {
+        "id": "player.achievement.100plus",
+        "description": "Player scored 100+ in a single turn",
+        "category": "player.achievement",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" },
+          "score": { "type": "number" },
+          "threshold": { "type": "number" }
+        }
+      },
+      {
+        "id": "player.achievement.checkout",
+        "description": "Player completed a checkout",
+        "category": "player.achievement",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" },
+          "checkout": { "type": "number", "description": "Checkout score" },
+          "darts": { "type": "number", "description": "Number of darts used" }
+        }
+      },
+      {
+        "id": "player.achievement.highCheckout",
+        "description": "Player completed a high checkout (100+)",
+        "category": "player.achievement",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" },
+          "checkout": { "type": "number" },
+          "darts": { "type": "number" }
+        }
+      },
+      {
+        "id": "player.achievement.bust",
+        "description": "Player busted (went over or hit wrong double)",
+        "category": "player.achievement",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" }
+        }
+      },
+      {
+        "id": "match.milestone.legWon",
+        "description": "Player won a leg",
+        "category": "match.milestone",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" },
+          "legNumber": { "type": "number" },
+          "dartsThrown": { "type": "number" }
+        }
+      },
+      {
+        "id": "match.milestone.ended",
+        "description": "Match ended",
+        "category": "match.milestone",
+        "payload": {
+          "matchId": { "type": "string" },
+          "winnerId": { "type": "string", "optional": true },
+          "winnerName": { "type": "string", "optional": true },
+          "isAborted": { "type": "boolean" }
+        }
+      }
+    ]
+  },
   "config": {
     "dataRetentionDays": {
       "type": "number",
@@ -41,19 +152,22 @@
       "label": "AI API Key",
       "description": "API key for the selected AI provider (not needed for Ollama)",
       "default": "",
-      "secret": true
+      "secret": true,
+      "showIf": { "aiProvider": ["openai", "anthropic"] }
     },
     "ollamaHost": {
       "type": "string",
       "label": "Ollama Host",
       "description": "Hostname or IP address of the Ollama server",
-      "default": "http://localhost:11434"
+      "default": "http://localhost:11434",
+      "showIf": { "aiProvider": "ollama" }
     },
     "ollamaModel": {
       "type": "string",
       "label": "Ollama Model",
       "description": "Model to use for Ollama (e.g., llama3, mistral)",
-      "default": "llama3"
+      "default": "llama3",
+      "showIf": { "aiProvider": "ollama" }
     },
     "trackAllPlayers": {
       "type": "boolean",

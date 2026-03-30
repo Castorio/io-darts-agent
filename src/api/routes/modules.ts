@@ -707,4 +707,238 @@ export function registerModuleRoutes(
       languages,
     };
   });
+
+  /**
+   * GET /api/modules/:id/intents - Get module intent configuration
+   * Returns available actions and default subscriptions for intent handling
+   */
+  fastify.get<{
+    Params: { id: string };
+    Reply: {
+      success: boolean;
+      actions?: Array<{
+        type: string;
+        label: string;
+        description?: string;
+        configSchema?: Record<string, unknown>;
+      }>;
+      defaultSubscriptions?: Array<{
+        intentId: string;
+        enabled: boolean;
+        action: { type: string; config?: Record<string, unknown> };
+      }>;
+      error?: string;
+    };
+  }>('/api/modules/:id/intents', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    const { id } = request.params;
+
+    const manifest = deps.getModuleManifest(id);
+    if (!manifest) {
+      reply.code(404);
+      return { success: false, error: 'Module not found' };
+    }
+
+    // Get intent configuration from manifest
+    const intents = manifest.intents;
+    if (!intents) {
+      return {
+        success: true,
+        actions: [],
+        defaultSubscriptions: [],
+      };
+    }
+
+    return {
+      success: true,
+      actions: intents.actions || [],
+      defaultSubscriptions: intents.defaultSubscriptions || [],
+    };
+  });
+
+  /**
+   * GET /api/intents - Get all available intents from the system
+   * Returns intents that modules have registered as emitting
+   */
+  fastify.get<{
+    Reply: {
+      success: boolean;
+      intents?: Array<{
+        id: string;
+        description: string;
+        category?: string;
+        sourceModule?: string;
+      }>;
+      error?: string;
+    };
+  }>('/api/intents', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    // Collect all intents from all modules
+    const allIntents: Array<{
+      id: string;
+      description: string;
+      category?: string;
+      sourceModule?: string;
+    }> = [];
+
+    // Get intents from all module manifests
+    for (const module of deps.listModules()) {
+      const manifest = deps.getModuleManifest(module.id);
+      if (manifest?.intents?.emits) {
+        for (const emit of manifest.intents.emits) {
+          allIntents.push({
+            id: emit.id,
+            description: emit.description,
+            category: emit.category,
+            sourceModule: module.id,
+          });
+        }
+      }
+    }
+
+    // Add standard intents that are always available
+    const standardIntents = [
+      { id: 'player.achievement.180', description: 'Player scored 180', category: 'Player Achievements' },
+      { id: 'player.achievement.171', description: 'Player scored 171', category: 'Player Achievements' },
+      { id: 'player.achievement.highScore', description: 'Player achieved a high score (140+)', category: 'Player Achievements' },
+      { id: 'player.achievement.highCheckout', description: 'Player achieved a high checkout (100+)', category: 'Player Achievements' },
+      { id: 'player.achievement.checkout', description: 'Player checked out', category: 'Player Achievements' },
+      { id: 'player.achievement.bust', description: 'Player busted', category: 'Player Achievements' },
+      { id: 'player.achievement.perfectLeg', description: 'Player achieved a perfect leg (9-darter)', category: 'Player Achievements' },
+      { id: 'match.milestone.started', description: 'Match started', category: 'Match Milestones' },
+      { id: 'match.milestone.ended', description: 'Match ended', category: 'Match Milestones' },
+      { id: 'match.milestone.legWon', description: 'A leg was won', category: 'Match Milestones' },
+      { id: 'match.milestone.gameWon', description: 'A game (set) was won', category: 'Match Milestones' },
+      { id: 'match.milestone.matchPoint', description: 'Match point situation', category: 'Match Milestones' },
+      { id: 'player.stats.updated', description: 'Player statistics were updated', category: 'Player Stats' },
+      { id: 'player.stats.newRecord', description: 'Player achieved a new personal record', category: 'Player Stats' },
+    ];
+
+    // Add standard intents that are not already in the list
+    for (const intent of standardIntents) {
+      if (!allIntents.some(i => i.id === intent.id)) {
+        allIntents.push(intent);
+      }
+    }
+
+    // Sort by category and then by id
+    allIntents.sort((a, b) => {
+      const catA = a.category || 'Other';
+      const catB = b.category || 'Other';
+      if (catA !== catB) return catA.localeCompare(catB);
+      return a.id.localeCompare(b.id);
+    });
+
+    return {
+      success: true,
+      intents: allIntents,
+    };
+  });
+
+  /**
+   * PUT /api/modules/:id/intents - Update module intent subscriptions
+   * Stores the intent subscriptions in the module config
+   */
+  fastify.put<{
+    Params: { id: string };
+    Body: {
+      subscriptions: Array<{
+        intentId: string;
+        enabled: boolean;
+        action: { type: string; config?: Record<string, unknown> };
+      }>;
+    };
+    Reply: { success: boolean; error?: string };
+  }>('/api/modules/:id/intents', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    const { id } = request.params;
+    const { subscriptions } = request.body;
+
+    if (!deps.isModuleInstalled(id)) {
+      reply.code(404);
+      return { success: false, error: 'Module not found' };
+    }
+
+    try {
+      // Get current config and merge with intent subscriptions
+      const currentConfig = deps.getModuleConfig(id) || {};
+      const updatedConfig = {
+        ...currentConfig,
+        intentSubscriptions: subscriptions,
+      };
+
+      await deps.updateModuleConfig(id, updatedConfig);
+      return { success: true };
+    } catch (error) {
+      reply.code(500);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update intent subscriptions',
+      };
+    }
+  });
+
+  /**
+   * GET /api/modules/:id/intent-subscriptions - Get current intent subscriptions for a module
+   * Returns the configured intent subscriptions from the module config
+   */
+  fastify.get<{
+    Params: { id: string };
+    Reply: {
+      success: boolean;
+      subscriptions?: Array<{
+        intentId: string;
+        enabled: boolean;
+        action: { type: string; config?: Record<string, unknown> };
+      }>;
+      error?: string;
+    };
+  }>('/api/modules/:id/intent-subscriptions', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    const { id } = request.params;
+
+    const config = deps.getModuleConfig(id);
+    if (config === null) {
+      reply.code(404);
+      return { success: false, error: 'Module not found' };
+    }
+
+    // Get subscriptions from config or use defaults from manifest
+    let subscriptions = config.intentSubscriptions as Array<{
+      intentId: string;
+      enabled: boolean;
+      action: { type: string; config?: Record<string, unknown> };
+    }> | undefined;
+
+    // If no subscriptions in config, use defaults from manifest
+    if (!subscriptions) {
+      const manifest = deps.getModuleManifest(id);
+      subscriptions = manifest?.intents?.defaultSubscriptions || [];
+    }
+
+    return {
+      success: true,
+      subscriptions,
+    };
+  });
 }

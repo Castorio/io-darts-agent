@@ -973,6 +973,98 @@ export class DartsCallerHandler {
     this.audioPlayer.cleanup();
     this.voicePackCache.clear();
   }
+
+  /**
+   * Execute an intent action
+   * Called when an intent subscription triggers for this module
+   */
+  async executeIntentAction(
+    intent: { id: string; source: string; payload: Record<string, unknown> },
+    action: { type: string; config?: Record<string, unknown> }
+  ): Promise<void> {
+    const { type, config = {} } = action;
+    console.log(`🎙️  [Caller] Executing intent action: ${type} for intent ${intent.id}`);
+
+    switch (type) {
+      case 'playPhrase': {
+        const phrase = config.phrase as string;
+        if (phrase) {
+          // Map phrase to audio file
+          const phraseMap: Record<string, string> = {
+            oneEighty: '180',
+            oneSeventyOne: '171',
+            gameShot: 'game_shot',
+            matchShot: 'match_shot',
+            bust: 'bust',
+            noScore: 'no_score',
+            gameOn: 'game_on',
+            matchOn: 'match_on',
+          };
+          const audioName = phraseMap[phrase] || phrase;
+          await this.playIntentAudioFile(audioName);
+        }
+        break;
+      }
+
+      case 'sayText': {
+        const text = config.text as string;
+        if (text) {
+          // Use TTS to say the text - emit as a special call
+          this.emitCallRequest({
+            id: `intent-${intent.id}-${Date.now()}`,
+            type: 'special',
+            text,
+            priority: 5,
+            timestamp: Date.now(),
+          });
+        }
+        break;
+      }
+
+      case 'playScore': {
+        const field = config.field as string || 'score';
+        const score = intent.payload[field] as number;
+        if (score !== undefined) {
+          // Call the score using the same method as regular score calls
+          this.emitCallRequest({
+            id: `intent-${intent.id}-${Date.now()}`,
+            type: 'score',
+            text: String(score),
+            priority: 5,
+            timestamp: Date.now(),
+          });
+        }
+        break;
+      }
+
+      case 'playFile': {
+        const file = config.file as string;
+        if (file) {
+          await this.playIntentAudioFile(file);
+        }
+        break;
+      }
+
+      default:
+        console.warn(`🎙️  [Caller] Unknown intent action type: ${type}`);
+    }
+  }
+
+  /**
+   * Play an audio file by name (for intents)
+   */
+  private async playIntentAudioFile(name: string): Promise<void> {
+    const voicePackId = this.config.voicepackSettings?.packId;
+    const voicePacksDir = this.config.voicePacksDir;
+    if (voicePackId && voicePacksDir) {
+      const filePath = path.join(voicePacksDir, voicePackId, `${name}.mp3`);
+      try {
+        await this.audioPlayer.playFile(filePath, 10, name);
+      } catch (error) {
+        console.warn(`🎙️  [Caller] Failed to play audio file: ${filePath}`);
+      }
+    }
+  }
 }
 
 /**

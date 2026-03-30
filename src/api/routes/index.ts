@@ -12,3 +12,6 @@ export { registerAnimationRoutes, type AnimationDependencies } from './animation
 export { registerCallerRoutes } from './caller.js';
 export { registerTtsRoutes } from './tts.js';
 export { registerDeveloperRoutes, type DeveloperDependencies } from './developer.js';
+
+// Note: Analytics routes moved to player-analytics module
+// Import from: ../../../../modules/player-analytics/src/routes.js

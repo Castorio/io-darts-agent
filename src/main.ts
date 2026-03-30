@@ -18,6 +18,8 @@ import {
   registerCallerRoutes,
   registerDeveloperRoutes,
 } from './api/routes/index.js';
+// Analytics routes are loaded from the module itself
+import { registerAnalyticsRoutes } from '../modules/player-analytics/src/routes.js';
 import { ElevenLabsService, VoicePackGenerator } from './core/modules/handlers/index.js';
 import { MediaService } from './core/media/MediaService.js';
 import { AnimationGeneratorService } from './core/media/AnimationGeneratorService.js';
@@ -29,16 +31,19 @@ import {
   WledHandler,
   GameDisplayHandler,
   DartsCallerHandler,
+  PlayerAnalyticsHandler,
   createWledHandler,
   createGameDisplayHandler,
   createDartsCallerHandler,
+  createPlayerAnalyticsHandler,
 } from './core/modules/handlers/index.js';
 import { PlayerService } from './core/players/PlayerService.js';
 import { PlayerRepository } from './core/players/PlayerRepository.js';
 import { AutodartsHub } from './index.js';
+import { getIntentBus } from './core/intents/index.js';
 import type { HubConfiguration } from './types/api.js';
 import type { ModuleListItem, ModuleDetailResponse } from './types/api.js';
-import type { ParsedEvent, ModuleStatus, ModuleManifest } from './types/index.js';
+import type { ParsedEvent, ModuleStatus, ModuleManifest, Intent } from './types/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,6 +51,9 @@ const __dirname = path.dirname(__filename);
 // Global state
 let hub: AutodartsHub | null = null;
 const startTime = Date.now();
+
+// Intent Bus for inter-module communication
+const intentBus = getIntentBus({ debug: process.env.NODE_ENV !== 'production' });
 
 // Player service for matching known players
 let playerService: PlayerService | null = null;
@@ -73,6 +81,21 @@ function emitCallerRequest(request: CallRequest): void {
     subscriber(request);
   }
 }
+
+// Intent subscribers for WebSocket
+const intentSubscribers = new Set<(intent: Intent) => void>();
+
+function emitIntent(intent: Intent): void {
+  for (const subscriber of intentSubscribers) {
+    subscriber(intent);
+  }
+}
+
+// Subscribe IntentBus to forward intents to WebSocket
+intentBus.subscribeGlobal((intent) => {
+  emitIntent(intent);
+  addLog('module', `intent:${intent.source}`, `${intent.id}`, intent.payload);
+});
 
 // Log system for real-time event tracking
 // LogEntry type is also defined in websocket.ts - keeping in sync
@@ -119,6 +142,7 @@ interface InstalledModule {
   wledHandler?: WledHandler;
   gameDisplayHandler?: GameDisplayHandler;
   dartsCallerHandler?: DartsCallerHandler;
+  playerAnalyticsHandler?: PlayerAnalyticsHandler;
 }
 const installedModules = new Map<string, InstalledModule>();
 
@@ -131,6 +155,108 @@ function createModuleLogger(moduleId: string) {
       addLog('module', source || moduleId, message, data);
     },
   };
+}
+
+/**
+ * Create an intent emitter for a module
+ * @internal Reserved for future use when modules implement intent emission
+ */
+function _createIntentEmitter(moduleId: string) {
+  return {
+    emit: async (intentId: string, payload: Record<string, unknown> = {}) => {
+      await intentBus.emit(moduleId, intentId, payload);
+    },
+  };
+}
+// Suppress unused function warning - reserved for future module intent support
+void _createIntentEmitter;
+
+/**
+ * Register module intents when starting
+ */
+function registerModuleIntents(mod: InstalledModule): void {
+  // Register intents this module can emit
+  if (mod.manifest.intents?.emits) {
+    intentBus.registerIntents(mod.id, mod.manifest.intents.emits);
+    console.log(`📡 Registered ${mod.manifest.intents.emits.length} emittable intents for ${mod.id}`);
+  }
+
+  // Register intent subscriptions from module config
+  const intentsConfig = mod.manifest.intents as {
+    actions?: Array<{ type: string; label: string; description?: string; configSchema?: Record<string, unknown> }>;
+    defaultSubscriptions?: Array<{
+      intentId: string;
+      enabled: boolean;
+      action: { type: string; config?: Record<string, unknown> };
+    }>;
+  } | undefined;
+
+  if (intentsConfig?.defaultSubscriptions) {
+    // Get user-configured subscriptions from module config (if any)
+    const userSubscriptions = (mod.configValues.intentSubscriptions as typeof intentsConfig.defaultSubscriptions) || [];
+
+    // Merge default and user subscriptions (user takes priority)
+    const subscriptionMap = new Map<string, typeof userSubscriptions[0]>();
+
+    // Add defaults first
+    for (const sub of intentsConfig.defaultSubscriptions) {
+      subscriptionMap.set(sub.intentId, sub);
+    }
+
+    // Override with user settings
+    for (const sub of userSubscriptions) {
+      subscriptionMap.set(sub.intentId, sub);
+    }
+
+    // Register enabled subscriptions with the intent bus
+    let subscribedCount = 0;
+    for (const sub of subscriptionMap.values()) {
+      if (sub.enabled) {
+        intentBus.subscribe(mod.id, sub.intentId, async (intent) => {
+          // Find the module handler and execute the action
+          await executeModuleIntentAction(mod, intent, sub.action);
+        });
+        subscribedCount++;
+      }
+    }
+
+    if (subscribedCount > 0) {
+      console.log(`🎯 Registered ${subscribedCount} intent subscriptions for ${mod.id}`);
+    }
+  }
+}
+
+/**
+ * Execute an intent action for a module
+ */
+async function executeModuleIntentAction(
+  mod: InstalledModule,
+  intent: import('./types/intents.js').Intent,
+  action: { type: string; config?: Record<string, unknown> }
+): Promise<void> {
+  // Route the action to the appropriate module handler
+  try {
+    if (mod.id === 'wled' && mod.wledHandler) {
+      await mod.wledHandler.executeIntentAction(intent, action);
+    } else if (mod.id === 'darts-caller' && mod.dartsCallerHandler) {
+      await mod.dartsCallerHandler.executeIntentAction(intent, action);
+    } else if (mod.id === 'game-display' && mod.gameDisplayHandler) {
+      // Game display could handle intents too
+      // await mod.gameDisplayHandler.executeIntentAction(intent, action);
+    }
+    // Add more modules as needed
+  } catch (error) {
+    console.error(`Error executing intent action for ${mod.id}:`, error);
+    addLog('module', mod.id, `Intent action error: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * Unregister module intents when stopping
+ */
+function unregisterModuleIntents(mod: InstalledModule): void {
+  intentBus.unregisterIntents(mod.id);
+  intentBus.unsubscribeAll(mod.id);
 }
 
 // Module config storage directory
@@ -352,7 +478,8 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
       const shouldAutoStart = mod.configValues.autoStart === true ||
         (mod.id === 'wled' && mod.configValues.wledHost) ||
         mod.id === 'game-display' || // Game display always auto-starts
-        (mod.id === 'darts-caller' && mod.configValues.enabled !== false); // Darts caller auto-starts if enabled
+        (mod.id === 'darts-caller' && mod.configValues.enabled !== false) || // Darts caller auto-starts if enabled
+        mod.id === 'player-analytics'; // Player analytics always auto-starts
 
       if (shouldAutoStart && mod.status === 'stopped') {
         try {
@@ -392,7 +519,21 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
                 await mod.dartsCallerHandler.handleEvent(event);
               }
             };
+          } else if (mod.id === 'player-analytics') {
+            // Create Player Analytics handler
+            const analyticsDataDir = path.join(__dirname, '..', 'data', 'analytics');
+            mod.playerAnalyticsHandler = createPlayerAnalyticsHandler(mod.configValues, analyticsDataDir);
+            mod.playerAnalyticsHandler.setLogger(createModuleLogger('player-analytics'));
+            mod.eventHandler = async (event: ParsedEvent) => {
+              if (mod.playerAnalyticsHandler) {
+                await mod.playerAnalyticsHandler.handleEvent(event);
+              }
+            };
           }
+
+          // Register module intents
+          registerModuleIntents(mod);
+
           mod.status = 'running';
           addLog('module', mod.id, `Auto-started module: ${mod.manifest.name}`);
           console.log(`▶️  Auto-started module: ${mod.manifest.name}`);
@@ -647,9 +788,22 @@ async function main(): Promise<void> {
           }
         };
         console.log(`▶️  Started module: ${mod.manifest.name}`);
+      } else if (id === 'player-analytics') {
+        const analyticsDataDir = path.join(__dirname, '..', 'data', 'analytics');
+        mod.playerAnalyticsHandler = createPlayerAnalyticsHandler(mod.configValues, analyticsDataDir);
+        mod.playerAnalyticsHandler.setLogger(createModuleLogger('player-analytics'));
+        mod.eventHandler = async (event: ParsedEvent) => {
+          if (mod.playerAnalyticsHandler) {
+            await mod.playerAnalyticsHandler.handleEvent(event);
+          }
+        };
+        console.log(`▶️  Started module: ${mod.manifest.name}`);
       } else {
         console.log(`▶️  Started module: ${mod.manifest.name}`);
       }
+
+      // Register module intents
+      registerModuleIntents(mod);
 
       mod.status = 'running';
     },
@@ -657,11 +811,15 @@ async function main(): Promise<void> {
       const mod = installedModules.get(id);
       if (!mod) throw new Error(`Module ${id} not found`);
 
+      // Unregister intents
+      unregisterModuleIntents(mod);
+
       // Remove event handler and handlers
       mod.eventHandler = undefined;
       mod.wledHandler = undefined;
       mod.gameDisplayHandler = undefined;
       mod.dartsCallerHandler = undefined;
+      mod.playerAnalyticsHandler = undefined;
       mod.status = 'stopped';
       console.log(`⏹️  Stopped module: ${mod.manifest.name}`);
     },
@@ -716,6 +874,20 @@ async function main(): Promise<void> {
         mod.eventHandler = async (event: ParsedEvent) => {
           if (mod.dartsCallerHandler) {
             await mod.dartsCallerHandler.handleEvent(event);
+          }
+        };
+      } else if (id === 'player-analytics') {
+        const analyticsDataDir = path.join(__dirname, '..', 'data', 'analytics');
+        if (mod.playerAnalyticsHandler) {
+          mod.playerAnalyticsHandler.updateConfig(mod.configValues);
+        } else {
+          mod.playerAnalyticsHandler = createPlayerAnalyticsHandler(mod.configValues, analyticsDataDir);
+          mod.playerAnalyticsHandler.setLogger(createModuleLogger('player-analytics'));
+        }
+
+        mod.eventHandler = async (event: ParsedEvent) => {
+          if (mod.playerAnalyticsHandler) {
+            await mod.playerAnalyticsHandler.handleEvent(event);
           }
         };
       }
@@ -934,6 +1106,18 @@ async function main(): Promise<void> {
     },
   });
   console.log('🔧 Developer routes initialized');
+
+  // Helper function to get the player analytics handler
+  function getPlayerAnalyticsHandler(): PlayerAnalyticsHandler | null {
+    const mod = installedModules.get('player-analytics');
+    return mod?.playerAnalyticsHandler ?? null;
+  }
+
+  // Register Analytics Routes (loaded from the player-analytics module)
+  registerAnalyticsRoutes(fastify, {
+    getAnalyticsHandler: getPlayerAnalyticsHandler,
+  });
+  console.log('📊 Analytics routes initialized (from module)');
 
   // Register Match Routes (for current match state)
   registerMatchRoutes(fastify, server, {

@@ -1,7 +1,7 @@
 {
   "id": "wled",
   "name": "WLED Lighting Controller",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Controls WLED-based LED strips based on Autodarts game events. Flash colors on throws, show player colors, celebrate 180s, and more!",
   "author": "IO-Darts-Agent Team",
   "repository": "https://github.com/autodarts/autodarts-wled-module",
@@ -63,6 +63,99 @@
     { "id": 83, "name": "Fireworks Starburst" },
     { "id": 84, "name": "Fireworks 1D" }
   ],
+  "intents": {
+    "actions": [
+      {
+        "type": "solidColor",
+        "label": "Solid Color",
+        "description": "Set all LEDs to a solid color",
+        "configSchema": {
+          "color": { "type": "color", "label": "Color", "default": "#ff0000" },
+          "brightness": { "type": "number", "label": "Brightness", "default": 255, "min": 0, "max": 255 },
+          "duration": { "type": "number", "label": "Duration (ms)", "description": "0 = permanent", "default": 0, "min": 0 }
+        }
+      },
+      {
+        "type": "effect",
+        "label": "Play Effect",
+        "description": "Play a WLED effect",
+        "configSchema": {
+          "effectId": { "type": "number", "label": "Effect ID", "default": 0, "min": 0 },
+          "speed": { "type": "number", "label": "Speed", "default": 128, "min": 0, "max": 255 },
+          "intensity": { "type": "number", "label": "Intensity", "default": 128, "min": 0, "max": 255 },
+          "color": { "type": "color", "label": "Primary Color", "default": "#ff0000" },
+          "duration": { "type": "number", "label": "Duration (ms)", "description": "0 = permanent", "default": 2000, "min": 0 }
+        }
+      },
+      {
+        "type": "preset",
+        "label": "Activate Preset",
+        "description": "Activate a saved WLED preset",
+        "configSchema": {
+          "presetId": { "type": "number", "label": "Preset ID", "default": 1, "min": 1 },
+          "duration": { "type": "number", "label": "Duration (ms)", "description": "0 = permanent", "default": 0, "min": 0 }
+        }
+      },
+      {
+        "type": "flash",
+        "label": "Flash Color",
+        "description": "Flash a color briefly",
+        "configSchema": {
+          "color": { "type": "color", "label": "Color", "default": "#ffffff" },
+          "duration": { "type": "number", "label": "Flash Duration (ms)", "default": 500, "min": 50, "max": 5000 },
+          "count": { "type": "number", "label": "Flash Count", "default": 3, "min": 1, "max": 10 }
+        }
+      },
+      {
+        "type": "rainbow",
+        "label": "Rainbow Celebration",
+        "description": "Rainbow effect for celebrations",
+        "configSchema": {
+          "duration": { "type": "number", "label": "Duration (ms)", "default": 3000, "min": 500 },
+          "speed": { "type": "number", "label": "Speed", "default": 200, "min": 0, "max": 255 }
+        }
+      },
+      {
+        "type": "off",
+        "label": "Turn Off",
+        "description": "Turn off all LEDs"
+      }
+    ],
+    "defaultSubscriptions": [
+      {
+        "intentId": "player.achievement.180",
+        "enabled": true,
+        "action": {
+          "type": "rainbow",
+          "config": { "duration": 5000, "speed": 200 }
+        }
+      },
+      {
+        "intentId": "player.achievement.highCheckout",
+        "enabled": true,
+        "action": {
+          "type": "effect",
+          "config": { "effectId": 82, "duration": 3000, "color": "#00ff00" }
+        }
+      },
+      {
+        "intentId": "player.achievement.bust",
+        "enabled": true,
+        "action": {
+          "type": "flash",
+          "config": { "color": "#ff0000", "duration": 300, "count": 2 }
+        }
+      },
+      {
+        "intentId": "match.milestone.ended",
+        "enabled": true,
+        "action": {
+          "type": "effect",
+          "config": { "effectId": 82, "duration": 5000 }
+        }
+      }
+    ]
+  },
   "i18n": {
     "en": {
       "name": "WLED Lighting Controller",

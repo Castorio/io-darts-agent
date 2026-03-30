@@ -3,6 +3,7 @@
 // ============================================
 
 import type { AutodartsEventType, ParsedEvent } from './index.js';
+import type { ModuleIntentsConfig } from './intents.js';
 
 // ============================================
 // Module Manifest (module.json)
@@ -19,6 +20,7 @@ export interface ModuleManifest {
   events: AutodartsEventType[]; // Events this module subscribes to
   config?: ModuleConfigSchema;
   i18n?: ModuleI18n; // Multi-language support
+  intents?: ModuleIntentsConfig; // Intent system configuration
 }
 
 // ============================================

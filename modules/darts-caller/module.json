@@ -14,6 +14,88 @@
     "turn.finished",
     "game.finished"
   ],
+  "intents": {
+    "actions": [
+      {
+        "type": "playPhrase",
+        "label": "Play Phrase",
+        "description": "Play a pre-defined phrase from the voice pack",
+        "configSchema": {
+          "phrase": {
+            "type": "select",
+            "label": "Phrase",
+            "options": [
+              { "value": "oneEighty", "label": "One Hundred and Eighty!" },
+              { "value": "oneSeventyOne", "label": "One Seventy One!" },
+              { "value": "gameShot", "label": "Game Shot!" },
+              { "value": "matchShot", "label": "Match Shot!" },
+              { "value": "bust", "label": "Bust!" },
+              { "value": "noScore", "label": "No Score" },
+              { "value": "gameOn", "label": "Game On!" },
+              { "value": "matchOn", "label": "Match On!" }
+            ],
+            "default": "oneEighty"
+          }
+        }
+      },
+      {
+        "type": "sayText",
+        "label": "Say Text",
+        "description": "Speak custom text using TTS",
+        "configSchema": {
+          "text": { "type": "string", "label": "Text to speak", "default": "" }
+        }
+      },
+      {
+        "type": "playScore",
+        "label": "Play Score",
+        "description": "Announce a score from the intent payload",
+        "configSchema": {
+          "field": { "type": "string", "label": "Payload field", "default": "score" }
+        }
+      },
+      {
+        "type": "playFile",
+        "label": "Play Audio File",
+        "description": "Play a specific audio file",
+        "configSchema": {
+          "file": { "type": "string", "label": "File path", "default": "" }
+        }
+      }
+    ],
+    "defaultSubscriptions": [
+      {
+        "intentId": "player.achievement.180",
+        "enabled": true,
+        "action": { "type": "playPhrase", "config": { "phrase": "oneEighty" } }
+      },
+      {
+        "intentId": "player.achievement.171",
+        "enabled": true,
+        "action": { "type": "playPhrase", "config": { "phrase": "oneSeventyOne" } }
+      },
+      {
+        "intentId": "player.achievement.highCheckout",
+        "enabled": true,
+        "action": { "type": "playPhrase", "config": { "phrase": "gameShot" } }
+      },
+      {
+        "intentId": "player.achievement.bust",
+        "enabled": true,
+        "action": { "type": "playPhrase", "config": { "phrase": "bust" } }
+      },
+      {
+        "intentId": "match.milestone.legWon",
+        "enabled": true,
+        "action": { "type": "playPhrase", "config": { "phrase": "gameShot" } }
+      },
+      {
+        "intentId": "match.milestone.ended",
+        "enabled": true,
+        "action": { "type": "playPhrase", "config": { "phrase": "matchShot" } }
+      }
+    ]
+  },
   "config": {
     "enabled": {
       "type": "boolean",

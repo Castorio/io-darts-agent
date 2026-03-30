@@ -173,6 +173,12 @@ export default {
     dartsCallerConfigDesc: 'Konfigurieren Sie die Sprachansagen, Event-Sounds und spielerspezifische Einstellungen.',
     dartsCallerConfigHint: 'Unterstützt System-TTS, ElevenLabs und eigene Sounds.',
     dartsCallerConfigure: 'Caller konfigurieren',
+    // Intent reactions
+    intentReactions: 'Intent-Reaktionen',
+    intentReactionsSubtitle: 'Konfigurieren Sie, wie dieses Modul auf Spielereignisse reagiert',
+    saveIntentReactions: 'Reaktionen speichern',
+    intentsSaved: 'Reaktionen gespeichert',
+    intentsSaveFailed: 'Fehler beim Speichern der Reaktionen',
     // Install view
     backToModules: 'Zurück zu Module',
     installTitle: 'Modul installieren',

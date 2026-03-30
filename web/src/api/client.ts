@@ -206,6 +206,75 @@ export const api = {
     )
   },
 
+  // Module Intent Configuration
+  async getModuleIntents(moduleId: string) {
+    return request<{
+      success: boolean
+      actions?: Array<{
+        type: string
+        label: string
+        description?: string
+        configSchema?: Record<string, {
+          type: 'string' | 'number' | 'boolean' | 'select' | 'color'
+          label: string
+          description?: string
+          default?: unknown
+          options?: Array<{ value: string; label: string }>
+          min?: number
+          max?: number
+        }>
+      }>
+      defaultSubscriptions?: Array<{
+        intentId: string
+        enabled: boolean
+        action: { type: string; config?: Record<string, unknown> }
+      }>
+      error?: string
+    }>(`/modules/${moduleId}/intents`)
+  },
+
+  async getIntentSubscriptions(moduleId: string) {
+    return request<{
+      success: boolean
+      subscriptions?: Array<{
+        intentId: string
+        enabled: boolean
+        action: { type: string; config?: Record<string, unknown> }
+      }>
+      error?: string
+    }>(`/modules/${moduleId}/intent-subscriptions`)
+  },
+
+  async updateIntentSubscriptions(
+    moduleId: string,
+    subscriptions: Array<{
+      intentId: string
+      enabled: boolean
+      action: { type: string; config?: Record<string, unknown> }
+    }>
+  ) {
+    return request<{ success: boolean; error?: string }>(
+      `/modules/${moduleId}/intents`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ subscriptions }),
+      }
+    )
+  },
+
+  async getAvailableIntents() {
+    return request<{
+      success: boolean
+      intents?: Array<{
+        id: string
+        description: string
+        category?: string
+        sourceModule?: string
+      }>
+      error?: string
+    }>('/intents')
+  },
+
   // WLED specific
   async testWledConnection(host: string, port: number = 80) {
     return request<{

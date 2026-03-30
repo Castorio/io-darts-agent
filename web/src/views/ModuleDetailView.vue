@@ -3,11 +3,13 @@ import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useModulesStore } from '../stores/modules'
 import { useI18n } from 'vue-i18n'
+import { api } from '../api/client'
 import AppLayout from '../components/AppLayout.vue'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import BaseInput from '../components/BaseInput.vue'
 import StatusBadge from '../components/StatusBadge.vue'
+import IntentSubscriptionConfig from '../components/IntentSubscriptionConfig.vue'
 
 const { t } = useI18n()
 
@@ -54,6 +56,23 @@ const isDeleting = ref(false)
 const actionLoading = ref(false)
 const showDeleteConfirm = ref(false)
 const saveMessage = ref<{ type: 'success' | 'error'; text: string } | null>(null)
+
+// Intent configuration
+const hasIntentSupport = ref(false)
+const availableIntents = ref<Array<{ id: string; description: string; category?: string }>>([])
+const availableActions = ref<Array<{
+  type: string
+  label: string
+  description?: string
+  configSchema?: Record<string, unknown>
+}>>([])
+const intentSubscriptions = ref<Array<{
+  intentId: string
+  enabled: boolean
+  action: { type: string; config?: Record<string, unknown> }
+}>>([])
+const isSavingIntents = ref(false)
+const intentSaveMessage = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 
 // Watch for module changes to update config values
 watch(
@@ -182,8 +201,60 @@ async function deleteModule() {
   }
 }
 
-onMounted(() => {
-  modulesStore.fetchModule(moduleId.value)
+// Load intent configuration for module
+async function loadIntentConfig() {
+  if (!module.value) return
+
+  try {
+    // Load module intent actions
+    const intentsResponse = await api.getModuleIntents(module.value.id)
+    if (intentsResponse.success && intentsResponse.actions && intentsResponse.actions.length > 0) {
+      hasIntentSupport.value = true
+      availableActions.value = intentsResponse.actions
+    }
+
+    // Load available intents from system
+    const availableIntentsResponse = await api.getAvailableIntents()
+    if (availableIntentsResponse.success && availableIntentsResponse.intents) {
+      availableIntents.value = availableIntentsResponse.intents
+    }
+
+    // Load current subscriptions
+    const subscriptionsResponse = await api.getIntentSubscriptions(module.value.id)
+    if (subscriptionsResponse.success && subscriptionsResponse.subscriptions) {
+      intentSubscriptions.value = subscriptionsResponse.subscriptions
+    }
+  } catch (e) {
+    console.error('Failed to load intent config:', e)
+  }
+}
+
+// Save intent subscriptions
+async function saveIntentSubscriptions() {
+  if (!module.value) return
+
+  isSavingIntents.value = true
+  intentSaveMessage.value = null
+
+  try {
+    await api.updateIntentSubscriptions(module.value.id, intentSubscriptions.value)
+    intentSaveMessage.value = { type: 'success', text: t('modules.intentsSaved') }
+    setTimeout(() => {
+      intentSaveMessage.value = null
+    }, 3000)
+  } catch (e) {
+    intentSaveMessage.value = {
+      type: 'error',
+      text: e instanceof Error ? e.message : t('modules.intentsSaveFailed'),
+    }
+  } finally {
+    isSavingIntents.value = false
+  }
+}
+
+onMounted(async () => {
+  await modulesStore.fetchModule(moduleId.value)
+  await loadIntentConfig()
 })
 </script>
 
@@ -482,6 +553,39 @@ onMounted(() => {
               </BaseButton>
             </div>
           </form>
+        </BaseCard>
+
+        <!-- Intent Subscriptions -->
+        <BaseCard
+          v-if="hasIntentSupport"
+          :title="t('modules.intentReactions')"
+          :subtitle="t('modules.intentReactionsSubtitle')"
+        >
+          <IntentSubscriptionConfig
+            :available-intents="availableIntents"
+            :available-actions="availableActions"
+            v-model="intentSubscriptions"
+          />
+
+          <template #footer>
+            <div class="flex items-center justify-between">
+              <!-- Save Message -->
+              <div
+                v-if="intentSaveMessage"
+                :class="[
+                  'text-sm',
+                  intentSaveMessage.type === 'success' ? 'text-green-400' : 'text-red-400',
+                ]"
+              >
+                {{ intentSaveMessage.text }}
+              </div>
+              <div v-else />
+
+              <BaseButton :loading="isSavingIntents" @click="saveIntentSubscriptions">
+                {{ t('modules.saveIntentReactions') }}
+              </BaseButton>
+            </div>
+          </template>
         </BaseCard>
 
         <!-- Stats -->

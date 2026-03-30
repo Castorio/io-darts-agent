@@ -1,0 +1,250 @@
+export interface AuthConfig {
+    email: string;
+    password: string;
+    clientId: string;
+    clientSecret: string;
+}
+export interface TokenResponse {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    token_type: string;
+}
+export interface DecodedToken {
+    sub: string;
+    exp: number;
+    iat: number;
+    [key: string]: unknown;
+}
+export interface HubConfig {
+    auth: AuthConfig;
+    boardId: string;
+    server?: {
+        port: number;
+        host: string;
+    };
+}
+export interface WSSubscribeMessage {
+    type: 'subscribe';
+    channel: string;
+    topic: string;
+}
+export interface WSUnsubscribeMessage {
+    type: 'unsubscribe';
+    channel: string;
+    topic: string;
+}
+export type WSOutgoingMessage = WSSubscribeMessage | WSUnsubscribeMessage;
+export interface AutodartsMessage {
+    channel: string;
+    topic: string;
+    data: unknown;
+}
+export interface BoardStateData {
+    connected: boolean;
+    event: BoardStateEvent;
+    numThrows: number;
+    status: BoardStatus;
+}
+export type BoardStateEvent = 'Manual reset' | 'Starting' | 'Started' | 'Throw detected' | 'Takeout started' | 'Takeout finished' | 'Calibration started' | 'Calibration finished' | 'Stopped';
+export type BoardStatus = 'Stopped' | 'Starting' | 'Throw' | 'Takeout' | 'Takeout in progress';
+export interface MatchStartData {
+    event: 'start';
+    id: string;
+}
+export interface MatchDeleteData {
+    event: 'delete';
+    id: string;
+}
+export type MatchEventData = MatchStartData | MatchDeleteData;
+export interface ThrowCoords {
+    x: number;
+    y: number;
+}
+export interface ThrowSegment {
+    bed: SegmentBed;
+    multiplier: number;
+    name: string;
+    number: number;
+}
+export type SegmentBed = 'SingleInner' | 'SingleOuter' | 'Single' | 'Double' | 'Triple' | 'Bull' | 'DoubleBull' | 'Outside' | '';
+export interface ThrowData {
+    coords?: ThrowCoords;
+    segment: ThrowSegment;
+}
+export interface BoardEventData {
+    boardId: string;
+    event: string;
+    throw: ThrowData;
+    throwNumber?: number;
+}
+export interface MatchPlayer {
+    id: string;
+    index: number;
+    name: string;
+    boardId: string;
+    userId: string | null;
+    refereeState?: string;
+    avatarUrl?: string;
+    host?: boolean;
+}
+export interface MatchSettings {
+    baseScore: number;
+    bullMode: string;
+    inMode: string;
+    maxRounds: number;
+    outMode: string;
+}
+export interface MatchThrow {
+    coords?: ThrowCoords;
+    createdAt: string;
+    detection?: {
+        CalibrationID: string;
+        ClientVersion: string;
+        ConfigID: string;
+        DistortionID: string | null;
+        ID: string;
+    };
+    entry: 'detected' | 'manual_keyboard';
+    id: string;
+    marks: unknown | null;
+    segment: ThrowSegment;
+    throw: number;
+    bouncer?: boolean;
+}
+export interface MatchTurn {
+    busted: boolean;
+    createdAt: string;
+    finishedAt: string;
+    id: string;
+    marks: unknown | null;
+    playerId: string;
+    points: number;
+    round: number;
+    score: number;
+    throws: MatchThrow[];
+    turn: number;
+}
+export interface MatchStats {
+    average: number;
+    averageUntil170: number;
+    checkoutPercent: number;
+    checkoutPoints: number;
+    checkoutPointsAverage: number;
+    checkouts: number;
+    checkoutsHit: number;
+    dartsThrown: number;
+    dartsUntil170: number;
+    first9Average: number;
+    first9Score: number;
+    less60: number;
+    plus60: number;
+    plus100: number;
+    plus140: number;
+    plus170: number;
+    score: number;
+    scoreUntil170: number;
+    total180: number;
+}
+export interface ChalkboardRow {
+    isPointsStruck?: boolean;
+    isScoreStruck?: boolean;
+    points: number;
+    round: number;
+    score: number;
+}
+export interface Chalkboard {
+    rows: ChalkboardRow[];
+}
+export interface MatchStateData {
+    id: string;
+    createdAt: string;
+    finished: boolean;
+    gameFinished: boolean;
+    gameWinner: number | null;
+    hasReferee: boolean;
+    leg: number;
+    set: number;
+    round: number;
+    type: string;
+    variant: string;
+    winner: number | null;
+    settings: MatchSettings;
+    state: string;
+    scores: number[];
+    chalkboards: Chalkboard[];
+    gameScores: number[];
+    stats: {
+        legStats: MatchStats[];
+        matchStats: MatchStats[];
+        setStats?: MatchStats[];
+    };
+    turnBusted: boolean;
+    turnScore: number;
+    turns: MatchTurn[];
+    player: number;
+    players: MatchPlayer[];
+    host: unknown;
+}
+export type AutodartsEventType = 'board.state' | 'board.event' | 'match.start' | 'match.delete' | 'match.state' | 'throw.detected' | 'takeout.started' | 'takeout.finished' | 'player.change' | 'turn.finished' | 'game.finished' | 'match.finished' | 'raw';
+export interface ParsedEvent<T = unknown> {
+    type: AutodartsEventType;
+    timestamp: Date;
+    raw: AutodartsMessage;
+    data: T;
+}
+export interface ThrowDetectedEvent extends ParsedEvent<{
+    segment: ThrowSegment;
+    coords?: ThrowCoords;
+    throwNumber: number;
+    boardId: string;
+}> {
+    type: 'throw.detected';
+}
+export interface MatchStartEvent extends ParsedEvent<{
+    matchId: string;
+    boardId: string;
+}> {
+    type: 'match.start';
+}
+export interface MatchStateEvent extends ParsedEvent<{
+    matchId: string;
+    player: number;
+    playerName: string;
+    gameScores: number[];
+    turnScore: number;
+    round: number;
+    finished: boolean;
+    winner: number | null;
+}> {
+    type: 'match.state';
+}
+export interface PlayerChangeEvent extends ParsedEvent<{
+    previousPlayer: number;
+    currentPlayer: number;
+    playerName: string;
+}> {
+    type: 'player.change';
+}
+export interface TurnFinishedEvent extends ParsedEvent<{
+    matchId: string;
+    playerIndex: number;
+    playerName: string;
+    turnScore: number;
+    turnPoints: number;
+    remaining: number;
+    busted: boolean;
+    round: number;
+}> {
+    type: 'turn.finished';
+}
+export type EventHandler<T = unknown> = (event: ParsedEvent<T>) => void | Promise<void>;
+export interface EventSubscription {
+    unsubscribe: () => void;
+}
+export * from './modules.js';
+export * from './api.js';
+export * from './player.js';
+export * from './i18n.js';
+export * from './intents.js';
+//# sourceMappingURL=index.d.ts.map

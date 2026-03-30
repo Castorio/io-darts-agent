@@ -803,6 +803,113 @@ export class WledHandler {
       console.error('WLED request failed:', error);
     }
   }
+
+  /**
+   * Execute an intent action
+   * Called when an intent subscription triggers for this module
+   */
+  async executeIntentAction(
+    intent: { id: string; source: string; payload: Record<string, unknown> },
+    action: { type: string; config?: Record<string, unknown> }
+  ): Promise<void> {
+    const { type, config = {} } = action;
+    this.log(`Executing intent action: ${type} for intent ${intent.id}`, config);
+
+    // Parse color from config (can be hex string or RGB object)
+    const parseColorLocal = (color: unknown): { r: number; g: number; b: number } | undefined => {
+      if (!color) return undefined;
+      if (typeof color === 'string') {
+        // Parse hex color
+        const hex = color.replace('#', '');
+        return {
+          r: parseInt(hex.substring(0, 2), 16),
+          g: parseInt(hex.substring(2, 4), 16),
+          b: parseInt(hex.substring(4, 6), 16),
+        };
+      }
+      if (typeof color === 'object' && 'r' in color) {
+        return color as { r: number; g: number; b: number };
+      }
+      return undefined;
+    };
+
+    const eventType = `intent.${intent.id}`;
+
+    switch (type) {
+      case 'solidColor': {
+        await this.executeAction({
+          actionType: 'solid',
+          color: parseColorLocal(config.color) ?? { r: 255, g: 0, b: 0 },
+          brightness: config.brightness as number ?? 255,
+          duration: config.duration as number ?? 0,
+        }, null, eventType);
+        break;
+      }
+
+      case 'effect': {
+        await this.executeAction({
+          actionType: 'effect',
+          effectId: config.effectId as number ?? 0,
+          speed: config.speed as number ?? 128,
+          intensity: config.intensity as number ?? 128,
+          color: parseColorLocal(config.color),
+          duration: config.duration as number ?? 2000,
+        }, null, eventType);
+        break;
+      }
+
+      case 'preset': {
+        await this.executeAction({
+          actionType: 'preset',
+          presetId: config.presetId as number ?? 1,
+          duration: config.duration as number ?? 0,
+        }, null, eventType);
+        break;
+      }
+
+      case 'flash': {
+        const color = parseColorLocal(config.color) ?? { r: 255, g: 255, b: 255 };
+        const duration = config.duration as number ?? 500;
+        const count = config.count as number ?? 3;
+
+        // Flash effect using strobe
+        for (let i = 0; i < count; i++) {
+          await this.executeAction({
+            actionType: 'solid',
+            color,
+            brightness: 255,
+          }, null, eventType + '.flash');
+          await new Promise(resolve => setTimeout(resolve, duration / 2));
+          await this.executeAction({
+            actionType: 'off',
+          }, null, eventType + '.off');
+          await new Promise(resolve => setTimeout(resolve, duration / 2));
+        }
+        break;
+      }
+
+      case 'rainbow': {
+        await this.executeAction({
+          actionType: 'effect',
+          effectId: 9, // Rainbow effect
+          speed: config.speed as number ?? 200,
+          intensity: 128,
+          duration: config.duration as number ?? 3000,
+        }, null, eventType);
+        break;
+      }
+
+      case 'off': {
+        await this.executeAction({
+          actionType: 'off',
+        }, null, eventType);
+        break;
+      }
+
+      default:
+        this.log(`Unknown intent action type: ${type}`);
+    }
+  }
 }
 
 /**

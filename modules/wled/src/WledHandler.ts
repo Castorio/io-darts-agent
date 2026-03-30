@@ -246,11 +246,19 @@ export class WledHandler {
       const actionToUse = playerChangeAction || defaultState;
 
       if (matchStartAction && matchStartAction.action.actionType && matchStartAction.action.actionType !== 'none') {
-        // If there's a start animation, apply player color after its duration (or 1 second default)
-        const delay = matchStartAction.action.duration || 1000;
-        this.log(`Match start - will apply player color after ${delay}ms`);
-        console.log(`🎨 WLED [match.start]: Will apply player color after ${delay}ms`);
-        this.applyPlayerColorAfterDelay(delay, actionToUse, 'match.start.playerColor');
+        // If there's a start animation with duration, apply player color after its duration
+        // Don't use the default restore logic - handle it here explicitly
+        const delay = matchStartAction.action.duration || 0;
+        if (delay > 0) {
+          this.log(`Match start - will apply player color after ${delay}ms`);
+          console.log(`🎨 WLED [match.start]: Will apply player color after ${delay}ms`);
+          this.applyPlayerColorAfterDelay(delay, actionToUse, 'match.start.playerColor');
+        } else {
+          // No duration configured - apply player color immediately after a short delay for match state
+          this.log(`Match start - will apply player color after 1000ms (no duration set)`);
+          console.log(`🎨 WLED [match.start]: Will apply player color after 1000ms (no duration set)`);
+          this.applyPlayerColorAfterDelay(1000, actionToUse, 'match.start.playerColor');
+        }
       } else if (actionToUse && actionToUse.actionType && actionToUse.actionType !== 'none') {
         // No start animation, apply player color directly after 1 second
         this.log(`Match start - applying player color after 1 second`);
@@ -311,7 +319,8 @@ export class WledHandler {
     await this.executeAction(action, playerColor, event.type);
 
     // Restore to player color after duration (not to previous WLED state)
-    if (action.duration && action.duration > 0 && actionType !== 'off') {
+    // Skip for match.start as we handle player color separately via applyPlayerColorAfterDelay
+    if (action.duration && action.duration > 0 && actionType !== 'off' && event.type !== 'match.start') {
       this.log(`Will restore to player color in ${action.duration}ms`);
       console.log(`🎨 WLED [${event.type}]: Will restore to player color in ${action.duration}ms`);
 

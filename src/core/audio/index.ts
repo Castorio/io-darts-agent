@@ -1,14 +1,20 @@
 /**
  * Audio Services
  *
- * Local audio playback services
+ * Re-exports audio services from darts-caller module
  */
 
 export {
   LocalAudioPlayer,
-  createLocalAudioPlayer,
-} from './LocalAudioPlayer.js';
+} from '../../../modules/darts-caller/src/index.js';
 
 export type {
   LocalAudioPlayerConfig,
-} from './LocalAudioPlayer.js';
+} from '../../../modules/darts-caller/src/index.js';
+
+// Factory function for backward compatibility
+import { LocalAudioPlayer } from '../../../modules/darts-caller/src/index.js';
+import type { LocalAudioPlayerConfig } from '../../../modules/darts-caller/src/index.js';
+export function createLocalAudioPlayer(config?: LocalAudioPlayerConfig): LocalAudioPlayer {
+  return new LocalAudioPlayer(config || {});
+}

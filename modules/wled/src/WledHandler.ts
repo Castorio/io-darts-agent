@@ -4,7 +4,7 @@
  * Processes Autodarts events and sends commands to WLED devices
  */
 
-import type { ParsedEvent } from '../../../types/index.js';
+import type { ParsedEvent } from '../../../src/types/index.js';
 
 /**
  * Player service interface for player color matching

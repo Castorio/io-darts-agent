@@ -1,19 +1,22 @@
 /**
  * Module Event Handlers
  *
- * Centralized handlers for processing events for each module type
+ * Re-exports handlers from individual module directories.
+ * Module-specific code lives in the module folders, not in core.
  */
 
-export { WledHandler, createWledHandler } from './WledHandler.js';
+// WLED Module
+export { WledHandler, createWledHandler } from '../../../../modules/wled/src/index.js';
 export type {
   WledConfig,
   WledAction,
   WledActionType,
   PlayerServiceInterface,
   WledLoggerInterface,
-} from './WledHandler.js';
+} from '../../../../modules/wled/src/index.js';
 
-export { GameDisplayHandler, createGameDisplayHandler } from './GameDisplayHandler.js';
+// Game Display Module
+export { GameDisplayHandler, createGameDisplayHandler } from '../../../../modules/game-display/src/index.js';
 export type {
   GameDisplayConfig,
   GameDisplayAnimations,
@@ -22,13 +25,27 @@ export type {
   AnimationTrigger,
   PlayerAnimationConfig,
   GameDisplayEventCallback,
-} from './GameDisplayHandler.js';
+} from '../../../../modules/game-display/src/index.js';
 
-export { DartsCallerHandler, createDartsCallerHandler } from './DartsCallerHandler.js';
+// Darts Caller Module
+export { DartsCallerHandler, createDartsCallerHandler } from '../../../../modules/darts-caller/src/index.js';
 export type {
   DartsCallerConfig,
   ElevenLabsCallerConfig,
   CallerType,
   CallRequest,
   CallRequestCallback,
-} from './DartsCallerHandler.js';
+} from '../../../../modules/darts-caller/src/index.js';
+
+// Re-export ElevenLabs and VoicePackGenerator from darts-caller
+export { ElevenLabsService, VoicePackGenerator, LocalAudioPlayer } from '../../../../modules/darts-caller/src/index.js';
+export type {
+  ElevenLabsVoice,
+  VoiceSettings,
+  GenerationOptions,
+  ElevenLabsConfig,
+  GenerationStatus,
+  GenerationProgress,
+  VoicePackConfig,
+  LocalAudioPlayerConfig,
+} from '../../../../modules/darts-caller/src/index.js';

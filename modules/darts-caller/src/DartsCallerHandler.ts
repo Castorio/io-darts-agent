@@ -7,9 +7,9 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { ParsedEvent } from '../../../types/index.js';
-import type { ElevenLabsService } from '../../tts/ElevenLabsService.js';
-import { LocalAudioPlayer } from '../../audio/LocalAudioPlayer.js';
+import type { ParsedEvent } from '../../../src/types/index.js';
+import type { ElevenLabsService } from './ElevenLabsService.js';
+import { LocalAudioPlayer } from './LocalAudioPlayer.js';
 
 /**
  * Caller type options

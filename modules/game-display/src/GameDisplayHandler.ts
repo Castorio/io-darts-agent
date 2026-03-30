@@ -7,7 +7,7 @@
  * animation triggering, and statistics tracking.
  */
 
-import type { ParsedEvent } from '../../../types/index.js';
+import type { ParsedEvent } from '../../../src/types/index.js';
 
 /**
  * Animation configuration for an event

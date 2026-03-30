@@ -6,7 +6,7 @@
 
 import type { ParsedEvent } from '@autodarts-hub/module-sdk';
 import { ScoreConverter } from './ScoreConverter.js';
-import type { CallerModuleConfig, CallRequest, CallType } from './types.js';
+import type { CallerModuleConfig, CallType } from './types.js';
 
 /**
  * Mapped call result

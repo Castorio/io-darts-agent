@@ -17,8 +17,7 @@ import {
   registerTtsRoutes,
   registerCallerRoutes,
 } from './api/routes/index.js';
-import { ElevenLabsService } from './core/tts/ElevenLabsService.js';
-import { VoicePackGenerator } from './core/tts/VoicePackGenerator.js';
+import { ElevenLabsService, VoicePackGenerator } from './core/modules/handlers/index.js';
 import { MediaService } from './core/media/MediaService.js';
 import { AnimationGeneratorService } from './core/media/AnimationGeneratorService.js';
 import { createRunwayProvider } from './core/media/providers/RunwayProvider.js';
@@ -55,7 +54,7 @@ const eventSubscribers = new Set<(event: ParsedEvent) => void>();
 const moduleStatusSubscribers = new Set<(moduleId: string, status: ModuleStatus) => void>();
 
 // Voice pack progress subscribers
-import type { GenerationProgress } from './core/tts/VoicePackGenerator.js';
+import type { GenerationProgress } from './core/modules/handlers/index.js';
 const voicePackProgressSubscribers = new Set<(progress: GenerationProgress) => void>();
 
 function emitVoicePackProgress(progress: GenerationProgress): void {

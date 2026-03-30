@@ -2,7 +2,7 @@
  * Event Mapper - Maps Autodarts events to WLED actions
  */
 
-import { WledClient, WLED_EFFECTS, WLED_COLORS } from './WledClient.js';
+import { WledClient } from './WledClient.js';
 import type { WledColor } from './WledClient.js';
 import type { ParsedEvent, ThrowData } from '@autodarts-hub/module-sdk';
 import {
@@ -52,7 +52,8 @@ export interface ThrowCategory {
 export class EventMapper {
   private eventActions: EventActionsConfig;
   private playerColors: WledColor[];
-  private normalBrightness: number;
+  // Stored for potential future use in brightness restoration
+  // private _normalBrightness: number;
   private currentPlayer = 0;
   private turnThrows: ThrowCategory[] = [];
   private turnScore = 0;
@@ -62,7 +63,8 @@ export class EventMapper {
   constructor(config?: Partial<WledModuleConfig>) {
     this.eventActions = config?.eventActions ?? { ...DEFAULT_EVENT_ACTIONS };
     this.playerColors = config?.playerColors ?? [...DEFAULT_PLAYER_COLORS];
-    this.normalBrightness = config?.normalBrightness ?? 255;
+    // Stored for potential future use in brightness restoration
+    // this._normalBrightness = config?.normalBrightness ?? 255;
   }
 
   /**
@@ -75,9 +77,10 @@ export class EventMapper {
     if (config.playerColors) {
       this.playerColors = config.playerColors;
     }
-    if (config.normalBrightness !== undefined) {
-      this.normalBrightness = config.normalBrightness;
-    }
+    // Stored for potential future use in brightness restoration
+    // if (config.normalBrightness !== undefined) {
+    //   this._normalBrightness = config.normalBrightness;
+    // }
   }
 
   /**
@@ -336,7 +339,8 @@ export class WledActionExecutor {
   private actionQueue: Promise<void> = Promise.resolve();
   private playerColors: WledColor[];
   private normalBrightness: number;
-  private lastState: { colors?: WledColor[]; brightness?: number } = {};
+  // Stored for potential future use in state restoration
+  // private _lastState: { colors?: WledColor[]; brightness?: number } = {};
 
   constructor(client: WledClient, playerColors?: WledColor[], normalBrightness?: number) {
     this.client = client;

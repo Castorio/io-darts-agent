@@ -6,8 +6,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { APIServer } from '../Server.js';
-import type { ElevenLabsService } from '../../core/tts/ElevenLabsService.js';
-import type { VoicePackGenerator, VoicePackConfig } from '../../core/tts/VoicePackGenerator.js';
+import type { ElevenLabsService, VoicePackGenerator, VoicePackConfig } from '../../core/modules/handlers/index.js';
 
 interface TtsRouteOptions {
   getElevenLabsService: () => ElevenLabsService | null;

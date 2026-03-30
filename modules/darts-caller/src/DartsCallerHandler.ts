@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { ParsedEvent } from '../../../src/types/index.js';
 import type { ElevenLabsService } from './ElevenLabsService.js';
+import type { VoicePackGenerator } from './VoicePackGenerator.js';
 import { LocalAudioPlayer } from './LocalAudioPlayer.js';
 
 /**
@@ -102,6 +103,9 @@ export interface DartsCallerConfig {
   elevenlabsSettings?: ElevenlabsSettings;
   audioSettings?: AudioSettings;
   callSettings?: CallSettings;
+
+  // Selected voice pack (from multi-pack UI)
+  selectedVoicePackId?: string;
 
   // Legacy flat structure (for backward compatibility)
   ttsVoice?: string;
@@ -206,8 +210,11 @@ export class DartsCallerHandler {
   private callRequestCallbacks: CallRequestCallback[] = [];
   private callIdCounter = 0;
   private elevenLabsService: ElevenLabsService | null = null;
+  private voicePackGenerator: VoicePackGenerator | null = null;
   private voicePackCache: Map<string, Buffer> = new Map();
   private audioPlayer: LocalAudioPlayer;
+  private knownPlayerNames: Set<string> = new Set();
+  private playerNameGenerationInProgress: Set<string> = new Set();
 
   // Statistics
   private stats = {
@@ -277,7 +284,8 @@ export class DartsCallerHandler {
   }
 
   private getVoicepackId(): string | undefined {
-    return this.config.voicepackSettings?.packId ?? this.config.voicePackId;
+    // Priority: selectedVoicePackId (from multi-pack UI) > voicepackSettings > legacy voicePackId
+    return this.config.selectedVoicePackId ?? this.config.voicepackSettings?.packId ?? this.config.voicePackId;
   }
 
   private getElevenlabsSetting<K extends keyof ElevenlabsSettings>(key: K): ElevenlabsSettings[K] | undefined {
@@ -312,6 +320,20 @@ export class DartsCallerHandler {
    */
   getElevenLabsService(): ElevenLabsService | null {
     return this.elevenLabsService;
+  }
+
+  /**
+   * Set Voice Pack Generator for dynamic player name generation
+   */
+  setVoicePackGenerator(generator: VoicePackGenerator | null): void {
+    this.voicePackGenerator = generator;
+  }
+
+  /**
+   * Get Voice Pack Generator
+   */
+  getVoicePackGenerator(): VoicePackGenerator | null {
+    return this.voicePackGenerator;
   }
 
   /**
@@ -435,6 +457,130 @@ export class DartsCallerHandler {
   }
 
   /**
+   * Process player names from match data and generate missing voice files
+   */
+  async processMatchPlayers(players: Array<{ name: string; [key: string]: unknown }>): Promise<void> {
+    if (this.config.callerType !== 'voicepack') {
+      return;
+    }
+
+    const voicePackId = this.getVoicepackId();
+    if (!voicePackId || !this.voicePackGenerator) {
+      console.log('⚠️ Cannot process player names: no voice pack or generator configured');
+      return;
+    }
+
+    // Get pack info to get voiceId
+    const packInfo = this.voicePackGenerator.getPackInfo(voicePackId);
+    if (!packInfo) {
+      console.log(`⚠️ Voice pack "${voicePackId}" not found`);
+      return;
+    }
+
+    const missingNames: string[] = [];
+
+    for (const player of players) {
+      const playerName = player.name;
+      if (!playerName) continue;
+
+      // Check if we already know this player
+      if (this.knownPlayerNames.has(playerName)) {
+        continue;
+      }
+
+      // Check if audio file exists
+      if (this.voicePackGenerator.hasPlayerName(voicePackId, playerName)) {
+        this.knownPlayerNames.add(playerName);
+        console.log(`✅ Player "${playerName}" audio already exists`);
+        continue;
+      }
+
+      // Skip if generation is already in progress for this name
+      if (this.playerNameGenerationInProgress.has(playerName)) {
+        continue;
+      }
+
+      missingNames.push(playerName);
+    }
+
+    if (missingNames.length === 0) {
+      return;
+    }
+
+    console.log(`🎤 Generating audio for ${missingNames.length} new player(s): ${missingNames.join(', ')}`);
+
+    // Mark as in progress
+    for (const name of missingNames) {
+      this.playerNameGenerationInProgress.add(name);
+    }
+
+    try {
+      // Generate all missing names
+      const result = await this.voicePackGenerator.generatePlayerNames(
+        voicePackId,
+        missingNames,
+        packInfo.voiceId,
+        {
+          // Use the same settings as the pack was generated with (if available)
+          stability: 0.5,
+          similarityBoost: 0.75,
+        }
+      );
+
+      // Update known names
+      for (const name of result.generated) {
+        this.knownPlayerNames.add(name);
+        console.log(`✅ Generated audio for player: "${name}"`);
+      }
+
+      for (const name of result.skipped) {
+        this.knownPlayerNames.add(name);
+      }
+
+      for (const failure of result.failed) {
+        console.error(`❌ Failed to generate audio for "${failure.name}": ${failure.error}`);
+      }
+    } catch (error) {
+      console.error('❌ Error generating player name audio:', error);
+    } finally {
+      // Clear in-progress flags
+      for (const name of missingNames) {
+        this.playerNameGenerationInProgress.delete(name);
+      }
+    }
+  }
+
+  /**
+   * Get the audio file name for a player name
+   */
+  private getPlayerAudioFile(playerName: string): string {
+    // Sanitize name for filename (same as VoicePackGenerator)
+    const sanitized = playerName
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_äöüß]/gi, '')
+      .substring(0, 50);
+    return `player_${sanitized}`;
+  }
+
+  /**
+   * Check if a player audio file exists in the current voice pack
+   */
+  private hasPlayerAudio(playerName: string): boolean {
+    const voicePackId = this.getVoicepackId();
+    const voicePacksDir = this.config.voicePacksDir;
+
+    if (!voicePackId || !voicePacksDir) {
+      return false;
+    }
+
+    const playerAudioFile = this.getPlayerAudioFile(playerName);
+    const filePath = path.join(voicePacksDir, voicePackId, `${playerAudioFile}.mp3`);
+    return fs.existsSync(filePath);
+  }
+
+  /**
    * Handle an event
    */
   async handleEvent(event: ParsedEvent): Promise<void> {
@@ -450,8 +596,23 @@ export class DartsCallerHandler {
     switch (eventType) {
       case 'match.start':
       case 'match.started':
+        // Reset known players for new match
+        this.knownPlayerNames.clear();
         if (this.getCallSetting('gameStart', 'callGameStart')) {
           this.generateCall('game', 'Game on!', 'game_on', 10);
+        }
+        break;
+
+      case 'match.state':
+        // Process players from match state to generate missing voice files
+        {
+          const players = eventData.players as Array<{ name: string; [key: string]: unknown }> | undefined;
+          if (players && players.length > 0) {
+            // Fire and forget - don't block event processing
+            this.processMatchPlayers(players).catch((err) => {
+              console.error('Error processing match players:', err);
+            });
+          }
         }
         break;
 
@@ -485,16 +646,39 @@ export class DartsCallerHandler {
           const playerName = eventData.playerName as string;
           const remaining = eventData.remaining as number;
           if (playerName) {
+            // First announce the player name (if voice pack mode and audio exists)
+            const playerAudioFile = this.getPlayerAudioFile(playerName);
+
             if (remaining && this.getCallSetting('checkouts', 'callCheckouts') && this.isCheckoutPossible(remaining)) {
-              this.generateCall(
-                'player',
-                `${playerName}, you require ${remaining}`,
-                `require_${remaining}`,
-                5
-              );
+              // Announce player name first, then checkout requirement
+              if (this.config.callerType === 'voicepack' && this.hasPlayerAudio(playerName)) {
+                this.generateCall('player', playerName, playerAudioFile, 5);
+                // Slight delay before checkout announcement
+                setTimeout(() => {
+                  this.generateCall(
+                    'checkout',
+                    `You require ${remaining}`,
+                    `require_${remaining}`,
+                    4
+                  );
+                }, 500);
+              } else {
+                // Fallback: combined announcement
+                this.generateCall(
+                  'player',
+                  `${playerName}, you require ${remaining}`,
+                  `require_${remaining}`,
+                  5
+                );
+              }
               this.stats.checkoutsAnnounced++;
             } else {
-              this.generateCall('player', playerName, undefined, 3);
+              // Just announce player name
+              if (this.config.callerType === 'voicepack' && this.hasPlayerAudio(playerName)) {
+                this.generateCall('player', playerName, playerAudioFile, 3);
+              } else {
+                this.generateCall('player', playerName, undefined, 3);
+              }
             }
           }
         }

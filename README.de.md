@@ -75,9 +75,11 @@ Lade das passende Paket für dein System herunter:
 - Score-Ansagen nach jeder Aufnahme
 - Checkout-Ansagen ("You require...")
 - Spezial-Ansagen: 180, Bust, Game Shot, Match Shot
-- Spielerwechsel-Ansagen
+- Spielerwechsel-Ansagen mit Spielernamen
+- **Dynamische Spielernamen-Generierung**: Neue Spieler werden automatisch beim Spielstart erkannt und deren Namen via ElevenLabs TTS generiert
 - Browser-TTS oder eigene Audio-Packs
 - Voice Pack Generator mit ElevenLabs TTS
+- Multi-Voice-Pack-Unterstützung (verschiedene Stimmen/Sprachen)
 - Lokale Audio-Wiedergabe (Server-seitig)
 
 ### Module aus Git installieren

@@ -197,6 +197,16 @@ const voicesError = ref<string | null>(null)
 const previewingVoiceId = ref<string | null>(null)
 const previewAudio = ref<HTMLAudioElement | null>(null)
 
+// Voice Pack types
+interface VoicePack {
+  id: string
+  name: string
+  voiceId: string
+  language: string
+  totalFiles: number
+  generatedAt: string
+}
+
 // Voice Pack Generation state
 interface VoicePackStatus {
   status: 'idle' | 'generating' | 'completed' | 'failed'
@@ -205,18 +215,18 @@ interface VoicePackStatus {
   totalItems?: number
   completedItems?: number
   error?: string
-  lastGeneratedAt?: string
-  voicePackExists?: boolean
-  voiceId?: string
-  voiceName?: string
+  packs: VoicePack[]
+  generatingPackId?: string
 }
 
 const voicePackStatus = ref<VoicePackStatus>({
   status: 'idle',
   progress: 0,
+  packs: [],
 })
 const isLoadingVoicePackStatus = ref(false)
 const voicePackPollingInterval = ref<ReturnType<typeof setInterval> | null>(null)
+const selectedVoicePackId = ref<string>('')
 
 // Load system voices
 function loadSystemVoices() {
@@ -257,10 +267,26 @@ watch(
         events: (values.events as Partial<Record<CallerEventType, CallerEventConfig>>) || {},
         playerOverrides: (values.playerOverrides as PlayerVoiceOverride[]) || [],
       }
+      // Load selected voice pack from config
+      selectedVoicePackId.value = (values.selectedVoicePackId as string) || ''
     }
   },
   { immediate: true }
 )
+
+// Watch for voice pack selection changes and auto-save
+watch(selectedVoicePackId, async (newId) => {
+  if (module.value && newId !== undefined) {
+    try {
+      await modulesStore.updateConfig(module.value.id, {
+        ...config.value,
+        selectedVoicePackId: newId
+      } as unknown as Record<string, unknown>)
+    } catch (e) {
+      console.error('Failed to save voice pack selection:', e)
+    }
+  }
+})
 
 // Test voice
 async function testVoice() {
@@ -520,12 +546,21 @@ async function cancelVoicePackGeneration() {
   }
 }
 
-async function deleteVoicePack() {
+async function deleteVoicePack(packId?: string) {
+  const idToDelete = packId || selectedVoicePackId.value
+  if (!idToDelete) {
+    saveMessage.value = { type: 'error', text: t('caller.voicePack.selectPackFirst') }
+    return
+  }
+
   try {
-    const packId = voicePackStatus.value.voiceId || 'default'
-    const result = await api.deleteVoicePack(packId)
+    const result = await api.deleteVoicePack(idToDelete)
     if (result.success) {
       saveMessage.value = { type: 'success', text: t('caller.voicePack.deleted') }
+      // Clear selection if we deleted the selected pack
+      if (selectedVoicePackId.value === idToDelete) {
+        selectedVoicePackId.value = ''
+      }
       loadVoicePackStatus()
     } else {
       saveMessage.value = { type: 'error', text: result.error || t('errors.generic') }
@@ -534,6 +569,7 @@ async function deleteVoicePack() {
     saveMessage.value = { type: 'error', text: e instanceof Error ? e.message : t('errors.generic') }
   }
 }
+
 
 // Cleanup on unmount
 onUnmounted(() => {
@@ -853,90 +889,83 @@ onMounted(() => {
           :subtitle="t('caller.voicePack.subtitle')"
         >
           <div class="space-y-4">
-            <!-- Status Info -->
+            <!-- Existing Voice Packs List -->
+            <div v-if="voicePackStatus.packs.length > 0" class="space-y-3">
+              <label class="block text-sm font-medium text-dark-200">{{ t('caller.voicePack.availablePacks') }}</label>
+              <div class="space-y-2">
+                <div
+                  v-for="pack in voicePackStatus.packs"
+                  :key="pack.id"
+                  :class="[
+                    'flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all',
+                    selectedVoicePackId === pack.id
+                      ? 'border-autodarts-500 bg-autodarts-500/10'
+                      : 'border-dark-600 bg-dark-800 hover:border-dark-500',
+                  ]"
+                  @click="selectedVoicePackId = pack.id"
+                >
+                  <div class="flex items-center gap-3 min-w-0">
+                    <div :class="[
+                      'w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center',
+                      selectedVoicePackId === pack.id ? 'border-autodarts-500' : 'border-dark-500'
+                    ]">
+                      <div v-if="selectedVoicePackId === pack.id" class="w-2 h-2 rounded-full bg-autodarts-500" />
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-white font-medium truncate">{{ pack.name }}</p>
+                      <p class="text-xs text-dark-400">
+                        {{ pack.language.toUpperCase() }} • {{ pack.totalFiles }} {{ t('caller.voicePack.files') }} •
+                        {{ new Date(pack.generatedAt).toLocaleDateString() }}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="p-2 text-dark-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors"
+                    @click.stop="deleteVoicePack(pack.id)"
+                    :title="t('common.delete')"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- No Packs Info -->
+            <div v-else-if="voicePackStatus.status === 'idle'" class="p-4 rounded-lg bg-dark-700/50 border border-dark-600">
+              <div class="flex items-start gap-3">
+                <svg class="w-5 h-5 text-dark-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+                <div>
+                  <p class="text-dark-300 font-medium">{{ t('caller.voicePack.noPacks') }}</p>
+                  <p class="text-sm text-dark-400 mt-1">{{ t('caller.voicePack.noPacksDesc') }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Generation Status (when generating) -->
             <div
-              :class="[
-                'p-4 rounded-lg border',
-                voicePackStatus.status === 'idle' && !voicePackStatus.voicePackExists ? 'bg-dark-700/50 border-dark-600' : '',
-                voicePackStatus.status === 'idle' && voicePackStatus.voicePackExists ? 'bg-green-500/10 border-green-500/30' : '',
-                voicePackStatus.status === 'generating' ? 'bg-autodarts-500/10 border-autodarts-500/30' : '',
-                voicePackStatus.status === 'completed' ? 'bg-green-500/10 border-green-500/30' : '',
-                voicePackStatus.status === 'failed' ? 'bg-red-500/10 border-red-500/30' : '',
-              ]"
+              v-if="voicePackStatus.status === 'generating'"
+              class="p-4 rounded-lg border bg-autodarts-500/10 border-autodarts-500/30"
             >
               <div class="flex items-start gap-3">
-                <!-- Status Icon -->
-                <div class="flex-shrink-0 mt-0.5">
-                  <!-- Idle - no voice pack -->
-                  <svg v-if="voicePackStatus.status === 'idle' && !voicePackStatus.voicePackExists" class="w-5 h-5 text-dark-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                  <!-- Generating - spinning -->
-                  <svg v-else-if="voicePackStatus.status === 'generating'" class="w-5 h-5 text-autodarts-400 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <!-- Completed / Has Voice Pack -->
-                  <svg v-else-if="voicePackStatus.status === 'completed' || voicePackStatus.voicePackExists" class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <!-- Failed -->
-                  <svg v-else-if="voicePackStatus.status === 'failed'" class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-
+                <svg class="w-5 h-5 text-autodarts-400 animate-spin flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
                 <div class="flex-1 min-w-0">
-                  <!-- Status Title -->
-                  <p :class="[
-                    'font-medium',
-                    voicePackStatus.status === 'idle' && !voicePackStatus.voicePackExists ? 'text-dark-300' : '',
-                    voicePackStatus.status === 'idle' && voicePackStatus.voicePackExists ? 'text-green-400' : '',
-                    voicePackStatus.status === 'generating' ? 'text-autodarts-400' : '',
-                    voicePackStatus.status === 'completed' ? 'text-green-400' : '',
-                    voicePackStatus.status === 'failed' ? 'text-red-400' : '',
-                  ]">
-                    <span v-if="voicePackStatus.status === 'idle' && !voicePackStatus.voicePackExists">
-                      {{ t('caller.voicePack.statusIdle') }}
-                    </span>
-                    <span v-else-if="voicePackStatus.status === 'idle' && voicePackStatus.voicePackExists">
-                      {{ t('caller.voicePack.statusReady') }}
-                    </span>
-                    <span v-else-if="voicePackStatus.status === 'generating'">
-                      {{ t('caller.voicePack.statusGenerating') }}
-                    </span>
-                    <span v-else-if="voicePackStatus.status === 'completed'">
-                      {{ t('caller.voicePack.statusCompleted') }}
-                    </span>
-                    <span v-else-if="voicePackStatus.status === 'failed'">
-                      {{ t('caller.voicePack.statusFailed') }}
+                  <p class="text-autodarts-400 font-medium">{{ t('caller.voicePack.statusGenerating') }}</p>
+                  <p class="text-sm text-dark-400 mt-1">
+                    {{ t('caller.voicePack.generatingDesc', { current: voicePackStatus.completedItems || 0, total: voicePackStatus.totalItems || '?' }) }}
+                    <span v-if="voicePackStatus.currentItem" class="block text-xs mt-0.5 text-dark-500">
+                      {{ voicePackStatus.currentItem }}
                     </span>
                   </p>
-
-                  <!-- Status Details -->
-                  <p class="text-sm mt-1" :class="voicePackStatus.status === 'failed' ? 'text-red-300/70' : 'text-dark-400'">
-                    <template v-if="voicePackStatus.status === 'idle' && !voicePackStatus.voicePackExists">
-                      {{ t('caller.voicePack.noVoicePackDesc') }}
-                    </template>
-                    <template v-else-if="voicePackStatus.status === 'idle' && voicePackStatus.voicePackExists">
-                      {{ t('caller.voicePack.voicePackReadyDesc', { voice: voicePackStatus.voiceName || 'ElevenLabs' }) }}
-                    </template>
-                    <template v-else-if="voicePackStatus.status === 'generating'">
-                      {{ t('caller.voicePack.generatingDesc', { current: voicePackStatus.completedItems || 0, total: voicePackStatus.totalItems || '?' }) }}
-                      <span v-if="voicePackStatus.currentItem" class="block text-xs mt-0.5 text-dark-500">
-                        {{ voicePackStatus.currentItem }}
-                      </span>
-                    </template>
-                    <template v-else-if="voicePackStatus.status === 'completed'">
-                      {{ t('caller.voicePack.completedDesc') }}
-                    </template>
-                    <template v-else-if="voicePackStatus.status === 'failed'">
-                      {{ voicePackStatus.error || t('caller.voicePack.failedDesc') }}
-                    </template>
-                  </p>
-
-                  <!-- Progress Bar (when generating) -->
-                  <div v-if="voicePackStatus.status === 'generating'" class="mt-3">
+                  <!-- Progress Bar -->
+                  <div class="mt-3">
                     <div class="flex items-center justify-between text-xs text-dark-400 mb-1">
                       <span>{{ t('common.progress') }}</span>
                       <span>{{ Math.round(voicePackStatus.progress) }}%</span>
@@ -948,11 +977,38 @@ onMounted(() => {
                       />
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
 
-                  <!-- Last Generated Info -->
-                  <p v-if="voicePackStatus.lastGeneratedAt && voicePackStatus.status !== 'generating'" class="text-xs text-dark-500 mt-2">
-                    {{ t('caller.voicePack.lastGenerated') }}: {{ new Date(voicePackStatus.lastGeneratedAt).toLocaleString() }}
-                  </p>
+            <!-- Generation Error -->
+            <div
+              v-if="voicePackStatus.status === 'failed'"
+              class="p-4 rounded-lg border bg-red-500/10 border-red-500/30"
+            >
+              <div class="flex items-start gap-3">
+                <svg class="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p class="text-red-400 font-medium">{{ t('caller.voicePack.statusFailed') }}</p>
+                  <p class="text-sm text-red-300/70 mt-1">{{ voicePackStatus.error || t('caller.voicePack.failedDesc') }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Generation Completed -->
+            <div
+              v-if="voicePackStatus.status === 'completed'"
+              class="p-4 rounded-lg border bg-green-500/10 border-green-500/30"
+            >
+              <div class="flex items-start gap-3">
+                <svg class="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p class="text-green-400 font-medium">{{ t('caller.voicePack.statusCompleted') }}</p>
+                  <p class="text-sm text-dark-400 mt-1">{{ t('caller.voicePack.completedDesc') }}</p>
                 </div>
               </div>
             </div>
@@ -969,16 +1025,16 @@ onMounted(() => {
 
             <!-- Actions -->
             <div class="flex flex-wrap items-center gap-3 pt-2">
-              <!-- Generate Button -->
+              <!-- Generate New Button -->
               <BaseButton
                 v-if="voicePackStatus.status !== 'generating'"
                 :disabled="!config.elevenLabsVoiceId"
                 @click="startVoicePackGeneration"
               >
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
-                {{ voicePackStatus.voicePackExists ? t('caller.voicePack.regenerate') : t('caller.voicePack.generate') }}
+                {{ t('caller.voicePack.generateNew') }}
               </BaseButton>
 
               <!-- Cancel Button -->
@@ -991,18 +1047,6 @@ onMounted(() => {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
                 {{ t('common.cancel') }}
-              </BaseButton>
-
-              <!-- Delete Button -->
-              <BaseButton
-                v-if="voicePackStatus.voicePackExists && voicePackStatus.status !== 'generating'"
-                variant="ghost"
-                @click="deleteVoicePack"
-              >
-                <svg class="w-4 h-4 mr-2 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                {{ t('caller.voicePack.delete') }}
               </BaseButton>
 
               <!-- Refresh Button -->

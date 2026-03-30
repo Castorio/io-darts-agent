@@ -75,9 +75,11 @@ Download the appropriate package for your system:
 - Score announcements after each turn
 - Checkout calls ("You require...")
 - Special calls: 180, bust, game shot, match shot
-- Player change announcements
+- Player change announcements with player names
+- **Dynamic player name generation**: New players are automatically detected at game start and their names are generated via ElevenLabs TTS
 - Browser TTS or custom audio packs
 - Voice Pack Generator with ElevenLabs TTS
+- Multi-voice-pack support (different voices/languages)
 - Local audio playback (server-side)
 
 ### Installing Modules from Git

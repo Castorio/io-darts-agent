@@ -414,8 +414,6 @@ export const api = {
       }>
     }>('/tts/voicepacks/generation/status')
 
-    // Transform to frontend format
-    const pack = response.packs?.[0]
     const isGenerating = response.isGenerating || response.progress?.status === 'generating'
 
     let status: 'idle' | 'generating' | 'completed' | 'failed' = 'idle'
@@ -425,8 +423,6 @@ export const api = {
       status = 'failed'
     } else if (response.progress?.status === 'completed') {
       status = 'completed'
-    } else if (pack) {
-      status = 'idle' // Has pack, but not generating
     }
 
     const totalFiles = response.progress?.totalFiles || 0
@@ -440,11 +436,23 @@ export const api = {
       totalItems: totalFiles,
       completedItems: completedFiles,
       error: response.progress?.error,
-      lastGeneratedAt: pack?.generatedAt,
-      voicePackExists: !!pack,
-      voiceId: pack?.voiceId,
-      voiceName: pack?.name,
+      packs: response.packs || [],
+      generatingPackId: response.progress?.packId,
     }
+  },
+
+  async listVoicePacks() {
+    return request<{
+      success: boolean
+      packs: Array<{
+        id: string
+        name: string
+        voiceId: string
+        language: string
+        totalFiles: number
+        generatedAt: string
+      }>
+    }>('/tts/voicepacks')
   },
 
   async generateVoicePack(voiceId: string, language: 'de' | 'en' = 'de', voiceName?: string) {

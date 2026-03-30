@@ -638,6 +638,8 @@ async function main(): Promise<void> {
           console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
           emitCallerRequest(request);
         });
+        // Note: ElevenLabs service and VoicePackGenerator will be set later
+        // when getOrCreateElevenLabsService() is called
         mod.eventHandler = async (event: ParsedEvent) => {
           if (mod.dartsCallerHandler) {
             await mod.dartsCallerHandler.handleEvent(event);
@@ -868,6 +870,14 @@ async function main(): Promise<void> {
         // Emit to WebSocket subscribers
         emitVoicePackProgress(progress);
       });
+
+      // Update darts caller handler with the new generator
+      const dartsCallerMod = installedModules.get('darts-caller');
+      if (dartsCallerMod?.dartsCallerHandler) {
+        dartsCallerMod.dartsCallerHandler.setElevenLabsService(elevenLabsService);
+        dartsCallerMod.dartsCallerHandler.setVoicePackGenerator(voicePackGenerator);
+        console.log('🎙️  Updated Darts Caller with ElevenLabs service and Voice Pack Generator');
+      }
     }
 
     return elevenLabsService;

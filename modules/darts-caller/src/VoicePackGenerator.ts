@@ -470,6 +470,167 @@ export class VoicePackGenerator {
     }
   }
 
+  /**
+   * Check if a player name audio file exists in a pack
+   */
+  hasPlayerName(packId: string, playerName: string): boolean {
+    const packDir = path.join(this.outputDir, packId);
+    const filename = this.sanitizePlayerNameForFilename(playerName);
+    const filePath = path.join(packDir, `player_${filename}.mp3`);
+    return fs.existsSync(filePath);
+  }
+
+  /**
+   * Get existing player names in a pack
+   */
+  getExistingPlayerNames(packId: string): string[] {
+    const packDir = path.join(this.outputDir, packId);
+
+    if (!fs.existsSync(packDir)) {
+      return [];
+    }
+
+    try {
+      const files = fs.readdirSync(packDir);
+      return files
+        .filter((f) => f.startsWith('player_') && f.endsWith('.mp3'))
+        .map((f) => f.slice(7, -4)); // Remove 'player_' prefix and '.mp3' suffix
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Generate a single player name audio file on-demand
+   */
+  async generatePlayerName(
+    packId: string,
+    playerName: string,
+    voiceId: string,
+    options?: {
+      modelId?: string;
+      stability?: number;
+      similarityBoost?: number;
+    }
+  ): Promise<{ success: boolean; filePath?: string; error?: string }> {
+    const packDir = path.join(this.outputDir, packId);
+    const filename = this.sanitizePlayerNameForFilename(playerName);
+    const outputPath = path.join(packDir, `player_${filename}.mp3`);
+
+    // Check if already exists
+    if (fs.existsSync(outputPath)) {
+      console.log(`✅ Player name audio already exists: ${outputPath}`);
+      return { success: true, filePath: outputPath };
+    }
+
+    // Ensure pack directory exists
+    if (!fs.existsSync(packDir)) {
+      fs.mkdirSync(packDir, { recursive: true });
+    }
+
+    try {
+      console.log(`🎤 Generating player name audio for: "${playerName}"`);
+
+      await this.elevenLabsService.generateSpeechToFile(
+        playerName,
+        outputPath,
+        {
+          voiceId,
+          modelId: options?.modelId,
+          voiceSettings: {
+            stability: options?.stability ?? 0.5,
+            similarity_boost: options?.similarityBoost ?? 0.75,
+          },
+        }
+      );
+
+      console.log(`✅ Generated player name audio: ${outputPath}`);
+      return { success: true, filePath: outputPath };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`❌ Failed to generate player name audio for "${playerName}":`, error);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Generate multiple player names (batch operation)
+   */
+  async generatePlayerNames(
+    packId: string,
+    playerNames: string[],
+    voiceId: string,
+    options?: {
+      modelId?: string;
+      stability?: number;
+      similarityBoost?: number;
+    }
+  ): Promise<{
+    success: boolean;
+    generated: string[];
+    skipped: string[];
+    failed: Array<{ name: string; error: string }>;
+  }> {
+    const generated: string[] = [];
+    const skipped: string[] = [];
+    const failed: Array<{ name: string; error: string }> = [];
+
+    for (const name of playerNames) {
+      // Check if already exists
+      if (this.hasPlayerName(packId, name)) {
+        skipped.push(name);
+        continue;
+      }
+
+      const result = await this.generatePlayerName(packId, name, voiceId, options);
+
+      if (result.success) {
+        generated.push(name);
+      } else {
+        failed.push({ name, error: result.error || 'Unknown error' });
+      }
+
+      // Small delay between API calls to avoid rate limiting
+      if (generated.length > 0 || failed.length > 0) {
+        await this.delay(100);
+      }
+    }
+
+    return {
+      success: failed.length === 0,
+      generated,
+      skipped,
+      failed,
+    };
+  }
+
+  /**
+   * Sanitize player name for use as filename
+   * Converts to lowercase, replaces spaces with underscores, removes special characters
+   */
+  private sanitizePlayerNameForFilename(name: string): string {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_äöüß]/gi, '')
+      .substring(0, 50); // Limit length
+  }
+
+  /**
+   * Get the audio file path for a player name
+   */
+  getPlayerNameAudioPath(packId: string, playerName: string): string | null {
+    const packDir = path.join(this.outputDir, packId);
+    const filename = this.sanitizePlayerNameForFilename(playerName);
+    const filePath = path.join(packDir, `player_${filename}.mp3`);
+
+    if (fs.existsSync(filePath)) {
+      return filePath;
+    }
+    return null;
+  }
+
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }

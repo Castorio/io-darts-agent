@@ -11,3 +11,4 @@ export { registerMediaRoutes, type MediaDependencies, type MediaListResponse, ty
 export { registerAnimationRoutes, type AnimationDependencies } from './animations.js';
 export { registerCallerRoutes } from './caller.js';
 export { registerTtsRoutes } from './tts.js';
+export { registerDeveloperRoutes, type DeveloperDependencies } from './developer.js';

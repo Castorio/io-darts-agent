@@ -311,6 +311,12 @@ export default {
     // ElevenLabs
     elevenlabsDescription: 'KI-Sprachsynthese für den Darts Caller',
     elevenlabsHint: 'Holen Sie sich Ihren API-Schlüssel von',
+    developerMode: 'Entwickler-Modus',
+    developerModeDescription: 'Aktiviere Entwickler-Tools zum Testen und Debuggen',
+    developerModeEnabled: 'Entwickler-Modus',
+    developerModeHint: 'Simuliere Autodarts-Events zum Testen der Module',
+    developerModeWarning: 'Der Entwickler-Modus ist aktiviert. Du kannst jetzt Autodarts-Events ohne echte Board-Verbindung simulieren.',
+    openDevTools: 'Entwickler-Tools öffnen',
   },
 
   // Media Library
@@ -640,6 +646,35 @@ export default {
         description: 'Ansage bei Spielerwechsel',
       },
     },
+  },
+
+  // Developer Tools
+  developer: {
+    title: 'Entwickler-Tools',
+    subtitle: 'Simuliere Autodarts-Events zum Testen',
+    notEnabled: 'Entwickler-Modus nicht aktiviert',
+    enableInSettings: 'Aktiviere den Entwickler-Modus in den Einstellungen.',
+    goToSettings: 'Zu den Einstellungen',
+    matchStatus: 'Match-Status',
+    noActiveMatch: 'Kein aktives simuliertes Match',
+    player1: 'Spieler 1',
+    player2: 'Spieler 2',
+    color: 'Farbe',
+    startScore: 'Startwert',
+    startMatch: 'Match starten',
+    finishMatch: 'Match beenden',
+    cancelMatch: 'Match abbrechen',
+    round: 'Runde',
+    turnScore: 'Aufnahme',
+    currentPlayer: 'Aktueller Spieler',
+    active: 'Aktiv',
+    throwSimulator: 'Wurf-Simulator',
+    number: 'Zahl',
+    multiplier: 'Multiplikator',
+    throw: 'Werfen',
+    endTurn: 'Aufnahme beenden (Spielerwechsel)',
+    scenarios: 'Test-Szenarien',
+    scenariosSubtitle: 'Vordefinierte Test-Szenarien ausführen',
   },
 
   // Errors

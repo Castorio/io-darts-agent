@@ -16,6 +16,7 @@ import {
   registerAnimationRoutes,
   registerTtsRoutes,
   registerCallerRoutes,
+  registerDeveloperRoutes,
 } from './api/routes/index.js';
 import { ElevenLabsService, VoicePackGenerator } from './core/modules/handlers/index.js';
 import { MediaService } from './core/media/MediaService.js';
@@ -914,6 +915,25 @@ async function main(): Promise<void> {
     },
   });
   console.log('🗣️  Caller routes initialized');
+
+  // Register Developer Routes (for simulation/testing)
+  registerDeveloperRoutes(fastify, server, {
+    emitEvent: (event: ParsedEvent) => {
+      // Emit to WebSocket subscribers
+      for (const subscriber of eventSubscribers) {
+        subscriber(event);
+      }
+      // Also process through modules
+      for (const [, mod] of installedModules) {
+        if (mod.status === 'running' && mod.eventHandler) {
+          mod.eventHandler(event).catch((err) => {
+            console.error(`Error in module ${mod.id}:`, err);
+          });
+        }
+      }
+    },
+  });
+  console.log('🔧 Developer routes initialized');
 
   // Register Match Routes (for current match state)
   registerMatchRoutes(fastify, server, {

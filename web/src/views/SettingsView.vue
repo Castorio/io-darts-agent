@@ -23,6 +23,7 @@ interface Settings {
       configured: boolean
     }
   }
+  developerMode?: boolean
 }
 
 const currentLocale = ref<SupportedLocale>(getLocale())
@@ -56,6 +57,9 @@ const runwayModel = ref<'gen3a_turbo' | 'gen3a'>('gen3a_turbo')
 const elevenlabsConfigured = ref(false)
 const elevenlabsApiKey = ref('')
 
+// Developer mode
+const developerMode = ref(false)
+
 async function loadSettings() {
   isLoading.value = true
   try {
@@ -70,6 +74,7 @@ async function loadSettings() {
     runwayConfigured.value = settings.value.aiProviders?.runway?.configured ?? false
     runwayModel.value = settings.value.aiProviders?.runway?.model ?? 'gen3a_turbo'
     elevenlabsConfigured.value = settings.value.aiProviders?.elevenlabs?.configured ?? false
+    developerMode.value = settings.value.developerMode ?? false
   } catch (e) {
     message.value = {
       type: 'error',
@@ -142,6 +147,11 @@ async function saveSettings() {
 
     if (Object.keys(aiProviderUpdates).length > 0) {
       updates.aiProviders = aiProviderUpdates
+    }
+
+    // Developer mode
+    if (developerMode.value !== (settings.value?.developerMode ?? false)) {
+      updates.developerMode = developerMode.value
     }
 
     if (Object.keys(updates).length === 0) {
@@ -441,6 +451,52 @@ onMounted(loadSettings)
                 </p>
               </div>
             </div>
+          </div>
+        </BaseCard>
+
+        <!-- Developer Mode -->
+        <BaseCard :title="t('settings.developerMode')" :subtitle="t('settings.developerModeDescription')">
+          <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+              </div>
+              <div>
+                <p class="text-white font-medium">{{ t('settings.developerModeEnabled') }}</p>
+                <p class="text-sm text-dark-400">{{ t('settings.developerModeHint') }}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              @click="developerMode = !developerMode"
+              :class="[
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                developerMode ? 'bg-autodarts-600' : 'bg-dark-600',
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                  developerMode ? 'translate-x-6' : 'translate-x-1',
+                ]"
+              />
+            </button>
+          </div>
+          <div v-if="developerMode" class="mt-4 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+            <p class="text-amber-400 text-sm">
+              {{ t('settings.developerModeWarning') }}
+            </p>
+            <router-link
+              to="/developer"
+              class="inline-flex items-center gap-2 mt-3 text-autodarts-400 hover:text-autodarts-300"
+            >
+              {{ t('settings.openDevTools') }}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </router-link>
           </div>
         </BaseCard>
 

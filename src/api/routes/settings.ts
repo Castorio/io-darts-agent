@@ -74,6 +74,7 @@ export function registerSettingsRoutes(
           configured: !!(config.aiProviders?.elevenlabs?.apiKey),
         },
       },
+      developerMode: config.developerMode || false,
     };
   });
 
@@ -164,6 +165,11 @@ export function registerSettingsRoutes(
             config.aiProviders.elevenlabs.apiKey = updates.aiProviders.elevenlabs.apiKey;
           }
         }
+      }
+
+      // Update developer mode
+      if (updates.developerMode !== undefined) {
+        config.developerMode = updates.developerMode;
       }
 
       // Save updated config

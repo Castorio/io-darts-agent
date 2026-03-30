@@ -311,6 +311,12 @@ export default {
     // ElevenLabs
     elevenlabsDescription: 'AI voice synthesis for the Darts Caller',
     elevenlabsHint: 'Get your API key from',
+    developerMode: 'Developer Mode',
+    developerModeDescription: 'Enable developer tools for testing and debugging',
+    developerModeEnabled: 'Developer Mode',
+    developerModeHint: 'Simulate Autodarts events for testing modules',
+    developerModeWarning: 'Developer mode is enabled. You can now simulate Autodarts events without a real board connection.',
+    openDevTools: 'Open Developer Tools',
   },
 
   // Media Library
@@ -640,6 +646,35 @@ export default {
         description: 'Announcement on player change',
       },
     },
+  },
+
+  // Developer Tools
+  developer: {
+    title: 'Developer Tools',
+    subtitle: 'Simulate Autodarts events for testing',
+    notEnabled: 'Developer Mode Not Enabled',
+    enableInSettings: 'Enable Developer Mode in Settings to access this feature.',
+    goToSettings: 'Go to Settings',
+    matchStatus: 'Match Status',
+    noActiveMatch: 'No active simulated match',
+    player1: 'Player 1',
+    player2: 'Player 2',
+    color: 'Color',
+    startScore: 'Start Score',
+    startMatch: 'Start Match',
+    finishMatch: 'Finish Match',
+    cancelMatch: 'Cancel Match',
+    round: 'Round',
+    turnScore: 'Turn Score',
+    currentPlayer: 'Current Player',
+    active: 'Active',
+    throwSimulator: 'Throw Simulator',
+    number: 'Number',
+    multiplier: 'Multiplier',
+    throw: 'Throw',
+    endTurn: 'End Turn (Player Change)',
+    scenarios: 'Test Scenarios',
+    scenariosSubtitle: 'Run predefined test scenarios',
   },
 
   // Errors

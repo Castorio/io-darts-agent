@@ -355,6 +355,7 @@ export const api = {
           configured: boolean
         }
       }
+      developerMode?: boolean
     }>('/settings')
   },
 
@@ -363,6 +364,7 @@ export const api = {
     webAuth?: { enabled?: boolean; username?: string; password?: string }
     autodarts?: { email?: string; password?: string; boardId?: string }
     aiProviders?: Record<string, unknown>
+    developerMode?: boolean
   }) {
     return request<{ success: boolean; message?: string; error?: string }>(
       '/settings',
@@ -728,6 +730,86 @@ export const api = {
     return request<{ success: boolean; cleared: number }>('/animations/jobs/clear', {
       method: 'POST',
     })
+  },
+
+  // Developer Mode
+  async getDeveloperStatus() {
+    return request<{
+      enabled: boolean
+      matchActive: boolean
+      matchState?: {
+        matchId: string
+        players: Array<{ id: string; name: string; index: number; color?: string }>
+        currentPlayerIndex: number
+        scores: number[]
+        gameScores: number[]
+        round: number
+        leg: number
+        set: number
+        turnScore: number
+        turnBusted: boolean
+      }
+    }>('/developer/status')
+  },
+
+  async simulateMatchStart(players?: Array<{ name: string; color?: string }>, startScore?: number) {
+    return request<{ success: boolean; error?: string; matchId?: string }>(
+      '/developer/simulate/match/start',
+      {
+        method: 'POST',
+        body: JSON.stringify({ players, startScore }),
+      }
+    )
+  },
+
+  async simulateMatchEnd(winner?: number, cancelled?: boolean) {
+    return request<{ success: boolean; error?: string }>(
+      '/developer/simulate/match/end',
+      {
+        method: 'POST',
+        body: JSON.stringify({ winner, cancelled }),
+      }
+    )
+  },
+
+  async simulateThrow(number: number, multiplier: 1 | 2 | 3) {
+    return request<{ success: boolean; error?: string; points?: number; remaining?: number }>(
+      '/developer/simulate/throw',
+      {
+        method: 'POST',
+        body: JSON.stringify({ number, multiplier }),
+      }
+    )
+  },
+
+  async simulateTurnEnd() {
+    return request<{ success: boolean; error?: string; nextPlayer?: string }>(
+      '/developer/simulate/turn/end',
+      { method: 'POST' }
+    )
+  },
+
+  async simulateEvent(type: string, data?: Record<string, unknown>) {
+    return request<{ success: boolean; error?: string }>(
+      '/developer/simulate/event',
+      {
+        method: 'POST',
+        body: JSON.stringify({ type, data }),
+      }
+    )
+  },
+
+  async getScenarios() {
+    return request<{
+      scenarios: Array<{ id: string; name: string; description: string }>
+    }>('/developer/scenarios')
+  },
+
+  async runScenario(id: string) {
+    return request<{ success: boolean; error?: string }>(
+      `/developer/scenarios/${id}/run`,
+      { method: 'POST' }
+    )
   },
 }
 

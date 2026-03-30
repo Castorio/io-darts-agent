@@ -15,6 +15,7 @@ export interface HubConfiguration {
   autodarts: AutodartsConfig;
   server: ServerConfig;
   aiProviders?: AIProvidersConfig;
+  developerMode?: boolean;
 }
 
 export interface AIProvidersConfig {
@@ -223,6 +224,7 @@ export interface SettingsResponse {
       configured: boolean;
     };
   };
+  developerMode?: boolean;
 }
 
 export interface UpdateSettingsRequest {
@@ -250,6 +252,7 @@ export interface UpdateSettingsRequest {
       apiKey?: string;
     };
   };
+  developerMode?: boolean;
 }
 
 // ============================================

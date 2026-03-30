@@ -478,10 +478,19 @@ export class PlayerAnalyticsHandler {
       isAborted: data.isAborted,
     });
 
-    // Recalculate statistics for all players
+    // Recalculate statistics for all players and check for performance changes
     for (const player of match.players) {
-      this.store.calculatePlayerStatistics(player.playerId);
+      const oldStats = this.store.getPlayerStatistics(player.playerId);
+      const newStats = this.store.calculatePlayerStatistics(player.playerId);
+
+      // Check for performance changes and new records
+      if (oldStats && newStats) {
+        await this.checkPerformanceAndEmitIntents(player, match, oldStats, newStats);
+      }
     }
+
+    // Emit match summary intent
+    await this.emitMatchSummaryIntent(match);
 
     // Generate tips if enabled
     if (this.config.generateTipsAfterMatch && !data.isAborted) {
@@ -492,6 +501,142 @@ export class PlayerAnalyticsHandler {
     this.activeMatchId = null;
     this.currentGame = null;
     this.currentLeg = null;
+  }
+
+  /**
+   * Check player performance and emit appropriate intents
+   */
+  private async checkPerformanceAndEmitIntents(
+    player: { playerId: string; playerName: string },
+    match: MatchData,
+    oldStats: PlayerStatistics,
+    newStats: PlayerStatistics
+  ): Promise<void> {
+    const basePayload = {
+      playerId: player.playerId,
+      playerName: player.playerName,
+      matchId: match.id,
+    };
+
+    // Calculate this match's average
+    const matchTurns = this.getPlayerTurnsInMatch(match, player.playerId);
+    const matchTotalScore = matchTurns.reduce((sum, t) => sum + t.totalScore, 0);
+    const matchAverage = matchTurns.length > 0 ? matchTotalScore / matchTurns.length : 0;
+
+    // Compare to historical average
+    const historicalAverage = oldStats.averagePerTurn;
+    const averageDiff = matchAverage - historicalAverage;
+    const percentChange = historicalAverage > 0 ? (averageDiff / historicalAverage) * 100 : 0;
+
+    // Emit performance intent if significant change (>10%)
+    if (Math.abs(percentChange) > 10 && matchTurns.length >= 3) {
+      if (percentChange > 10) {
+        await this.emitIntent('analytics.player.aboveAverage', {
+          ...basePayload,
+          matchAverage: Math.round(matchAverage * 100) / 100,
+          historicalAverage: Math.round(historicalAverage * 100) / 100,
+          percentAbove: Math.round(percentChange * 10) / 10,
+        });
+      } else if (percentChange < -10) {
+        await this.emitIntent('analytics.player.belowAverage', {
+          ...basePayload,
+          matchAverage: Math.round(matchAverage * 100) / 100,
+          historicalAverage: Math.round(historicalAverage * 100) / 100,
+          percentBelow: Math.round(Math.abs(percentChange) * 10) / 10,
+        });
+      }
+    }
+
+    // Check for new personal records
+    if (newStats.highestTurnScore > oldStats.highestTurnScore) {
+      await this.emitIntent('analytics.player.newRecord', {
+        ...basePayload,
+        recordType: 'highestTurnScore',
+        oldValue: oldStats.highestTurnScore,
+        newValue: newStats.highestTurnScore,
+      });
+    }
+
+    if (newStats.highestCheckout > oldStats.highestCheckout) {
+      await this.emitIntent('analytics.player.newRecord', {
+        ...basePayload,
+        recordType: 'highestCheckout',
+        oldValue: oldStats.highestCheckout,
+        newValue: newStats.highestCheckout,
+      });
+    }
+
+    if (newStats.count180s > oldStats.count180s) {
+      const new180s = newStats.count180s - oldStats.count180s;
+      await this.emitIntent('analytics.player.milestone', {
+        ...basePayload,
+        milestoneType: '180s',
+        total: newStats.count180s,
+        newInMatch: new180s,
+      });
+    }
+  }
+
+  /**
+   * Get all turns for a specific player in a match
+   */
+  private getPlayerTurnsInMatch(match: MatchData, playerId: string): TurnData[] {
+    const turns: TurnData[] = [];
+    const playerPosition = match.players.find((p) => p.playerId === playerId)?.position;
+    if (playerPosition === undefined) return turns;
+
+    for (const game of match.games) {
+      for (const leg of game.legs) {
+        for (const turn of leg.turns) {
+          if (turn.turnIndex % match.players.length === playerPosition) {
+            turns.push(turn);
+          }
+        }
+      }
+    }
+    return turns;
+  }
+
+  /**
+   * Emit match summary intent with analytics
+   */
+  private async emitMatchSummaryIntent(match: MatchData): Promise<void> {
+    const playerSummaries = match.players.map((player) => {
+      const turns = this.getPlayerTurnsInMatch(match, player.playerId);
+      const totalScore = turns.reduce((sum, t) => sum + t.totalScore, 0);
+      const average = turns.length > 0 ? totalScore / turns.length : 0;
+      const count180s = turns.filter((t) => t.totalScore === 180).length;
+      const highestScore = Math.max(...turns.map((t) => t.totalScore), 0);
+      const checkouts = turns.filter((t) => t.isCheckout && !t.isBust);
+      const highestCheckout = checkouts.length > 0
+        ? Math.max(...checkouts.map((t) => t.startingScore))
+        : 0;
+
+      return {
+        playerId: player.playerId,
+        playerName: player.playerName,
+        average: Math.round(average * 100) / 100,
+        turns: turns.length,
+        totalScore,
+        count180s,
+        highestScore,
+        highestCheckout,
+        isWinner: match.winnerId === player.playerId,
+      };
+    });
+
+    await this.emitIntent('analytics.match.summary', {
+      matchId: match.id,
+      gameType: match.gameType,
+      startingScore: match.startingScore,
+      isAborted: match.isAborted,
+      winnerId: match.winnerId,
+      winnerName: match.players.find((p) => p.playerId === match.winnerId)?.playerName,
+      duration: match.endedAt && match.timestamp
+        ? match.endedAt.getTime() - match.timestamp.getTime()
+        : undefined,
+      players: playerSummaries,
+    });
   }
 
   /**

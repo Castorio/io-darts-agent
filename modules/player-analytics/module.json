@@ -123,6 +123,73 @@
           "winnerName": { "type": "string", "optional": true },
           "isAborted": { "type": "boolean" }
         }
+      },
+      {
+        "id": "analytics.match.summary",
+        "description": "Match analysis completed with summary statistics for all players",
+        "category": "analytics",
+        "payload": {
+          "matchId": { "type": "string" },
+          "gameType": { "type": "string" },
+          "startingScore": { "type": "number" },
+          "isAborted": { "type": "boolean" },
+          "winnerId": { "type": "string", "optional": true },
+          "winnerName": { "type": "string", "optional": true },
+          "duration": { "type": "number", "description": "Match duration in ms", "optional": true },
+          "players": { "type": "array", "description": "Array of player summaries with averages, 180s, etc." }
+        }
+      },
+      {
+        "id": "analytics.player.aboveAverage",
+        "description": "Player performed significantly above their historical average (10%+)",
+        "category": "analytics",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" },
+          "matchAverage": { "type": "number", "description": "Average in this match" },
+          "historicalAverage": { "type": "number", "description": "Historical average" },
+          "percentAbove": { "type": "number", "description": "Percentage above historical" }
+        }
+      },
+      {
+        "id": "analytics.player.belowAverage",
+        "description": "Player performed significantly below their historical average (10%+)",
+        "category": "analytics",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" },
+          "matchAverage": { "type": "number" },
+          "historicalAverage": { "type": "number" },
+          "percentBelow": { "type": "number" }
+        }
+      },
+      {
+        "id": "analytics.player.newRecord",
+        "description": "Player set a new personal record",
+        "category": "analytics",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" },
+          "recordType": { "type": "string", "description": "Type of record (highestTurnScore, highestCheckout, etc.)" },
+          "oldValue": { "type": "number" },
+          "newValue": { "type": "number" }
+        }
+      },
+      {
+        "id": "analytics.player.milestone",
+        "description": "Player reached a milestone (e.g. 100 180s)",
+        "category": "analytics",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "matchId": { "type": "string" },
+          "milestoneType": { "type": "string", "description": "Type of milestone" },
+          "total": { "type": "number", "description": "Total count" },
+          "newInMatch": { "type": "number", "description": "New count in this match" }
+        }
       }
     ]
   },

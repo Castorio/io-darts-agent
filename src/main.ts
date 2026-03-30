@@ -159,17 +159,15 @@ function createModuleLogger(moduleId: string) {
 
 /**
  * Create an intent emitter for a module
- * @internal Reserved for future use when modules implement intent emission
+ * Used by modules to emit semantic intents that other modules can react to
  */
-function _createIntentEmitter(moduleId: string) {
+function createIntentEmitter(moduleId: string) {
   return {
     emit: async (intentId: string, payload: Record<string, unknown> = {}) => {
       await intentBus.emit(moduleId, intentId, payload);
     },
   };
 }
-// Suppress unused function warning - reserved for future module intent support
-void _createIntentEmitter;
 
 /**
  * Register module intents when starting
@@ -524,6 +522,7 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
             const analyticsDataDir = path.join(__dirname, '..', 'data', 'analytics');
             mod.playerAnalyticsHandler = createPlayerAnalyticsHandler(mod.configValues, analyticsDataDir);
             mod.playerAnalyticsHandler.setLogger(createModuleLogger('player-analytics'));
+            mod.playerAnalyticsHandler.setIntentEmitter(createIntentEmitter('player-analytics'));
             mod.eventHandler = async (event: ParsedEvent) => {
               if (mod.playerAnalyticsHandler) {
                 await mod.playerAnalyticsHandler.handleEvent(event);
@@ -792,6 +791,7 @@ async function main(): Promise<void> {
         const analyticsDataDir = path.join(__dirname, '..', 'data', 'analytics');
         mod.playerAnalyticsHandler = createPlayerAnalyticsHandler(mod.configValues, analyticsDataDir);
         mod.playerAnalyticsHandler.setLogger(createModuleLogger('player-analytics'));
+        mod.playerAnalyticsHandler.setIntentEmitter(createIntentEmitter('player-analytics'));
         mod.eventHandler = async (event: ParsedEvent) => {
           if (mod.playerAnalyticsHandler) {
             await mod.playerAnalyticsHandler.handleEvent(event);
@@ -883,6 +883,7 @@ async function main(): Promise<void> {
         } else {
           mod.playerAnalyticsHandler = createPlayerAnalyticsHandler(mod.configValues, analyticsDataDir);
           mod.playerAnalyticsHandler.setLogger(createModuleLogger('player-analytics'));
+          mod.playerAnalyticsHandler.setIntentEmitter(createIntentEmitter('player-analytics'));
         }
 
         mod.eventHandler = async (event: ParsedEvent) => {

@@ -11,6 +11,16 @@ import StatusBadge from '../components/StatusBadge.vue'
 
 const { t } = useI18n()
 
+// Supported comparison operators for showIf
+type ShowIfOperator = '==' | '!=' | '>' | '<' | '>=' | '<=' | 'includes' | 'notIncludes'
+
+// ShowIf condition types
+interface ShowIfCondition {
+  field: string
+  operator?: ShowIfOperator
+  value: unknown
+}
+
 // Config field schema type
 interface ConfigField {
   type: 'string' | 'number' | 'boolean' | 'select'
@@ -21,6 +31,8 @@ interface ConfigField {
   max?: number
   step?: number
   options?: Array<{ value: string | number; label: string }>
+  // Conditional display - can be a single condition or array of conditions (AND logic)
+  showIf?: ShowIfCondition | ShowIfCondition[]
 }
 
 const route = useRoute()
@@ -53,6 +65,59 @@ watch(
   },
   { immediate: true }
 )
+
+// Evaluate a single showIf condition
+function evaluateCondition(condition: ShowIfCondition): boolean {
+  const fieldValue = configValues.value[condition.field]
+  const targetValue = condition.value
+  const operator = condition.operator || '=='
+
+  switch (operator) {
+    case '==':
+      return fieldValue === targetValue
+    case '!=':
+      return fieldValue !== targetValue
+    case '>':
+      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue > targetValue
+    case '<':
+      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue < targetValue
+    case '>=':
+      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue >= targetValue
+    case '<=':
+      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue <= targetValue
+    case 'includes':
+      if (Array.isArray(fieldValue)) {
+        return fieldValue.includes(targetValue)
+      }
+      if (typeof fieldValue === 'string' && typeof targetValue === 'string') {
+        return fieldValue.includes(targetValue)
+      }
+      return false
+    case 'notIncludes':
+      if (Array.isArray(fieldValue)) {
+        return !fieldValue.includes(targetValue)
+      }
+      if (typeof fieldValue === 'string' && typeof targetValue === 'string') {
+        return !fieldValue.includes(targetValue)
+      }
+      return true
+    default:
+      return fieldValue === targetValue
+  }
+}
+
+// Check if a field should be shown based on showIf conditions
+function shouldShowField(field: ConfigField): boolean {
+  if (!field.showIf) return true
+
+  // Handle array of conditions (AND logic - all must be true)
+  if (Array.isArray(field.showIf)) {
+    return field.showIf.every(condition => evaluateCondition(condition))
+  }
+
+  // Handle single condition
+  return evaluateCondition(field.showIf)
+}
 
 async function saveConfig() {
   if (!module.value) return
@@ -318,6 +383,7 @@ onMounted(() => {
             <div
               v-for="(field, key) in configSchema"
               :key="key"
+              v-show="shouldShowField(field)"
               class="space-y-1"
             >
               <!-- String/Password Input -->

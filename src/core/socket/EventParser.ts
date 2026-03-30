@@ -297,8 +297,9 @@ export class EventParser {
     }
 
     // Also emit turn.finished on round change if we didn't emit on third dart
-    // This handles cases where takeout happens before 3 darts (e.g., checkout, bust)
-    if (isRoundChanged && this.lastTurnScore !== null && this.lastDartsInTurn !== 3) {
+    // This handles cases where takeout happens before 3 darts (e.g., checkout)
+    // Skip if we already emitted a bust event (justBusted)
+    if (isRoundChanged && this.lastTurnScore !== null && this.lastDartsInTurn !== 3 && !justBusted) {
       const previousPlayerIndex = this.lastPlayerIndex ?? data.player;
       const remainingScore = this.lastGameScores[previousPlayerIndex] ?? data.gameScores[previousPlayerIndex] ?? 0;
       console.log(`✅ EventParser: Round change - Emitting turn.finished - turnScore=${this.lastTurnScore}, remaining=${remainingScore}`);

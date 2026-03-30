@@ -18,12 +18,59 @@ export interface WSLogMessage {
   entry: LogEntry;
 }
 
+export interface WSVoicePackProgressMessage {
+  type: 'voicepack_progress';
+  progress: {
+    status: string;
+    packId: string;
+    packName: string;
+    voiceId: string;
+    totalFiles: number;
+    completedFiles: number;
+    currentFile?: string;
+    error?: string;
+    startedAt?: number;
+    completedAt?: number;
+    estimatedTimeRemaining?: number;
+  };
+}
+
+export interface CallRequest {
+  id: string;
+  type: 'score' | 'checkout' | 'player' | 'game' | 'special';
+  text: string;
+  audioFile?: string;
+  priority: number;
+  timestamp: number;
+}
+
+export interface WSCallerMessage {
+  type: 'caller';
+  request: CallRequest;
+}
+
+export interface VoicePackProgress {
+  status: string;
+  packId: string;
+  packName: string;
+  voiceId: string;
+  totalFiles: number;
+  completedFiles: number;
+  currentFile?: string;
+  error?: string;
+  startedAt?: number;
+  completedAt?: number;
+  estimatedTimeRemaining?: number;
+}
+
 export interface WebSocketDependencies {
   getAutodartsStatus: () => { connected: boolean; matchId?: string };
   subscribeToEvents: (handler: (event: ParsedEvent) => void) => () => void;
   subscribeToModuleStatus: (handler: (moduleId: string, status: ModuleStatus) => void) => () => void;
   subscribeToLogs?: (handler: (entry: LogEntry) => void) => () => void;
   getLogHistory?: () => LogEntry[];
+  subscribeToVoicePackProgress?: (handler: (progress: VoicePackProgress) => void) => () => void;
+  subscribeToCallerRequests?: (handler: (request: CallRequest) => void) => () => void;
 }
 
 interface WSClient {
@@ -41,6 +88,8 @@ export class WebSocketManager {
   private unsubscribeEvents?: () => void;
   private unsubscribeModules?: () => void;
   private unsubscribeLogs?: () => void;
+  private unsubscribeVoicePackProgress?: () => void;
+  private unsubscribeCallerRequests?: () => void;
 
   constructor(
     private server: APIServer,
@@ -84,6 +133,20 @@ export class WebSocketManager {
         this.broadcastLog(entry);
       });
     }
+
+    // Subscribe to voice pack progress if available
+    if (this.deps.subscribeToVoicePackProgress) {
+      this.unsubscribeVoicePackProgress = this.deps.subscribeToVoicePackProgress((progress) => {
+        this.broadcastVoicePackProgress(progress);
+      });
+    }
+
+    // Subscribe to caller requests if available
+    if (this.deps.subscribeToCallerRequests) {
+      this.unsubscribeCallerRequests = this.deps.subscribeToCallerRequests((request) => {
+        this.broadcastCallerRequest(request);
+      });
+    }
   }
 
   /**
@@ -98,6 +161,12 @@ export class WebSocketManager {
     }
     if (this.unsubscribeLogs) {
       this.unsubscribeLogs();
+    }
+    if (this.unsubscribeVoicePackProgress) {
+      this.unsubscribeVoicePackProgress();
+    }
+    if (this.unsubscribeCallerRequests) {
+      this.unsubscribeCallerRequests();
     }
 
     // Close all client connections
@@ -254,6 +323,40 @@ export class WebSocketManager {
   }
 
   /**
+   * Broadcast voice pack progress to all clients
+   */
+  private broadcastVoicePackProgress(progress: VoicePackProgress): void {
+    const message: WSVoicePackProgressMessage = {
+      type: 'voicepack_progress',
+      progress,
+    };
+
+    for (const client of this.clients) {
+      // Check if client is subscribed to voicepack_progress (or subscribed to all)
+      if (client.subscriptions.has('*') || client.subscriptions.has('voicepack_progress')) {
+        this.send(client, message);
+      }
+    }
+  }
+
+  /**
+   * Broadcast caller request to all clients
+   */
+  private broadcastCallerRequest(request: CallRequest): void {
+    const message: WSCallerMessage = {
+      type: 'caller',
+      request,
+    };
+
+    for (const client of this.clients) {
+      // Check if client is subscribed to caller (or subscribed to all)
+      if (client.subscriptions.has('*') || client.subscriptions.has('caller')) {
+        this.send(client, message);
+      }
+    }
+  }
+
+  /**
    * Broadcast status update to all clients
    */
   broadcastStatusUpdate(): void {
@@ -271,7 +374,7 @@ export class WebSocketManager {
   /**
    * Send message to a client
    */
-  private send(client: WSClient, message: WSMessage | WSLogMessage | { type: string; [key: string]: unknown }): void {
+  private send(client: WSClient, message: WSMessage | WSLogMessage | WSVoicePackProgressMessage | WSCallerMessage | { type: string; [key: string]: unknown }): void {
     if (client.socket.readyState === 1) { // WebSocket.OPEN
       client.socket.send(JSON.stringify(message));
     }

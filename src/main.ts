@@ -13,11 +13,26 @@ import {
   registerPlayerRoutes,
   registerMediaRoutes,
   registerMatchRoutes,
+  registerAnimationRoutes,
+  registerTtsRoutes,
+  registerCallerRoutes,
 } from './api/routes/index.js';
+import { ElevenLabsService } from './core/tts/ElevenLabsService.js';
+import { VoicePackGenerator } from './core/tts/VoicePackGenerator.js';
 import { MediaService } from './core/media/MediaService.js';
+import { AnimationGeneratorService } from './core/media/AnimationGeneratorService.js';
+import { createRunwayProvider } from './core/media/providers/RunwayProvider.js';
 import { APIConfigService } from './core/config/ConfigService.js';
 import { AuthService } from './core/auth/AuthService.js';
 import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
+import {
+  WledHandler,
+  GameDisplayHandler,
+  DartsCallerHandler,
+  createWledHandler,
+  createGameDisplayHandler,
+  createDartsCallerHandler,
+} from './core/modules/handlers/index.js';
 import { PlayerService } from './core/players/PlayerService.js';
 import { PlayerRepository } from './core/players/PlayerRepository.js';
 import { AutodartsHub } from './index.js';
@@ -38,6 +53,26 @@ let playerService: PlayerService | null = null;
 // Event subscribers for WebSocket
 const eventSubscribers = new Set<(event: ParsedEvent) => void>();
 const moduleStatusSubscribers = new Set<(moduleId: string, status: ModuleStatus) => void>();
+
+// Voice pack progress subscribers
+import type { GenerationProgress } from './core/tts/VoicePackGenerator.js';
+const voicePackProgressSubscribers = new Set<(progress: GenerationProgress) => void>();
+
+function emitVoicePackProgress(progress: GenerationProgress): void {
+  for (const subscriber of voicePackProgressSubscribers) {
+    subscriber(progress);
+  }
+}
+
+// Caller request subscribers for audio playback
+import type { CallRequest } from './api/routes/index.js';
+const callerRequestSubscribers = new Set<(request: CallRequest) => void>();
+
+function emitCallerRequest(request: CallRequest): void {
+  for (const subscriber of callerRequestSubscribers) {
+    subscriber(request);
+  }
+}
 
 // Log system for real-time event tracking
 // LogEntry type is also defined in websocket.ts - keeping in sync
@@ -80,353 +115,22 @@ interface InstalledModule {
   status: ModuleStatus;
   configValues: Record<string, unknown>;
   eventHandler?: (event: ParsedEvent) => Promise<void>;
+  // Handler instances for specific module types
+  wledHandler?: WledHandler;
+  gameDisplayHandler?: GameDisplayHandler;
+  dartsCallerHandler?: DartsCallerHandler;
 }
 const installedModules = new Map<string, InstalledModule>();
 
 /**
- * Convert hex color string to RGB object
+ * Create a logger interface for module handlers
  */
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  // Remove # if present
-  const cleanHex = hex.replace(/^#/, '');
-  const bigint = parseInt(cleanHex, 16);
+function createModuleLogger(moduleId: string) {
   return {
-    r: (bigint >> 16) & 255,
-    g: (bigint >> 8) & 255,
-    b: bigint & 255,
+    log: (source: string, message: string, data?: unknown) => {
+      addLog('module', source || moduleId, message, data);
+    },
   };
-}
-
-/**
- * Parse color from config - supports both hex strings and RGB objects
- */
-function parseColor(color: unknown, fallback: { r: number; g: number; b: number } = { r: 255, g: 255, b: 255 }): { r: number; g: number; b: number } {
-  if (!color) return fallback;
-
-  // If it's already an RGB object
-  if (typeof color === 'object' && color !== null && 'r' in color) {
-    return color as { r: number; g: number; b: number };
-  }
-
-  // If it's a hex string
-  if (typeof color === 'string' && color.startsWith('#')) {
-    return hexToRgb(color);
-  }
-
-  return fallback;
-}
-
-/**
- * Handle WLED module events
- * This processes Autodarts events and sends commands to WLED
- */
-async function handleWledEvent(event: ParsedEvent, mod: InstalledModule): Promise<void> {
-  const config = mod.configValues;
-  const host = config.wledHost as string;
-  const port = (config.wledPort as number) || 80;
-
-  if (!host) {
-    console.warn('WLED: No host configured');
-    return;
-  }
-
-  // Get events config - support both 'events' and 'eventActions' keys
-  const eventsConfig = (config.events as Record<string, unknown>) ||
-                       (config.eventActions as Record<string, unknown>) || {};
-
-  // Map Autodarts events to WLED actions - try exact match first, then variations
-  let actionConfig: Record<string, unknown> | null = null;
-  let eventKey: string | null = null;
-
-  // Use string type to allow flexible event matching
-  const eventType = event.type as string;
-
-  switch (eventType) {
-    case 'match.start':
-    case 'match.started':
-      eventKey = 'match.started';
-      actionConfig = (eventsConfig['match.started'] || eventsConfig['match.start'] || eventsConfig.matchStart) as Record<string, unknown>;
-      break;
-    case 'match.finished':
-      eventKey = 'match.finished';
-      actionConfig = (eventsConfig['match.finished'] || eventsConfig.matchFinished) as Record<string, unknown>;
-      break;
-    case 'match.delete':
-    case 'match.deleted':
-      eventKey = 'match.deleted';
-      actionConfig = (eventsConfig['match.deleted'] || eventsConfig['match.delete'] || eventsConfig.matchDeleted) as Record<string, unknown>;
-      break;
-    case 'game.finished':
-      eventKey = 'game.finished';
-      actionConfig = (eventsConfig['game.finished'] || eventsConfig.gameFinished) as Record<string, unknown>;
-      break;
-    case 'throw.detected':
-      // Check for special throws
-      const throwData = event.data as Record<string, unknown>;
-      const segment = throwData.segment as Record<string, unknown>;
-      const points = (throwData.points as number) || 0;
-      const turnPoints = (throwData.turnPoints as number) || 0;
-
-      if (turnPoints === 180) {
-        eventKey = 'throw.180';
-        actionConfig = (eventsConfig['throw.180'] || eventsConfig.throw180) as Record<string, unknown>;
-      } else if (throwData.busted) {
-        eventKey = 'throw.bust';
-        actionConfig = (eventsConfig['throw.bust'] || eventsConfig.throwBust) as Record<string, unknown>;
-      } else if (segment) {
-        const multiplier = segment.multiplier as number;
-        const number = segment.number as number;
-
-        if (multiplier === 3) {
-          eventKey = 'throw.triple';
-          actionConfig = (eventsConfig['throw.triple'] || eventsConfig.throwTriple || eventsConfig.throwHighlight) as Record<string, unknown>;
-        } else if (multiplier === 2 && number === 25) {
-          eventKey = 'throw.bullseye';
-          actionConfig = (eventsConfig['throw.bullseye'] || eventsConfig.throwBullseye) as Record<string, unknown>;
-        } else if (number === 25) {
-          eventKey = 'throw.bull';
-          actionConfig = (eventsConfig['throw.bull'] || eventsConfig.throwBull) as Record<string, unknown>;
-        } else if (multiplier === 2) {
-          eventKey = 'throw.double';
-          actionConfig = (eventsConfig['throw.double'] || eventsConfig.throwDouble) as Record<string, unknown>;
-        }
-      }
-
-      // Fallback to throw.detected or throw.hit
-      if (!actionConfig) {
-        if (points === 0) {
-          eventKey = 'throw.miss';
-          actionConfig = (eventsConfig['throw.miss'] || eventsConfig.throwMiss) as Record<string, unknown>;
-        } else {
-          eventKey = 'throw.detected';
-          actionConfig = (eventsConfig['throw.detected'] || eventsConfig.throwHit) as Record<string, unknown>;
-        }
-      }
-      break;
-    case 'player.change':
-    case 'player.changed':
-      eventKey = 'player.changed';
-      actionConfig = (eventsConfig['player.changed'] || eventsConfig['player.change'] || eventsConfig.playerChange) as Record<string, unknown>;
-      break;
-    case 'takeout.started':
-      eventKey = 'takeout.started';
-      actionConfig = (eventsConfig['takeout.started'] || eventsConfig.takeoutStarted) as Record<string, unknown>;
-      break;
-    case 'takeout.finished':
-      eventKey = 'takeout.finished';
-      actionConfig = (eventsConfig['takeout.finished'] || eventsConfig.takeoutFinished) as Record<string, unknown>;
-      break;
-    case 'turn.started':
-      eventKey = 'turn.started';
-      actionConfig = (eventsConfig['turn.started'] || eventsConfig.turnStarted) as Record<string, unknown>;
-      break;
-    case 'turn.finished':
-      eventKey = 'turn.finished';
-      actionConfig = (eventsConfig['turn.finished'] || eventsConfig.turnFinished) as Record<string, unknown>;
-      break;
-  }
-
-  if (!actionConfig) {
-    addLog('module', 'wled', `No config for event: ${event.type} (key: ${eventKey})`);
-    return;
-  }
-
-  const actionType = actionConfig.actionType as string;
-  if (!actionType || actionType === 'none') {
-    addLog('module', 'wled', `Action type is none for ${eventKey}`);
-    return;
-  }
-
-  try {
-    const wledUrl = `http://${host}:${port}/json/state`;
-    let wledPayload: Record<string, unknown> = { on: true };
-
-    // Check duration for state restore
-    const duration = (actionConfig.duration as number) || 0;
-    let previousState: Record<string, unknown> | null = null;
-
-    // If duration is set, save current WLED state BEFORE making changes
-    if (duration > 0 && actionType !== 'off') {
-      try {
-        const stateResponse = await fetch(`http://${host}:${port}/json/state`);
-        if (stateResponse.ok) {
-          previousState = await stateResponse.json() as Record<string, unknown>;
-          addLog('module', 'wled', `Saved previous state for restore after ${duration}ms`, {
-            on: previousState.on,
-            bri: previousState.bri,
-            ps: previousState.ps,
-          });
-        }
-      } catch (e) {
-        addLog('module', 'wled', 'Could not save previous state');
-      }
-    }
-
-    // Check if usePlayerColor is enabled - if so, determine player color
-    const usePlayerColor = actionConfig.usePlayerColor as boolean;
-    let playerColor: { r: number; g: number; b: number } | null = null;
-    let playerColorSource = '';
-
-    if (usePlayerColor) {
-      const eventData = event.data as Record<string, unknown>;
-      const playerIdx = (eventData?.playerIndex as number) || 0;
-      const currentPlayerName = eventData?.playerName as string;
-
-      // First, try to match the player by name and use their configured color
-      if (playerService && currentPlayerName) {
-        try {
-          const matchedPlayer = await playerService.matchPlayer(currentPlayerName);
-          if (matchedPlayer && matchedPlayer.color) {
-            // Use the player's configured color (higher priority)
-            playerColor = parseColor(matchedPlayer.color);
-            playerColorSource = `player "${matchedPlayer.name}"`;
-            addLog('module', 'wled', `Matched known player: ${matchedPlayer.name} with color ${matchedPlayer.color}`);
-          }
-        } catch (e) {
-          addLog('module', 'wled', `Could not match player: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-
-      // If no known player found, use generic player colors
-      if (!playerColor) {
-        const playerColorsConfig = (config.playerColors as Array<string | { r: number; g: number; b: number }>) || [
-          '#3b82f6', // Blue
-          '#ef4444', // Red
-          '#22c55e', // Green
-          '#f59e0b', // Amber
-          '#8b5cf6', // Purple
-          '#ec4899', // Pink
-        ];
-        const playerColorsRgb = playerColorsConfig.map(c => parseColor(c));
-        playerColor = playerColorsRgb[playerIdx % playerColorsRgb.length];
-        playerColorSource = `generic player ${playerIdx + 1}`;
-      }
-      addLog('module', 'wled', `Using ${playerColorSource} color: RGB(${playerColor.r},${playerColor.g},${playerColor.b})`);
-    }
-
-    // Parse colors from config (support both hex strings and RGB objects)
-    // If usePlayerColor is enabled, use player color for color1
-    const color1 = usePlayerColor && playerColor
-      ? playerColor
-      : parseColor(actionConfig.color1 || actionConfig.color);
-    const color2 = parseColor(actionConfig.color2, { r: 0, g: 0, b: 0 });
-    const color3 = parseColor(actionConfig.color3, { r: 0, g: 0, b: 0 });
-
-    // Check if a color is configured
-    const hasColor = actionConfig.color1 || actionConfig.color || usePlayerColor;
-
-    // If a color is selected but no preset or effect, default to solid
-    const effectiveActionType = (actionType === 'none' || !actionType) && hasColor
-      ? 'solid'
-      : actionType;
-
-    switch (effectiveActionType) {
-      case 'preset':
-        wledPayload = { ps: (actionConfig.presetId as number) || 1 };
-        break;
-      case 'effect':
-        wledPayload = {
-          on: true,
-          bri: (actionConfig.brightness as number) ?? 255,
-          seg: [{
-            fx: (actionConfig.effectId as number) ?? 0,
-            sx: (actionConfig.speed as number) ?? 128,
-            ix: (actionConfig.intensity as number) ?? 128,
-            col: [
-              [color1.r, color1.g, color1.b],
-              [color2.r, color2.g, color2.b],
-              [color3.r, color3.g, color3.b],
-            ],
-          }],
-        };
-        break;
-      case 'solid':
-        wledPayload = {
-          on: true,
-          bri: (actionConfig.brightness as number) ?? 255,
-          seg: [{
-            fx: 0,
-            col: [[color1.r, color1.g, color1.b]],
-          }],
-        };
-        break;
-      case 'brightness':
-        wledPayload = {
-          on: true,
-          bri: (actionConfig.brightness as number) ?? 255,
-        };
-        break;
-      case 'off':
-        wledPayload = { on: false };
-        break;
-    }
-
-    addLog('module', 'wled', `Sending ${effectiveActionType} action for ${event.type}`, wledPayload);
-    console.log(`🎨 WLED [${event.type}]: Sending ${effectiveActionType} action`);
-
-    const response = await fetch(wledUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(wledPayload),
-    });
-
-    if (!response.ok) {
-      addLog('module', 'wled', `HTTP Error: ${response.status}`);
-      console.error(`WLED: HTTP ${response.status}`);
-    } else {
-      addLog('module', 'wled', `Command sent successfully to ${host}:${port}`);
-    }
-
-    // Handle duration (revert to previous state after timeout)
-    if (duration > 0 && previousState) {
-      addLog('module', 'wled', `Will restore state in ${duration}ms`);
-      setTimeout(async () => {
-        try {
-          // Restore the previous state
-          // Extract relevant parts to restore
-          const restorePayload: Record<string, unknown> = {
-            on: previousState.on,
-            bri: previousState.bri,
-          };
-
-          // Restore segments if available
-          if (previousState.seg && Array.isArray(previousState.seg)) {
-            const segments = previousState.seg as Array<Record<string, unknown>>;
-            restorePayload.seg = segments.map(seg => ({
-              fx: seg.fx,
-              sx: seg.sx,
-              ix: seg.ix,
-              col: seg.col,
-              pal: seg.pal,
-            }));
-          }
-
-          // Restore preset if it was active
-          if (previousState.ps !== undefined && previousState.ps !== -1) {
-            restorePayload.ps = previousState.ps;
-          }
-
-          addLog('module', 'wled', `Restoring previous state now`, restorePayload);
-          const restoreResponse = await fetch(wledUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(restorePayload),
-          });
-
-          if (restoreResponse.ok) {
-            addLog('module', 'wled', `Successfully restored previous state after ${duration}ms`);
-          } else {
-            addLog('module', 'wled', `Failed to restore state: HTTP ${restoreResponse.status}`);
-          }
-        } catch (e) {
-          addLog('module', 'wled', `Error restoring state: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }, duration);
-    }
-  } catch (error) {
-    addLog('module', 'wled', `Error: ${error instanceof Error ? error.message : String(error)}`);
-    console.error(`WLED Error:`, error instanceof Error ? error.message : error);
-  }
 }
 
 // Module config storage directory
@@ -647,17 +351,48 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
     for (const mod of installedModules.values()) {
       const shouldAutoStart = mod.configValues.autoStart === true ||
         (mod.id === 'wled' && mod.configValues.wledHost) ||
-        mod.id === 'game-display'; // Game display always auto-starts
+        mod.id === 'game-display' || // Game display always auto-starts
+        (mod.id === 'darts-caller' && mod.configValues.enabled !== false); // Darts caller auto-starts if enabled
 
       if (shouldAutoStart && mod.status === 'stopped') {
         try {
-          // Setup event handler based on module type
+          // Setup handler based on module type
           if (mod.id === 'wled') {
+            // Create WLED handler with full configuration
+            mod.wledHandler = createWledHandler(mod.configValues);
+            mod.wledHandler.setPlayerService(playerService);
+            mod.wledHandler.setLogger(createModuleLogger('wled'));
+
             mod.eventHandler = async (event: ParsedEvent) => {
-              await handleWledEvent(event, mod);
+              if (mod.wledHandler) {
+                await mod.wledHandler.handleEvent(event);
+              }
+            };
+          } else if (mod.id === 'game-display') {
+            // Create Game Display handler for statistics and animation tracking
+            mod.gameDisplayHandler = createGameDisplayHandler(mod.configValues);
+            mod.eventHandler = async (event: ParsedEvent) => {
+              if (mod.gameDisplayHandler) {
+                await mod.gameDisplayHandler.handleEvent(event);
+              }
+            };
+          } else if (mod.id === 'darts-caller') {
+            // Create Darts Caller handler with voice packs directory
+            mod.dartsCallerHandler = createDartsCallerHandler({
+              ...mod.configValues,
+              voicePacksDir: path.join(__dirname, '..', 'data', 'voicepacks'),
+            });
+            // Register callback to forward call requests to WebSocket
+            mod.dartsCallerHandler.onCallRequest((request) => {
+              console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
+              emitCallerRequest(request);
+            });
+            mod.eventHandler = async (event: ParsedEvent) => {
+              if (mod.dartsCallerHandler) {
+                await mod.dartsCallerHandler.handleEvent(event);
+              }
             };
           }
-          // game-display doesn't need an event handler - it uses WebSocket directly
           mod.status = 'running';
           addLog('module', mod.id, `Auto-started module: ${mod.manifest.name}`);
           console.log(`▶️  Auto-started module: ${mod.manifest.name}`);
@@ -872,25 +607,59 @@ async function main(): Promise<void> {
       const mod = installedModules.get(id);
       if (!mod) throw new Error(`Module ${id} not found`);
 
-      // Setup event handler based on module type
+      // Setup handler based on module type
       if (id === 'wled') {
+        mod.wledHandler = createWledHandler(mod.configValues);
+        mod.wledHandler.setPlayerService(playerService);
+        mod.wledHandler.setLogger(createModuleLogger('wled'));
+
         mod.eventHandler = async (event: ParsedEvent) => {
-          await handleWledEvent(event, mod);
+          if (mod.wledHandler) {
+            await mod.wledHandler.handleEvent(event);
+          }
         };
+
+        console.log(`▶️  Started module: ${mod.manifest.name}`);
+        console.log(`   Host: ${mod.wledHandler.getHost() || 'not configured'}`);
+      } else if (id === 'game-display') {
+        mod.gameDisplayHandler = createGameDisplayHandler(mod.configValues);
+        mod.eventHandler = async (event: ParsedEvent) => {
+          if (mod.gameDisplayHandler) {
+            await mod.gameDisplayHandler.handleEvent(event);
+          }
+        };
+        console.log(`▶️  Started module: ${mod.manifest.name}`);
+      } else if (id === 'darts-caller') {
+        mod.dartsCallerHandler = createDartsCallerHandler({
+          ...mod.configValues,
+          voicePacksDir: path.join(__dirname, '..', 'data', 'voicepacks'),
+        });
+        // Register callback to forward call requests to WebSocket
+        mod.dartsCallerHandler.onCallRequest((request) => {
+          console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
+          emitCallerRequest(request);
+        });
+        mod.eventHandler = async (event: ParsedEvent) => {
+          if (mod.dartsCallerHandler) {
+            await mod.dartsCallerHandler.handleEvent(event);
+          }
+        };
+        console.log(`▶️  Started module: ${mod.manifest.name}`);
+      } else {
+        console.log(`▶️  Started module: ${mod.manifest.name}`);
       }
 
       mod.status = 'running';
-      console.log(`▶️  Started module: ${mod.manifest.name}`);
-
-      // Log module config for debugging
-      console.log(`   Host: ${mod.configValues.wledHost || 'not configured'}`);
     },
     stopModule: async (id: string): Promise<void> => {
       const mod = installedModules.get(id);
       if (!mod) throw new Error(`Module ${id} not found`);
 
-      // Remove event handler
+      // Remove event handler and handlers
       mod.eventHandler = undefined;
+      mod.wledHandler = undefined;
+      mod.gameDisplayHandler = undefined;
+      mod.dartsCallerHandler = undefined;
       mod.status = 'stopped';
       console.log(`⏹️  Stopped module: ${mod.manifest.name}`);
     },
@@ -898,10 +667,54 @@ async function main(): Promise<void> {
       const mod = installedModules.get(id);
       if (!mod) throw new Error(`Module ${id} not found`);
 
-      // Re-setup event handler
+      // Re-setup handler based on module type
       if (id === 'wled') {
+        // Update or create handler with latest config
+        if (mod.wledHandler) {
+          mod.wledHandler.updateConfig(mod.configValues as any);
+        } else {
+          mod.wledHandler = createWledHandler(mod.configValues);
+          mod.wledHandler.setPlayerService(playerService);
+          mod.wledHandler.setLogger(createModuleLogger('wled'));
+        }
+
         mod.eventHandler = async (event: ParsedEvent) => {
-          await handleWledEvent(event, mod);
+          if (mod.wledHandler) {
+            await mod.wledHandler.handleEvent(event);
+          }
+        };
+      } else if (id === 'game-display') {
+        if (mod.gameDisplayHandler) {
+          mod.gameDisplayHandler.updateConfig(mod.configValues as any);
+        } else {
+          mod.gameDisplayHandler = createGameDisplayHandler(mod.configValues);
+        }
+
+        mod.eventHandler = async (event: ParsedEvent) => {
+          if (mod.gameDisplayHandler) {
+            await mod.gameDisplayHandler.handleEvent(event);
+          }
+        };
+      } else if (id === 'darts-caller') {
+        const callerConfig = {
+          ...mod.configValues,
+          voicePacksDir: path.join(__dirname, '..', 'data', 'voicepacks'),
+        };
+        if (mod.dartsCallerHandler) {
+          mod.dartsCallerHandler.updateConfig(callerConfig as any);
+        } else {
+          mod.dartsCallerHandler = createDartsCallerHandler(callerConfig);
+          // Register callback to forward call requests to WebSocket
+          mod.dartsCallerHandler.onCallRequest((request) => {
+            console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
+            emitCallerRequest(request);
+          });
+        }
+
+        mod.eventHandler = async (event: ParsedEvent) => {
+          if (mod.dartsCallerHandler) {
+            await mod.dartsCallerHandler.handleEvent(event);
+          }
         };
       }
 
@@ -981,6 +794,118 @@ async function main(): Promise<void> {
   });
   console.log('📁 Media library initialized');
 
+  // Initialize Animation Generator Service
+  const animationDir = path.join(mediaDir, 'animation');
+  const animationService = new AnimationGeneratorService({
+    outputDir: animationDir,
+  });
+  await animationService.init();
+
+  // Function to configure/reconfigure the AI provider
+  function configureAnimationProvider() {
+    const config = server.getConfig();
+    const runwayConfig = config?.aiProviders?.runway;
+    const runwayProvider = createRunwayProvider(runwayConfig);
+
+    if (runwayProvider) {
+      animationService.setProvider(runwayProvider);
+      console.log('🎬 Animation generator: Runway ML configured');
+    } else {
+      animationService.setProvider(null as any); // Clear provider
+      console.log('🎬 Animation generator: No provider configured');
+    }
+  }
+
+  // Initial configuration
+  configureAnimationProvider();
+
+  // Reconfigure when settings change
+  server.on('settingsChanged', () => {
+    configureAnimationProvider();
+  });
+
+  // Register Animation Routes
+  registerAnimationRoutes(fastify, server, {
+    animationService,
+  });
+
+  // ElevenLabs TTS Service
+  let elevenLabsService: ElevenLabsService | null = null;
+  let voicePackGenerator: VoicePackGenerator | null = null;
+  const voicePacksDir = path.join(__dirname, '..', 'data', 'voicepacks');
+
+  function getOrCreateElevenLabsService(): ElevenLabsService | null {
+    const config = server.getConfig();
+    const apiKey = config?.aiProviders?.elevenlabs?.apiKey;
+
+    if (!apiKey) {
+      elevenLabsService = null;
+      return null;
+    }
+
+    if (!elevenLabsService || elevenLabsService.getApiKey() !== apiKey) {
+      elevenLabsService = new ElevenLabsService({
+        apiKey,
+        cacheDir: path.join(__dirname, '..', 'data', 'tts-cache'),
+        enableCache: true,
+      });
+
+      // Initialize the ElevenLabs service
+      elevenLabsService.init().catch((err) => {
+        console.error('Failed to initialize ElevenLabs service:', err);
+      });
+
+      // Create/update VoicePackGenerator with the new service
+      voicePackGenerator = new VoicePackGenerator(elevenLabsService, voicePacksDir);
+
+      // Subscribe to progress updates for logging and WebSocket broadcast
+      voicePackGenerator.onProgress((progress) => {
+        console.log(`🎙️  Voice Pack Generation: ${progress.status} - ${progress.completedFiles}/${progress.totalFiles} files`);
+        if (progress.status === 'completed') {
+          console.log(`✅ Voice pack "${progress.packName}" completed`);
+        } else if (progress.status === 'error') {
+          console.error(`❌ Voice pack generation failed: ${progress.error}`);
+        }
+        // Emit to WebSocket subscribers
+        emitVoicePackProgress(progress);
+      });
+    }
+
+    return elevenLabsService;
+  }
+
+  function getVoicePackGenerator(): VoicePackGenerator | null {
+    // Ensure ElevenLabs service exists first
+    const service = getOrCreateElevenLabsService();
+    if (!service) {
+      return null;
+    }
+    return voicePackGenerator;
+  }
+
+  // Register TTS Routes
+  registerTtsRoutes(fastify, server, {
+    getElevenLabsService: getOrCreateElevenLabsService,
+    getVoicePackGenerator,
+  });
+  console.log('🎙️  TTS services initialized');
+
+  // Helper function to get the darts caller handler
+  function getDartsCallerHandler(): DartsCallerHandler | null {
+    const mod = installedModules.get('darts-caller');
+    return mod?.dartsCallerHandler ?? null;
+  }
+
+  // Register Caller Routes
+  registerCallerRoutes(fastify, server, {
+    getCallerHandler: getDartsCallerHandler,
+    subscribeToCallRequests: (callback: (request: CallRequest) => void) => {
+      callerRequestSubscribers.add(callback);
+      return () => callerRequestSubscribers.delete(callback);
+    },
+  });
+  console.log('🗣️  Caller routes initialized');
+
   // Register Match Routes (for current match state)
   registerMatchRoutes(fastify, server, {
     getCurrentMatch: () => hub?.getCurrentMatchState() ?? null,
@@ -1006,6 +931,14 @@ async function main(): Promise<void> {
       return () => logSubscribers.delete(handler);
     },
     getLogHistory: () => [...logEntries],
+    subscribeToVoicePackProgress: (handler: (progress: GenerationProgress) => void) => {
+      voicePackProgressSubscribers.add(handler);
+      return () => voicePackProgressSubscribers.delete(handler);
+    },
+    subscribeToCallerRequests: (handler: (request: CallRequest) => void) => {
+      callerRequestSubscribers.add(handler);
+      return () => callerRequestSubscribers.delete(handler);
+    },
   });
 
   // Start WebSocket manager

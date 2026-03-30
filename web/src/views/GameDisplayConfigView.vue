@@ -8,6 +8,7 @@ import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import BaseInput from '../components/BaseInput.vue'
 import MediaUpload from '../components/MediaUpload.vue'
+import AnimationGenerator from '../components/AnimationGenerator.vue'
 
 // Animation event types
 type AnimationEventType =
@@ -256,6 +257,21 @@ async function saveConfig() {
   } finally {
     isSaving.value = false
   }
+}
+
+// Handle AI-generated animation ready
+function onAnimationReady(eventType: string, url: string) {
+  const key = eventType as AnimationEventType
+  config.value.defaultAnimations[key] = {
+    enabled: true,
+    url,
+    duration: 3000,
+    sound: '',
+  }
+  saveMessage.value = { type: 'success', text: `Animation für "${animationEvents.find((e) => e.key === key)?.label || eventType}" hinzugefügt!` }
+  setTimeout(() => {
+    saveMessage.value = null
+  }, 3000)
 }
 
 // Open display in new window
@@ -698,6 +714,12 @@ onMounted(() => {
           </BaseButton>
         </div>
       </BaseCard>
+
+      <!-- AI Animation Generator -->
+      <AnimationGenerator
+        v-if="config.animationsEnabled"
+        @animation-ready="onAnimationReady"
+      />
 
       <!-- Usage Info -->
       <BaseCard title="Verwendung">

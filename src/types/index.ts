@@ -309,6 +309,19 @@ export interface PlayerChangeEvent extends ParsedEvent<{
   type: 'player.change';
 }
 
+export interface TurnFinishedEvent extends ParsedEvent<{
+  matchId: string;
+  playerIndex: number;
+  playerName: string;
+  turnScore: number;
+  turnPoints: number;
+  remaining: number;
+  busted: boolean;
+  round: number;
+}> {
+  type: 'turn.finished';
+}
+
 // EventBus Types
 export type EventHandler<T = unknown> = (event: ParsedEvent<T>) => void | Promise<void>;
 

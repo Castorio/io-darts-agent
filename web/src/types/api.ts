@@ -189,4 +189,18 @@ export interface WSModuleMessage {
   message?: string
 }
 
-export type WSMessage = WSEventMessage | WSStatusMessage | WSModuleMessage
+export interface CallRequest {
+  id: string
+  type: 'score' | 'checkout' | 'player' | 'game' | 'special'
+  text: string
+  audioFile?: string
+  priority: number
+  timestamp: number
+}
+
+export interface WSCallerMessage {
+  type: 'caller'
+  request: CallRequest
+}
+
+export type WSMessage = WSEventMessage | WSStatusMessage | WSModuleMessage | WSCallerMessage

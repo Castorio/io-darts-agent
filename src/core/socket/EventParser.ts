@@ -16,6 +16,11 @@ export class EventParser {
   private lastPlayerIndex: number | null = null;
   private currentMatchState: MatchStateData | null = null;
   private lastMatchUpdate: Date | null = null;
+  private lastRound: number | null = null;
+  private lastTurnScore: number | null = null;
+  private lastTurnBusted: boolean = false;
+  private lastGameScores: number[] = [];
+  private lastDartsInTurn: number = 0;
 
   constructor(boardId: string) {
     this.boardId = boardId;
@@ -37,6 +42,11 @@ export class EventParser {
       this.lastPlayerIndex = null;
       this.currentMatchState = null;
       this.lastMatchUpdate = null;
+      this.lastRound = null;
+      this.lastTurnScore = null;
+      this.lastTurnBusted = false;
+      this.lastGameScores = [];
+      this.lastDartsInTurn = 0;
     }
   }
 
@@ -117,6 +127,11 @@ export class EventParser {
     if (data.event === 'start') {
       this.currentMatchId = data.id;
       this.lastPlayerIndex = null;
+      this.lastRound = null;
+      this.lastTurnScore = null;
+      this.lastTurnBusted = false;
+      this.lastGameScores = [];
+      this.lastDartsInTurn = 0;
 
       return {
         type: 'match.start',
@@ -132,6 +147,11 @@ export class EventParser {
     if (data.event === 'delete') {
       this.currentMatchId = null;
       this.lastPlayerIndex = null;
+      this.lastRound = null;
+      this.lastTurnScore = null;
+      this.lastTurnBusted = false;
+      this.lastGameScores = [];
+      this.lastDartsInTurn = 0;
 
       return {
         type: 'match.delete',
@@ -221,8 +241,94 @@ export class EventParser {
     this.currentMatchState = data;
     this.lastMatchUpdate = timestamp;
 
+    // Check for turn finished
+    // Option 1: Round increased (takeout finished - new round started)
+    // Option 2: 3 darts thrown in current turn (third dart detected)
+    const currentTurn = data.turns?.[data.turns.length - 1];
+    const dartsInCurrentTurn = currentTurn?.throws?.length ?? 0;
+    const isThirdDart = dartsInCurrentTurn === 3 && this.lastDartsInTurn !== 3;
+    const isRoundChanged = this.lastRound !== null && data.round > this.lastRound;
+
+    console.log(`🔍 EventParser: round=${data.round}, lastRound=${this.lastRound}, darts=${dartsInCurrentTurn}, lastDarts=${this.lastDartsInTurn}, turnScore=${data.turnScore}`);
+
+    // Check for bust (turnBusted changed from false to true)
+    const justBusted = data.turnBusted && !this.lastTurnBusted;
+    if (justBusted) {
+      const playerIndex = data.player;
+      console.log(`💥 EventParser: BUST detected for player ${data.players[playerIndex]?.name}`);
+      events.push({
+        type: 'turn.finished',
+        timestamp,
+        raw,
+        data: {
+          matchId: data.id,
+          playerIndex: playerIndex,
+          playerName: data.players[playerIndex]?.name ?? 'Unknown',
+          turnScore: 0, // Bust means 0 points
+          turnPoints: 0,
+          remaining: this.lastGameScores[playerIndex] ?? data.gameScores[playerIndex] ?? 0, // Score before bust
+          busted: true,
+          round: data.round,
+        },
+      });
+    }
+
+    // Emit turn.finished when third dart is thrown (score announcement)
+    // Skip if we just busted (already handled above)
+    if (isThirdDart && !data.turnBusted && !justBusted) {
+      const playerIndex = data.player;
+      const remainingScore = data.gameScores[playerIndex] ?? 0;
+      console.log(`✅ EventParser: Third dart - Emitting turn.finished - turnScore=${data.turnScore}, remaining=${remainingScore}`);
+      events.push({
+        type: 'turn.finished',
+        timestamp,
+        raw,
+        data: {
+          matchId: data.id,
+          playerIndex: playerIndex,
+          playerName: data.players[playerIndex]?.name ?? 'Unknown',
+          turnScore: data.turnScore,
+          turnPoints: data.turnScore,
+          remaining: remainingScore,
+          busted: false,
+          round: data.round,
+        },
+      });
+    }
+
+    // Also emit turn.finished on round change if we didn't emit on third dart
+    // This handles cases where takeout happens before 3 darts (e.g., checkout, bust)
+    if (isRoundChanged && this.lastTurnScore !== null && this.lastDartsInTurn !== 3) {
+      const previousPlayerIndex = this.lastPlayerIndex ?? data.player;
+      const remainingScore = this.lastGameScores[previousPlayerIndex] ?? data.gameScores[previousPlayerIndex] ?? 0;
+      console.log(`✅ EventParser: Round change - Emitting turn.finished - turnScore=${this.lastTurnScore}, remaining=${remainingScore}`);
+      events.push({
+        type: 'turn.finished',
+        timestamp,
+        raw,
+        data: {
+          matchId: data.id,
+          playerIndex: previousPlayerIndex,
+          playerName: data.players[previousPlayerIndex]?.name ?? 'Unknown',
+          turnScore: this.lastTurnScore,
+          turnPoints: this.lastTurnScore,
+          remaining: remainingScore,
+          busted: this.lastTurnBusted,
+          round: this.lastRound!,
+        },
+      });
+    }
+
+    this.lastRound = data.round;
+    this.lastTurnScore = data.turnScore;
+    this.lastTurnBusted = data.turnBusted;
+    this.lastGameScores = [...data.gameScores];
+    this.lastDartsInTurn = dartsInCurrentTurn;
+
     // Check for player change
     if (this.lastPlayerIndex !== null && this.lastPlayerIndex !== data.player) {
+      // Get the remaining score for the NEW player (the one who is now up)
+      const newPlayerRemaining = data.gameScores[data.player] ?? 0;
       events.push({
         type: 'player.change',
         timestamp,
@@ -231,6 +337,7 @@ export class EventParser {
           previousPlayer: this.lastPlayerIndex,
           currentPlayer: data.player,
           playerName: data.players[data.player]?.name ?? 'Unknown',
+          remaining: newPlayerRemaining, // Remaining score of the player who is now up
         },
       });
     }
@@ -268,6 +375,11 @@ export class EventParser {
       this.lastPlayerIndex = null;
       this.currentMatchState = null;
       this.lastMatchUpdate = null;
+      this.lastRound = null;
+      this.lastTurnScore = null;
+      this.lastTurnBusted = false;
+      this.lastGameScores = [];
+      this.lastDartsInTurn = 0;
     }
 
     // Always emit match state event

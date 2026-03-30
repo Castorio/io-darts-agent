@@ -2,11 +2,14 @@
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useModulesStore } from '../stores/modules'
+import { useI18n } from 'vue-i18n'
 import AppLayout from '../components/AppLayout.vue'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import BaseInput from '../components/BaseInput.vue'
 import StatusBadge from '../components/StatusBadge.vue'
+
+const { t } = useI18n()
 
 // Config field schema type
 interface ConfigField {
@@ -16,6 +19,7 @@ interface ConfigField {
   required?: boolean
   min?: number
   max?: number
+  step?: number
   options?: Array<{ value: string | number; label: string }>
 }
 
@@ -134,7 +138,7 @@ onMounted(() => {
             d="M15 19l-7-7 7-7"
           />
         </svg>
-        Zurück zu Module
+        {{ t('modules.backToModules') }}
       </router-link>
 
       <!-- Loading State -->
@@ -176,9 +180,9 @@ onMounted(() => {
               d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          <h3 class="text-lg font-medium text-white mt-4">Modul nicht gefunden</h3>
+          <h3 class="text-lg font-medium text-white mt-4">{{ t('modules.moduleNotFound') }}</h3>
           <p class="text-dark-400 mt-2">
-            Das gesuchte Modul existiert nicht oder wurde entfernt.
+            {{ t('modules.moduleNotFoundDesc') }}
           </p>
         </div>
       </BaseCard>
@@ -232,14 +236,14 @@ onMounted(() => {
               :loading="actionLoading"
               @click="stopModule"
             >
-              Stoppen
+              {{ t('modules.stop') }}
             </BaseButton>
             <BaseButton
               v-else
               :loading="actionLoading"
               @click="startModule"
             >
-              Starten
+              {{ t('modules.start') }}
             </BaseButton>
             <BaseButton
               variant="ghost"
@@ -247,48 +251,67 @@ onMounted(() => {
               :loading="actionLoading"
               @click="restartModule"
             >
-              Neustarten
+              {{ t('modules.restart') }}
             </BaseButton>
           </div>
         </div>
 
         <!-- WLED-specific: Link to Event Configuration -->
-        <BaseCard v-if="module.id === 'wled'" title="Event-Aktionen" subtitle="Konfigurieren Sie die WLED-Aktionen für jedes Event">
+        <BaseCard v-if="module.id === 'wled'" :title="t('modules.wledEventActions')" :subtitle="t('modules.wledEventActionsSubtitle')">
           <div class="flex items-center justify-between">
             <p class="text-dark-400">
-              Die Event-Aktionen (Farben, Effekte, Spielerfarben) werden separat konfiguriert.
+              {{ t('modules.wledEventActionsDesc') }}
             </p>
             <router-link :to="`/modules/${module.id}/config`">
               <BaseButton>
-                Event-Aktionen konfigurieren
+                {{ t('modules.wledConfigureEvents') }}
               </BaseButton>
             </router-link>
           </div>
         </BaseCard>
 
         <!-- Game Display-specific: Link to Display Configuration -->
-        <BaseCard v-if="module.id === 'game-display'" title="Display Konfiguration" subtitle="Einstellungen und Vorschau für das Game Display">
+        <BaseCard v-if="module.id === 'game-display'" :title="t('modules.gameDisplayConfig')" :subtitle="t('modules.gameDisplayConfigSubtitle')">
           <div class="flex items-center justify-between">
             <div>
               <p class="text-dark-400">
-                Konfigurieren Sie das Display und öffnen Sie es auf einem externen Bildschirm.
+                {{ t('modules.gameDisplayConfigDesc') }}
               </p>
               <p class="text-sm text-dark-500 mt-1">
-                Das Display zeigt den Spielstand in Echtzeit an.
+                {{ t('modules.gameDisplayConfigHint') }}
               </p>
             </div>
             <router-link :to="`/modules/${module.id}/game-display-config`">
               <BaseButton>
-                Display konfigurieren
+                {{ t('modules.gameDisplayConfigure') }}
+              </BaseButton>
+            </router-link>
+          </div>
+        </BaseCard>
+
+        <!-- Darts Caller-specific: Link to Caller Configuration -->
+        <BaseCard v-if="module.id === 'darts-caller'" :title="t('modules.dartsCallerConfig')" :subtitle="t('modules.dartsCallerConfigSubtitle')">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-dark-400">
+                {{ t('modules.dartsCallerConfigDesc') }}
+              </p>
+              <p class="text-sm text-dark-500 mt-1">
+                {{ t('modules.dartsCallerConfigHint') }}
+              </p>
+            </div>
+            <router-link :to="`/modules/${module.id}/darts-caller-config`">
+              <BaseButton>
+                {{ t('modules.dartsCallerConfigure') }}
               </BaseButton>
             </router-link>
           </div>
         </BaseCard>
 
         <!-- Configuration -->
-        <BaseCard title="Konfiguration" subtitle="Passen Sie die Modul-Einstellungen an">
+        <BaseCard :title="t('modules.configuration')" :subtitle="t('modules.configurationSubtitle')">
           <div v-if="Object.keys(configSchema).length === 0" class="text-center py-8">
-            <p class="text-dark-400">Dieses Modul hat keine konfigurierbaren Einstellungen.</p>
+            <p class="text-dark-400">{{ t('modules.noConfigOptions') }}</p>
           </div>
 
           <form v-else @submit.prevent="saveConfig" class="space-y-6">
@@ -318,6 +341,7 @@ onMounted(() => {
                   v-model.number="configValues[key]"
                   :min="field.min"
                   :max="field.max"
+                  :step="field.step ?? ((field.max !== undefined && field.max <= 2) ? 0.01 : 1)"
                   :required="field.required"
                   class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500 focus:border-autodarts-500"
                 />
@@ -388,31 +412,31 @@ onMounted(() => {
             <!-- Save Button -->
             <div class="flex justify-end">
               <BaseButton type="submit" :loading="isSaving">
-                Speichern
+                {{ t('common.save') }}
               </BaseButton>
             </div>
           </form>
         </BaseCard>
 
         <!-- Stats -->
-        <BaseCard title="Statistiken">
+        <BaseCard :title="t('modules.statistics')">
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="p-4 rounded-lg bg-dark-700/50">
-              <p class="text-sm text-dark-400">Status</p>
+              <p class="text-sm text-dark-400">{{ t('common.status') }}</p>
               <StatusBadge :status="module.status" class="mt-1" />
             </div>
             <div class="p-4 rounded-lg bg-dark-700/50">
-              <p class="text-sm text-dark-400">Neustarts</p>
+              <p class="text-sm text-dark-400">{{ t('modules.restartCount') }}</p>
               <p class="text-xl font-bold text-white mt-1">{{ module.stats.restartCount }}</p>
             </div>
             <div class="p-4 rounded-lg bg-dark-700/50">
-              <p class="text-sm text-dark-400">Gestartet</p>
+              <p class="text-sm text-dark-400">{{ t('modules.startedAt') }}</p>
               <p class="text-sm text-white mt-1">
-                {{ module.stats.startedAt ? new Date(module.stats.startedAt).toLocaleString('de-DE') : '-' }}
+                {{ module.stats.startedAt ? new Date(module.stats.startedAt).toLocaleString() : '-' }}
               </p>
             </div>
             <div class="p-4 rounded-lg bg-dark-700/50">
-              <p class="text-sm text-dark-400">Events</p>
+              <p class="text-sm text-dark-400">{{ t('modules.eventsCount') }}</p>
               <p class="text-xl font-bold text-white mt-1">{{ module.events.length }}</p>
             </div>
           </div>
@@ -422,25 +446,25 @@ onMounted(() => {
             v-if="module.stats.lastError"
             class="mt-4 p-4 rounded-lg bg-red-500/10 border border-red-500/30"
           >
-            <p class="text-sm font-medium text-red-400">Letzter Fehler</p>
+            <p class="text-sm font-medium text-red-400">{{ t('modules.lastError') }}</p>
             <p class="text-sm text-red-300 mt-1 font-mono">{{ module.stats.lastError }}</p>
           </div>
         </BaseCard>
 
         <!-- Danger Zone -->
-        <BaseCard title="Gefahrenzone">
+        <BaseCard :title="t('modules.dangerZone')">
           <div class="flex items-center justify-between p-4 rounded-lg border border-red-500/30 bg-red-500/5">
             <div>
-              <p class="text-white font-medium">Modul deinstallieren</p>
+              <p class="text-white font-medium">{{ t('modules.uninstallModule') }}</p>
               <p class="text-sm text-dark-400">
-                Das Modul und alle seine Daten werden unwiderruflich gelöscht.
+                {{ t('modules.uninstallModuleDesc') }}
               </p>
             </div>
             <BaseButton
               variant="danger"
               @click="showDeleteConfirm = true"
             >
-              Deinstallieren
+              {{ t('common.uninstall') }}
             </BaseButton>
           </div>
         </BaseCard>
@@ -458,24 +482,23 @@ onMounted(() => {
           @click="showDeleteConfirm = false"
         />
         <div class="relative bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-md w-full">
-          <h3 class="text-lg font-semibold text-white">Modul deinstallieren?</h3>
+          <h3 class="text-lg font-semibold text-white">{{ t('modules.uninstallConfirmTitle') }}</h3>
           <p class="text-dark-400 mt-2">
-            Sind Sie sicher, dass Sie <strong class="text-white">{{ module?.name }}</strong> deinstallieren möchten?
-            Diese Aktion kann nicht rückgängig gemacht werden.
+            {{ t('modules.uninstallConfirmDesc', { name: module?.name }) }}
           </p>
           <div class="flex items-center justify-end gap-3 mt-6">
             <BaseButton
               variant="ghost"
               @click="showDeleteConfirm = false"
             >
-              Abbrechen
+              {{ t('common.cancel') }}
             </BaseButton>
             <BaseButton
               variant="danger"
               :loading="isDeleting"
               @click="deleteModule"
             >
-              Deinstallieren
+              {{ t('common.uninstall') }}
             </BaseButton>
           </div>
         </div>

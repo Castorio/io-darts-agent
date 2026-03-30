@@ -281,6 +281,11 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     switch (type) {
       case 'match.start':
+        // match.start only has matchId - fetch full match data from API
+        console.log('Match started, fetching full match data...')
+        fetchCurrentMatch()
+        break
+
       case 'match.state':
         handleMatchState(data as Record<string, unknown>)
         break

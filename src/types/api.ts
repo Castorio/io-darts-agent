@@ -14,6 +14,17 @@ export interface HubConfiguration {
   webAuth: WebAuthConfig;
   autodarts: AutodartsConfig;
   server: ServerConfig;
+  aiProviders?: AIProvidersConfig;
+}
+
+export interface AIProvidersConfig {
+  runway?: {
+    apiKey: string;
+    model?: 'gen3a_turbo' | 'gen3a';
+  };
+  elevenlabs?: {
+    apiKey: string;
+  };
 }
 
 export interface WebAuthConfig {
@@ -203,6 +214,15 @@ export interface SettingsResponse {
     boardId: string;
     // password not exposed
   };
+  aiProviders?: {
+    runway?: {
+      configured: boolean;
+      model: 'gen3a_turbo' | 'gen3a';
+    };
+    elevenlabs?: {
+      configured: boolean;
+    };
+  };
 }
 
 export interface UpdateSettingsRequest {
@@ -220,6 +240,15 @@ export interface UpdateSettingsRequest {
     email?: string;
     password?: string;
     boardId?: string;
+  };
+  aiProviders?: {
+    runway?: {
+      apiKey?: string;
+      model?: 'gen3a_turbo' | 'gen3a';
+    };
+    elevenlabs?: {
+      apiKey?: string;
+    };
   };
 }
 

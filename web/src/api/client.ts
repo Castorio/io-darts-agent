@@ -346,6 +346,15 @@ export const api = {
       server: { port: number; host: string }
       webAuth: { enabled: boolean; username: string }
       autodarts: { email: string; boardId: string }
+      aiProviders?: {
+        runway?: {
+          configured: boolean
+          model: 'gen3a_turbo' | 'gen3a'
+        }
+        elevenlabs?: {
+          configured: boolean
+        }
+      }
     }>('/settings')
   },
 
@@ -353,6 +362,7 @@ export const api = {
     server?: { port?: number; host?: string }
     webAuth?: { enabled?: boolean; username?: string; password?: string }
     autodarts?: { email?: string; password?: string; boardId?: string }
+    aiProviders?: Record<string, unknown>
   }) {
     return request<{ success: boolean; message?: string; error?: string }>(
       '/settings',
@@ -361,6 +371,120 @@ export const api = {
         body: JSON.stringify(settings),
       }
     )
+  },
+
+  // ElevenLabs
+  async getElevenLabsVoices() {
+    return request<{
+      success: boolean
+      voices: Array<{
+        voice_id: string
+        name: string
+        category: string
+        labels?: Record<string, string>
+        preview_url?: string
+      }>
+    }>('/tts/elevenlabs/voices')
+  },
+
+  // Voice Pack Generation
+  async getVoicePackStatus() {
+    const response = await request<{
+      success: boolean
+      elevenLabsConfigured: boolean
+      isGenerating: boolean
+      progress: {
+        status: 'idle' | 'generating' | 'completed' | 'error'
+        packId?: string
+        packName?: string
+        totalFiles?: number
+        completedFiles?: number
+        currentFile?: string
+        error?: string
+        startedAt?: number
+      }
+      existingPacks: number
+      packs: Array<{
+        id: string
+        name: string
+        voiceId: string
+        language: string
+        totalFiles: number
+        generatedAt: string
+      }>
+    }>('/tts/voicepacks/generation/status')
+
+    // Transform to frontend format
+    const pack = response.packs?.[0]
+    const isGenerating = response.isGenerating || response.progress?.status === 'generating'
+
+    let status: 'idle' | 'generating' | 'completed' | 'failed' = 'idle'
+    if (isGenerating) {
+      status = 'generating'
+    } else if (response.progress?.status === 'error') {
+      status = 'failed'
+    } else if (response.progress?.status === 'completed') {
+      status = 'completed'
+    } else if (pack) {
+      status = 'idle' // Has pack, but not generating
+    }
+
+    const totalFiles = response.progress?.totalFiles || 0
+    const completedFiles = response.progress?.completedFiles || 0
+    const progressPercent = totalFiles > 0 ? (completedFiles / totalFiles) * 100 : 0
+
+    return {
+      status,
+      progress: progressPercent,
+      currentItem: response.progress?.currentFile,
+      totalItems: totalFiles,
+      completedItems: completedFiles,
+      error: response.progress?.error,
+      lastGeneratedAt: pack?.generatedAt,
+      voicePackExists: !!pack,
+      voiceId: pack?.voiceId,
+      voiceName: pack?.name,
+    }
+  },
+
+  async generateVoicePack(voiceId: string, language: 'de' | 'en' = 'de', voiceName?: string) {
+    // Generate a packId based on voiceId and language
+    const packId = `${voiceId}_${language}`
+    const packName = voiceName ? `${voiceName} (${language.toUpperCase()})` : `Voice Pack (${language.toUpperCase()})`
+
+    return request<{
+      success: boolean
+      message?: string
+      error?: string
+    }>('/tts/voicepacks/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        packId,
+        packName,
+        voiceId,
+        language
+      }),
+    })
+  },
+
+  async cancelVoicePackGeneration() {
+    return request<{
+      success: boolean
+      message?: string
+      error?: string
+    }>('/tts/voicepacks/generation/cancel', {
+      method: 'POST',
+    })
+  },
+
+  async deleteVoicePack(packId: string = 'default') {
+    return request<{
+      success: boolean
+      message?: string
+      error?: string
+    }>(`/tts/voicepacks/${packId}`, {
+      method: 'DELETE',
+    })
   },
 
   // Logs
@@ -379,11 +503,12 @@ export const api = {
 
   // Media upload - uses the existing media service API
   // mediaType: 'animation' | 'sound' | 'image'
-  async uploadMedia(file: File, mediaType: 'animation' | 'sound' | 'image' = 'animation') {
+  async uploadMedia(file: File, mediaType: 'animation' | 'sound' | 'image' = 'animation', folder?: string) {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${API_BASE}/media/${mediaType}/upload`, {
+    const params = folder ? `?folder=${encodeURIComponent(folder)}` : ''
+    const response = await fetch(`${API_BASE}/media/${mediaType}/upload${params}`, {
       method: 'POST',
       body: formData,
       credentials: 'include',
@@ -408,28 +533,193 @@ export const api = {
     }
   },
 
-  async listMedia(mediaType: 'animation' | 'sound' | 'image' = 'animation') {
+  async listMedia(
+    mediaType: 'animation' | 'sound' | 'image' = 'animation',
+    options?: { folder?: string; recursive?: boolean }
+  ) {
+    const params = new URLSearchParams()
+    if (options?.folder) params.set('folder', options.folder)
+    if (options?.recursive) params.set('folder', '*') // Use '*' for recursive listing
+
+    const query = params.toString() ? `?${params.toString()}` : ''
     const result = await request<{
-      files: Array<{ name: string; url: string; size: number; mimeType: string }>
+      files: Array<{ filename: string; originalName: string; url: string; size: number; mimeType: string; folder?: string }>
       total: number
-    }>(`/media/${mediaType}`)
+      folder?: string
+    }>(`/media/${mediaType}${query}`)
 
     return {
       success: true,
       files: result.files.map((f) => ({
-        name: f.name,
-        url: f.url || `/api/media/files/${mediaType}/${f.name}`,
+        name: f.originalName,
+        filename: f.filename,
+        url: f.url || `/api/media/files/${mediaType}/${f.folder ? f.folder + '/' : ''}${f.filename}`,
         size: f.size,
         type: f.mimeType,
+        folder: f.folder,
       })),
+      folder: result.folder,
     }
   },
 
-  async deleteMedia(mediaType: 'animation' | 'sound' | 'image', filename: string) {
+  async deleteMedia(mediaType: 'animation' | 'sound' | 'image', filename: string, folder?: string) {
+    const params = folder ? `?folder=${encodeURIComponent(folder)}` : ''
     return request<{ success: boolean; error?: string }>(
-      `/media/${mediaType}/${filename}`,
+      `/media/${mediaType}/${encodeURIComponent(filename)}${params}`,
       { method: 'DELETE' }
     )
+  },
+
+  // Media folders
+  async listMediaFolders(mediaType: 'animation' | 'sound' | 'image') {
+    return request<{
+      folders: Array<{ name: string; path: string; fileCount: number; createdAt: string }>
+      total: number
+    }>(`/media/${mediaType}/folders`)
+  },
+
+  async createMediaFolder(mediaType: 'animation' | 'sound' | 'image', folderPath: string) {
+    return request<{ success: boolean; folder?: { name: string; path: string }; error?: string }>(
+      `/media/${mediaType}/folders`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ path: folderPath }),
+      }
+    )
+  },
+
+  async deleteMediaFolder(mediaType: 'animation' | 'sound' | 'image', folderPath: string) {
+    return request<{ success: boolean; error?: string }>(
+      `/media/${mediaType}/folders/${encodeURIComponent(folderPath)}`,
+      { method: 'DELETE' }
+    )
+  },
+
+  async moveMediaFile(
+    mediaType: 'animation' | 'sound' | 'image',
+    filename: string,
+    fromFolder?: string,
+    toFolder?: string
+  ) {
+    return request<{ success: boolean; file?: { url: string }; error?: string }>(
+      `/media/${mediaType}/move`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ filename, fromFolder, toFolder }),
+      }
+    )
+  },
+
+  // Animation Generator
+  async getAnimationGeneratorStatus() {
+    return request<{ available: boolean; provider: string | null }>('/animations/status')
+  },
+
+  async getAnimationStyles() {
+    return request<{
+      styles: Array<{
+        id: string
+        name: string
+        prompt: string
+        category: string
+        colors?: string[]
+      }>
+    }>('/animations/styles')
+  },
+
+  async getAnimationEventTypes() {
+    return request<{
+      events: Array<'180' | 'bull' | 'doubleBull' | 'highScore' | 'checkout' | 'legWin' | 'setWin' | 'matchWin' | 'bust'>
+    }>('/animations/events')
+  },
+
+  async generateAnimation(params: {
+    eventType: string
+    styleId?: string
+    customStyle?: { name: string; prompt: string }
+    customPrompt?: string
+    options?: { duration?: number; resolution?: string }
+  }) {
+    return request<{
+      success: boolean
+      job?: {
+        id: string
+        status: string
+        eventType: string
+        progress: number
+        resultUrl?: string
+        error?: string
+      }
+      error?: string
+    }>('/animations/generate', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    })
+  },
+
+  async generateAnimationBatch(params: {
+    styleId?: string
+    customStyle?: { name: string; prompt: string }
+    eventTypes?: string[]
+    options?: { duration?: number; resolution?: string }
+  }) {
+    return request<{
+      success: boolean
+      jobs?: Array<{
+        id: string
+        status: string
+        eventType: string
+        progress: number
+      }>
+      error?: string
+    }>('/animations/generate-batch', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    })
+  },
+
+  async getAnimationJobs(status?: string) {
+    const query = status ? `?status=${status}` : ''
+    return request<{
+      jobs: Array<{
+        id: string
+        status: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'
+        eventType: string
+        style: { id: string; name: string }
+        progress: number
+        resultUrl?: string
+        resultFilename?: string
+        error?: string
+        createdAt: string
+        completedAt?: string
+      }>
+    }>(`/animations/jobs${query}`)
+  },
+
+  async getAnimationJob(jobId: string) {
+    return request<{
+      id: string
+      status: 'pending' | 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'
+      eventType: string
+      style: { id: string; name: string }
+      progress: number
+      resultUrl?: string
+      error?: string
+      createdAt: string
+      completedAt?: string
+    }>(`/animations/jobs/${jobId}`)
+  },
+
+  async cancelAnimationJob(jobId: string) {
+    return request<{ success: boolean; error?: string }>(`/animations/jobs/${jobId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  async clearFinishedAnimationJobs() {
+    return request<{ success: boolean; cleared: number }>('/animations/jobs/clear', {
+      method: 'POST',
+    })
   },
 }
 

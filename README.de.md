@@ -1,17 +1,18 @@
 # IO-Darts-Agent
 
-Ein modularer Agent für [Autodarts](https://autodarts.io), der Echtzeit-Events verarbeitet und über erweiterbare Module verschiedene Aktionen auslösen kann.
+Ein modularer Hub für [Autodarts](https://autodarts.io), der Echtzeit-Events verarbeitet und über erweiterbare Module verschiedene Aktionen auslösen kann.
 
 **[English Version](README.md)**
 
 ## Features
 
 - **Autodarts Integration** - Verbindet sich mit dem Autodarts WebSocket und empfängt alle Spiel-Events in Echtzeit
-- **Modulares System** - Erweiterbares Plugin-System für verschiedene Aktionen (WLED-Steuerung, Game Display, etc.)
+- **Modulares System** - Erweiterbares Plugin-System für verschiedene Aktionen (WLED-Steuerung, Game Display, Darts Caller, etc.)
 - **Web-Interface** - Moderne Vue.js-basierte Konfigurationsoberfläche
 - **Spielerverwaltung** - Eigene Spielerprofile mit individuellen Farben für Lichteffekte
+- **Voice Pack Generator** - Erstelle eigene Caller-Voice-Packs mit ElevenLabs TTS
 - **Echtzeit-Logs** - Live-Ansicht aller Events und Modul-Aktivitäten
-- **Desktop App** - Native Anwendung für Windows, macOS und Linux
+- **Mehrsprachig** - Interface verfügbar auf Deutsch, Englisch und Spanisch
 
 ---
 
@@ -30,12 +31,10 @@ Lade das passende Paket für dein System herunter:
 
 > **Node.js ist NICHT erforderlich!** Die App enthält alles, was benötigt wird.
 
-**Detaillierte Anleitung:** [Installation](docs/de/installation.md)
-
 ### Erster Start
 
 1. Starte die App (findet sich im Start-Menü / Launchpad)
-2. Das Web-Interface öffnet sich automatisch
+2. Das Web-Interface öffnet sich automatisch unter `http://localhost:3000`
 3. Folge dem Setup-Wizard:
    - Gib deine Autodarts-Zugangsdaten ein
    - Wähle dein Board
@@ -49,8 +48,37 @@ Lade das passende Paket für dein System herunter:
 
 | Modul | Beschreibung |
 |-------|-------------|
-| **WLED** | Steuert WLED-kompatible LED-Strips bei Triples, 180ern, etc. |
-| **Game Display** | Zeigt Spielstand auf externen Displays/Tablets an |
+| **WLED Lichtsteuerung** | Steuert WLED-kompatible LED-Strips basierend auf Spielereignissen. Spielerfarben, Spezialeffekte für 180er, Triples, Bulls und mehr. Unterstützt Presets, Effekte und konfigurierbare Übergangszeiten. |
+| **Game Display** | Zeigt Spielstand auf externen Displays/Tablets in Echtzeit an. Checkout-Vorschläge, Spielerfarben, Animationen für besondere Events. |
+| **Darts Caller** | Professioneller Darts-Caller mit TTS oder eigenen Audio-Packs. Ansagen für Scores, Checkouts, Spielerwechsel und besondere Events. Inkl. Voice Pack Generator mit ElevenLabs-Integration. |
+
+### Modul-Features
+
+#### WLED Lichtsteuerung
+- Event-basierte Aktionen für alle Spielereignisse
+- Spielerfarben-Unterstützung mit automatischem Matching
+- Temporäre Effekte mit Dauer und Übergangszeit (Fade)
+- Unterstützung für Presets, Effekte, Solid-Farben
+- Multi-Color-Effekte (bis zu 3 Farben)
+- Einzelspieler-Modus-Unterstützung
+
+#### Game Display
+- Echtzeit-Score-Updates
+- Animierter Spielerfarben-Hintergrund
+- Checkout-Vorschläge (2-170 Punkte)
+- Dart-Visualisierung mit Animationen
+- Multi-Spieler-Übersicht
+- Demo-Modus zum Testen
+- Eigene Animationen pro Event und Spieler
+
+#### Darts Caller
+- Score-Ansagen nach jeder Aufnahme
+- Checkout-Ansagen ("You require...")
+- Spezial-Ansagen: 180, Bust, Game Shot, Match Shot
+- Spielerwechsel-Ansagen
+- Browser-TTS oder eigene Audio-Packs
+- Voice Pack Generator mit ElevenLabs TTS
+- Lokale Audio-Wiedergabe (Server-seitig)
 
 ### Module aus Git installieren
 
@@ -60,20 +88,22 @@ Lade das passende Paket für dein System herunter:
 
 ---
 
-## Dokumentation
+## Events
 
-### Für Benutzer
+Der Agent verarbeitet folgende Autodarts Events:
 
-- [**Installation**](docs/de/installation.md) - Schritt-für-Schritt Anleitung
-- [**Benutzerhandbuch**](docs/de/user-guide.md) - Komplette Anleitung mit Screenshots
-- [**Features**](docs/de/features.md) - Alle Features im Detail
-
-### Für Entwickler
-
-- [**Developer Guide**](docs/de/developer-guide.md) - Entwicklungsumgebung & Architektur
-- [**Developer Quick Start**](docs/de/developer-quickstart.md) - Modul in 5 Minuten erstellen
-- [**Module SDK**](docs/de/module-sdk.md) - Vollständige Modul-API
-- [**API Referenz**](docs/de/api.md) - REST API & WebSocket Events
+| Event | Beschreibung |
+|-------|-------------|
+| `match.start` | Match wurde gestartet |
+| `match.finished` | Match wurde beendet |
+| `match.delete` | Match wurde abgebrochen |
+| `match.state` | Match-Zustandsupdate (Scores, Spieler, etc.) |
+| `throw.detected` | Wurf wurde erkannt |
+| `player.change` | Spielerwechsel (synthetisches Event) |
+| `turn.finished` | Aufnahme beendet (synthetisches Event) |
+| `game.finished` | Leg/Set gewonnen |
+| `takeout.started` | Pfeile ziehen begonnen |
+| `takeout.finished` | Pfeile gezogen |
 
 ---
 
@@ -114,14 +144,28 @@ npm run dist:linux    # Linux .deb, .AppImage
 npm run dist:all      # Alle Plattformen
 ```
 
-### Release erstellen
+### Projektstruktur
 
-```bash
-# Version taggen & GitHub Actions triggern
-./scripts/create-release.sh 1.0.0
 ```
-
-GitHub Actions baut automatisch alle Plattformen und erstellt ein Release.
+io-darts-agent/
+├── src/                    # Backend-Quellcode
+│   ├── core/               # Core-Services
+│   │   ├── auth/           # Autodarts-Authentifizierung
+│   │   ├── socket/         # WebSocket & Event-Parsing
+│   │   ├── events/         # Event-Bus-System
+│   │   ├── config/         # Konfigurationsverwaltung
+│   │   └── modules/        # Modul-System (Handler, Manager)
+│   ├── api/                # Fastify REST API
+│   └── types/              # TypeScript-Definitionen
+├── web/                    # Vue 3 Frontend
+├── modules/                # Integrierte Module
+│   ├── wled/               # WLED Lichtsteuerung
+│   ├── game-display/       # Game Display (mit Vue Frontend)
+│   └── darts-caller/       # Darts Caller
+├── media/                  # Medien-Dateien (Audio-Packs)
+├── config/                 # Laufzeit-Konfiguration
+└── docs/                   # Dokumentation
+```
 
 ---
 
@@ -129,22 +173,28 @@ GitHub Actions baut automatisch alle Plattformen und erstellt ein Release.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Electron Desktop App                     │
+│                     Web Browser (Config UI)                  │
+│                    Vue 3 + Vite + Tailwind                   │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ HTTP REST + WebSocket
+┌──────────────────────────▼──────────────────────────────────┐
+│                    IO-Darts-Agent Backend                    │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │ System Tray  │  Main Window  │  Backend Process        │ │
-│  └────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────▼───────────────────────────────┐
-│                     Node.js Backend                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ Express API  │  │  WebSocket   │  │  Module Manager  │  │
-│  └──────────────┘  └──────────────┘  └──────────────────┘  │
-│                            │                                 │
-│  ┌─────────────────────────▼────────────────────────────┐  │
-│  │              Autodarts WebSocket Client               │  │
-│  └───────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+│  │  AuthService │ SocketService │ ConfigService │ Fastify │ │
+│  └──────────────────────────┬─────────────────────────────┘ │
+│                             │                                │
+│  ┌──────────────────────────▼─────────────────────────────┐ │
+│  │           EventBus + EventParser                        │ │
+│  │  (Generiert synthetische Events: player.change, turn.finished) │
+│  └──────────────────────────┬─────────────────────────────┘ │
+│                             │                                │
+│  ┌──────────────────────────▼─────────────────────────────┐ │
+│  │                   ModuleManager                         │ │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐      │ │
+│  │  │ WledHandler │ │ GameDisplay │ │ DartsCaller │      │ │
+│  │  └─────────────┘ └─────────────┘ └─────────────┘      │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└─────────────────────────────┬───────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -154,20 +204,40 @@ GitHub Actions baut automatisch alle Plattformen und erstellt ein Release.
 
 ---
 
-## Events
+## API Referenz
 
-Der Agent verarbeitet folgende Autodarts Events:
+### REST Endpoints
 
-| Event | Beschreibung |
-|-------|-------------|
-| `match.started` | Match wurde gestartet |
-| `match.finished` | Match wurde beendet |
-| `match.deleted` | Match wurde abgebrochen |
-| `throw.detected` | Wurf wurde erkannt |
-| `player.changed` | Spielerwechsel |
-| `turn.started` | Neue Aufnahme gestartet |
-| `turn.finished` | Aufnahme beendet |
-| `game.finished` | Leg/Set gewonnen |
+```
+# Status
+GET    /api/status              # Hub-Status und Verbindungsinfo
+
+# Authentifizierung
+POST   /api/auth/login          # Web-Interface Login
+POST   /api/auth/logout         # Logout
+GET    /api/auth/session        # Aktuelle Session
+
+# Autodarts-Verbindung
+POST   /api/autodarts/connect   # Mit Autodarts verbinden
+POST   /api/autodarts/disconnect # Verbindung trennen
+
+# Module
+GET    /api/modules             # Liste aller Module
+GET    /api/modules/:id         # Modul-Details + Config
+POST   /api/modules/:id/start   # Modul starten
+POST   /api/modules/:id/stop    # Modul stoppen
+PUT    /api/modules/:id/config  # Config aktualisieren
+DELETE /api/modules/:id         # Modul deinstallieren
+POST   /api/modules/install     # Von Git-URL installieren
+
+# Match
+GET    /api/match/current       # Aktueller Match-Status
+GET    /api/match/current/players # Aktuelle Spieler
+GET    /api/match/current/scores  # Aktuelle Scores
+
+# Live Events
+WS     /api/events              # WebSocket Event-Stream
+```
 
 ---
 

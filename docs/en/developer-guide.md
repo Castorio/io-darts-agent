@@ -14,6 +14,7 @@ This guide is for developers who want to contribute to IO-Darts-Agent or create 
 6. [Testing](#testing)
 7. [Build & Release](#build--release)
 8. [Architecture](#architecture)
+9. [Event System](#event-system)
 
 ---
 
@@ -80,8 +81,9 @@ io-darts-agent/
 │   │   └── stores/         # Pinia Stores
 │   └── dist/               # Compiled Frontend
 ├── modules/                # Built-in Modules
-│   ├── wled/               # WLED Module
-│   └── game-display/       # Game Display Module
+│   ├── wled/               # WLED Lighting Controller
+│   ├── game-display/       # Game Display Module
+│   └── darts-caller/       # Darts Caller Module
 ├── modules_installed/      # Installed Modules (Symlinks)
 ├── electron/               # Electron Main Process
 │   └── main.js             # Desktop App Entry
@@ -113,20 +115,30 @@ io-darts-agent/
 | `src/server.ts` | Express server, API routes |
 | `src/autodarts/client.ts` | Autodarts API client |
 | `src/autodarts/websocket.ts` | WebSocket to Autodarts |
+| `src/core/EventParser.ts` | Generates synthetic events from match.state |
+| `src/core/MatchStateTracker.ts` | Tracks match state for event generation |
 | `src/modules/manager.ts` | Loads and manages modules |
 | `src/modules/sandbox.ts` | Sandbox for module execution |
+| `src/core/modules/handlers/` | Module event handlers (WLED, etc.) |
 
 ### API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/status` | GET | Connection status |
-| `/api/config` | GET/POST | Hub configuration |
+| `/api/setup/*` | Various | Setup wizard endpoints |
+| `/api/match/current` | GET | Current match state |
+| `/api/match/current/players` | GET | Current players with colors |
+| `/api/match/current/scores` | GET | Current scores |
 | `/api/modules` | GET | List all modules |
 | `/api/modules/:id` | GET/POST | Single module |
-| `/api/modules/:id/config` | GET/POST | Module configuration |
+| `/api/modules/:id/config` | GET/PUT | Module configuration |
+| `/api/modules/:id/translations/:lang` | GET | Module translations |
 | `/api/players` | GET/POST | Player management |
+| `/api/voicepack/*` | Various | Voice Pack Generator |
 | `/api/events` | WebSocket | Live event stream |
+
+See [API Documentation](api.md) for complete details.
 
 ### Build
 
@@ -204,10 +216,19 @@ See [Module SDK](module-sdk.md) for complete API documentation.
 | `process` | Own Node.js process (sandbox) |
 | `external` | External process/service |
 
+### Built-in Modules
+
+| Module | Description | Features |
+|--------|-------------|----------|
+| **WLED** (`modules/wled/`) | LED lighting control | Player colors, effects, fade time, duration-based actions |
+| **Game Display** (`modules/game-display/`) | Score display | Vue.js frontend, checkout suggestions, animations |
+| **Darts Caller** (`modules/darts-caller/`) | Voice announcements | Browser TTS, audio packs, Voice Pack Generator |
+
 ### Example Modules
 
-- **WLED** (`modules/wled/`) - Simple module without UI
-- **Game Display** (`modules/game-display/`) - Module with custom frontend
+- **WLED** (`modules/wled/`) - Module controlling external hardware (HTTP API)
+- **Game Display** (`modules/game-display/`) - Module with custom Vue.js frontend
+- **Darts Caller** (`modules/darts-caller/`) - Module with Voice Pack Generator and multiple output modes
 
 ---
 
@@ -338,10 +359,27 @@ The `.github/workflows/release.yml` defines:
 ### Event Flow
 
 ```
-Autodarts → WebSocket → Backend → Module Manager → Module
+Autodarts → WebSocket → Backend → EventParser → Module Manager → Modules
+                            │          │
+                            │          └──→ Generates synthetic events
+                            │                (player.change, turn.finished)
                             │
-                            └──→ WebSocket → Frontend
+                            └──→ WebSocket → Frontend (Hub UI, Module UIs)
 ```
+
+### Native vs Synthetic Events
+
+The EventParser generates **synthetic events** from `match.state` updates:
+
+| Event Type | Source | Description |
+|------------|--------|-------------|
+| `match.start` | Native | From Autodarts |
+| `match.state` | Native | From Autodarts |
+| `throw.detected` | Native | From Autodarts |
+| `player.change` | Synthetic | Generated when player index changes |
+| `turn.finished` | Synthetic | Generated when turn ends (3 darts, bust, round change) |
+
+This allows modules to react to logical events without parsing raw state.
 
 ### Module Sandbox
 
@@ -414,3 +452,90 @@ npm outdated
 - **Issues**: GitHub Issues for bugs and features
 - **Discussions**: GitHub Discussions for questions
 - **Code Reviews**: PRs are reviewed before merging
+
+---
+
+## Event System
+
+### EventParser
+
+The `EventParser` class analyzes `match.state` updates and generates synthetic events:
+
+```typescript
+// EventParser detects:
+// 1. Player changes (player index changed)
+// 2. Turn completion (3 darts thrown, bust, or round change)
+// 3. Special throws (180, etc.)
+```
+
+### MatchStateTracker
+
+Tracks match state between events for accurate event generation:
+
+- Stores previous match state
+- Detects changes between states
+- Provides player color information
+
+### Module Handlers
+
+Each module has a handler class in `src/core/modules/handlers/`:
+
+| Handler | Module | Key Features |
+|---------|--------|--------------|
+| `WledHandler.ts` | WLED | HTTP API calls, player colors, fade time, duration restore |
+| `DartsCallerHandler.ts` | Darts Caller | TTS, audio playback, Voice Pack Generator |
+
+### Creating a New Handler
+
+```typescript
+// src/core/modules/handlers/MyHandler.ts
+export class MyHandler {
+  private config: MyModuleConfig;
+  private currentMatchState: MatchState | null = null;
+
+  constructor(config: MyModuleConfig) {
+    this.config = config;
+  }
+
+  async handleEvent(event: AutodartsEvent): Promise<void> {
+    switch (event.type) {
+      case 'match.state':
+        this.currentMatchState = event.data;
+        break;
+      case 'player.change':
+        await this.handlePlayerChange(event);
+        break;
+      case 'throw.detected':
+        await this.handleThrow(event);
+        break;
+    }
+  }
+
+  private async handlePlayerChange(event: AutodartsEvent): Promise<void> {
+    // React to player change
+  }
+
+  private async handleThrow(event: AutodartsEvent): Promise<void> {
+    // React to throw
+  }
+}
+```
+
+### Player Color Resolution
+
+Modules can resolve player colors using the player management system:
+
+```typescript
+// Get player color from event data
+const color = event.data.color || '#ffffff';
+
+// Or resolve from match state
+async resolvePlayerColor(playerIndex: number): Promise<string> {
+  const player = this.currentMatchState?.players[playerIndex];
+  if (player) {
+    const profile = await this.playerManager.findByName(player.name);
+    return profile?.color || '#ffffff';
+  }
+  return '#ffffff';
+}
+```

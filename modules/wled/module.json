@@ -32,6 +32,15 @@
       "default": 80,
       "min": 1,
       "max": 65535
+    },
+    "fadeTime": {
+      "type": "number",
+      "label": "Fade Time (ms)",
+      "description": "Global transition time in milliseconds for fading between light states",
+      "default": 0,
+      "min": 0,
+      "max": 10000,
+      "step": 100
     }
   },
   "effects": [
@@ -66,6 +75,10 @@
         "wledPort": {
           "label": "WLED Port",
           "description": "HTTP port of the WLED controller"
+        },
+        "fadeTime": {
+          "label": "Fade Time (ms)",
+          "description": "Global transition time in milliseconds for fading between light states"
         }
       },
       "strings": {
@@ -87,6 +100,10 @@
         "wledPort": {
           "label": "WLED Port",
           "description": "HTTP Port des WLED Controllers"
+        },
+        "fadeTime": {
+          "label": "Übergangszeit (ms)",
+          "description": "Globale Übergangszeit in Millisekunden für das Überblenden zwischen Lichtzuständen"
         }
       },
       "strings": {
@@ -108,6 +125,10 @@
         "wledPort": {
           "label": "Puerto WLED",
           "description": "Puerto HTTP del controlador WLED"
+        },
+        "fadeTime": {
+          "label": "Tiempo de Transición (ms)",
+          "description": "Tiempo de transición global en milisegundos para desvanecerse entre estados de luz"
         }
       },
       "strings": {

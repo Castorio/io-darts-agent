@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { MultipartFile } from '@fastify/multipart';
 import type { APIServer } from '../Server.js';
-import type { MediaService, MediaFile, MediaType } from '../../core/media/MediaService.js';
+import type { MediaService, MediaFile, MediaType, MediaFolder } from '../../core/media/MediaService.js';
 import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
 
@@ -14,6 +14,15 @@ export interface MediaDependencies {
  */
 export interface MediaListResponse {
   files: MediaFile[];
+  total: number;
+  folder?: string;
+}
+
+/**
+ * Folder list response
+ */
+export interface FolderListResponse {
+  folders: MediaFolder[];
   total: number;
 }
 
@@ -32,6 +41,24 @@ export interface UploadResponse {
 export interface DeleteResponse {
   success: boolean;
   message?: string;
+  error?: string;
+}
+
+/**
+ * Folder operation response
+ */
+export interface FolderResponse {
+  success: boolean;
+  folder?: MediaFolder;
+  error?: string;
+}
+
+/**
+ * Move file response
+ */
+export interface MoveFileResponse {
+  success: boolean;
+  file?: MediaFile;
   error?: string;
 }
 
@@ -83,11 +110,43 @@ export function registerMediaRoutes(
 
   /**
    * GET /api/media/:type - List media files by type
+   * Query params:
+   *   - folder: Optional folder path (use '*' to list all files recursively)
    */
   fastify.get<{
     Params: { type: string };
+    Querystring: { folder?: string };
     Reply: MediaListResponse | { error: string };
   }>('/api/media/:type', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { error: 'Authentication required' };
+    }
+
+    const { type } = request.params;
+    const { folder } = request.query;
+
+    if (!['animation', 'sound', 'image'].includes(type)) {
+      reply.code(400);
+      return { error: 'Invalid media type. Must be: animation, sound, or image' };
+    }
+
+    const files = await mediaService.listFiles(type as MediaType, folder);
+
+    return {
+      files,
+      total: files.length,
+      folder: folder === '*' ? undefined : folder,
+    };
+  });
+
+  /**
+   * GET /api/media/:type/folders - List all folders for a media type
+   */
+  fastify.get<{
+    Params: { type: string };
+    Reply: FolderListResponse | { error: string };
+  }>('/api/media/:type/folders', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
       reply.code(401);
       return { error: 'Authentication required' };
@@ -97,22 +156,93 @@ export function registerMediaRoutes(
 
     if (!['animation', 'sound', 'image'].includes(type)) {
       reply.code(400);
-      return { error: 'Invalid media type. Must be: animation, sound, or image' };
+      return { error: 'Invalid media type' };
     }
 
-    const files = await mediaService.listFiles(type as MediaType);
+    const folders = await mediaService.listFolders(type as MediaType);
 
     return {
-      files,
-      total: files.length,
+      folders,
+      total: folders.length,
     };
   });
 
   /**
-   * POST /api/media/:type/upload - Upload a media file
+   * POST /api/media/:type/folders - Create a new folder
    */
   fastify.post<{
     Params: { type: string };
+    Body: { path: string };
+    Reply: FolderResponse;
+  }>('/api/media/:type/folders', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    const { type } = request.params;
+    const { path } = request.body;
+
+    if (!['animation', 'sound', 'image'].includes(type)) {
+      reply.code(400);
+      return { success: false, error: 'Invalid media type' };
+    }
+
+    if (!path || typeof path !== 'string') {
+      reply.code(400);
+      return { success: false, error: 'Folder path is required' };
+    }
+
+    try {
+      const folder = await mediaService.createFolder(type as MediaType, path);
+      reply.code(201);
+      return { success: true, folder };
+    } catch (error) {
+      reply.code(500);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create folder',
+      };
+    }
+  });
+
+  /**
+   * DELETE /api/media/:type/folders/:path - Delete a folder (must be empty)
+   */
+  fastify.delete<{
+    Params: { type: string; path: string };
+    Reply: DeleteResponse;
+  }>('/api/media/:type/folders/:path', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    const { type, path } = request.params;
+
+    if (!['animation', 'sound', 'image'].includes(type)) {
+      reply.code(400);
+      return { success: false, error: 'Invalid media type' };
+    }
+
+    const deleted = await mediaService.deleteFolder(type as MediaType, path);
+
+    if (!deleted) {
+      reply.code(400);
+      return { success: false, error: 'Failed to delete folder. Make sure it is empty.' };
+    }
+
+    return { success: true, message: 'Folder deleted' };
+  });
+
+  /**
+   * POST /api/media/:type/upload - Upload a media file
+   * Query params:
+   *   - folder: Optional folder path to upload to
+   */
+  fastify.post<{
+    Params: { type: string };
+    Querystring: { folder?: string };
     Reply: UploadResponse;
   }>('/api/media/:type/upload', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
@@ -121,6 +251,7 @@ export function registerMediaRoutes(
     }
 
     const { type } = request.params;
+    const { folder } = request.query;
 
     if (!['animation', 'sound', 'image'].includes(type)) {
       reply.code(400);
@@ -148,11 +279,12 @@ export function registerMediaRoutes(
         };
       }
 
-      // Upload file
+      // Upload file with optional folder
       const mediaFile = await mediaService.uploadFromStream(fileStream, {
         type: type as MediaType,
         originalName: filename,
         mimeType: mimetype,
+        folder,
       });
 
       reply.code(201);
@@ -170,10 +302,54 @@ export function registerMediaRoutes(
   });
 
   /**
+   * POST /api/media/:type/move - Move a file to a different folder
+   */
+  fastify.post<{
+    Params: { type: string };
+    Body: { filename: string; fromFolder?: string; toFolder?: string };
+    Reply: MoveFileResponse;
+  }>('/api/media/:type/move', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    const { type } = request.params;
+    const { filename, fromFolder, toFolder } = request.body;
+
+    if (!['animation', 'sound', 'image'].includes(type)) {
+      reply.code(400);
+      return { success: false, error: 'Invalid media type' };
+    }
+
+    if (!filename) {
+      reply.code(400);
+      return { success: false, error: 'Filename is required' };
+    }
+
+    const movedFile = await mediaService.moveFile(
+      type as MediaType,
+      filename,
+      fromFolder,
+      toFolder
+    );
+
+    if (!movedFile) {
+      reply.code(404);
+      return { success: false, error: 'File not found or move failed' };
+    }
+
+    return { success: true, file: movedFile };
+  });
+
+  /**
    * DELETE /api/media/:type/:filename - Delete a media file
+   * Query params:
+   *   - folder: Optional folder path where the file is located
    */
   fastify.delete<{
     Params: { type: string; filename: string };
+    Querystring: { folder?: string };
     Reply: DeleteResponse;
   }>('/api/media/:type/:filename', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
@@ -182,13 +358,14 @@ export function registerMediaRoutes(
     }
 
     const { type, filename } = request.params;
+    const { folder } = request.query;
 
     if (!['animation', 'sound', 'image'].includes(type)) {
       reply.code(400);
       return { success: false, error: 'Invalid media type' };
     }
 
-    const deleted = await mediaService.delete(type as MediaType, filename);
+    const deleted = await mediaService.delete(type as MediaType, filename, folder);
 
     if (!deleted) {
       reply.code(404);
@@ -202,7 +379,7 @@ export function registerMediaRoutes(
   });
 
   /**
-   * GET /api/media/files/:type/:filename - Serve a media file
+   * GET /api/media/files/:type/:filename - Serve a media file from root folder
    * This endpoint is public (no auth required) for embedding in displays
    */
   fastify.get<{
@@ -222,6 +399,50 @@ export function registerMediaRoutes(
     }
 
     const filePath = mediaService.getFilePath(type as MediaType, filename);
+    const stats = await stat(filePath);
+    const contentType = getContentType(filename);
+
+    reply.header('Content-Type', contentType);
+    reply.header('Content-Length', stats.size);
+    reply.header('Cache-Control', 'public, max-age=31536000'); // 1 year cache
+
+    const stream = createReadStream(filePath);
+    return reply.send(stream);
+  });
+
+  /**
+   * GET /api/media/files/:type/:folder/:filename - Serve a media file from subfolder
+   * Supports nested folders with wildcard path
+   * This endpoint is public (no auth required) for embedding in displays
+   */
+  fastify.get<{
+    Params: { type: string; '*': string };
+  }>('/api/media/files/:type/*', async (request, reply) => {
+    const { type } = request.params;
+    const pathParts = request.params['*'];
+
+    if (!['animation', 'sound', 'image'].includes(type)) {
+      reply.code(400);
+      return { error: 'Invalid media type' };
+    }
+
+    // Parse path: last segment is filename, rest is folder path
+    const segments = pathParts.split('/').filter((s) => s.length > 0);
+    if (segments.length === 0) {
+      reply.code(400);
+      return { error: 'Filename is required' };
+    }
+
+    const filename = segments.pop()!;
+    const folder = segments.length > 0 ? segments.join('/') : undefined;
+
+    const exists = await mediaService.exists(type as MediaType, filename, folder);
+    if (!exists) {
+      reply.code(404);
+      return { error: 'File not found' };
+    }
+
+    const filePath = mediaService.getFilePath(type as MediaType, filename, folder);
     const stats = await stat(filePath);
     const contentType = getContentType(filename);
 

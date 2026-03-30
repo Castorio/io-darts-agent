@@ -9,6 +9,8 @@ Zeigt den aktuellen Spielstand auf einem separaten Display in Echtzeit an. Perfe
 - **Checkout-Vorschläge** - Zeigt mögliche Finish-Wege (2-170 Punkte)
 - **Wurf-Anzeige** - Drei Boxen für Dart 1, 2 und 3 mit Animationen
 - **Andere Spieler** - Horizontale Leiste mit allen anderen Spielern und deren Punkteständen
+- **Animationen** - Konfigurierbare Animationen pro Event (180, Bust, Game Shot, etc.)
+- **Idle-Modus** - Verschiedene Optionen wenn kein Spiel läuft
 - **Premium Design** - Dunkler, moderner Look mit sanften Animationen
 - **Responsive** - Passt sich verschiedenen Bildschirmgrößen an
 - **Demo-Modus** - Zum Testen ohne aktives Spiel
@@ -16,27 +18,27 @@ Zeigt den aktuellen Spielstand auf einem separaten Display in Echtzeit an. Perfe
 ## Screenshot
 
 ```
-┌──────────────────────────────────────────────────┐
-│                                                  │
-│                     MAX                          │
-│              Set 1 • Leg 2 • Am Zug             │
-│                                                  │
-│                                                  │
-│                     301                          │
-│                                                  │
-│              T20 → T20 → D20                    │
-│                                                  │
-│     ┌─────────┐ ┌─────────┐ ┌─────────┐        │
-│     │   T20   │ │   T20   │ │    -    │        │
-│     │   60    │ │   60    │ │         │        │
-│     └─────────┘ └─────────┘ └─────────┘        │
-│                                                  │
-│               Aufnahme: 120                      │
-│                                                  │
-│  ┌────────────────────────────────────────────┐ │
-│  │  🔴 Anna: 245  │  🟢 Tom: 180              │ │
-│  └────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                                                              │
+│                           MAX                                │
+│                   Set 1 • Leg 2 • Am Zug                     │
+│                        Sets: 0  Legs: 1                      │
+│                                                              │
+│                           301                                │
+│                                                              │
+│                    T20 → T20 → D20                           │
+│                                                              │
+│        ┌─────────┐   ┌─────────┐   ┌─────────┐              │
+│        │   T20   │   │   T20   │   │    -    │              │
+│        │   60    │   │   60    │   │         │              │
+│        └─────────┘   └─────────┘   └─────────┘              │
+│                                                              │
+│                      Aufnahme: 120                           │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  🔴 Anna: 245 (1 Leg)  │  🟢 Tom: 180 (0 Legs)         │ │
+│  └────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## Installation
@@ -57,7 +59,7 @@ npm run build
 
 1. Öffne das Web-Interface unter `http://localhost:3000`
 2. Gehe zu **Module** → **Game Display**
-3. Klicke auf **Display konfigurieren**
+3. Klicke auf **Konfigurieren**
 4. Klicke auf **Display öffnen** oder kopiere die URL
 
 ### Direkte URL
@@ -77,15 +79,36 @@ Diese URL kann auch auf anderen Geräten im selben Netzwerk geöffnet werden (z.
 
 ## Konfiguration
 
-### Einstellungen
+### Allgemeine Einstellungen
 
 | Einstellung | Beschreibung | Standard |
 |-------------|-------------|----------|
 | **Display Name** | Name zur Identifikation | "Main Display" |
 | **Checkout-Vorschläge** | Zeigt mögliche Finish-Wege | Aktiviert |
 | **Checkout ab Punktzahl** | Ab welchem Score Checkouts gezeigt werden | 170 |
-| **Animationsgeschwindigkeit** | Langsam / Normal / Schnell | Normal |
 | **Andere Spieler anzeigen** | Zeigt die Punktestände der anderen Spieler | Aktiviert |
+
+### Idle-Modus (Wenn kein Spiel läuft)
+
+| Modus | Beschreibung |
+|-------|-------------|
+| **Warte-Bildschirm** | Standard-Warteansicht mit "Warte auf Spiel..." |
+| **Letztes Spiel** | Zeigt die Ergebnisse des letzten Spiels |
+| **Schwarzer Bildschirm** | Display wird komplett schwarz |
+| **Eigenes Bild** | Zeigt ein konfiguriertes Bild |
+
+### Animationen
+
+Für bestimmte Events können Animationen konfiguriert werden:
+
+| Event | Beispiel-Animation |
+|-------|-------------------|
+| **180** | "180!" Animation mit Konfetti |
+| **Bust** | Rote "BUST" Animation |
+| **Game Shot** | Gewinner-Animation |
+| **Match Shot** | Große Feier-Animation |
+
+Animationen können pro Event und pro Spieler individuell konfiguriert werden (z.B. GIF, Video, Text).
 
 ### Spielerfarben
 
@@ -112,8 +135,11 @@ modules/game-display/
     └── src/
         ├── main.ts
         ├── App.vue
+        ├── components/
+        │   └── AnimationOverlay.vue
         ├── stores/
         │   └── gameDisplay.ts
+        ├── locales/            # i18n (DE, EN, ES)
         └── utils/
             └── checkouts.ts
 ```
@@ -126,14 +152,18 @@ Das Display verbindet sich mit dem Hub-WebSocket unter `/api/events` und empfän
 
 | Event | Aktion |
 |-------|--------|
-| `match.started` | Initialisiert Spielansicht |
-| `match.state` | Aktualisiert vollständigen Spielstand |
+| `match.start` | Holt vollständige Match-Daten via API |
+| `match.state` | Aktualisiert Spielstand, Spieler, Scores |
 | `throw.detected` | Zeigt Wurf an, aktualisiert Score |
-| `player.changed` | Wechselt aktiven Spieler, ändert Hintergrundfarbe |
-| `turn.finished` | Zeigt finale Aufnahme, bereitet nächsten Spieler vor |
-| `game.finished` | Markiert Leg/Set-Gewinn |
-| `match.finished` | Zeigt Spielende |
-| `match.deleted` | Kehrt zur Warteansicht zurück |
+| `player.change` | Wechselt aktiven Spieler, ändert Hintergrundfarbe |
+| `turn.finished` | Zeigt finale Aufnahme |
+| `game.finished` | Zeigt Leg/Set-Gewinn Animation |
+| `match.finished` | Zeigt Spielende Animation |
+| `match.delete` | Kehrt zur Idle-Ansicht zurück |
+
+### Wichtig: Match-Start
+
+Bei `match.start` wird automatisch die vollständige Match-Konfiguration über die API abgerufen (`/api/match/current`), da das Event selbst nur die Match-ID enthält. So werden die echten Spielerdaten und Scores angezeigt, nicht die Standardwerte.
 
 ### Demo-Modus
 
@@ -191,6 +221,12 @@ Das Display verwendet folgende CSS-Variablen für die Spielerfarbe:
 2. Prüfe die Hub-Verbindung im Dashboard
 3. Prüfe die Browser-Konsole auf WebSocket-Fehler
 
+### Bei Spielstart werden falsche Daten angezeigt (z.B. "501", "Spieler")
+
+1. Das Display sollte bei `match.start` automatisch die vollständigen Daten via API abrufen
+2. Prüfe die Browser-Konsole auf "Match started, fetching full match data..."
+3. Stelle sicher, dass der Hub-Server erreichbar ist
+
 ### Farben werden nicht angezeigt
 
 1. Stelle sicher, dass Spielerprofile in der Spielerverwaltung angelegt sind
@@ -226,3 +262,13 @@ npm run build
 ```
 
 Der Build-Output landet in `modules/game-display/web/dist/` und wird automatisch vom Hub unter `/module-ui/game-display/` bereitgestellt.
+
+## Mehrsprachigkeit
+
+Das Display unterstützt mehrere Sprachen:
+
+- **Deutsch (de)** - Standard
+- **English (en)**
+- **Español (es)**
+
+Die Sprache wird automatisch basierend auf den Browser-Einstellungen gewählt.

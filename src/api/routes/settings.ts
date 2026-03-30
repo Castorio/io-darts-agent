@@ -65,6 +65,15 @@ export function registerSettingsRoutes(
         email: config.autodarts.email,
         boardId: config.autodarts.boardId,
       },
+      aiProviders: {
+        runway: {
+          configured: !!(config.aiProviders?.runway?.apiKey),
+          model: config.aiProviders?.runway?.model || 'gen3a_turbo',
+        },
+        elevenlabs: {
+          configured: !!(config.aiProviders?.elevenlabs?.apiKey),
+        },
+      },
     };
   });
 
@@ -128,6 +137,32 @@ export function registerSettingsRoutes(
         }
         if (updates.autodarts.boardId !== undefined) {
           config.autodarts.boardId = updates.autodarts.boardId;
+        }
+      }
+
+      // Update AI providers settings
+      if (updates.aiProviders) {
+        if (!config.aiProviders) {
+          config.aiProviders = {};
+        }
+        if (updates.aiProviders.runway) {
+          if (!config.aiProviders.runway) {
+            config.aiProviders.runway = { apiKey: '' };
+          }
+          if (updates.aiProviders.runway.apiKey !== undefined) {
+            config.aiProviders.runway.apiKey = updates.aiProviders.runway.apiKey;
+          }
+          if (updates.aiProviders.runway.model !== undefined) {
+            config.aiProviders.runway.model = updates.aiProviders.runway.model;
+          }
+        }
+        if (updates.aiProviders.elevenlabs) {
+          if (!config.aiProviders.elevenlabs) {
+            config.aiProviders.elevenlabs = { apiKey: '' };
+          }
+          if (updates.aiProviders.elevenlabs.apiKey !== undefined) {
+            config.aiProviders.elevenlabs.apiKey = updates.aiProviders.elevenlabs.apiKey;
+          }
         }
       }
 

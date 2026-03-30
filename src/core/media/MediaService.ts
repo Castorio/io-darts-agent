@@ -30,6 +30,19 @@ export interface MediaFile {
   size: number;
   url: string;
   createdAt: string;
+  /** Subfolder path (e.g., "ai-generated/180" or "custom") */
+  folder?: string;
+}
+
+/**
+ * Media folder info
+ */
+export interface MediaFolder {
+  name: string;
+  path: string;
+  type: MediaType;
+  fileCount: number;
+  createdAt: string;
 }
 
 /**
@@ -39,6 +52,8 @@ export interface UploadOptions {
   type: MediaType;
   originalName: string;
   mimeType: string;
+  /** Optional subfolder to place the file in */
+  folder?: string;
 }
 
 /**
@@ -140,7 +155,7 @@ export class MediaService {
     stream: Readable,
     options: UploadOptions
   ): Promise<MediaFile> {
-    const { type, originalName, mimeType } = options;
+    const { type, originalName, mimeType, folder } = options;
 
     // Validate MIME type
     if (!this.validateFileType(mimeType, type)) {
@@ -149,11 +164,23 @@ export class MediaService {
       );
     }
 
+    // Validate and sanitize folder path
+    const sanitizedFolder = folder ? this.sanitizeFolderPath(folder) : undefined;
+
     // Generate unique filename
     const id = randomUUID();
     const ext = MIME_TO_EXT[mimeType.toLowerCase()] || extname(originalName);
     const filename = `${id}${ext}`;
-    const filePath = join(this.mediaPath, type, filename);
+
+    // Build file path with optional subfolder
+    const targetDir = sanitizedFolder
+      ? join(this.mediaPath, type, sanitizedFolder)
+      : join(this.mediaPath, type);
+
+    // Ensure target directory exists
+    await this.ensureDir(targetDir);
+
+    const filePath = join(targetDir, filename);
 
     // Write file
     const writeStream = createWriteStream(filePath);
@@ -170,6 +197,11 @@ export class MediaService {
       );
     }
 
+    // Build URL with folder path
+    const urlPath = sanitizedFolder
+      ? `${this.baseUrl}/${type}/${sanitizedFolder}/${filename}`
+      : `${this.baseUrl}/${type}/${filename}`;
+
     return {
       id,
       filename,
@@ -177,8 +209,9 @@ export class MediaService {
       type,
       mimeType,
       size: stats.size,
-      url: `${this.baseUrl}/${type}/${filename}`,
+      url: urlPath,
       createdAt: new Date().toISOString(),
+      folder: sanitizedFolder,
     };
   }
 
@@ -189,7 +222,7 @@ export class MediaService {
     buffer: Buffer,
     options: UploadOptions
   ): Promise<MediaFile> {
-    const { type, originalName, mimeType } = options;
+    const { type, originalName, mimeType, folder } = options;
 
     // Validate MIME type
     if (!this.validateFileType(mimeType, type)) {
@@ -205,15 +238,32 @@ export class MediaService {
       );
     }
 
+    // Validate and sanitize folder path
+    const sanitizedFolder = folder ? this.sanitizeFolderPath(folder) : undefined;
+
     // Generate unique filename
     const id = randomUUID();
     const ext = MIME_TO_EXT[mimeType.toLowerCase()] || extname(originalName);
     const filename = `${id}${ext}`;
-    const filePath = join(this.mediaPath, type, filename);
+
+    // Build file path with optional subfolder
+    const targetDir = sanitizedFolder
+      ? join(this.mediaPath, type, sanitizedFolder)
+      : join(this.mediaPath, type);
+
+    // Ensure target directory exists
+    await this.ensureDir(targetDir);
+
+    const filePath = join(targetDir, filename);
 
     // Write file
     const { writeFile } = await import('fs/promises');
     await writeFile(filePath, buffer);
+
+    // Build URL with folder path
+    const urlPath = sanitizedFolder
+      ? `${this.baseUrl}/${type}/${sanitizedFolder}/${filename}`
+      : `${this.baseUrl}/${type}/${filename}`;
 
     return {
       id,
@@ -222,16 +272,24 @@ export class MediaService {
       type,
       mimeType,
       size: buffer.length,
-      url: `${this.baseUrl}/${type}/${filename}`,
+      url: urlPath,
       createdAt: new Date().toISOString(),
+      folder: sanitizedFolder,
     };
   }
 
   /**
    * Delete a file
+   * @param type - Media type
+   * @param filename - Filename to delete
+   * @param folder - Optional subfolder path
    */
-  async delete(type: MediaType, filename: string): Promise<boolean> {
-    const filePath = join(this.mediaPath, type, basename(filename));
+  async delete(type: MediaType, filename: string, folder?: string): Promise<boolean> {
+    const sanitizedFolder = folder ? this.sanitizeFolderPath(folder) : undefined;
+    const targetDir = sanitizedFolder
+      ? join(this.mediaPath, type, sanitizedFolder)
+      : join(this.mediaPath, type);
+    const filePath = join(targetDir, basename(filename));
 
     try {
       await access(filePath);
@@ -243,10 +301,27 @@ export class MediaService {
   }
 
   /**
-   * List files by type
+   * List files by type, optionally filtered by folder
+   * @param type - Media type
+   * @param folder - Optional subfolder path (use '*' to include all subfolders recursively)
    */
-  async listFiles(type: MediaType): Promise<MediaFile[]> {
-    const dirPath = join(this.mediaPath, type);
+  async listFiles(type: MediaType, folder?: string): Promise<MediaFile[]> {
+    const baseDir = join(this.mediaPath, type);
+
+    try {
+      await access(baseDir);
+    } catch {
+      return [];
+    }
+
+    // If folder is '*', list all files recursively
+    if (folder === '*') {
+      return this.listFilesRecursive(type, baseDir, '');
+    }
+
+    // If folder specified, list only that folder
+    const sanitizedFolder = folder ? this.sanitizeFolderPath(folder) : undefined;
+    const dirPath = sanitizedFolder ? join(baseDir, sanitizedFolder) : baseDir;
 
     try {
       await access(dirPath);
@@ -254,17 +329,23 @@ export class MediaService {
       return [];
     }
 
-    const files = await readdir(dirPath);
+    const entries = await readdir(dirPath, { withFileTypes: true });
     const mediaFiles: MediaFile[] = [];
 
-    for (const filename of files) {
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+
+      const filename = entry.name;
       const filePath = join(dirPath, filename);
       const stats = await stat(filePath);
 
-      if (!stats.isFile()) continue;
-
       const ext = extname(filename).toLowerCase();
       const mimeType = this.getMimeTypeFromExt(ext);
+
+      // Build URL with folder path
+      const urlPath = sanitizedFolder
+        ? `${this.baseUrl}/${type}/${sanitizedFolder}/${filename}`
+        : `${this.baseUrl}/${type}/${filename}`;
 
       mediaFiles.push({
         id: basename(filename, ext),
@@ -273,9 +354,65 @@ export class MediaService {
         type,
         mimeType,
         size: stats.size,
-        url: `${this.baseUrl}/${type}/${filename}`,
+        url: urlPath,
         createdAt: stats.birthtime.toISOString(),
+        folder: sanitizedFolder,
       });
+    }
+
+    return mediaFiles.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  /**
+   * List files recursively from all subfolders
+   */
+  private async listFilesRecursive(
+    type: MediaType,
+    baseDir: string,
+    currentFolder: string
+  ): Promise<MediaFile[]> {
+    const dirPath = currentFolder ? join(baseDir, currentFolder) : baseDir;
+    const mediaFiles: MediaFile[] = [];
+
+    try {
+      const entries = await readdir(dirPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const entryPath = join(dirPath, entry.name);
+
+        if (entry.isDirectory()) {
+          // Recurse into subdirectory
+          const subFolder = currentFolder ? `${currentFolder}/${entry.name}` : entry.name;
+          const subFiles = await this.listFilesRecursive(type, baseDir, subFolder);
+          mediaFiles.push(...subFiles);
+        } else if (entry.isFile()) {
+          const filename = entry.name;
+          const stats = await stat(entryPath);
+          const ext = extname(filename).toLowerCase();
+          const mimeType = this.getMimeTypeFromExt(ext);
+
+          // Build URL with folder path
+          const urlPath = currentFolder
+            ? `${this.baseUrl}/${type}/${currentFolder}/${filename}`
+            : `${this.baseUrl}/${type}/${filename}`;
+
+          mediaFiles.push({
+            id: basename(filename, ext),
+            filename,
+            originalName: filename,
+            type,
+            mimeType,
+            size: stats.size,
+            url: urlPath,
+            createdAt: stats.birthtime.toISOString(),
+            folder: currentFolder || undefined,
+          });
+        }
+      }
+    } catch {
+      // Directory doesn't exist or can't be read
     }
 
     return mediaFiles.sort(
@@ -286,19 +423,185 @@ export class MediaService {
   /**
    * Get file path for serving
    */
-  getFilePath(type: MediaType, filename: string): string {
-    return join(this.mediaPath, type, basename(filename));
+  getFilePath(type: MediaType, filename: string, folder?: string): string {
+    const sanitizedFolder = folder ? this.sanitizeFolderPath(folder) : undefined;
+    const targetDir = sanitizedFolder
+      ? join(this.mediaPath, type, sanitizedFolder)
+      : join(this.mediaPath, type);
+    return join(targetDir, basename(filename));
   }
 
   /**
    * Check if file exists
    */
-  async exists(type: MediaType, filename: string): Promise<boolean> {
+  async exists(type: MediaType, filename: string, folder?: string): Promise<boolean> {
     try {
-      await access(join(this.mediaPath, type, basename(filename)));
+      const filePath = this.getFilePath(type, filename, folder);
+      await access(filePath);
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * List all folders for a media type
+   */
+  async listFolders(type: MediaType): Promise<MediaFolder[]> {
+    const baseDir = join(this.mediaPath, type);
+    const folders: MediaFolder[] = [];
+
+    try {
+      await access(baseDir);
+    } catch {
+      return [];
+    }
+
+    await this.listFoldersRecursive(baseDir, '', type, folders);
+
+    return folders.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  /**
+   * List folders recursively
+   */
+  private async listFoldersRecursive(
+    baseDir: string,
+    currentPath: string,
+    type: MediaType,
+    folders: MediaFolder[]
+  ): Promise<void> {
+    const dirPath = currentPath ? join(baseDir, currentPath) : baseDir;
+
+    try {
+      const entries = await readdir(dirPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const folderPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+          const fullPath = join(baseDir, folderPath);
+
+          // Count files in this folder
+          const files = await readdir(fullPath, { withFileTypes: true });
+          const fileCount = files.filter((f) => f.isFile()).length;
+
+          // Get folder creation time
+          const stats = await stat(fullPath);
+
+          folders.push({
+            name: entry.name,
+            path: folderPath,
+            type,
+            fileCount,
+            createdAt: stats.birthtime.toISOString(),
+          });
+
+          // Recurse into subdirectory
+          await this.listFoldersRecursive(baseDir, folderPath, type, folders);
+        }
+      }
+    } catch {
+      // Directory doesn't exist or can't be read
+    }
+  }
+
+  /**
+   * Create a folder
+   */
+  async createFolder(type: MediaType, folderPath: string): Promise<MediaFolder> {
+    const sanitizedPath = this.sanitizeFolderPath(folderPath);
+    const fullPath = join(this.mediaPath, type, sanitizedPath);
+
+    await this.ensureDir(fullPath);
+
+    const stats = await stat(fullPath);
+    const name = sanitizedPath.split('/').pop() || sanitizedPath;
+
+    return {
+      name,
+      path: sanitizedPath,
+      type,
+      fileCount: 0,
+      createdAt: stats.birthtime.toISOString(),
+    };
+  }
+
+  /**
+   * Delete a folder (must be empty)
+   */
+  async deleteFolder(type: MediaType, folderPath: string): Promise<boolean> {
+    const sanitizedPath = this.sanitizeFolderPath(folderPath);
+    const fullPath = join(this.mediaPath, type, sanitizedPath);
+
+    try {
+      const entries = await readdir(fullPath);
+      if (entries.length > 0) {
+        throw new Error('Folder is not empty');
+      }
+
+      const { rmdir } = await import('fs/promises');
+      await rmdir(fullPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Move a file to a different folder
+   */
+  async moveFile(
+    type: MediaType,
+    filename: string,
+    fromFolder: string | undefined,
+    toFolder: string | undefined
+  ): Promise<MediaFile | null> {
+    const sanitizedFrom = fromFolder ? this.sanitizeFolderPath(fromFolder) : undefined;
+    const sanitizedTo = toFolder ? this.sanitizeFolderPath(toFolder) : undefined;
+
+    const sourceDir = sanitizedFrom
+      ? join(this.mediaPath, type, sanitizedFrom)
+      : join(this.mediaPath, type);
+    const targetDir = sanitizedTo
+      ? join(this.mediaPath, type, sanitizedTo)
+      : join(this.mediaPath, type);
+
+    const sourcePath = join(sourceDir, basename(filename));
+    const targetPath = join(targetDir, basename(filename));
+
+    try {
+      // Check source exists
+      await access(sourcePath);
+
+      // Ensure target directory exists
+      await this.ensureDir(targetDir);
+
+      // Move file
+      const { rename } = await import('fs/promises');
+      await rename(sourcePath, targetPath);
+
+      // Get file info
+      const stats = await stat(targetPath);
+      const ext = extname(filename).toLowerCase();
+      const mimeType = this.getMimeTypeFromExt(ext);
+
+      const urlPath = sanitizedTo
+        ? `${this.baseUrl}/${type}/${sanitizedTo}/${filename}`
+        : `${this.baseUrl}/${type}/${filename}`;
+
+      return {
+        id: basename(filename, ext),
+        filename,
+        originalName: filename,
+        type,
+        mimeType,
+        size: stats.size,
+        url: urlPath,
+        createdAt: stats.birthtime.toISOString(),
+        folder: sanitizedTo,
+      };
+    } catch {
+      return null;
     }
   }
 
@@ -325,6 +628,27 @@ export class MediaService {
     } catch {
       await mkdir(path, { recursive: true });
     }
+  }
+
+  /**
+   * Sanitize folder path to prevent directory traversal attacks
+   */
+  private sanitizeFolderPath(folderPath: string): string {
+    // Remove leading/trailing slashes and normalize
+    let sanitized = folderPath
+      .replace(/^\/+|\/+$/g, '') // Remove leading/trailing slashes
+      .replace(/\/+/g, '/') // Collapse multiple slashes
+      .replace(/\.\./g, '') // Remove parent directory references
+      .replace(/[<>:"|?*\\]/g, '') // Remove invalid characters
+      .trim();
+
+    // Split, filter empty segments, and rejoin
+    sanitized = sanitized
+      .split('/')
+      .filter((segment) => segment.length > 0 && segment !== '.')
+      .join('/');
+
+    return sanitized;
   }
 
   /**

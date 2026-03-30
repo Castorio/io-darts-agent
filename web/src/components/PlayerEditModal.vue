@@ -31,6 +31,8 @@ const color = ref<string>(PLAYER_COLORS[0])
 const avatar = ref<string>('default')
 const autodartsUserId = ref('')
 const showDeleteConfirm = ref(false)
+const showColorPicker = ref(false)
+const customColor = ref('#3b82f6')
 
 // Computed
 const isEdit = computed(() => !!props.player)
@@ -39,6 +41,9 @@ const title = computed(() => (isEdit.value ? t('players.editPlayer') : t('player
 const isValid = computed(() => name.value.trim().length >= 2)
 
 // Watch for player changes
+// Check if color is a custom color (not in predefined list)
+const isCustomColor = (c: string) => !PLAYER_COLORS.includes(c as typeof PLAYER_COLORS[number])
+
 watch(
   () => props.player,
   (player) => {
@@ -47,6 +52,10 @@ watch(
       color.value = player.color
       avatar.value = player.avatar || 'default'
       autodartsUserId.value = player.autodartsUserId || ''
+      // If player has a custom color, set it in the color picker
+      if (isCustomColor(player.color)) {
+        customColor.value = player.color
+      }
     } else {
       resetForm()
     }
@@ -61,6 +70,7 @@ watch(
       resetForm()
     }
     showDeleteConfirm.value = false
+    showColorPicker.value = false
   }
 )
 
@@ -69,6 +79,18 @@ function resetForm() {
   color.value = PLAYER_COLORS[Math.floor(Math.random() * PLAYER_COLORS.length)] as string
   avatar.value = 'default'
   autodartsUserId.value = ''
+  customColor.value = '#3b82f6'
+  showColorPicker.value = false
+}
+
+function selectCustomColor() {
+  color.value = customColor.value
+}
+
+function handleCustomColorInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  customColor.value = input.value
+  color.value = input.value
 }
 
 function handleSave() {
@@ -142,17 +164,87 @@ function handleDelete() {
           <div>
             <label class="block text-sm font-medium text-dark-200 mb-3">{{ t('players.color') }}</label>
             <div class="grid grid-cols-9 gap-2">
+              <!-- Predefined Colors -->
               <button
                 v-for="c in PLAYER_COLORS"
                 :key="c"
                 type="button"
-                @click="color = c as string"
+                @click="color = c as string; showColorPicker = false"
                 :class="[
                   'w-8 h-8 rounded-full transition-transform hover:scale-110',
                   color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-dark-800 scale-110' : '',
                 ]"
                 :style="{ backgroundColor: c }"
               />
+              <!-- Color Picker Toggle -->
+              <button
+                type="button"
+                @click="showColorPicker = !showColorPicker"
+                :class="[
+                  'w-8 h-8 rounded-full transition-all hover:scale-110 flex items-center justify-center border-2 border-dashed',
+                  showColorPicker || isCustomColor(color)
+                    ? 'border-white bg-dark-600'
+                    : 'border-dark-500 bg-dark-700 hover:border-dark-400',
+                ]"
+                :title="t('players.customColor')"
+              >
+                <svg class="w-4 h-4" :class="showColorPicker || isCustomColor(color) ? 'text-white' : 'text-dark-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Color Picker Panel -->
+            <div
+              v-if="showColorPicker"
+              class="mt-3 p-3 rounded-lg bg-dark-700/50 border border-dark-600"
+            >
+              <div class="flex items-center gap-3">
+                <!-- Native Color Picker -->
+                <div class="relative">
+                  <input
+                    type="color"
+                    :value="customColor"
+                    @input="handleCustomColorInput"
+                    class="w-12 h-12 rounded-lg cursor-pointer border-2 border-dark-600 hover:border-dark-500 transition-colors"
+                    style="padding: 0; -webkit-appearance: none;"
+                  />
+                </div>
+                <!-- Hex Input -->
+                <div class="flex-1">
+                  <label class="block text-xs text-dark-400 mb-1">{{ t('players.hexColor') }}</label>
+                  <div class="flex items-center gap-2">
+                    <input
+                      type="text"
+                      v-model="customColor"
+                      @input="selectCustomColor"
+                      maxlength="7"
+                      placeholder="#000000"
+                      class="flex-1 px-3 py-2 rounded-lg bg-dark-800 border border-dark-600 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-autodarts-500"
+                    />
+                    <button
+                      type="button"
+                      @click="selectCustomColor"
+                      :class="[
+                        'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                        color === customColor
+                          ? 'bg-autodarts-600 text-white'
+                          : 'bg-dark-600 text-dark-300 hover:bg-dark-500',
+                      ]"
+                    >
+                      {{ t('players.apply') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <!-- Current Custom Color Preview -->
+              <div v-if="isCustomColor(color)" class="mt-3 flex items-center gap-2 text-sm text-dark-400">
+                <div
+                  class="w-4 h-4 rounded-full ring-1 ring-dark-500"
+                  :style="{ backgroundColor: color }"
+                />
+                <span>{{ t('players.currentColor') }}: <span class="font-mono text-white">{{ color }}</span></span>
+              </div>
             </div>
           </div>
 

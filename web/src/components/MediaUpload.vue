@@ -1,7 +1,22 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { api } from '../api/client'
 import BaseButton from './BaseButton.vue'
+
+interface MediaFile {
+  name: string
+  filename: string
+  url: string
+  size: number
+  type: string
+  folder?: string
+}
+
+interface MediaFolder {
+  name: string
+  path: string
+  fileCount: number
+}
 
 const props = defineProps<{
   modelValue: string
@@ -30,8 +45,45 @@ const isUploading = ref(false)
 const uploadProgress = ref(0)
 const error = ref<string | null>(null)
 const showMediaLibrary = ref(false)
-const mediaFiles = ref<Array<{ name: string; url: string; size: number; type: string }>>([])
+const mediaFiles = ref<MediaFile[]>([])
+const mediaFolders = ref<MediaFolder[]>([])
+const currentFolder = ref<string | null>(null)
 const isLoadingMedia = ref(false)
+
+// Breadcrumb path
+const breadcrumbs = computed(() => {
+  if (!currentFolder.value) return []
+  return currentFolder.value.split('/').map((part, index, arr) => ({
+    name: part,
+    path: arr.slice(0, index + 1).join('/'),
+  }))
+})
+
+// Filtered folders in current directory
+const currentFolders = computed(() => {
+  if (!currentFolder.value) {
+    // Root level - show top-level folders only
+    return mediaFolders.value.filter((f) => !f.path.includes('/'))
+  }
+  // Show direct children of current folder
+  const prefix = currentFolder.value + '/'
+  return mediaFolders.value
+    .filter((f) => f.path.startsWith(prefix) && !f.path.slice(prefix.length).includes('/'))
+    .map((f) => ({
+      ...f,
+      name: f.path.slice(prefix.length),
+    }))
+})
+
+// Files in current folder
+const currentFiles = computed(() => {
+  return mediaFiles.value.filter((f) => {
+    if (!currentFolder.value) {
+      return !f.folder
+    }
+    return f.folder === currentFolder.value
+  })
+})
 
 // Determine if current value is a URL or uploaded file
 const isExternalUrl = computed(() => {
@@ -43,7 +95,7 @@ const isExternalUrl = computed(() => {
 const isUploadedFile = computed(() => {
   const value = props.modelValue
   if (!value) return false
-  return value.startsWith('/media/')
+  return value.startsWith('/api/media/') || value.startsWith('/media/')
 })
 
 const displayValue = computed(() => {
@@ -79,9 +131,15 @@ async function handleFileSelect(event: Event) {
   uploadProgress.value = 0
 
   try {
-    const result = await api.uploadMedia(file, mediaType.value)
+    // Upload to current folder if in media library
+    const folder = showMediaLibrary.value ? currentFolder.value || undefined : undefined
+    const result = await api.uploadMedia(file, mediaType.value, folder)
     if (result.success) {
       emit('update:modelValue', result.url)
+      // Reload media library if open
+      if (showMediaLibrary.value) {
+        await loadMediaLibrary()
+      }
     } else {
       error.value = result.error || 'Upload fehlgeschlagen'
     }
@@ -101,10 +159,22 @@ async function loadMediaLibrary() {
   error.value = null
 
   try {
-    const result = await api.listMedia(mediaType.value)
+    // Load all files recursively
+    const result = await api.listMedia(mediaType.value, { recursive: true })
     if (result.success) {
-      mediaFiles.value = result.files
+      mediaFiles.value = result.files.map((f) => ({
+        name: f.name,
+        filename: f.filename || f.name,
+        url: f.url,
+        size: f.size,
+        type: f.type,
+        folder: f.folder,
+      }))
     }
+
+    // Load folders
+    const foldersResult = await api.listMediaFolders(mediaType.value)
+    mediaFolders.value = foldersResult.folders || []
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Fehler beim Laden'
   } finally {
@@ -112,17 +182,21 @@ async function loadMediaLibrary() {
   }
 }
 
-function selectMediaFile(file: { url: string }) {
+function navigateToFolder(folderPath: string | null) {
+  currentFolder.value = folderPath
+}
+
+function selectMediaFile(file: MediaFile) {
   emit('update:modelValue', file.url)
   showMediaLibrary.value = false
 }
 
-async function deleteMediaFile(filename: string) {
+async function deleteMediaFile(file: MediaFile) {
   try {
-    await api.deleteMedia(mediaType.value, filename)
-    mediaFiles.value = mediaFiles.value.filter((f) => f.name !== filename)
+    await api.deleteMedia(mediaType.value, file.filename, file.folder)
+    mediaFiles.value = mediaFiles.value.filter((f) => f.filename !== file.filename)
     // Clear value if deleted file was selected
-    if (props.modelValue.includes(filename)) {
+    if (props.modelValue === file.url) {
       emit('update:modelValue', '')
     }
   } catch (e) {
@@ -139,6 +213,13 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+// Reset folder navigation when modal closes
+watch(showMediaLibrary, (open) => {
+  if (!open) {
+    currentFolder.value = null
+  }
+})
 </script>
 
 <template>
@@ -257,7 +338,8 @@ function formatFileSize(bytes: number): string {
           class="absolute inset-0 bg-black/70"
           @click="showMediaLibrary = false"
         />
-        <div class="relative bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+        <div class="relative bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+          <!-- Header -->
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-semibold text-white">Mediathek</h3>
             <button
@@ -270,6 +352,35 @@ function formatFileSize(bytes: number): string {
             </button>
           </div>
 
+          <!-- Breadcrumb Navigation -->
+          <div class="flex items-center gap-2 text-sm mb-4 pb-3 border-b border-dark-700">
+            <button
+              @click="navigateToFolder(null)"
+              :class="[
+                'flex items-center gap-1 px-2 py-1 rounded hover:bg-dark-700 transition-colors',
+                !currentFolder ? 'text-white' : 'text-dark-400 hover:text-white',
+              ]"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+              Root
+            </button>
+
+            <template v-for="crumb in breadcrumbs" :key="crumb.path">
+              <span class="text-dark-600">/</span>
+              <button
+                @click="navigateToFolder(crumb.path)"
+                :class="[
+                  'px-2 py-1 rounded hover:bg-dark-700 transition-colors',
+                  crumb.path === currentFolder ? 'text-white' : 'text-dark-400 hover:text-white',
+                ]"
+              >
+                {{ crumb.name }}
+              </button>
+            </template>
+          </div>
+
           <!-- Loading -->
           <div v-if="isLoadingMedia" class="flex-1 flex items-center justify-center py-12">
             <svg class="w-8 h-8 text-autodarts-500 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -278,74 +389,107 @@ function formatFileSize(bytes: number): string {
             </svg>
           </div>
 
-          <!-- Empty state -->
-          <div v-else-if="mediaFiles.length === 0" class="flex-1 flex flex-col items-center justify-center py-12">
+          <!-- Empty state (no folders and no files) -->
+          <div v-else-if="currentFolders.length === 0 && currentFiles.length === 0" class="flex-1 flex flex-col items-center justify-center py-12">
             <svg class="w-16 h-16 text-dark-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <p class="text-dark-400 mt-4">Noch keine Medien hochgeladen</p>
+            <p class="text-dark-400 mt-4">{{ currentFolder ? 'Dieser Ordner ist leer' : 'Noch keine Medien hochgeladen' }}</p>
             <p class="text-dark-500 text-sm mt-1">Nutze den Upload-Button um Dateien hinzuzufügen</p>
           </div>
 
-          <!-- Media grid -->
-          <div v-else class="flex-1 overflow-y-auto">
-            <div class="grid grid-cols-3 sm:grid-cols-4 gap-3">
-              <div
-                v-for="file in mediaFiles"
-                :key="file.name"
-                class="group relative aspect-square rounded-lg overflow-hidden bg-dark-700 border-2 transition-all cursor-pointer"
-                :class="modelValue === file.url ? 'border-autodarts-500' : 'border-transparent hover:border-dark-500'"
-                @click="selectMediaFile(file)"
-              >
-                <!-- Thumbnail -->
-                <img
-                  v-if="file.type.startsWith('image/')"
-                  :src="file.url"
-                  :alt="file.name"
-                  class="w-full h-full object-cover"
-                />
-                <video
-                  v-else-if="file.type.startsWith('video/')"
-                  :src="file.url"
-                  class="w-full h-full object-cover"
-                  muted
-                />
-                <div
-                  v-else
-                  class="w-full h-full flex items-center justify-center"
-                >
-                  <svg class="w-8 h-8 text-dark-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                </div>
-
-                <!-- Overlay with info -->
-                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div class="absolute bottom-0 left-0 right-0 p-2">
-                    <p class="text-white text-xs truncate">{{ file.name }}</p>
-                    <p class="text-dark-400 text-xs">{{ formatFileSize(file.size) }}</p>
-                  </div>
-                </div>
-
-                <!-- Delete button -->
+          <!-- Content -->
+          <div v-else class="flex-1 overflow-y-auto space-y-4">
+            <!-- Folders -->
+            <div v-if="currentFolders.length > 0">
+              <h4 class="text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">Ordner</h4>
+              <div class="grid grid-cols-4 sm:grid-cols-6 gap-2">
                 <button
-                  type="button"
-                  @click.stop="deleteMediaFile(file.name)"
-                  class="absolute top-2 right-2 p-1.5 rounded-lg bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                  v-for="folder in currentFolders"
+                  :key="folder.path"
+                  @click="navigateToFolder(folder.path)"
+                  class="flex flex-col items-center p-3 rounded-lg bg-dark-700/50 border border-dark-600 hover:border-dark-500 hover:bg-dark-700 transition-all text-center"
                 >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <svg class="w-8 h-8 text-autodarts-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
+                  <span class="text-white text-xs truncate w-full">{{ folder.name }}</span>
+                  <span class="text-dark-500 text-xs">{{ folder.fileCount }}</span>
                 </button>
+              </div>
+            </div>
 
-                <!-- Selected indicator -->
+            <!-- Files -->
+            <div v-if="currentFiles.length > 0">
+              <h4 class="text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">Dateien</h4>
+              <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 <div
-                  v-if="modelValue === file.url"
-                  class="absolute top-2 left-2 p-1 rounded-full bg-autodarts-500"
+                  v-for="file in currentFiles"
+                  :key="file.filename"
+                  class="group relative aspect-square rounded-lg overflow-hidden bg-dark-700 border-2 transition-all cursor-pointer"
+                  :class="modelValue === file.url ? 'border-autodarts-500' : 'border-transparent hover:border-dark-500'"
+                  @click="selectMediaFile(file)"
                 >
-                  <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                  </svg>
+                  <!-- Thumbnail -->
+                  <img
+                    v-if="file.type?.startsWith('image/')"
+                    :src="file.url"
+                    :alt="file.name"
+                    class="w-full h-full object-cover"
+                  />
+                  <video
+                    v-else-if="file.type?.startsWith('video/')"
+                    :src="file.url"
+                    class="w-full h-full object-cover"
+                    muted
+                    @mouseenter="($event.target as HTMLVideoElement).play()"
+                    @mouseleave="($event.target as HTMLVideoElement).pause()"
+                  />
+                  <div
+                    v-else-if="file.type?.startsWith('audio/')"
+                    class="w-full h-full flex items-center justify-center bg-dark-700"
+                  >
+                    <svg class="w-8 h-8 text-dark-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                  </div>
+                  <div
+                    v-else
+                    class="w-full h-full flex items-center justify-center"
+                  >
+                    <svg class="w-8 h-8 text-dark-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+
+                  <!-- Overlay with info -->
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div class="absolute bottom-0 left-0 right-0 p-2">
+                      <p class="text-white text-xs truncate">{{ file.name }}</p>
+                      <p class="text-dark-400 text-xs">{{ formatFileSize(file.size) }}</p>
+                    </div>
+                  </div>
+
+                  <!-- Delete button -->
+                  <button
+                    type="button"
+                    @click.stop="deleteMediaFile(file)"
+                    class="absolute top-2 right-2 p-1.5 rounded-lg bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                  >
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+
+                  <!-- Selected indicator -->
+                  <div
+                    v-if="modelValue === file.url"
+                    class="absolute top-2 left-2 p-1 rounded-full bg-autodarts-500"
+                  >
+                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
                 </div>
               </div>
             </div>
@@ -363,7 +507,9 @@ function formatFileSize(bytes: number): string {
               <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
               </svg>
-              <span class="text-white font-medium">Neue Datei hochladen</span>
+              <span class="text-white font-medium text-sm">
+                {{ currentFolder ? `In "${currentFolder.split('/').pop()}" hochladen` : 'Neue Datei hochladen' }}
+              </span>
             </label>
             <BaseButton variant="ghost" @click="showMediaLibrary = false">
               Schließen

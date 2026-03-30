@@ -1,0 +1,70 @@
+[
+  {
+    "id": "98d4b3aa-f2ae-4777-acf6-b3606a3dd095",
+    "status": "failed",
+    "eventType": "180",
+    "style": {
+      "id": "fire",
+      "name": "Fire",
+      "prompt": "Explosive fire and flames, burning embers, orange and red flames",
+      "category": "effect",
+      "colors": [
+        "#FF4500",
+        "#FF6B00",
+        "#FFD700"
+      ]
+    },
+    "progress": 0,
+    "createdAt": "2026-03-29T12:18:00.987Z",
+    "startedAt": "2026-03-29T12:18:00.988Z",
+    "providerJobId": "44c778f5-ef0c-4276-ac29-4f3313e99a61",
+    "error": "An unexpected error occurred.",
+    "completedAt": "2026-03-29T12:18:27.208Z"
+  },
+  {
+    "id": "96be88dc-0ba9-41ff-90b0-300b3fd83e41",
+    "status": "completed",
+    "eventType": "bull",
+    "style": {
+      "id": "fire",
+      "name": "Fire",
+      "prompt": "Explosive fire and flames, burning embers, orange and red flames",
+      "category": "effect",
+      "colors": [
+        "#FF4500",
+        "#FF6B00",
+        "#FFD700"
+      ]
+    },
+    "progress": 100,
+    "createdAt": "2026-03-29T12:18:33.874Z",
+    "startedAt": "2026-03-29T12:18:33.875Z",
+    "providerJobId": "cbadc006-f217-4c90-8e8b-195ad30bf49b",
+    "resultUrl": "/api/media/files/animation/ai-generated/fire/bull_96be88dc-0ba9-41ff-90b0-300b3fd83e41.webm",
+    "resultFilename": "bull_96be88dc-0ba9-41ff-90b0-300b3fd83e41.webm",
+    "completedAt": "2026-03-29T12:19:15.431Z"
+  },
+  {
+    "id": "5979f8cc-9ca9-4c8d-8599-9678eb00c392",
+    "status": "completed",
+    "eventType": "doubleBull",
+    "style": {
+      "id": "electric",
+      "name": "Electric",
+      "prompt": "Electric lightning bolts, sparks, energy discharge, blue electricity",
+      "category": "effect",
+      "colors": [
+        "#00BFFF",
+        "#1E90FF",
+        "#FFFFFF"
+      ]
+    },
+    "progress": 100,
+    "createdAt": "2026-03-29T14:00:46.099Z",
+    "startedAt": "2026-03-29T14:00:46.100Z",
+    "providerJobId": "7d76d0ea-6a7c-4929-83ca-94985f224277",
+    "resultUrl": "/api/media/files/animation/ai-generated/electric/doubleBull_5979f8cc-9ca9-4c8d-8599-9678eb00c392.webm",
+    "resultFilename": "doubleBull_5979f8cc-9ca9-4c8d-8599-9678eb00c392.webm",
+    "completedAt": "2026-03-29T14:01:24.435Z"
+  }
+]

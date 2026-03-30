@@ -76,9 +76,68 @@ Returns current hub status.
     "boardId": "board-uuid"
   },
   "modules": {
-    "total": 2,
-    "running": 2
+    "total": 3,
+    "running": 3
   }
+}
+```
+
+---
+
+### Match
+
+#### GET /api/match/current
+Returns current match state.
+
+**Response:**
+```json
+{
+  "matchId": "match-uuid",
+  "isActive": true,
+  "players": [
+    {
+      "index": 0,
+      "name": "Max",
+      "color": "#3b82f6"
+    }
+  ],
+  "gameScores": [301],
+  "settings": {
+    "baseScore": 501,
+    "legs": 3,
+    "sets": 1
+  },
+  "player": 0,
+  "round": 5
+}
+```
+
+#### GET /api/match/current/players
+Returns current players with enriched data.
+
+**Response:**
+```json
+{
+  "players": [
+    {
+      "index": 0,
+      "name": "Max",
+      "color": "#3b82f6",
+      "score": 301,
+      "legsWon": 1,
+      "setsWon": 0
+    }
+  ]
+}
+```
+
+#### GET /api/match/current/scores
+Returns current scores.
+
+**Response:**
+```json
+{
+  "scores": [301, 245]
 }
 ```
 
@@ -95,10 +154,25 @@ Lists all installed modules.
   {
     "id": "wled",
     "name": "WLED Lighting Controller",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Controls WLED LED strips",
     "status": "running",
-    "events": ["throw.detected", "player.change", "match.started"]
+    "events": ["throw.detected", "player.change", "match.start"]
+  },
+  {
+    "id": "game-display",
+    "name": "Game Display",
+    "version": "1.0.0",
+    "description": "Shows game score on external displays",
+    "status": "running",
+    "hasUI": true
+  },
+  {
+    "id": "darts-caller",
+    "name": "Darts Caller",
+    "version": "1.0.0",
+    "description": "Professional darts caller",
+    "status": "running"
   }
 ]
 ```
@@ -111,11 +185,11 @@ Returns details for a module.
 {
   "id": "wled",
   "name": "WLED Lighting Controller",
-  "version": "1.1.0",
-  "description": "Controls WLED LED strips",
+  "version": "1.2.0",
+  "description": "Controls WLED LED strips based on game events",
   "author": "IO-Darts-Agent Team",
   "status": "running",
-  "events": ["throw.detected", "player.change"],
+  "events": ["throw.detected", "player.change", "match.start", "takeout.finished"],
   "config": {
     "schema": {
       "wledHost": {
@@ -127,15 +201,20 @@ Returns details for a module.
         "type": "number",
         "label": "WLED Port",
         "default": 80
+      },
+      "fadeTime": {
+        "type": "number",
+        "label": "Fade Time (ms)",
+        "default": 0,
+        "min": 0,
+        "max": 10000
       }
     },
     "values": {
       "wledHost": "192.168.1.100",
-      "wledPort": 80
+      "wledPort": 80,
+      "fadeTime": 500
     }
-  },
-  "stats": {
-    "restartCount": 0
   }
 }
 ```
@@ -148,11 +227,17 @@ Returns module configuration.
 {
   "wledHost": "192.168.1.100",
   "wledPort": 80,
-  "eventActions": {
+  "fadeTime": 500,
+  "events": {
+    "player.change": {
+      "actionType": "solid",
+      "usePlayerColor": true
+    },
     "throw.triple": {
       "actionType": "effect",
       "effectId": 12,
-      "brightness": 255
+      "brightness": 255,
+      "duration": 500
     }
   }
 }
@@ -165,7 +250,8 @@ Updates module configuration.
 ```json
 {
   "wledHost": "192.168.1.101",
-  "wledPort": 80
+  "wledPort": 80,
+  "fadeTime": 1000
 }
 ```
 
@@ -229,6 +315,10 @@ Returns translated module manifest for the specified language.
         "type": "string",
         "label": "WLED IP-Adresse",
         "description": "IP-Adresse oder Hostname des WLED-Geräts"
+      },
+      "fadeTime": {
+        "label": "Übergangszeit (ms)",
+        "description": "Globale Übergangszeit für Farbwechsel"
       }
     }
   },
@@ -240,14 +330,52 @@ Returns translated module manifest for the specified language.
 }
 ```
 
-#### GET /api/modules/:id/languages
-Returns available languages for a module.
+---
+
+### Voice Pack Generator
+
+#### GET /api/voicepack/voices
+Returns available ElevenLabs voices.
+
+**Request Headers:**
+- `X-ElevenLabs-API-Key`: Your ElevenLabs API key
+
+**Response:**
+```json
+{
+  "voices": [
+    {
+      "voice_id": "voice-uuid",
+      "name": "Adam",
+      "labels": {
+        "accent": "american",
+        "gender": "male"
+      }
+    }
+  ]
+}
+```
+
+#### POST /api/voicepack/generate
+Generates a voice pack using ElevenLabs TTS.
+
+**Request:**
+```json
+{
+  "apiKey": "your-elevenlabs-api-key",
+  "voiceId": "voice-uuid",
+  "packName": "my-voice-pack",
+  "stability": 0.5,
+  "clarity": 0.75
+}
+```
 
 **Response:**
 ```json
 {
   "success": true,
-  "languages": ["en", "de", "es"]
+  "packPath": "media/caller/my-voice-pack",
+  "filesGenerated": 352
 }
 ```
 
@@ -294,7 +422,7 @@ Updates a player profile.
 Deletes a player profile.
 
 #### POST /api/players/match
-Finds a player by name.
+Finds a player by name or alias.
 
 **Request:**
 ```json
@@ -432,12 +560,62 @@ Module status changed.
 }
 ```
 
+#### caller
+Darts Caller event (for browser TTS/audio playback).
+
+```json
+{
+  "type": "caller",
+  "data": {
+    "callType": "score",
+    "text": "One hundred and eighty!",
+    "audioFile": "media/caller/default/180.mp3",
+    "priority": 10
+  }
+}
+```
+
 ---
 
 ## Autodarts Events
 
-### throw.detected
+### Native Events (from Autodarts)
 
+#### match.start
+```json
+{
+  "type": "match.start",
+  "data": {
+    "matchId": "match-uuid",
+    "boardId": "board-uuid"
+  }
+}
+```
+
+#### match.state
+```json
+{
+  "type": "match.state",
+  "data": {
+    "matchId": "match-uuid",
+    "players": [
+      { "name": "Max", "index": 0 },
+      { "name": "Anna", "index": 1 }
+    ],
+    "gameScores": [301, 245],
+    "player": 0,
+    "round": 5,
+    "turnBusted": false,
+    "settings": {
+      "baseScore": 501,
+      "legs": 3,
+      "sets": 1
+    }
+  }
+}
+```
+
+#### throw.detected
 ```json
 {
   "type": "throw.detected",
@@ -450,45 +628,44 @@ Module status changed.
     "points": 60,
     "turnPoints": 120,
     "remaining": 381,
-    "busted": false,
     "playerIndex": 0,
     "playerName": "Max"
   }
 }
 ```
 
-### player.changed
-
+#### takeout.started
 ```json
 {
-  "type": "player.changed",
+  "type": "takeout.started",
   "data": {
-    "playerIndex": 1,
-    "playerName": "Anna",
-    "color": "#ef4444"
+    "matchId": "match-uuid"
   }
 }
 ```
 
-### match.started
-
+#### takeout.finished
 ```json
 {
-  "type": "match.started",
+  "type": "takeout.finished",
   "data": {
-    "matchId": "match-uuid",
-    "players": [
-      { "name": "Max", "color": "#3b82f6" },
-      { "name": "Anna", "color": "#ef4444" }
-    ],
-    "mode": "X01",
-    "startScore": 501
+    "matchId": "match-uuid"
   }
 }
 ```
 
-### match.finished
+#### game.finished
+```json
+{
+  "type": "game.finished",
+  "data": {
+    "winner": "Max",
+    "checkoutPath": ["T20", "T20", "D20"]
+  }
+}
+```
 
+#### match.finished
 ```json
 {
   "type": "match.finished",
@@ -500,35 +677,55 @@ Module status changed.
 }
 ```
 
-### turn.finished
+#### match.delete
+```json
+{
+  "type": "match.delete",
+  "data": {
+    "matchId": "match-uuid"
+  }
+}
+```
+
+### Synthetic Events (generated by EventParser)
+
+These events are generated by the IO-Darts-Agent from `match.state` updates:
+
+#### player.change
+Triggered when the active player changes.
+
+```json
+{
+  "type": "player.change",
+  "data": {
+    "playerIndex": 1,
+    "playerName": "Anna",
+    "remaining": 245,
+    "players": [
+      { "name": "Max", "index": 0, "color": "#3b82f6" },
+      { "name": "Anna", "index": 1, "color": "#ef4444" }
+    ]
+  }
+}
+```
+
+#### turn.finished
+Triggered when a turn ends (3 darts thrown, bust, or round change).
 
 ```json
 {
   "type": "turn.finished",
   "data": {
     "playerIndex": 0,
+    "playerName": "Max",
     "turnScore": 100,
-    "darts": [
-      { "segment": { "number": 20, "multiplier": 3 }, "points": 60 },
-      { "segment": { "number": 20, "multiplier": 1 }, "points": 20 },
-      { "segment": { "number": 20, "multiplier": 1 }, "points": 20 }
-    ],
+    "busted": false,
     "remaining": 301
   }
 }
 ```
 
-### game.finished
-
-```json
-{
-  "type": "game.finished",
-  "data": {
-    "winner": "Max",
-    "checkoutPath": ["T20", "T20", "D20"]
-  }
-}
-```
+**Note:** If `busted` is `true`, the `turnScore` will be `0`.
 
 ---
 

@@ -1,0 +1,237 @@
+{
+  "id": "darts-caller",
+  "name": "Darts Caller",
+  "version": "1.0.0",
+  "description": "Professional darts caller that announces scores, checkouts, and game events using text-to-speech or pre-recorded audio files.",
+  "author": "IO-Darts-Agent Team",
+  "entry": "dist/index.js",
+  "events": [
+    "match.start",
+    "match.finished",
+    "match.delete",
+    "throw.detected",
+    "player.change",
+    "turn.finished",
+    "game.finished"
+  ],
+  "config": {
+    "enabled": {
+      "type": "boolean",
+      "label": "Enable Caller",
+      "description": "Enable or disable the darts caller",
+      "default": true
+    },
+    "callerType": {
+      "type": "select",
+      "label": "Caller Type",
+      "description": "Choose the audio source for voice calls. Voice Pack plays locally on the server.",
+      "default": "voicepack",
+      "options": [
+        { "value": "voicepack", "label": "AI Voice Pack (local playback)" },
+        { "value": "elevenlabs", "label": "ElevenLabs Live AI (local playback)" },
+        { "value": "tts", "label": "Browser TTS (frontend playback)" },
+        { "value": "audio", "label": "Custom Audio Files (local playback)" }
+      ]
+    },
+    "voicePackId": {
+      "type": "string",
+      "label": "Voice Pack",
+      "description": "Select a generated voice pack to use (required for Voice Pack caller type)",
+      "default": ""
+    },
+    "language": {
+      "type": "select",
+      "label": "Language",
+      "description": "Language for voice output",
+      "default": "en",
+      "options": [
+        { "value": "en", "label": "English" },
+        { "value": "de", "label": "Deutsch" }
+      ]
+    },
+    "elevenlabsVoiceId": {
+      "type": "string",
+      "label": "ElevenLabs Voice ID",
+      "description": "Voice ID from ElevenLabs (required for ElevenLabs caller type)",
+      "default": ""
+    },
+    "elevenlabsStability": {
+      "type": "number",
+      "label": "Voice Stability",
+      "description": "ElevenLabs voice stability (0.0 - 1.0)",
+      "default": 0.5,
+      "min": 0,
+      "max": 1,
+      "step": 0.05
+    },
+    "elevenlabsSimilarity": {
+      "type": "number",
+      "label": "Similarity Boost",
+      "description": "ElevenLabs similarity boost (0.0 - 1.0)",
+      "default": 0.75,
+      "min": 0,
+      "max": 1,
+      "step": 0.05
+    },
+    "ttsVoice": {
+      "type": "string",
+      "label": "TTS Voice",
+      "description": "Voice identifier for text-to-speech (browser dependent)",
+      "default": ""
+    },
+    "ttsRate": {
+      "type": "number",
+      "label": "TTS Speed",
+      "description": "Speech rate (0.5 - 2.0)",
+      "default": 1.0,
+      "min": 0.5,
+      "max": 2.0,
+      "step": 0.1
+    },
+    "ttsPitch": {
+      "type": "number",
+      "label": "TTS Pitch",
+      "description": "Voice pitch (0.5 - 2.0)",
+      "default": 1.0,
+      "min": 0.5,
+      "max": 2.0,
+      "step": 0.1
+    },
+    "volume": {
+      "type": "number",
+      "label": "Volume",
+      "description": "Audio volume (0 - 100)",
+      "default": 80,
+      "min": 0,
+      "max": 100
+    },
+    "audioPackPath": {
+      "type": "string",
+      "label": "Audio Pack Path",
+      "description": "Path to custom audio pack folder (relative to media directory)",
+      "default": ""
+    },
+    "callScores": {
+      "type": "boolean",
+      "label": "Call Scores",
+      "description": "Announce thrown scores",
+      "default": true
+    },
+    "callHighScoresOnly": {
+      "type": "boolean",
+      "label": "High Scores Only",
+      "description": "Only call scores of 100 or higher",
+      "default": false
+    },
+    "callCheckouts": {
+      "type": "boolean",
+      "label": "Call Checkouts",
+      "description": "Announce checkout opportunities",
+      "default": true
+    },
+    "callPlayerChange": {
+      "type": "boolean",
+      "label": "Call Player Change",
+      "description": "Announce when player changes",
+      "default": true
+    },
+    "callGameStart": {
+      "type": "boolean",
+      "label": "Call Game Start",
+      "description": "Announce match and game start",
+      "default": true
+    },
+    "callGameOver": {
+      "type": "boolean",
+      "label": "Call Game Over",
+      "description": "Announce match and game end",
+      "default": true
+    },
+    "call180": {
+      "type": "boolean",
+      "label": "Special 180 Call",
+      "description": "Special announcement for 180",
+      "default": true
+    },
+    "callBusts": {
+      "type": "boolean",
+      "label": "Call Busts",
+      "description": "Announce when player busts",
+      "default": true
+    },
+    "delayMs": {
+      "type": "number",
+      "label": "Delay (ms)",
+      "description": "Delay before announcing (milliseconds)",
+      "default": 200,
+      "min": 0,
+      "max": 2000
+    }
+  },
+  "i18n": {
+    "en": {
+      "name": "Darts Caller",
+      "description": "Professional darts caller that announces scores, checkouts, and game events using text-to-speech or pre-recorded audio files.",
+      "config": {
+        "enabled": {
+          "label": "Enable Caller",
+          "description": "Enable or disable the darts caller"
+        },
+        "callerType": {
+          "label": "Caller Type",
+          "description": "Choose between text-to-speech or audio files"
+        },
+        "volume": {
+          "label": "Volume",
+          "description": "Audio volume (0 - 100)"
+        },
+        "callScores": {
+          "label": "Call Scores",
+          "description": "Announce thrown scores"
+        }
+      },
+      "strings": {
+        "gameOn": "Game on!",
+        "matchOn": "Match on!",
+        "gameShot": "Game shot!",
+        "matchShot": "Match shot and the match!",
+        "oneHundredEighty": "One hundred and eighty!",
+        "bust": "Bust!",
+        "noScore": "No score",
+        "youRequire": "You require"
+      }
+    },
+    "de": {
+      "name": "Darts Caller",
+      "description": "Professioneller Darts Caller, der Punkte, Checkouts und Spielereignisse per Text-to-Speech oder Audiodateien ansagt.",
+      "config": {
+        "enabled": {
+          "label": "Caller aktivieren",
+          "description": "Caller ein- oder ausschalten"
+        },
+        "callerType": {
+          "label": "Caller-Typ",
+          "description": "Wähle zwischen Text-to-Speech oder Audiodateien"
+        },
+        "volume": {
+          "label": "Lautstärke",
+          "description": "Audio-Lautstärke (0 - 100)"
+        },
+        "callScores": {
+          "label": "Punkte ansagen",
+          "description": "Geworfene Punkte ansagen"
+        }
+      },
+      "strings": {
+        "gameOn": "Spiel an!",
+        "matchOn": "Match an!",
+        "gameShot": "Game shot!",
+        "matchShot": "Match shot und das Match!",
+        "oneHundredEighty": "Einhundertachtzig!",
+        "bust": "Überworfen!",
+        "noScore": "Keine Punkte",
+        "youRequire": "Du brauchst"
+      }
+    }
+  }
+}

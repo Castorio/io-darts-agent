@@ -14,6 +14,15 @@ interface Settings {
   server: { port: number; host: string }
   webAuth: { enabled: boolean; username: string }
   autodarts: { email: string; boardId: string }
+  aiProviders?: {
+    runway?: {
+      configured: boolean
+      model: 'gen3a_turbo' | 'gen3a'
+    }
+    elevenlabs?: {
+      configured: boolean
+    }
+  }
 }
 
 const currentLocale = ref<SupportedLocale>(getLocale())
@@ -38,6 +47,15 @@ const autodartsEmail = ref('')
 const autodartsPassword = ref('')
 const boardId = ref('')
 
+// AI Provider settings
+const runwayConfigured = ref(false)
+const runwayApiKey = ref('')
+const runwayModel = ref<'gen3a_turbo' | 'gen3a'>('gen3a_turbo')
+
+// ElevenLabs settings
+const elevenlabsConfigured = ref(false)
+const elevenlabsApiKey = ref('')
+
 async function loadSettings() {
   isLoading.value = true
   try {
@@ -48,6 +66,10 @@ async function loadSettings() {
     webAuthUsername.value = settings.value.webAuth.username
     autodartsEmail.value = settings.value.autodarts.email
     boardId.value = settings.value.autodarts.boardId
+    // AI Provider settings
+    runwayConfigured.value = settings.value.aiProviders?.runway?.configured ?? false
+    runwayModel.value = settings.value.aiProviders?.runway?.model ?? 'gen3a_turbo'
+    elevenlabsConfigured.value = settings.value.aiProviders?.elevenlabs?.configured ?? false
   } catch (e) {
     message.value = {
       type: 'error',
@@ -99,6 +121,29 @@ async function saveSettings() {
       }
     }
 
+    // AI Provider settings
+    const aiProviderUpdates: Record<string, unknown> = {}
+
+    if (
+      runwayApiKey.value ||
+      runwayModel.value !== (settings.value?.aiProviders?.runway?.model ?? 'gen3a_turbo')
+    ) {
+      aiProviderUpdates.runway = {
+        ...(runwayApiKey.value ? { apiKey: runwayApiKey.value } : {}),
+        model: runwayModel.value,
+      }
+    }
+
+    if (elevenlabsApiKey.value) {
+      aiProviderUpdates.elevenlabs = {
+        apiKey: elevenlabsApiKey.value,
+      }
+    }
+
+    if (Object.keys(aiProviderUpdates).length > 0) {
+      updates.aiProviders = aiProviderUpdates
+    }
+
     if (Object.keys(updates).length === 0) {
       message.value = { type: 'success', text: 'Keine Änderungen vorgenommen' }
       return
@@ -108,9 +153,11 @@ async function saveSettings() {
 
     if (result.success) {
       message.value = { type: 'success', text: 'Einstellungen gespeichert' }
-      // Clear password fields
+      // Clear password/key fields
       webAuthPassword.value = ''
       autodartsPassword.value = ''
+      runwayApiKey.value = ''
+      elevenlabsApiKey.value = ''
       // Reload settings
       await loadSettings()
     } else {
@@ -276,6 +323,124 @@ onMounted(loadSettings)
               :label="t('settings.boardId')"
               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
             />
+          </div>
+        </BaseCard>
+
+        <!-- AI Provider Settings -->
+        <BaseCard :title="t('settings.aiProviders')" :subtitle="t('settings.aiProvidersDescription')">
+          <div class="space-y-4">
+            <!-- Runway ML -->
+            <div class="p-4 rounded-lg bg-dark-700/50">
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-white font-medium">Runway ML</p>
+                    <p class="text-sm text-dark-400">{{ t('settings.runwayDescription') }}</p>
+                  </div>
+                </div>
+                <span
+                  :class="[
+                    'px-2.5 py-1 rounded-full text-xs font-medium',
+                    runwayConfigured
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-dark-600 text-dark-400',
+                  ]"
+                >
+                  {{ runwayConfigured ? t('common.connected') : t('settings.notConfigured') }}
+                </span>
+              </div>
+
+              <div class="space-y-4">
+                <BaseInput
+                  v-model="runwayApiKey"
+                  type="password"
+                  :label="t('settings.apiKey')"
+                  :placeholder="runwayConfigured ? t('settings.leaveEmptyToKeep') : t('settings.enterApiKey')"
+                />
+
+                <div>
+                  <label class="block text-sm font-medium text-dark-200 mb-2">{{ t('settings.model') }}</label>
+                  <div class="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      @click="runwayModel = 'gen3a_turbo'"
+                      :class="[
+                        'p-3 rounded-lg border text-left transition-all',
+                        runwayModel === 'gen3a_turbo'
+                          ? 'bg-autodarts-600/20 border-autodarts-500'
+                          : 'bg-dark-800 border-dark-600 hover:border-dark-500',
+                      ]"
+                    >
+                      <p :class="['font-medium', runwayModel === 'gen3a_turbo' ? 'text-white' : 'text-dark-200']">
+                        Gen-3 Alpha Turbo
+                      </p>
+                      <p class="text-xs text-dark-400">{{ t('settings.modelTurboDesc') }}</p>
+                    </button>
+                    <button
+                      type="button"
+                      @click="runwayModel = 'gen3a'"
+                      :class="[
+                        'p-3 rounded-lg border text-left transition-all',
+                        runwayModel === 'gen3a'
+                          ? 'bg-autodarts-600/20 border-autodarts-500'
+                          : 'bg-dark-800 border-dark-600 hover:border-dark-500',
+                      ]"
+                    >
+                      <p :class="['font-medium', runwayModel === 'gen3a' ? 'text-white' : 'text-dark-200']">
+                        Gen-3 Alpha
+                      </p>
+                      <p class="text-xs text-dark-400">{{ t('settings.modelStandardDesc') }}</p>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ElevenLabs -->
+            <div class="p-4 rounded-lg bg-dark-700/50">
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-white font-medium">ElevenLabs</p>
+                    <p class="text-sm text-dark-400">{{ t('settings.elevenlabsDescription') }}</p>
+                  </div>
+                </div>
+                <span
+                  :class="[
+                    'px-2.5 py-1 rounded-full text-xs font-medium',
+                    elevenlabsConfigured
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-dark-600 text-dark-400',
+                  ]"
+                >
+                  {{ elevenlabsConfigured ? t('common.connected') : t('settings.notConfigured') }}
+                </span>
+              </div>
+
+              <div class="space-y-4">
+                <BaseInput
+                  v-model="elevenlabsApiKey"
+                  type="password"
+                  :label="t('settings.apiKey')"
+                  :placeholder="elevenlabsConfigured ? t('settings.leaveEmptyToKeep') : t('settings.enterApiKey')"
+                />
+                <p class="text-sm text-dark-400">
+                  {{ t('settings.elevenlabsHint') }}
+                  <a href="https://elevenlabs.io" target="_blank" class="text-autodarts-400 hover:underline">elevenlabs.io</a>
+                </p>
+              </div>
+            </div>
           </div>
         </BaseCard>
 

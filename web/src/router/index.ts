@@ -47,6 +47,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/modules/:id/darts-caller-config',
+      name: 'darts-caller-config',
+      component: () => import('../views/DartsCallerConfigView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/display',
       name: 'game-display',
       // Redirect to the module's own UI - handled by the beforeEnter guard

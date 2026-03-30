@@ -14,12 +14,13 @@ This guide walks you through the setup and use of IO-Darts-Agent step by step. F
 6. [Managing Modules](#managing-modules)
 7. [WLED Module - LED Lighting](#wled-module)
 8. [Game Display Module - Score Display](#game-display-module)
-9. [Player Management](#player-management)
-10. [Live Logs](#live-logs)
-11. [Settings](#settings)
-12. [Installing New Modules](#installing-new-modules)
-13. [FAQ](#faq)
-14. [Troubleshooting](#troubleshooting)
+9. [Darts Caller Module - Voice Announcements](#darts-caller-module)
+10. [Player Management](#player-management)
+11. [Live Logs](#live-logs)
+12. [Settings](#settings)
+13. [Installing New Modules](#installing-new-modules)
+14. [FAQ](#faq)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -29,8 +30,8 @@ IO-Darts-Agent is software that connects to your Autodarts system and can trigge
 
 - **🎨 Control LED lighting** - Your WLED lighting blinks on a Triple
 - **📺 Display scores** - Show the game score on a second screen
+- **🎙️ Voice announcements** - Professional darts caller for scores and checkouts
 - **🔔 Send notifications** - Receive alerts for special events
-- **🎵 Play sounds** - (coming soon)
 - **And much more** - The system is extensible!
 
 ---
@@ -204,7 +205,8 @@ Click on **Configure WLED**:
 
 1. **WLED IP Address**: Enter the IP of your WLED controller (e.g. `192.168.1.100`)
 2. **Port**: Usually `80`
-3. Click **Save**
+3. **Fade Time**: Transition time in milliseconds for smooth color changes (optional)
+4. Click **Save**
 
 ### Set Up Event Actions
 
@@ -217,19 +219,20 @@ You can set an action for each event:
    - **Action Type**: `Effect`
    - **Effect**: `Blink` or `Rainbow`
    - **Brightness**: `255` (Maximum)
-   - **Duration**: `500` (0.5 seconds, then return to previous state)
+   - **Duration**: `500` (0.5 seconds, then return to player color)
 3. Enable **Use Player Color** (optional)
 
 #### Popular Configurations
 
 | Event | Recommended Action |
 |-------|-------------------|
-| **Match Start** | Effect "Rainbow" |
+| **Match Start** | Effect "Rainbow", Duration 2000ms |
 | **Player Change** | Solid color with player color |
 | **Triple** | Short blink (500ms) |
-| **Bullseye** | Golden flash |
+| **Bullseye** | Golden flash (500ms) |
 | **180** | Fireworks effect (3s) |
 | **Bust** | Red alarm (1s) |
+| **Takeout Finished** | Restore player color |
 
 ### Player Colors
 
@@ -238,6 +241,18 @@ When you enable **Use Player Color**, the effect automatically takes the color o
 1. Create player profiles in **Player Management**
 2. Assign a color to each player
 3. The name must match the Autodarts name
+
+### Single-Player Mode
+
+The WLED module fully supports single-player games:
+- Player color is applied after match start (after optional start animation)
+- Player color is restored after each takeout
+- No player change event needed
+
+### Duration and Fade Time
+
+- **Duration**: How long an effect lasts before returning to player color
+- **Fade Time**: How smoothly the transition happens (global or per-action)
 
 ---
 
@@ -306,6 +321,82 @@ When no game is running, you can use demo mode:
 2. The display shows sample data
 3. Click **End Demo** to reset
 
+### Idle Mode Options
+
+Configure what shows when no game is running:
+- **Waiting Screen**: Default "Waiting for game..."
+- **Last Game**: Show results of the last game
+- **Black Screen**: Display goes completely black
+- **Custom Image**: Show your own image
+
+---
+
+## Darts Caller Module
+
+Professional darts caller with voice announcements.
+
+### What It Does
+
+- Announces scores after each turn
+- Announces checkout requirements ("You require...")
+- Special calls for 180, bust, game shot, match shot
+- Announces player names on player change
+
+### Open Darts Caller
+
+1. Go to **Modules**
+2. Click on **Darts Caller**
+
+### Configure Caller
+
+Click on **Configure**:
+
+### Output Modes
+
+| Mode | Description |
+|------|-------------|
+| **Browser TTS** | Uses the browser's built-in text-to-speech |
+| **Audio Pack** | Uses pre-recorded audio files (MP3) |
+| **Local Playback** | Plays audio directly on the server |
+
+### Using Browser TTS
+
+1. Select **TTS** as output type
+2. Configure voice, speed, and pitch
+3. Keep a browser tab open with the hub
+
+### Using Audio Packs
+
+1. Select **Audio** as output type
+2. Choose an audio pack (or use Voice Pack Generator)
+3. Audio files are played in the browser
+
+### Voice Pack Generator
+
+Create custom voice packs using ElevenLabs TTS:
+
+1. Get an API key from [elevenlabs.io](https://elevenlabs.io)
+2. Enter your API key
+3. Choose a voice
+4. Configure stability and clarity
+5. Click **Generate Voice Pack**
+
+The generator creates all required files:
+- Score announcements (0-180)
+- Checkout calls (2-170)
+- Special calls (game on, game shot, bust, etc.)
+
+### Announcement Options
+
+| Option | Description |
+|--------|-------------|
+| **Call Scores** | Announce scores after each turn |
+| **High Scores Only** | Only announce scores ≥100 |
+| **Call Checkouts** | Announce checkout requirements |
+| **Call Player Change** | Announce player names |
+| **Call 180** | Special 180 announcement |
+| **Call Busts** | Announce busts |
+
 ---
 
 ## Player Management
@@ -332,6 +423,7 @@ Click **Players** in the sidebar:
 The colors are used by modules:
 - **WLED**: LEDs light up in the player color
 - **Game Display**: Background in the player color
+- **Darts Caller**: Can announce player-specific sounds
 
 ### Understanding Aliases
 
@@ -387,6 +479,7 @@ Click **Settings** in the sidebar:
 | **Server Port** | Port on which the hub runs (Default: 3000) |
 | **Autodarts Credentials** | Change email/password |
 | **Board** | Select a different board |
+| **Language** | Choose interface language (EN, DE, ES) |
 
 > ⚠️ **Note**: After changes, the server may need to be restarted.
 
@@ -450,6 +543,17 @@ Yes! Simply open the display URL in the tablet's browser. The tablet must be on 
 
 This is normal! The display updates automatically as soon as a game starts in Autodarts.
 
+### ❓ The display shows wrong data at game start?
+
+The display should automatically fetch full match data via API. Check the browser console for "Match started, fetching full match data...".
+
+### ❓ Voice announcements aren't working?
+
+1. For Browser TTS: Keep a browser tab open
+2. For Audio Packs: Check if files exist
+3. Check the volume settings
+4. Check the browser console for errors
+
 ---
 
 ## Troubleshooting
@@ -475,6 +579,12 @@ Error: EADDRINUSE :::3000
 3. Open WLED directly in browser
 4. Check the logs in the hub
 
+### WLED Color Not Showing in Single-Player Mode
+
+1. Make sure `player.change` has an action with **Use Player Color** enabled
+2. This action is also used for single-player games
+3. Check the console logs for 🎨 WLED messages
+
 ### Display Won't Load
 
 1. Check if the hub is running
@@ -487,6 +597,13 @@ Error: EADDRINUSE :::3000
 1. Check if player profiles are created
 2. The name must exactly match Autodarts (or be an alias)
 3. Restart the module
+
+### Voice Pack Generator Not Working
+
+1. Check your ElevenLabs API key
+2. Check your character quota at ElevenLabs
+3. Make sure you have an internet connection
+4. Check the server logs for errors
 
 ---
 

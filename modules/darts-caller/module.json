@@ -1,7 +1,7 @@
 {
   "id": "darts-caller",
   "name": "Darts Caller",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Professional darts caller that announces scores, checkouts, and game events using text-to-speech or pre-recorded audio files.",
   "author": "IO-Darts-Agent Team",
   "entry": "dist/index.js",
@@ -24,20 +24,14 @@
     "callerType": {
       "type": "select",
       "label": "Caller Type",
-      "description": "Choose the audio source for voice calls. Voice Pack plays locally on the server.",
-      "default": "voicepack",
+      "description": "Choose the audio source for voice calls",
+      "default": "tts",
       "options": [
-        { "value": "voicepack", "label": "AI Voice Pack (local playback)" },
-        { "value": "elevenlabs", "label": "ElevenLabs Live AI (local playback)" },
-        { "value": "tts", "label": "Browser TTS (frontend playback)" },
-        { "value": "audio", "label": "Custom Audio Files (local playback)" }
+        { "value": "tts", "label": "Browser TTS" },
+        { "value": "voicepack", "label": "AI Voice Pack" },
+        { "value": "elevenlabs", "label": "ElevenLabs Live AI" },
+        { "value": "audio", "label": "Custom Audio Files" }
       ]
-    },
-    "voicePackId": {
-      "type": "string",
-      "label": "Voice Pack",
-      "description": "Select a generated voice pack to use (required for Voice Pack caller type)",
-      "default": ""
     },
     "language": {
       "type": "select",
@@ -49,54 +43,6 @@
         { "value": "de", "label": "Deutsch" }
       ]
     },
-    "elevenlabsVoiceId": {
-      "type": "string",
-      "label": "ElevenLabs Voice ID",
-      "description": "Voice ID from ElevenLabs (required for ElevenLabs caller type)",
-      "default": ""
-    },
-    "elevenlabsStability": {
-      "type": "number",
-      "label": "Voice Stability",
-      "description": "ElevenLabs voice stability (0.0 - 1.0)",
-      "default": 0.5,
-      "min": 0,
-      "max": 1,
-      "step": 0.05
-    },
-    "elevenlabsSimilarity": {
-      "type": "number",
-      "label": "Similarity Boost",
-      "description": "ElevenLabs similarity boost (0.0 - 1.0)",
-      "default": 0.75,
-      "min": 0,
-      "max": 1,
-      "step": 0.05
-    },
-    "ttsVoice": {
-      "type": "string",
-      "label": "TTS Voice",
-      "description": "Voice identifier for text-to-speech (browser dependent)",
-      "default": ""
-    },
-    "ttsRate": {
-      "type": "number",
-      "label": "TTS Speed",
-      "description": "Speech rate (0.5 - 2.0)",
-      "default": 1.0,
-      "min": 0.5,
-      "max": 2.0,
-      "step": 0.1
-    },
-    "ttsPitch": {
-      "type": "number",
-      "label": "TTS Pitch",
-      "description": "Voice pitch (0.5 - 2.0)",
-      "default": 1.0,
-      "min": 0.5,
-      "max": 2.0,
-      "step": 0.1
-    },
     "volume": {
       "type": "number",
       "label": "Volume",
@@ -105,60 +51,6 @@
       "min": 0,
       "max": 100
     },
-    "audioPackPath": {
-      "type": "string",
-      "label": "Audio Pack Path",
-      "description": "Path to custom audio pack folder (relative to media directory)",
-      "default": ""
-    },
-    "callScores": {
-      "type": "boolean",
-      "label": "Call Scores",
-      "description": "Announce thrown scores",
-      "default": true
-    },
-    "callHighScoresOnly": {
-      "type": "boolean",
-      "label": "High Scores Only",
-      "description": "Only call scores of 100 or higher",
-      "default": false
-    },
-    "callCheckouts": {
-      "type": "boolean",
-      "label": "Call Checkouts",
-      "description": "Announce checkout opportunities",
-      "default": true
-    },
-    "callPlayerChange": {
-      "type": "boolean",
-      "label": "Call Player Change",
-      "description": "Announce when player changes",
-      "default": true
-    },
-    "callGameStart": {
-      "type": "boolean",
-      "label": "Call Game Start",
-      "description": "Announce match and game start",
-      "default": true
-    },
-    "callGameOver": {
-      "type": "boolean",
-      "label": "Call Game Over",
-      "description": "Announce match and game end",
-      "default": true
-    },
-    "call180": {
-      "type": "boolean",
-      "label": "Special 180 Call",
-      "description": "Special announcement for 180",
-      "default": true
-    },
-    "callBusts": {
-      "type": "boolean",
-      "label": "Call Busts",
-      "description": "Announce when player busts",
-      "default": true
-    },
     "delayMs": {
       "type": "number",
       "label": "Delay (ms)",
@@ -166,6 +58,153 @@
       "default": 200,
       "min": 0,
       "max": 2000
+    },
+    "ttsSettings": {
+      "type": "group",
+      "label": "Browser TTS Settings",
+      "description": "Settings for browser text-to-speech",
+      "showIf": { "field": "callerType", "value": "tts" },
+      "fields": {
+        "voice": {
+          "type": "string",
+          "label": "Voice",
+          "description": "Voice identifier (browser dependent)",
+          "default": ""
+        },
+        "rate": {
+          "type": "number",
+          "label": "Speed",
+          "description": "Speech rate (0.5 - 2.0)",
+          "default": 1.0,
+          "min": 0.5,
+          "max": 2.0,
+          "step": 0.1
+        },
+        "pitch": {
+          "type": "number",
+          "label": "Pitch",
+          "description": "Voice pitch (0.5 - 2.0)",
+          "default": 1.0,
+          "min": 0.5,
+          "max": 2.0,
+          "step": 0.1
+        }
+      }
+    },
+    "voicepackSettings": {
+      "type": "group",
+      "label": "Voice Pack Settings",
+      "description": "Settings for AI-generated voice packs",
+      "showIf": { "field": "callerType", "value": "voicepack" },
+      "fields": {
+        "packId": {
+          "type": "string",
+          "label": "Voice Pack",
+          "description": "Select a generated voice pack to use",
+          "default": ""
+        }
+      }
+    },
+    "elevenlabsSettings": {
+      "type": "group",
+      "label": "ElevenLabs Settings",
+      "description": "Settings for ElevenLabs live AI voice",
+      "showIf": { "field": "callerType", "value": "elevenlabs" },
+      "fields": {
+        "voiceId": {
+          "type": "string",
+          "label": "Voice ID",
+          "description": "Voice ID from ElevenLabs",
+          "default": ""
+        },
+        "stability": {
+          "type": "number",
+          "label": "Stability",
+          "description": "Voice stability (0.0 - 1.0)",
+          "default": 0.5,
+          "min": 0,
+          "max": 1,
+          "step": 0.05
+        },
+        "similarity": {
+          "type": "number",
+          "label": "Similarity Boost",
+          "description": "Similarity boost (0.0 - 1.0)",
+          "default": 0.75,
+          "min": 0,
+          "max": 1,
+          "step": 0.05
+        }
+      }
+    },
+    "audioSettings": {
+      "type": "group",
+      "label": "Custom Audio Settings",
+      "description": "Settings for custom audio files",
+      "showIf": { "field": "callerType", "value": "audio" },
+      "fields": {
+        "packPath": {
+          "type": "string",
+          "label": "Audio Pack Path",
+          "description": "Path to custom audio pack folder (relative to media directory)",
+          "default": ""
+        }
+      }
+    },
+    "callSettings": {
+      "type": "group",
+      "label": "Call Settings",
+      "description": "Configure what to announce",
+      "fields": {
+        "scores": {
+          "type": "boolean",
+          "label": "Call Scores",
+          "description": "Announce thrown scores",
+          "default": true
+        },
+        "highScoresOnly": {
+          "type": "boolean",
+          "label": "High Scores Only",
+          "description": "Only call scores of 100 or higher",
+          "default": false
+        },
+        "checkouts": {
+          "type": "boolean",
+          "label": "Call Checkouts",
+          "description": "Announce checkout opportunities",
+          "default": true
+        },
+        "playerChange": {
+          "type": "boolean",
+          "label": "Call Player Change",
+          "description": "Announce when player changes",
+          "default": true
+        },
+        "gameStart": {
+          "type": "boolean",
+          "label": "Call Game Start",
+          "description": "Announce match and game start",
+          "default": true
+        },
+        "gameOver": {
+          "type": "boolean",
+          "label": "Call Game Over",
+          "description": "Announce match and game end",
+          "default": true
+        },
+        "special180": {
+          "type": "boolean",
+          "label": "Special 180 Call",
+          "description": "Special announcement for 180",
+          "default": true
+        },
+        "busts": {
+          "type": "boolean",
+          "label": "Call Busts",
+          "description": "Announce when player busts",
+          "default": true
+        }
+      }
     }
   },
   "i18n": {
@@ -179,15 +218,49 @@
         },
         "callerType": {
           "label": "Caller Type",
-          "description": "Choose between text-to-speech or audio files"
+          "description": "Choose the audio source for voice calls",
+          "options": {
+            "tts": "Browser TTS",
+            "voicepack": "AI Voice Pack",
+            "elevenlabs": "ElevenLabs Live AI",
+            "audio": "Custom Audio Files"
+          }
+        },
+        "language": {
+          "label": "Language",
+          "description": "Language for voice output",
+          "options": {
+            "en": "English",
+            "de": "Deutsch"
+          }
         },
         "volume": {
           "label": "Volume",
           "description": "Audio volume (0 - 100)"
         },
-        "callScores": {
-          "label": "Call Scores",
-          "description": "Announce thrown scores"
+        "delayMs": {
+          "label": "Delay",
+          "description": "Delay before announcing (milliseconds)"
+        },
+        "ttsSettings": {
+          "label": "Browser TTS Settings",
+          "description": "Settings for browser text-to-speech"
+        },
+        "voicepackSettings": {
+          "label": "Voice Pack Settings",
+          "description": "Settings for AI-generated voice packs"
+        },
+        "elevenlabsSettings": {
+          "label": "ElevenLabs Settings",
+          "description": "Settings for ElevenLabs live AI voice"
+        },
+        "audioSettings": {
+          "label": "Custom Audio Settings",
+          "description": "Settings for custom audio files"
+        },
+        "callSettings": {
+          "label": "Call Settings",
+          "description": "Configure what to announce"
         }
       },
       "strings": {
@@ -211,15 +284,49 @@
         },
         "callerType": {
           "label": "Caller-Typ",
-          "description": "Wähle zwischen Text-to-Speech oder Audiodateien"
+          "description": "Wähle die Audioquelle für Sprachausgaben",
+          "options": {
+            "tts": "Browser TTS",
+            "voicepack": "KI Voice Pack",
+            "elevenlabs": "ElevenLabs Live KI",
+            "audio": "Eigene Audiodateien"
+          }
+        },
+        "language": {
+          "label": "Sprache",
+          "description": "Sprache für Sprachausgabe",
+          "options": {
+            "en": "Englisch",
+            "de": "Deutsch"
+          }
         },
         "volume": {
           "label": "Lautstärke",
           "description": "Audio-Lautstärke (0 - 100)"
         },
-        "callScores": {
-          "label": "Punkte ansagen",
-          "description": "Geworfene Punkte ansagen"
+        "delayMs": {
+          "label": "Verzögerung",
+          "description": "Verzögerung vor der Ansage (Millisekunden)"
+        },
+        "ttsSettings": {
+          "label": "Browser TTS Einstellungen",
+          "description": "Einstellungen für Browser Text-to-Speech"
+        },
+        "voicepackSettings": {
+          "label": "Voice Pack Einstellungen",
+          "description": "Einstellungen für KI-generierte Voice Packs"
+        },
+        "elevenlabsSettings": {
+          "label": "ElevenLabs Einstellungen",
+          "description": "Einstellungen für ElevenLabs Live KI"
+        },
+        "audioSettings": {
+          "label": "Eigene Audio Einstellungen",
+          "description": "Einstellungen für eigene Audiodateien"
+        },
+        "callSettings": {
+          "label": "Ansage-Einstellungen",
+          "description": "Konfiguriere was angesagt wird"
         }
       },
       "strings": {

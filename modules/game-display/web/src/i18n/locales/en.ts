@@ -51,6 +51,20 @@ export default {
     clickToClose: 'Click or press Space to close',
   },
 
+  // Win animation config
+  winAnimation: {
+    displayOptions: 'Display Options',
+    showWinnerName: 'Show Winner Name',
+    showStatistics: 'Show Statistics',
+    effect: 'Effect',
+    effectNone: 'None',
+    effectConfetti: 'Confetti',
+    effectFireworks: 'Fireworks',
+    effectSparkles: 'Sparkles',
+    backgroundColor: 'Background Color',
+    textColor: 'Text Color',
+  },
+
   // Player
   player: {
     defaultName: 'Player',

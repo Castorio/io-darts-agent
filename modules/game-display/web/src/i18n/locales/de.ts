@@ -51,6 +51,20 @@ export default {
     clickToClose: 'Klicken oder Leertaste zum Schließen',
   },
 
+  // Win animation config
+  winAnimation: {
+    displayOptions: 'Anzeigeoptionen',
+    showWinnerName: 'Gewinnername anzeigen',
+    showStatistics: 'Statistiken anzeigen',
+    effect: 'Effekt',
+    effectNone: 'Keine',
+    effectConfetti: 'Konfetti',
+    effectFireworks: 'Feuerwerk',
+    effectSparkles: 'Glitzer',
+    backgroundColor: 'Hintergrundfarbe',
+    textColor: 'Textfarbe',
+  },
+
   // Player
   player: {
     defaultName: 'Spieler',

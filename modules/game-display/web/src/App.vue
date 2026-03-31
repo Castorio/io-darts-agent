@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useGameDisplayStore } from './stores/gameDisplay'
 import { getCheckoutSuggestion, getDartLabel } from './utils/checkouts'
 import AnimationOverlay from './components/AnimationOverlay.vue'
+import WinAnimation from './components/WinAnimation.vue'
 
 const { t } = useI18n()
 const store = useGameDisplayStore()
@@ -579,8 +580,11 @@ onUnmounted(() => {
       </template>
     </div>
 
-    <!-- Animation Overlay -->
+    <!-- Animation Overlay (for non-win animations) -->
     <AnimationOverlay />
+
+    <!-- Win Animation (for leg/set/match wins with enhanced display) -->
+    <WinAnimation />
   </div>
 </template>
 

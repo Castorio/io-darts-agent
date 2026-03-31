@@ -61,7 +61,7 @@ IO-Darts-Agent is software that connects to your Autodarts system and can trigge
 ### Download
 
 Download the appropriate version for your system:
-👉 [GitHub Releases](https://github.com/user/io-darts-agent/releases)
+👉 [GitHub Releases](https://github.com/Castorio/io-darts-agent/releases)
 
 | System | File |
 |--------|------|

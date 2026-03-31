@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import type { APIServer } from '../Server.js';
 import type {
   SettingsResponse,
@@ -124,7 +124,14 @@ export function registerSettingsRoutes(
           config.webAuth.username = updates.webAuth.username;
         }
         if (updates.webAuth.password) {
-          config.webAuth.passwordHash = await bcrypt.hash(updates.webAuth.password, 10);
+          console.log('🔐 Hashing new password in settings...');
+          try {
+            config.webAuth.passwordHash = await bcrypt.hash(updates.webAuth.password, 10);
+            console.log('✅ Password hashed successfully in settings');
+          } catch (hashError) {
+            console.error('❌ bcrypt hash error in settings:', hashError);
+            throw hashError;
+          }
         }
       }
 

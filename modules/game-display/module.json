@@ -422,6 +422,37 @@
           "default": 3000,
           "min": 1000,
           "max": 8000
+        },
+        "showPlayerName": {
+          "type": "boolean",
+          "label": "Show Winner Name",
+          "default": true
+        },
+        "showStats": {
+          "type": "boolean",
+          "label": "Show Statistics",
+          "default": false
+        },
+        "effectType": {
+          "type": "select",
+          "label": "Effect",
+          "default": "confetti",
+          "options": [
+            { "value": "none", "label": "None" },
+            { "value": "confetti", "label": "Confetti" },
+            { "value": "fireworks", "label": "Fireworks" },
+            { "value": "sparkles", "label": "Sparkles" }
+          ]
+        },
+        "backgroundColor": {
+          "type": "color",
+          "label": "Background Color",
+          "default": "#0a0a0f"
+        },
+        "textColor": {
+          "type": "color",
+          "label": "Text Color",
+          "default": "#8b5cf6"
         }
       }
     },
@@ -458,6 +489,37 @@
           "default": 5000,
           "min": 2000,
           "max": 15000
+        },
+        "showPlayerName": {
+          "type": "boolean",
+          "label": "Show Winner Name",
+          "default": true
+        },
+        "showStats": {
+          "type": "boolean",
+          "label": "Show Statistics",
+          "default": true
+        },
+        "effectType": {
+          "type": "select",
+          "label": "Effect",
+          "default": "confetti",
+          "options": [
+            { "value": "none", "label": "None" },
+            { "value": "confetti", "label": "Confetti" },
+            { "value": "fireworks", "label": "Fireworks" },
+            { "value": "sparkles", "label": "Sparkles" }
+          ]
+        },
+        "backgroundColor": {
+          "type": "color",
+          "label": "Background Color",
+          "default": "#0a0a0f"
+        },
+        "textColor": {
+          "type": "color",
+          "label": "Text Color",
+          "default": "#fbbf24"
         }
       }
     },

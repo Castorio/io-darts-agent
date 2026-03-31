@@ -14,11 +14,32 @@ import type { ParsedEvent } from '../../../src/types/index.js';
  */
 export interface AnimationConfig {
   enabled?: boolean;
-  type?: 'builtin' | 'gif' | 'video';
+  type?: 'builtin' | 'gif' | 'video' | 'none';
   url?: string;
+  mediaUrl?: string; // Alias for url (from module.json config)
   sound?: boolean;
   soundUrl?: string;
   duration?: number;
+}
+
+/**
+ * Extended win animation configuration with additional options
+ */
+export interface WinAnimationConfig extends AnimationConfig {
+  /** Custom message to display during animation */
+  message?: string;
+  /** Show player name in animation */
+  showPlayerName?: boolean;
+  /** Show final score in animation */
+  showFinalScore?: boolean;
+  /** Show statistics (average, checkout %) in animation */
+  showStats?: boolean;
+  /** Confetti/particle effect type */
+  effectType?: 'none' | 'confetti' | 'fireworks' | 'sparkles';
+  /** Background color for the win screen */
+  backgroundColor?: string;
+  /** Text color for win messages */
+  textColor?: string;
 }
 
 /**
@@ -30,8 +51,9 @@ export interface GameDisplayAnimations {
   throw180?: AnimationConfig;
   bull?: AnimationConfig;
   doubleBull?: AnimationConfig;
-  legWin?: AnimationConfig;
-  matchWin?: AnimationConfig;
+  legWin?: WinAnimationConfig;
+  setWin?: WinAnimationConfig;
+  matchWin?: WinAnimationConfig;
   highScore?: AnimationConfig & { threshold?: number };
   checkout?: AnimationConfig;
   bust?: AnimationConfig;
@@ -44,8 +66,10 @@ export interface PlayerAnimationConfig {
   playerId?: string;
   playerName?: string;
   throw180?: AnimationConfig;
-  legWin?: AnimationConfig;
-  matchWin?: AnimationConfig;
+  legWin?: WinAnimationConfig;
+  setWin?: WinAnimationConfig;
+  matchWin?: WinAnimationConfig;
+  checkout?: AnimationConfig;
 }
 
 /**
@@ -82,17 +106,58 @@ export type AnimationEventType =
   | 'checkout'
   | 'bust'
   | 'legWin'
+  | 'setWin'
   | 'matchWin';
+
+/**
+ * Win event data for enhanced win animations
+ */
+export interface WinEventData {
+  /** Index of the winning player */
+  winnerIndex: number;
+  /** Name of the winning player */
+  winnerName: string;
+  /** Player's ID (for player-specific animations) */
+  playerId?: string;
+  /** Final score (for checkout display) */
+  finalScore?: number;
+  /** Checkout path taken */
+  checkoutPath?: string[];
+  /** Player statistics */
+  stats?: {
+    average?: number;
+    dartsThrown?: number;
+    checkoutPercent?: number;
+    highestCheckout?: number;
+    first9Average?: number;
+    total180s?: number;
+  };
+  /** Current leg number */
+  leg?: number;
+  /** Current set number */
+  set?: number;
+  /** Legs won by player */
+  legsWon?: number;
+  /** Sets won by player */
+  setsWon?: number;
+  /** Total legs to win */
+  legsToWin?: number;
+  /** Total sets to win */
+  setsToWin?: number;
+}
 
 /**
  * Animation trigger result
  */
 export interface AnimationTrigger {
   type: AnimationEventType;
-  config: AnimationConfig;
-  playerConfig?: AnimationConfig;
+  config: AnimationConfig | WinAnimationConfig;
+  playerConfig?: AnimationConfig | WinAnimationConfig;
   playerIndex?: number;
   playerName?: string;
+  playerId?: string;
+  /** Extended win event data (for legWin, setWin, matchWin) */
+  winData?: WinEventData;
 }
 
 /**
@@ -217,32 +282,113 @@ export class GameDisplayHandler {
 
     // Handle game finished (leg won)
     if (eventType === 'game.finished') {
-      const config = animations.legWin;
-      if (config?.enabled !== false) {
-        this.stats.animationsTriggered++;
-        return {
-          type: 'legWin',
-          config: config || { enabled: true },
-          playerIndex: eventData.winnerIndex as number,
-          playerName: eventData.winner as string,
-        };
-      }
+      return this.checkWinAnimation(eventData, 'legWin');
+    }
+
+    // Handle set finished (set won)
+    if (eventType === 'set.finished') {
+      return this.checkWinAnimation(eventData, 'setWin');
     }
 
     // Handle match finished
     if (eventType === 'match.finished') {
-      const config = animations.matchWin;
-      if (config?.enabled !== false) {
-        this.stats.animationsTriggered++;
-        return {
-          type: 'matchWin',
-          config: config || { enabled: true },
-          playerName: eventData.winner as string,
-        };
-      }
+      return this.checkWinAnimation(eventData, 'matchWin');
     }
 
     return null;
+  }
+
+  /**
+   * Check and create win animation trigger with full data
+   */
+  private checkWinAnimation(
+    eventData: Record<string, unknown>,
+    winType: 'legWin' | 'setWin' | 'matchWin'
+  ): AnimationTrigger | null {
+    const animations = this.config.animations;
+    if (!animations) return null;
+
+    const config = animations[winType];
+    if (config?.enabled === false || config?.type === 'none') {
+      return null;
+    }
+
+    this.stats.animationsTriggered++;
+
+    // Extract winner info - handle both formats
+    const winnerIndex =
+      (eventData.winnerIndex as number) ??
+      (eventData.winner as number) ??
+      (eventData.gameWinner as number) ??
+      0;
+    const winnerName =
+      (eventData.winnerName as string) ??
+      (typeof eventData.winner === 'string' ? eventData.winner : undefined) ??
+      `Player ${winnerIndex + 1}`;
+    const playerId = eventData.playerId as string | undefined;
+
+    // Build win event data
+    const winData: WinEventData = {
+      winnerIndex,
+      winnerName,
+      playerId,
+      leg: eventData.leg as number | undefined,
+      set: eventData.set as number | undefined,
+    };
+
+    // Extract checkout path if available
+    const checkoutPath = eventData.checkoutPath as unknown[] | undefined;
+    if (checkoutPath && checkoutPath.length > 0) {
+      winData.checkoutPath = checkoutPath.map((dart) => {
+        if (typeof dart === 'string') return dart;
+        const segment = dart as Record<string, unknown>;
+        return (segment.name as string) || `${segment.number}`;
+      });
+      this.stats.checkouts++;
+    }
+
+    // Extract final score if available
+    winData.finalScore = (eventData.finalScore as number) ?? (eventData.checkout as number);
+
+    // Extract statistics if available
+    const stats = eventData.stats as Record<string, unknown> | undefined;
+    const legStats = (stats?.legStats as Record<string, unknown>[]) || [];
+    const matchStats = (stats?.matchStats as Record<string, unknown>[]) || [];
+    const playerStats = matchStats[winnerIndex] || legStats[winnerIndex];
+
+    if (playerStats) {
+      winData.stats = {
+        average: playerStats.average as number | undefined,
+        dartsThrown: playerStats.dartsThrown as number | undefined,
+        checkoutPercent: playerStats.checkoutPercent as number | undefined,
+        highestCheckout: playerStats.checkoutPoints as number | undefined,
+        first9Average: playerStats.first9Average as number | undefined,
+        total180s: playerStats.total180 as number | undefined,
+      };
+    }
+
+    // Extract score progress
+    const scores = eventData.scores as number[] | undefined;
+    if (scores && winnerIndex < scores.length) {
+      if (winType === 'matchWin' || winType === 'setWin') {
+        winData.setsWon = scores[winnerIndex];
+      } else {
+        winData.legsWon = scores[winnerIndex];
+      }
+    }
+
+    // Get player-specific animation config
+    const playerConfig = this.getPlayerAnimationConfig(winnerIndex, winType);
+
+    return {
+      type: winType,
+      config: config || { enabled: true },
+      playerConfig,
+      playerIndex: winnerIndex,
+      playerName: winnerName,
+      playerId,
+      winData,
+    };
   }
 
   /**

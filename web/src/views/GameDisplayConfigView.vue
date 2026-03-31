@@ -65,6 +65,8 @@ const i18n = computed(() => {
       stop: lang === 'de' ? 'Stoppen' : lang === 'es' ? 'Detener' : 'Stop',
       animations: lang === 'de' ? 'Animationen' : lang === 'es' ? 'Animaciones' : 'Animations',
       animationsDesc: lang === 'de' ? 'GIF- oder Video-Animationen für besondere Ereignisse' : lang === 'es' ? 'Animaciones GIF o video para eventos especiales' : 'GIF or video animations for special events',
+      winAnimationOptions: lang === 'de' ? 'Win Animation Optionen' : lang === 'es' ? 'Opciones de Animación de Victoria' : 'Win Animation Display Options',
+      winAnimationOverlayInfo: lang === 'de' ? 'Diese Optionen erscheinen als Overlay über dem GIF/Video' : lang === 'es' ? 'Estas opciones aparecen como superposición sobre el GIF/Video' : 'These options appear as overlay on top of the GIF/Video',
       usage: lang === 'de' ? 'Verwendung' : lang === 'es' ? 'Uso' : 'Usage',
       step1Title: lang === 'de' ? 'Display öffnen' : lang === 'es' ? 'Abrir pantalla' : 'Open display',
       step1Desc: lang === 'de' ? 'Klicken Sie auf "Display öffnen" oder kopieren Sie die URL und öffnen Sie diese auf einem externen Bildschirm.' : lang === 'es' ? 'Haga clic en "Abrir pantalla" o copie la URL y ábrala en un monitor externo.' : 'Click "Open Display" or copy the URL and open it on an external screen.',
@@ -111,7 +113,11 @@ function getOptionLabel(fieldKey: string, optionValue: string): string {
 function shouldShowField(field: ConfigField): boolean {
   if (!field.showIf) return true
   const { field: dependentField, value: expectedValue } = field.showIf
-  const actualValue = config.value[dependentField]
+  // Get actual value, falling back to schema default if not set
+  let actualValue = config.value[dependentField]
+  if (actualValue === undefined) {
+    actualValue = configSchema.value[dependentField]?.default
+  }
   if (Array.isArray(expectedValue)) {
     return expectedValue.includes(actualValue)
   }
@@ -152,6 +158,11 @@ const animationFields = computed(() => {
     return shouldShowField(field)
   })
 })
+
+// Check if an animation group is a win animation
+function isWinAnimation(key: string): boolean {
+  return key === 'animationLegWin' || key === 'animationMatchWin' || key === 'animationSetWin'
+}
 
 // Load config from module
 watch(
@@ -624,71 +635,164 @@ onMounted(() => {
 
               <!-- Nested Fields -->
               <div class="space-y-4" v-if="field.fields">
+                <!-- Base animation fields (type, mediaUrl, soundUrl, duration) -->
                 <template v-for="[nestedKey, nestedField] in Object.entries(field.fields)" :key="`${key}.${nestedKey}`">
-                  <!-- Type Select -->
-                  <div v-if="nestedField.type === 'select'">
-                    <label class="block text-sm font-medium text-dark-200 mb-2">
-                      {{ nestedField.label || nestedKey }}
-                    </label>
-                    <select
-                      :value="getGroupValue(key, nestedKey)"
-                      @change="updateGroupValue(key, nestedKey, ($event.target as HTMLSelectElement).value)"
-                      class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500"
-                    >
-                      <option
-                        v-for="option in nestedField.options"
-                        :key="option.value"
-                        :value="option.value"
+                  <!-- Skip win animation specific fields here - they're shown below -->
+                  <template v-if="!['showPlayerName', 'showStats', 'effectType', 'backgroundColor', 'textColor'].includes(nestedKey)">
+                    <!-- Type Select -->
+                    <div v-if="nestedField.type === 'select'">
+                      <label class="block text-sm font-medium text-dark-200 mb-2">
+                        {{ nestedField.label || nestedKey }}
+                      </label>
+                      <select
+                        :value="getGroupValue(key, nestedKey)"
+                        @change="updateGroupValue(key, nestedKey, ($event.target as HTMLSelectElement).value)"
+                        class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500"
                       >
-                        {{ option.label }}
-                      </option>
-                    </select>
-                  </div>
+                        <option
+                          v-for="option in nestedField.options"
+                          :key="option.value"
+                          :value="option.value"
+                        >
+                          {{ option.label }}
+                        </option>
+                      </select>
+                    </div>
 
-                  <!-- Media URL (only show if type is gif or video) -->
-                  <div v-else-if="nestedField.type === 'string' && nestedKey.toLowerCase().includes('url')">
-                    <template v-if="getGroupValue(key, 'type') === 'gif' || getGroupValue(key, 'type') === 'video'">
-                      <MediaUpload
-                        :model-value="(getGroupValue(key, nestedKey) as string) || ''"
-                        @update:model-value="updateGroupValue(key, nestedKey, $event)"
-                        :label="nestedField.label || nestedKey"
-                        :media-type="nestedKey.toLowerCase().includes('sound') ? 'sound' : 'animation'"
+                    <!-- Media URL (only show if type is gif or video) -->
+                    <div v-else-if="nestedField.type === 'string' && nestedKey.toLowerCase().includes('url')">
+                      <template v-if="getGroupValue(key, 'type') === 'gif' || getGroupValue(key, 'type') === 'video'">
+                        <MediaUpload
+                          :model-value="(getGroupValue(key, nestedKey) as string) || ''"
+                          @update:model-value="updateGroupValue(key, nestedKey, $event)"
+                          :label="nestedField.label || nestedKey"
+                          :media-type="nestedKey.toLowerCase().includes('sound') ? 'sound' : 'animation'"
+                        />
+                      </template>
+                    </div>
+
+                    <!-- Duration Slider -->
+                    <div v-else-if="nestedField.type === 'number' && nestedKey === 'duration'">
+                      <label class="block text-sm font-medium text-dark-200 mb-2">
+                        {{ nestedField.label || nestedKey }}: {{ (Number(getGroupValue(key, nestedKey)) || Number(nestedField.default) || 3000) / 1000 }}s
+                      </label>
+                      <input
+                        type="range"
+                        :value="(getGroupValue(key, nestedKey) as number) || nestedField.default"
+                        @input="updateGroupValue(key, nestedKey, Number(($event.target as HTMLInputElement).value))"
+                        :min="nestedField.min ?? 500"
+                        :max="nestedField.max ?? 10000"
+                        :step="500"
+                        class="w-full accent-autodarts-500"
                       />
-                    </template>
-                  </div>
+                    </div>
 
-                  <!-- Duration Slider -->
-                  <div v-else-if="nestedField.type === 'number' && nestedKey === 'duration'">
-                    <label class="block text-sm font-medium text-dark-200 mb-2">
-                      {{ nestedField.label || nestedKey }}: {{ (Number(getGroupValue(key, nestedKey)) || Number(nestedField.default) || 3000) / 1000 }}s
-                    </label>
-                    <input
-                      type="range"
-                      :value="(getGroupValue(key, nestedKey) as number) || nestedField.default"
-                      @input="updateGroupValue(key, nestedKey, Number(($event.target as HTMLInputElement).value))"
-                      :min="nestedField.min ?? 500"
-                      :max="nestedField.max ?? 10000"
-                      :step="500"
-                      class="w-full accent-autodarts-500"
-                    />
-                  </div>
-
-                  <!-- Threshold Number -->
-                  <div v-else-if="nestedField.type === 'number' && nestedKey === 'threshold'">
-                    <label class="block text-sm font-medium text-dark-200 mb-2">
-                      {{ nestedField.label || nestedKey }}: {{ getGroupValue(key, nestedKey) || nestedField.default }}
-                    </label>
-                    <input
-                      type="range"
-                      :value="(getGroupValue(key, nestedKey) as number) || nestedField.default"
-                      @input="updateGroupValue(key, nestedKey, Number(($event.target as HTMLInputElement).value))"
-                      :min="nestedField.min ?? 100"
-                      :max="nestedField.max ?? 179"
-                      :step="1"
-                      class="w-full accent-autodarts-500"
-                    />
-                  </div>
+                    <!-- Threshold Number -->
+                    <div v-else-if="nestedField.type === 'number' && nestedKey === 'threshold'">
+                      <label class="block text-sm font-medium text-dark-200 mb-2">
+                        {{ nestedField.label || nestedKey }}: {{ getGroupValue(key, nestedKey) || nestedField.default }}
+                      </label>
+                      <input
+                        type="range"
+                        :value="(getGroupValue(key, nestedKey) as number) || nestedField.default"
+                        @input="updateGroupValue(key, nestedKey, Number(($event.target as HTMLInputElement).value))"
+                        :min="nestedField.min ?? 100"
+                        :max="nestedField.max ?? 179"
+                        :step="1"
+                        class="w-full accent-autodarts-500"
+                      />
+                    </div>
+                  </template>
                 </template>
+
+                <!-- Win Animation Settings Section (for all win animation types except 'none') -->
+                <div
+                  v-if="isWinAnimation(key) && getGroupValue(key, 'type') !== 'none'"
+                  class="pt-4 mt-2 border-t border-dark-600 space-y-4"
+                >
+                  <h5 class="text-sm font-medium text-dark-300 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
+                    {{ i18n.strings.winAnimationOptions }}
+                  </h5>
+
+                  <!-- Info for GIF/Video types -->
+                  <p
+                    v-if="getGroupValue(key, 'type') === 'gif' || getGroupValue(key, 'type') === 'video'"
+                    class="text-xs text-dark-400 -mt-2"
+                  >
+                    {{ i18n.strings.winAnimationOverlayInfo }}
+                  </p>
+
+                  <!-- Win Animation specific fields -->
+                  <template v-for="[nestedKey, nestedField] in Object.entries(field.fields)" :key="`${key}.win.${nestedKey}`">
+                    <template v-if="['showPlayerName', 'showStats', 'effectType', 'backgroundColor', 'textColor'].includes(nestedKey)">
+                      <!-- Boolean Field (showPlayerName, showStats) -->
+                      <div v-if="nestedField.type === 'boolean'" class="flex items-center justify-between py-2 px-3 rounded-lg bg-dark-700/30">
+                        <span class="text-sm text-dark-200">{{ nestedField.label || nestedKey }}</span>
+                        <button
+                          type="button"
+                          @click="updateGroupValue(key, nestedKey, !(getGroupValue(key, nestedKey) ?? nestedField.default))"
+                          :class="[
+                            'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                            (getGroupValue(key, nestedKey) ?? nestedField.default) ? 'bg-autodarts-600' : 'bg-dark-600',
+                          ]"
+                        >
+                          <span
+                            :class="[
+                              'inline-block h-3 w-3 transform rounded-full bg-white transition-transform',
+                              (getGroupValue(key, nestedKey) ?? nestedField.default) ? 'translate-x-5' : 'translate-x-1',
+                            ]"
+                          />
+                        </button>
+                      </div>
+
+                      <!-- Select Field (effectType) - only show for builtin type -->
+                      <div v-else-if="nestedField.type === 'select' && nestedKey === 'effectType' && getGroupValue(key, 'type') === 'builtin'">
+                        <label class="block text-sm font-medium text-dark-200 mb-2">
+                          {{ nestedField.label || nestedKey }}
+                        </label>
+                        <div class="grid grid-cols-4 gap-2">
+                          <button
+                            v-for="option in nestedField.options"
+                            :key="option.value"
+                            type="button"
+                            @click="updateGroupValue(key, nestedKey, option.value)"
+                            :class="[
+                              'px-3 py-2 rounded-lg border text-sm transition-all',
+                              (getGroupValue(key, nestedKey) ?? nestedField.default) === option.value
+                                ? 'border-autodarts-500 bg-autodarts-500/20 text-white'
+                                : 'border-dark-600 text-dark-400 hover:border-dark-500',
+                            ]"
+                          >
+                            {{ option.label }}
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- Color Field (backgroundColor, textColor) -->
+                      <div v-else-if="nestedField.type === 'color'">
+                        <label class="block text-sm font-medium text-dark-200 mb-2">{{ nestedField.label || nestedKey }}</label>
+                        <div class="flex items-center gap-2">
+                          <input
+                            type="color"
+                            :value="(getGroupValue(key, nestedKey) as string) || nestedField.default"
+                            @input="updateGroupValue(key, nestedKey, ($event.target as HTMLInputElement).value)"
+                            class="w-10 h-8 rounded cursor-pointer border border-dark-600 bg-transparent"
+                          />
+                          <input
+                            type="text"
+                            :value="(getGroupValue(key, nestedKey) as string) || nestedField.default"
+                            @input="updateGroupValue(key, nestedKey, ($event.target as HTMLInputElement).value)"
+                            placeholder="#0a0a0f"
+                            class="flex-1 px-3 py-1.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500 font-mono text-sm"
+                          />
+                        </div>
+                      </div>
+                    </template>
+                  </template>
+                </div>
               </div>
             </div>
 

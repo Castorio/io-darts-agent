@@ -20,6 +20,59 @@ export interface AnimationConfig {
   sound?: string // Optional sound URL
 }
 
+/**
+ * Extended win animation configuration with additional options
+ */
+export interface WinAnimationConfig extends AnimationConfig {
+  /** Custom message to display during animation */
+  message?: string
+  /** Show player name in animation */
+  showPlayerName?: boolean
+  /** Show final score in animation */
+  showFinalScore?: boolean
+  /** Show statistics (average, checkout %) in animation */
+  showStats?: boolean
+  /** Confetti/particle effect type */
+  effectType?: 'none' | 'confetti' | 'fireworks' | 'sparkles'
+  /** Background color for the win screen */
+  backgroundColor?: string
+  /** Text color for win messages */
+  textColor?: string
+}
+
+/**
+ * Win event data for enhanced win animations
+ */
+export interface WinEventData {
+  /** Index of the winning player */
+  winnerIndex: number
+  /** Name of the winning player */
+  winnerName: string
+  /** Player's ID (for player-specific animations) */
+  playerId?: string
+  /** Final score (for checkout display) */
+  finalScore?: number
+  /** Checkout path taken */
+  checkoutPath?: string[]
+  /** Player statistics */
+  stats?: {
+    average?: number
+    dartsThrown?: number
+    checkoutPercent?: number
+    highestCheckout?: number
+    first9Average?: number
+    total180s?: number
+  }
+  /** Current leg number */
+  leg?: number
+  /** Current set number */
+  set?: number
+  /** Legs won by player */
+  legsWon?: number
+  /** Sets won by player */
+  setsWon?: number
+}
+
 export interface PlayerAnimations {
   playerId?: string // Autodarts user ID or local player ID
   playerName?: string // Match by name if no ID
@@ -126,6 +179,10 @@ export interface ActiveAnimation {
   duration: number
   sound?: string
   startTime: number
+  /** Extended win data for win animations */
+  winData?: WinEventData
+  /** Win animation specific config */
+  winConfig?: WinAnimationConfig
 }
 
 export const useGameDisplayStore = defineStore('gameDisplay', () => {
@@ -230,6 +287,45 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     '#ec4899', // Pink
   ]
 
+  // Helper to convert animation group config to AnimationConfig format
+  function parseAnimationGroup(
+    groupConfig: Record<string, unknown> | undefined,
+    defaultDuration: number = 3000
+  ): AnimationConfig | WinAnimationConfig | null {
+    if (!groupConfig) return null
+    const type = groupConfig.type as string
+    if (type === 'none') return null
+
+    // Base animation config
+    const baseConfig: AnimationConfig = {
+      enabled: true, // Animation is enabled if type is 'builtin', 'gif', or 'video'
+      url: type === 'builtin' ? '' : ((groupConfig.mediaUrl as string) || ''),
+      duration: (groupConfig.duration as number) || defaultDuration,
+      sound: (groupConfig.soundUrl as string) || undefined,
+    }
+
+    // Check if this has win animation specific fields
+    const hasWinFields = groupConfig.showPlayerName !== undefined ||
+                         groupConfig.showStats !== undefined ||
+                         groupConfig.effectType !== undefined ||
+                         groupConfig.backgroundColor !== undefined ||
+                         groupConfig.textColor !== undefined
+
+    if (hasWinFields) {
+      const winConfig: WinAnimationConfig = {
+        ...baseConfig,
+        showPlayerName: (groupConfig.showPlayerName as boolean) ?? true,
+        showStats: (groupConfig.showStats as boolean) ?? false,
+        effectType: (groupConfig.effectType as 'none' | 'confetti' | 'fireworks' | 'sparkles') ?? 'confetti',
+        backgroundColor: (groupConfig.backgroundColor as string) ?? '#0a0a0f',
+        textColor: (groupConfig.textColor as string) ?? '#fbbf24',
+      }
+      return winConfig
+    }
+
+    return baseConfig
+  }
+
   // Actions
   async function fetchConfig() {
     try {
@@ -237,6 +333,30 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       const data = await response.json()
       console.log('Fetched config:', data)
       if (data) {
+        // Parse animation groups from module.json config format
+        const defaultAnimations: Partial<Record<AnimationEventType, AnimationConfig>> = {}
+
+        // Map animation group names to event types
+        const animationGroupMap: Record<string, AnimationEventType> = {
+          'animation180': '180',
+          'animationBull': 'bull',
+          'animationDoubleBull': 'doubleBull',
+          'animationHighScore': 'highScore',
+          'animationCheckout': 'checkout',
+          'animationLegWin': 'legWin',
+          'animationMatchWin': 'matchWin',
+          'animationBust': 'bust',
+        }
+
+        // Parse each animation group
+        for (const [groupName, eventType] of Object.entries(animationGroupMap)) {
+          const groupConfig = data[groupName] as Record<string, unknown> | undefined
+          const animConfig = parseAnimationGroup(groupConfig)
+          if (animConfig) {
+            defaultAnimations[eventType] = animConfig
+          }
+        }
+
         config.value = {
           idleMode: data.idleMode || 'lastGame',
           idleImageUrl: data.idleImageUrl || '',
@@ -253,7 +373,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
           animationSpeed: data.animationSpeed || 'normal',
           showOtherPlayers: data.showOtherPlayers !== false,
           animationsEnabled: data.animationsEnabled !== false,
-          defaultAnimations: data.defaultAnimations || {},
+          defaultAnimations: defaultAnimations,
           playerAnimations: data.playerAnimations || [],
         }
       }
@@ -638,8 +758,24 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     if (winner) {
       winner.legsWon++
       gameState.value.winner = winner
-      // Trigger leg win animation
-      triggerAnimation('legWin', winner)
+
+      // Create win event data for enhanced animation
+      const winData: WinEventData = {
+        winnerIndex,
+        winnerName: winner.name,
+        playerId: winner.odId,
+        legsWon: winner.legsWon,
+        setsWon: winner.setsWon,
+        leg: gameState.value.currentLeg,
+        set: gameState.value.currentSet,
+        stats: {
+          average: winner.average,
+          dartsThrown: winner.dartsThrown,
+        },
+      }
+
+      // Trigger leg win animation with win data
+      triggerAnimation('legWin', winner, winData)
     }
 
     // Update leg count from data if available
@@ -658,12 +794,31 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     if (winner) {
       gameState.value.winner = winner
-      // Trigger match win animation
-      triggerAnimation('matchWin', winner)
+
+      // Create win event data for enhanced animation
+      const winData: WinEventData = {
+        winnerIndex,
+        winnerName: winner.name,
+        playerId: winner.odId,
+        legsWon: winner.legsWon,
+        setsWon: winner.setsWon,
+        leg: gameState.value.currentLeg,
+        set: gameState.value.currentSet,
+        stats: {
+          average: winner.average,
+          dartsThrown: winner.dartsThrown,
+        },
+      }
+
+      // Trigger match win animation with win data
+      triggerAnimation('matchWin', winner, winData)
     }
 
     gameState.value.isActive = false
   }
+
+  // Pending match results (shown after win animation completes)
+  const pendingMatchResults = ref<MatchResults | null>(null)
 
   function handleMatchResults(data: Record<string, unknown>) {
     console.log('handleMatchResults data:', data)
@@ -684,7 +839,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         })
       }
 
-      matchResults.value = {
+      const results: MatchResults = {
         chalkboards: chalkboards.map((cb, index) => {
           const rows = cb.rows as Array<Record<string, unknown>> | undefined
           return {
@@ -717,25 +872,56 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         }) || [],
       }
 
-      // Show match results screen
-      showMatchResults.value = true
+      // Check if there's an active win animation - if so, delay showing results
+      const hasActiveWinAnimation = activeAnimation.value &&
+        (activeAnimation.value.type === 'matchWin' ||
+         activeAnimation.value.type === 'setWin' ||
+         activeAnimation.value.type === 'legWin')
 
-      // Start auto-hide timer if duration is set
-      // Note: matchResultsDuration is already in milliseconds (e.g. 30000 = 30s)
-      if (matchResultsTimer) {
-        clearTimeout(matchResultsTimer)
+      const hasQueuedWinAnimation = animationQueue.value.some(
+        anim => anim.type === 'matchWin' || anim.type === 'setWin' || anim.type === 'legWin'
+      )
+
+      if (hasActiveWinAnimation || hasQueuedWinAnimation) {
+        // Store results to show after animation completes
+        console.log('Win animation active - deferring match results display')
+        pendingMatchResults.value = results
+        matchResults.value = results
+      } else {
+        // No win animation - show results immediately
+        matchResults.value = results
+        showMatchResultsWithTimer()
+      }
+    }
+  }
+
+  // Show match results and start auto-hide timer
+  function showMatchResultsWithTimer() {
+    showMatchResults.value = true
+
+    // Start auto-hide timer if duration is set
+    if (matchResultsTimer) {
+      clearTimeout(matchResultsTimer)
+      matchResultsTimer = null
+    }
+
+    const durationMs = config.value.matchResultsDuration
+    if (durationMs > 0) {
+      console.log(`Match results will auto-hide in ${durationMs}ms (${durationMs / 1000}s)`)
+      matchResultsTimer = setTimeout(() => {
+        console.log('Auto-hiding match results')
+        showMatchResults.value = false
         matchResultsTimer = null
-      }
+      }, durationMs)
+    }
+  }
 
-      const durationMs = config.value.matchResultsDuration
-      if (durationMs > 0) {
-        console.log(`Match results will auto-hide in ${durationMs}ms (${durationMs / 1000}s)`)
-        matchResultsTimer = setTimeout(() => {
-          console.log('Auto-hiding match results')
-          showMatchResults.value = false
-          matchResultsTimer = null
-        }, durationMs)
-      }
+  // Called when win animation ends - check for pending results
+  function onWinAnimationComplete() {
+    if (pendingMatchResults.value) {
+      console.log('Win animation complete - showing pending match results')
+      showMatchResultsWithTimer()
+      pendingMatchResults.value = null
     }
   }
 
@@ -796,12 +982,19 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       return defaultAnim
     }
 
+    // If no custom animation found, check if builtin is enabled
+    // The parseAnimationGroup already handles this - if type is 'builtin',
+    // it returns enabled: true with empty URL, which triggers builtin animation display
+
     return null
   }
 
-  function triggerAnimation(eventType: AnimationEventType, player?: Player) {
+  function triggerAnimation(eventType: AnimationEventType, player?: Player, winData?: WinEventData) {
     const animConfig = getAnimationForEvent(eventType, player)
     if (!animConfig) return
+
+    // Check if this is a win animation config (has extended properties)
+    const isWinConfig = 'showPlayerName' in animConfig || 'effectType' in animConfig
 
     const animation: ActiveAnimation = {
       id: `${eventType}-${Date.now()}`,
@@ -810,6 +1003,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       duration: animConfig.duration || 3000,
       sound: animConfig.sound,
       startTime: Date.now(),
+      winData: winData,
+      winConfig: isWinConfig ? (animConfig as WinAnimationConfig) : undefined,
     }
 
     // Add to queue
@@ -822,6 +1017,18 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   }
 
   function playNextAnimation() {
+    // Check if current animation was a win animation - trigger pending results
+    const currentAnim = activeAnimation.value
+    if (currentAnim) {
+      const isWinAnimation = currentAnim.type === 'matchWin' ||
+                             currentAnim.type === 'setWin' ||
+                             currentAnim.type === 'legWin'
+      if (isWinAnimation) {
+        // Win animation completed - check for pending results
+        onWinAnimationComplete()
+      }
+    }
+
     if (animationQueue.value.length === 0) {
       activeAnimation.value = null
       return
@@ -839,6 +1046,17 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   }
 
   function dismissAnimation() {
+    // Check if dismissed animation was a win animation
+    const currentAnim = activeAnimation.value
+    if (currentAnim) {
+      const isWinAnimation = currentAnim.type === 'matchWin' ||
+                             currentAnim.type === 'setWin' ||
+                             currentAnim.type === 'legWin'
+      if (isWinAnimation) {
+        onWinAnimationComplete()
+      }
+    }
+
     activeAnimation.value = null
     playNextAnimation()
   }
@@ -866,6 +1084,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
     matchResults.value = null
     showMatchResults.value = false
+    pendingMatchResults.value = null
 
     gameState.value = {
       matchId: null,
@@ -955,6 +1174,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     lastGameState,
     activeAnimation,
     animationQueue,
+    pendingMatchResults,
     // Match started state
     isMatchStarted,
     matchStartedMatchId,
@@ -977,6 +1197,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     resetGame,
     startDemo,
     hideMatchResults,
+    showMatchResultsWithTimer,
+    onWinAnimationComplete,
     // Animation actions
     triggerAnimation,
     dismissAnimation,

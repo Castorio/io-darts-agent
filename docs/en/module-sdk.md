@@ -146,6 +146,167 @@ The manifest defines all metadata and configuration for your module:
 }
 ```
 
+#### group (Nested Configuration)
+
+Groups allow you to organize related settings together with optional conditional visibility:
+
+```json
+{
+  "type": "group",
+  "label": "TTS Settings",
+  "description": "Settings for text-to-speech",
+  "showIf": { "field": "callerType", "value": "tts" },
+  "fields": {
+    "voice": {
+      "type": "string",
+      "label": "Voice",
+      "default": ""
+    },
+    "rate": {
+      "type": "number",
+      "label": "Speed",
+      "default": 1.0,
+      "min": 0.5,
+      "max": 2.0,
+      "step": 0.1
+    }
+  }
+}
+```
+
+The `showIf` property conditionally shows the group based on another config field's value.
+
+## Event Metadata (eventMeta)
+
+Modules can provide metadata for events with multi-language support:
+
+```json
+{
+  "eventMeta": {
+    "throw.detected": {
+      "label": { "en": "Throw detected", "de": "Wurf erkannt", "es": "Tiro detectado" },
+      "description": { "en": "A throw was detected", "de": "Ein Wurf wurde erkannt", "es": "Se detectó un tiro" }
+    },
+    "throw.180": {
+      "label": { "en": "180!", "de": "180!", "es": "¡180!" },
+      "description": { "en": "A perfect 180 was thrown", "de": "Eine perfekte 180 wurde geworfen", "es": "Se lanzó un 180 perfecto" }
+    }
+  }
+}
+```
+
+This metadata is used in the UI to display human-readable event names and descriptions.
+
+## Event Groups (eventGroups)
+
+Events can be organized into logical groups for better UI presentation:
+
+```json
+{
+  "eventGroups": [
+    {
+      "title": { "en": "Match Events", "de": "Match Events", "es": "Eventos de Partido" },
+      "events": ["match.started", "match.finished", "match.deleted"]
+    },
+    {
+      "title": { "en": "Throw Events", "de": "Wurf Events", "es": "Eventos de Tiro" },
+      "events": ["throw.detected", "throw.triple", "throw.double", "throw.180"]
+    },
+    {
+      "title": { "en": "Player Events", "de": "Spieler Events", "es": "Eventos de Jugador" },
+      "events": ["player.changed", "turn.started", "turn.finished"]
+    }
+  ]
+}
+```
+
+## Intent System
+
+The Intent System enables module-to-module communication and allows other modules to trigger actions in your module.
+
+### Defining Actions
+
+```json
+{
+  "intents": {
+    "actions": [
+      {
+        "type": "solidColor",
+        "label": "Solid Color",
+        "description": "Set all LEDs to a solid color",
+        "configSchema": {
+          "color": { "type": "color", "label": "Color", "default": "#ff0000" },
+          "brightness": { "type": "number", "label": "Brightness", "default": 255, "min": 0, "max": 255 },
+          "duration": { "type": "number", "label": "Duration (ms)", "description": "0 = permanent", "default": 0, "min": 0 }
+        }
+      },
+      {
+        "type": "effect",
+        "label": "Play Effect",
+        "description": "Play an effect",
+        "configSchema": {
+          "effectId": { "type": "number", "label": "Effect ID", "default": 0 },
+          "duration": { "type": "number", "label": "Duration (ms)", "default": 2000, "min": 0 }
+        }
+      },
+      {
+        "type": "off",
+        "label": "Turn Off",
+        "description": "Turn off all outputs"
+      }
+    ],
+    "defaultSubscriptions": []
+  }
+}
+```
+
+### Action Types
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Unique action identifier |
+| `label` | string | Yes | Human-readable name |
+| `description` | string | No | Description of what the action does |
+| `configSchema` | object | No | Configuration options for the action |
+
+### Using Intents
+
+Other modules can trigger your module's actions through the intent system:
+
+```typescript
+// Another module can send an intent
+await sendIntent({
+  targetModule: 'wled',
+  action: 'solidColor',
+  payload: {
+    color: '#ff0000',
+    brightness: 255,
+    duration: 2000
+  }
+});
+```
+
+### Default Subscriptions
+
+You can define default event-to-action mappings:
+
+```json
+{
+  "defaultSubscriptions": [
+    {
+      "event": "player.change",
+      "action": "solidColor",
+      "config": { "usePlayerColor": true }
+    },
+    {
+      "event": "throw.180",
+      "action": "effect",
+      "config": { "effectId": 9, "duration": 3000 }
+    }
+  ]
+}
+```
+
 ## Internationalization (i18n)
 
 Modules can provide translations for multiple languages. The default language is English, which should be used for all labels in the `config` section. Translations are provided in the `i18n` section.

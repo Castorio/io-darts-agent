@@ -75,7 +75,7 @@ export interface ModuleConfigSchema {
 }
 
 export interface ModuleConfigField {
-  type: 'string' | 'number' | 'boolean' | 'select';
+  type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'group';
   label: string;
   description?: string;
   default?: string | number | boolean;
@@ -83,6 +83,15 @@ export interface ModuleConfigField {
   options?: { value: string | number; label: string }[]; // For select type
   min?: number; // For number type
   max?: number; // For number type
+  // Conditional visibility
+  showIf?: {
+    field: string;
+    value: unknown;
+  };
+  // For group type - nested fields
+  fields?: Record<string, ModuleConfigField>;
+  // Placeholder text for input fields
+  placeholder?: string;
 }
 
 // ============================================
@@ -127,12 +136,15 @@ export type IPCMessageType =
   | 'event' // Autodarts event
   | 'config.update' // Config change
   | 'shutdown' // Graceful shutdown request
+  | 'route.request' // HTTP route request forwarded to module
   // Module → Hub
   | 'ready' // Module is ready to receive events
   | 'status' // Status update from module
   | 'log' // Log message from module
   | 'error' // Error from module
   | 'request' // Generic request from module
+  | 'routes.register' // Module registers API routes
+  | 'route.response' // Response to route request
   // Bidirectional
   | 'ping' // Health check
   | 'pong'; // Health check response
@@ -195,6 +207,67 @@ export interface ErrorPayload {
 export interface RequestPayload {
   action: string;
   data?: Record<string, unknown>;
+}
+
+// ============================================
+// Module Route Types (for custom API endpoints)
+// ============================================
+
+/** HTTP methods supported for module routes */
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+/** Module route definition */
+export interface ModuleRouteDefinition {
+  /** HTTP method */
+  method: HttpMethod;
+  /** Route path (relative to /api/modules/:moduleId/routes/) */
+  path: string;
+  /** Handler identifier for the module to match requests */
+  handlerId: string;
+  /** Optional route description */
+  description?: string;
+  /** Whether authentication is required (default: true) */
+  requireAuth?: boolean;
+  /** Optional JSON schema for validation */
+  schema?: {
+    body?: Record<string, unknown>;
+    querystring?: Record<string, unknown>;
+    params?: Record<string, unknown>;
+    response?: Record<string, unknown>;
+  };
+}
+
+/** Routes registration payload (Module → Hub) */
+export interface RoutesRegisterPayload {
+  routes: ModuleRouteDefinition[];
+}
+
+/** Route request payload (Hub → Module) */
+export interface RouteRequestPayload {
+  /** Handler ID to identify which route handler to invoke */
+  handlerId: string;
+  /** HTTP method */
+  method: HttpMethod;
+  /** Route path */
+  path: string;
+  /** URL params (from path like /users/:id) */
+  params: Record<string, string>;
+  /** Query string parameters */
+  query: Record<string, unknown>;
+  /** Request body */
+  body: unknown;
+  /** Request headers */
+  headers: Record<string, string>;
+}
+
+/** Route response payload (Module → Hub) */
+export interface RouteResponsePayload {
+  /** HTTP status code (default: 200) */
+  statusCode?: number;
+  /** Response headers */
+  headers?: Record<string, string>;
+  /** Response body */
+  body: unknown;
 }
 
 // ============================================

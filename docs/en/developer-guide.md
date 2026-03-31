@@ -32,7 +32,7 @@ This guide is for developers who want to contribute to IO-Darts-Agent or create 
 ### Clone Project
 
 ```bash
-git clone https://github.com/user/io-darts-agent.git
+git clone https://github.com/Castorio/io-darts-agent.git
 cd io-darts-agent
 ```
 

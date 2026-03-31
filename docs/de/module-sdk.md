@@ -146,6 +146,167 @@ Das Manifest definiert alle Metadaten und die Konfiguration deines Moduls:
 }
 ```
 
+#### group (Verschachtelte Konfiguration)
+
+Gruppen ermöglichen es, zusammengehörige Einstellungen zu organisieren, mit optionaler bedingter Sichtbarkeit:
+
+```json
+{
+  "type": "group",
+  "label": "TTS Einstellungen",
+  "description": "Einstellungen für Text-to-Speech",
+  "showIf": { "field": "callerType", "value": "tts" },
+  "fields": {
+    "voice": {
+      "type": "string",
+      "label": "Stimme",
+      "default": ""
+    },
+    "rate": {
+      "type": "number",
+      "label": "Geschwindigkeit",
+      "default": 1.0,
+      "min": 0.5,
+      "max": 2.0,
+      "step": 0.1
+    }
+  }
+}
+```
+
+Die `showIf`-Eigenschaft zeigt die Gruppe bedingt basierend auf dem Wert eines anderen Konfigurationsfelds an.
+
+## Event-Metadaten (eventMeta)
+
+Module können Metadaten für Events mit mehrsprachiger Unterstützung bereitstellen:
+
+```json
+{
+  "eventMeta": {
+    "throw.detected": {
+      "label": { "en": "Throw detected", "de": "Wurf erkannt", "es": "Tiro detectado" },
+      "description": { "en": "A throw was detected", "de": "Ein Wurf wurde erkannt", "es": "Se detectó un tiro" }
+    },
+    "throw.180": {
+      "label": { "en": "180!", "de": "180!", "es": "¡180!" },
+      "description": { "en": "A perfect 180 was thrown", "de": "Eine perfekte 180 wurde geworfen", "es": "Se lanzó un 180 perfecto" }
+    }
+  }
+}
+```
+
+Diese Metadaten werden in der UI verwendet, um lesbare Event-Namen und Beschreibungen anzuzeigen.
+
+## Event-Gruppen (eventGroups)
+
+Events können in logische Gruppen für bessere UI-Darstellung organisiert werden:
+
+```json
+{
+  "eventGroups": [
+    {
+      "title": { "en": "Match Events", "de": "Match Events", "es": "Eventos de Partido" },
+      "events": ["match.started", "match.finished", "match.deleted"]
+    },
+    {
+      "title": { "en": "Throw Events", "de": "Wurf Events", "es": "Eventos de Tiro" },
+      "events": ["throw.detected", "throw.triple", "throw.double", "throw.180"]
+    },
+    {
+      "title": { "en": "Player Events", "de": "Spieler Events", "es": "Eventos de Jugador" },
+      "events": ["player.changed", "turn.started", "turn.finished"]
+    }
+  ]
+}
+```
+
+## Intent-System
+
+Das Intent-System ermöglicht Modul-zu-Modul-Kommunikation und erlaubt anderen Modulen, Aktionen in deinem Modul auszulösen.
+
+### Aktionen definieren
+
+```json
+{
+  "intents": {
+    "actions": [
+      {
+        "type": "solidColor",
+        "label": "Einfarbig",
+        "description": "Alle LEDs auf eine Farbe setzen",
+        "configSchema": {
+          "color": { "type": "color", "label": "Farbe", "default": "#ff0000" },
+          "brightness": { "type": "number", "label": "Helligkeit", "default": 255, "min": 0, "max": 255 },
+          "duration": { "type": "number", "label": "Dauer (ms)", "description": "0 = permanent", "default": 0, "min": 0 }
+        }
+      },
+      {
+        "type": "effect",
+        "label": "Effekt abspielen",
+        "description": "Einen Effekt abspielen",
+        "configSchema": {
+          "effectId": { "type": "number", "label": "Effekt-ID", "default": 0 },
+          "duration": { "type": "number", "label": "Dauer (ms)", "default": 2000, "min": 0 }
+        }
+      },
+      {
+        "type": "off",
+        "label": "Ausschalten",
+        "description": "Alle Ausgaben ausschalten"
+      }
+    ],
+    "defaultSubscriptions": []
+  }
+}
+```
+
+### Aktions-Felder
+
+| Feld | Typ | Erforderlich | Beschreibung |
+|------|-----|--------------|--------------|
+| `type` | string | Ja | Eindeutiger Aktions-Identifier |
+| `label` | string | Ja | Lesbarer Name |
+| `description` | string | Nein | Beschreibung der Aktion |
+| `configSchema` | object | Nein | Konfigurationsoptionen für die Aktion |
+
+### Intents verwenden
+
+Andere Module können die Aktionen deines Moduls über das Intent-System auslösen:
+
+```typescript
+// Ein anderes Modul kann einen Intent senden
+await sendIntent({
+  targetModule: 'wled',
+  action: 'solidColor',
+  payload: {
+    color: '#ff0000',
+    brightness: 255,
+    duration: 2000
+  }
+});
+```
+
+### Standard-Subscriptions
+
+Du kannst Standard Event-zu-Aktion-Zuordnungen definieren:
+
+```json
+{
+  "defaultSubscriptions": [
+    {
+      "event": "player.change",
+      "action": "solidColor",
+      "config": { "usePlayerColor": true }
+    },
+    {
+      "event": "throw.180",
+      "action": "effect",
+      "config": { "effectId": 9, "duration": 3000 }
+    }
+  ]
+}
+```
+
 ## Internationalisierung (i18n)
 
 Module können Übersetzungen für mehrere Sprachen bereitstellen. Die Standardsprache ist Englisch, welche für alle Labels im `config`-Abschnitt verwendet werden sollte. Übersetzungen werden im `i18n`-Abschnitt definiert.
@@ -581,6 +742,45 @@ Siehe [Darts Caller Module](/modules/darts-caller/) als Referenz für ein Modul,
 - Browser-TTS oder Audio-Dateien verwendet
 - Voice Pack Generator mit ElevenLabs enthält
 - Mehrere Ausgabemodi unterstützt (Browser, lokal, Audio-Packs)
+
+## WebSocket Events für Modul-UIs
+
+Modul-Frontends können auf spezielle WebSocket-Events lauschen:
+
+### caller Event
+
+Für das Darts Caller Modul - löst Audio-Wiedergabe im Browser aus:
+
+```typescript
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data)
+  if (msg.type === 'caller') {
+    const { callType, text, audioFile, priority } = msg.data
+    // Audio abspielen oder TTS verwenden
+    if (audioFile) {
+      playAudio(audioFile)
+    } else {
+      speakText(text)
+    }
+  }
+}
+```
+
+### module_status Event
+
+Benachrichtigt über Modul-Status-Änderungen:
+
+```typescript
+{
+  "type": "module_status",
+  "data": {
+    "moduleId": "wled",
+    "status": "running" // oder "stopped", "error"
+  }
+}
+```
+
+---
 
 ## Debugging
 

@@ -10,6 +10,9 @@ import type {
   StatusPayload,
   LogPayload,
   ErrorPayload,
+  RoutesRegisterPayload,
+  RouteRequestPayload,
+  RouteResponsePayload,
 } from '../../types/modules.js';
 import type { ParsedEvent } from '../../types/index.js';
 
@@ -219,6 +222,15 @@ export class ModuleBridge extends EventEmitter {
   }
 
   /**
+   * Send route request to module and wait for response
+   */
+  async sendRouteRequest(request: RouteRequestPayload, timeout = 30000): Promise<RouteResponsePayload> {
+    const message = ModuleProtocol.createRouteRequest(request);
+    const response = await this.sendAndWait<RouteRequestPayload, RouteResponsePayload>(message, timeout);
+    return response.payload;
+  }
+
+  /**
    * Send ping and wait for pong
    */
   async ping(): Promise<number> {
@@ -312,6 +324,9 @@ export class ModuleBridge extends EventEmitter {
         break;
       case 'ping':
         this.send(ModuleProtocol.createPong());
+        break;
+      case 'routes.register':
+        this.emit('routesRegister', (message as IPCMessage<RoutesRegisterPayload>).payload);
         break;
       default:
         // Unknown message type, emit for custom handling

@@ -409,6 +409,123 @@ npm outdated
 
 ---
 
+## Event System
+
+### EventParser
+
+Die `EventParser`-Klasse analysiert `match.state` Updates und generiert synthetische Events:
+
+```typescript
+// EventParser erkennt:
+// 1. Spielerwechsel (Player-Index hat sich geändert)
+// 2. Aufnahme-Ende (3 Darts geworfen, Bust, oder Rundenwechsel)
+// 3. Spezielle Würfe (180, etc.)
+```
+
+### MatchStateTracker
+
+Verfolgt den Match-Zustand zwischen Events für präzise Event-Generierung:
+
+- Speichert vorherigen Match-Zustand
+- Erkennt Änderungen zwischen Zuständen
+- Liefert Spielerfarben-Informationen
+
+### Module Handlers
+
+Jedes Modul hat eine Handler-Klasse in `src/core/modules/handlers/`:
+
+| Handler | Modul | Funktionen |
+|---------|-------|------------|
+| `WledHandler.ts` | WLED | HTTP API Aufrufe, Spielerfarben, Fade-Zeit, Dauer-basierte Wiederherstellung |
+| `DartsCallerHandler.ts` | Darts Caller | TTS, Audio-Wiedergabe, Voice Pack Generator |
+
+### Neuen Handler erstellen
+
+```typescript
+// src/core/modules/handlers/MyHandler.ts
+export class MyHandler {
+  private config: MyModuleConfig;
+  private currentMatchState: MatchState | null = null;
+
+  constructor(config: MyModuleConfig) {
+    this.config = config;
+  }
+
+  async handleEvent(event: AutodartsEvent): Promise<void> {
+    switch (event.type) {
+      case 'match.state':
+        this.currentMatchState = event.data;
+        break;
+      case 'player.change':
+        await this.handlePlayerChange(event);
+        break;
+      case 'throw.detected':
+        await this.handleThrow(event);
+        break;
+    }
+  }
+
+  private async handlePlayerChange(event: AutodartsEvent): Promise<void> {
+    // Auf Spielerwechsel reagieren
+  }
+
+  private async handleThrow(event: AutodartsEvent): Promise<void> {
+    // Auf Wurf reagieren
+  }
+}
+```
+
+### Native vs. Synthetische Events
+
+Der EventParser generiert **synthetische Events** aus `match.state` Updates:
+
+| Event-Typ | Quelle | Beschreibung |
+|-----------|--------|--------------|
+| `match.start` | Nativ | Von Autodarts |
+| `match.state` | Nativ | Von Autodarts |
+| `throw.detected` | Nativ | Von Autodarts |
+| `player.change` | Synthetisch | Generiert bei Spielerwechsel |
+| `turn.finished` | Synthetisch | Generiert bei Aufnahme-Ende (3 Darts, Bust, Rundenwechsel) |
+
+Dies ermöglicht Modulen, auf logische Events zu reagieren, ohne den rohen Zustand parsen zu müssen.
+
+### Spielerfarben-Auflösung
+
+Module können Spielerfarben über das Spielerverwaltungssystem auflösen:
+
+```typescript
+// Spielerfarbe aus Event-Daten
+const color = event.data.color || '#ffffff';
+
+// Oder aus Match-Zustand auflösen
+async resolvePlayerColor(playerIndex: number): Promise<string> {
+  const player = this.currentMatchState?.players[playerIndex];
+  if (player) {
+    const profile = await this.playerManager.findByName(player.name);
+    return profile?.color || '#ffffff';
+  }
+  return '#ffffff';
+}
+```
+
+### Modul-Sandbox
+
+Module laufen in isolierten Prozessen:
+
+```
+Backend
+   │
+   ├── Module 1 (Subprocess)
+   │      └── IPC Socket
+   │
+   ├── Module 2 (Subprocess)
+   │      └── IPC Socket
+   │
+   └── ...
+```
+
+---
+
 ## Hilfe & Support
 
 - **Issues**: GitHub Issues für Bugs und Features

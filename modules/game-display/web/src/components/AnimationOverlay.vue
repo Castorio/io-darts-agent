@@ -6,7 +6,16 @@ import { useGameDisplayStore, type AnimationEventType } from '../stores/gameDisp
 const { t } = useI18n()
 const store = useGameDisplayStore()
 
-const animation = computed(() => store.activeAnimation)
+// Only show non-win animations here (win animations are handled by WinAnimation component)
+const animation = computed(() => {
+  const anim = store.activeAnimation
+  if (!anim) return null
+  // Skip win animations - they're handled by WinAnimation
+  if (anim.type === 'matchWin' || anim.type === 'setWin' || anim.type === 'legWin') {
+    return null
+  }
+  return anim
+})
 const videoRef = ref<HTMLVideoElement | null>(null)
 const audioRef = ref<HTMLAudioElement | null>(null)
 
@@ -34,7 +43,7 @@ const animationColor = computed((): string => {
     'checkout': '#10b981', // Emerald
     'legWin': '#8b5cf6', // Purple
     'setWin': '#a855f7', // Purple
-    'matchWin': '#f59e0b', // Amber
+    'matchWin': '#fbbf24', // Gold for match win (celebration color)
     'bust': '#ef4444', // Red
   }
   return colors[animation.value.type] || '#3b82f6'
@@ -177,7 +186,7 @@ onUnmounted(() => {
               <circle cx="12" cy="12" r="10" />
             </svg>
             <svg
-              v-else-if="animation.type === 'checkout' || animation.type === 'legWin' || animation.type === 'matchWin'"
+              v-else-if="animation.type === 'checkout' || animation.type === 'legWin'"
               class="w-24 h-24"
               :style="{ color: animationColor }"
               fill="none"
@@ -185,6 +194,16 @@ onUnmounted(() => {
               viewBox="0 0 24 24"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+            </svg>
+            <!-- Trophy icon for match/set win -->
+            <svg
+              v-else-if="animation.type === 'matchWin' || animation.type === 'setWin'"
+              class="w-24 h-24"
+              :style="{ color: animationColor }"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
             </svg>
             <svg
               v-else-if="animation.type === 'bust'"

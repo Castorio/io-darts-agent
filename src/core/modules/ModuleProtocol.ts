@@ -11,6 +11,9 @@ import type {
   LogPayload,
   ErrorPayload,
   RequestPayload,
+  RouteRequestPayload,
+  RouteResponsePayload,
+  RoutesRegisterPayload,
 } from '../../types/modules.js';
 import type { ParsedEvent, AutodartsEventType } from '../../types/index.js';
 
@@ -210,6 +213,39 @@ export class ModuleProtocol {
   }
 
   // ============================================
+  // Route-related Message Factories
+  // ============================================
+
+  /**
+   * Create a route request message (Hub → Module)
+   */
+  static createRouteRequest(request: RouteRequestPayload): IPCMessage<RouteRequestPayload> {
+    return this.createMessage('route.request', request);
+  }
+
+  /**
+   * Create a route response message (Module → Hub)
+   */
+  static createRouteResponse(
+    response: RouteResponsePayload,
+    requestId?: string
+  ): IPCMessage<RouteResponsePayload> {
+    const msg = this.createMessage('route.response', response);
+    // Use the request ID for response correlation if provided
+    if (requestId) {
+      msg.id = requestId;
+    }
+    return msg;
+  }
+
+  /**
+   * Create a routes registration message (Module → Hub)
+   */
+  static createRoutesRegister(payload: RoutesRegisterPayload): IPCMessage<RoutesRegisterPayload> {
+    return this.createMessage('routes.register', payload);
+  }
+
+  // ============================================
   // Type Guards
   // ============================================
 
@@ -255,5 +291,17 @@ export class ModuleProtocol {
 
   static isPongMessage(msg: IPCMessage): boolean {
     return msg.type === 'pong';
+  }
+
+  static isRouteRequestMessage(msg: IPCMessage): msg is IPCMessage<RouteRequestPayload> {
+    return msg.type === 'route.request';
+  }
+
+  static isRouteResponseMessage(msg: IPCMessage): msg is IPCMessage<RouteResponsePayload> {
+    return msg.type === 'route.response';
+  }
+
+  static isRoutesRegisterMessage(msg: IPCMessage): msg is IPCMessage<RoutesRegisterPayload> {
+    return msg.type === 'routes.register';
   }
 }

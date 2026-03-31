@@ -3,6 +3,15 @@ export { ModuleProtocol } from './ModuleProtocol.js';
 export { ModuleBridge } from './ModuleBridge.js';
 export { ModuleManager } from './ModuleManager.js';
 export { ModuleInstaller } from './ModuleInstaller.js';
+export { ModuleRouteRegistry, getModuleRouteRegistry, resetModuleRouteRegistry } from './ModuleRouteRegistry.js';
+export type {
+  HttpMethod,
+  ModuleRouteDefinition,
+  ModuleRouteRegistration,
+  ModuleRouteRequest,
+  ModuleRouteResponse,
+  ModuleRouteHandler,
+} from './ModuleRouteRegistry.js';
 export {
   getTranslatedManifest,
   getModuleTranslations,

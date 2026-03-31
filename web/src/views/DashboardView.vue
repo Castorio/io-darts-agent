@@ -44,6 +44,9 @@ async function disconnectAutodarts() {
   }
 }
 
+// Store interval reference for cleanup
+let statusInterval: ReturnType<typeof setInterval> | null = null
+
 // Lifecycle
 onMounted(async () => {
   await appStore.refreshStatus()
@@ -51,14 +54,16 @@ onMounted(async () => {
   eventsStore.connect()
 
   // Auto-refresh status every 30 seconds
-  const interval = setInterval(() => {
+  statusInterval = setInterval(() => {
     appStore.refreshStatus()
   }, 30000)
+})
 
-  onUnmounted(() => {
-    clearInterval(interval)
-    eventsStore.disconnect()
-  })
+onUnmounted(() => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+  }
+  eventsStore.disconnect()
 })
 </script>
 

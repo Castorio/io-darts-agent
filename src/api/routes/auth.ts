@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import type { APIServer } from '../Server.js';
 import { setSessionCookie, clearSessionCookie } from '../middleware/auth.js';
 import type {

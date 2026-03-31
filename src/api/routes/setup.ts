@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import type { APIServer } from '../Server.js';
 import type {
   SetupStatusResponse,
@@ -110,7 +110,14 @@ export function registerSetupRoutes(
       // Hash password if web auth is enabled
       let passwordHash = '';
       if (webAuth?.enabled && webAuth.password) {
-        passwordHash = await bcrypt.hash(webAuth.password, 10);
+        console.log('🔐 Hashing password for web auth...');
+        try {
+          passwordHash = await bcrypt.hash(webAuth.password, 10);
+          console.log('✅ Password hashed successfully');
+        } catch (hashError) {
+          console.error('❌ bcrypt hash error:', hashError);
+          throw hashError;
+        }
       }
 
       // Create configuration

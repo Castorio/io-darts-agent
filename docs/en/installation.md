@@ -6,7 +6,7 @@ This guide shows how to install IO-Darts-Agent on your system.
 
 ## Download
 
-Download the appropriate version for your system from the [GitHub Releases page](https://github.com/user/io-darts-agent/releases):
+Download the appropriate version for your system from the [GitHub Releases page](https://github.com/Castorio/io-darts-agent/releases):
 
 | System | File | Description |
 |--------|------|-------------|
@@ -87,7 +87,7 @@ The app runs in the menu bar:
 
 ```bash
 # Download (replace X.X.X with version)
-wget https://github.com/user/io-darts-agent/releases/download/vX.X.X/io-darts-agent_X.X.X_amd64.deb
+wget https://github.com/Castorio/io-darts-agent/releases/download/vX.X.X/io-darts-agent_X.X.X_amd64.deb
 
 # Install
 sudo dpkg -i io-darts-agent_X.X.X_amd64.deb
@@ -137,7 +137,7 @@ AppImage works on **all** Linux distributions without installation.
 
 ```bash
 # Download
-wget https://github.com/user/io-darts-agent/releases/download/vX.X.X/IO-Darts-Agent-X.X.X.AppImage
+wget https://github.com/Castorio/io-darts-agent/releases/download/vX.X.X/IO-Darts-Agent-X.X.X.AppImage
 
 # Make executable
 chmod +x IO-Darts-Agent-X.X.X.AppImage
@@ -177,7 +177,7 @@ EOF
 
 ```bash
 # Download
-wget https://github.com/user/io-darts-agent/releases/download/vX.X.X/io-darts-agent-X.X.X.x86_64.rpm
+wget https://github.com/Castorio/io-darts-agent/releases/download/vX.X.X/io-darts-agent-X.X.X.x86_64.rpm
 
 # Install
 sudo rpm -i io-darts-agent-X.X.X.x86_64.rpm

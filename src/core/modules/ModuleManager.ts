@@ -4,6 +4,7 @@ import * as path from 'path';
 import { EventEmitter } from 'events';
 import { ModuleBridge } from './ModuleBridge.js';
 import { EventBus } from '../events/EventBus.js';
+import { getModuleRouteRegistry } from './ModuleRouteRegistry.js';
 import type {
   ModuleManifest,
   ModuleState,
@@ -13,6 +14,7 @@ import type {
   SpawnOptions,
   ParsedEvent,
   AutodartsEventType,
+  RoutesRegisterPayload,
 } from '../../types/index.js';
 
 const DEFAULT_OPTIONS: ModuleManagerOptions = {
@@ -148,6 +150,10 @@ export class ModuleManager extends EventEmitter {
     // Remove event subscription
     this.eventSubscriptions.get(moduleId)?.unsubscribe();
     this.eventSubscriptions.delete(moduleId);
+
+    // Unregister module routes
+    const routeRegistry = getModuleRouteRegistry();
+    await routeRegistry.unregisterRoutes(moduleId);
 
     this.modules.delete(moduleId);
     this.emit('moduleUnregistered', moduleId);
@@ -479,6 +485,33 @@ export class ModuleManager extends EventEmitter {
       const managed = this.modules.get(moduleId);
       if (managed && managed.state.status === 'running') {
         this.handleProcessExit(managed, null, null);
+      }
+    });
+
+    // Handle module route registration
+    bridge.on('routesRegister', async (payload: RoutesRegisterPayload) => {
+      try {
+        const routeRegistry = getModuleRouteRegistry();
+
+        // Set up the route handler to forward requests to the module
+        routeRegistry.setRouteHandler(moduleId, async (request) => {
+          return bridge.sendRouteRequest(request);
+        });
+
+        // Register the routes
+        await routeRegistry.registerRoutes({
+          moduleId,
+          routes: payload.routes,
+        });
+
+        this.emit('moduleRoutesRegistered', moduleId, payload.routes);
+      } catch (error) {
+        console.error(`Failed to register routes for module ${moduleId}:`, error);
+        this.emit('moduleError', moduleId, {
+          code: 'ROUTE_REGISTRATION_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+          fatal: false,
+        });
       }
     });
   }

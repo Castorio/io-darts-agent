@@ -112,14 +112,25 @@ Das Manifest definiert dein Modul:
 
 Dein Modul kann auf diese Events reagieren:
 
+#### Native Events (von Autodarts)
+
 | Event | Wann | Wichtige Daten |
 |-------|------|----------------|
-| `match.started` | Spiel startet | `players`, `mode` |
-| `match.finished` | Spiel endet | `winner` |
+| `match.start` | Spiel startet | `matchId`, `boardId` |
+| `match.state` | Status-Update | `players`, `gameScores`, `player`, `round` |
+| `match.finished` | Spiel endet | `winner`, `finalScores` |
 | `throw.detected` | Wurf erkannt | `segment`, `points`, `remaining` |
-| `player.changed` | Spielerwechsel | `playerIndex`, `playerName` |
-| `turn.finished` | Aufnahme fertig | `darts[]`, `turnScore` |
-| `game.finished` | Leg gewonnen | `winner` |
+| `game.finished` | Leg gewonnen | `winner`, `checkoutPath` |
+| `takeout.finished` | Darts gezogen | `matchId` |
+
+#### Synthetische Events (generiert von EventParser)
+
+| Event | Wann | Wichtige Daten |
+|-------|------|----------------|
+| `player.change` | Spielerwechsel | `playerIndex`, `playerName`, `remaining`, `players[]` |
+| `turn.finished` | Aufnahme beendet | `turnScore`, `busted`, `remaining` |
+
+> **Tipp:** Verwende synthetische Events für die meiste Modul-Logik - sie bieten praktische Hooks ohne den rohen Zustand parsen zu müssen.
 
 ### 5. Eigenes Frontend (optional)
 
@@ -214,7 +225,9 @@ Ein einfaches Modul, das bei jedem Wurf einen Webhook aufruft:
 
 - **Fehlerbehandlung**: Fange alle Fehler ab, damit dein Modul nicht crasht
 - **Spielerfarben**: Nutze `event.data.color` für Spielerfarben
-- **Temporäre Effekte**: Speichere vorherigen Zustand und stelle ihn nach X ms wieder her
+- **Temporäre Effekte**: Stelle nach dem Effekt die Spielerfarbe wieder her, nicht den vorherigen Gerätezustand
+- **Fade-Zeit**: Unterstütze sanfte Übergänge mit konfigurierbarer Fade-Zeit
+- **Einzelspieler**: Behandle Einzelspieler-Spiele (nutze `player.change` und `takeout.finished`)
 
 ### Veröffentlichen
 
@@ -228,5 +241,6 @@ Ein einfaches Modul, das bei jedem Wurf einen Webhook aufruft:
 
 - [Vollständige API-Dokumentation](api.md)
 - [Detaillierte SDK-Dokumentation](module-sdk.md)
-- [WLED-Modul als Beispiel](../modules/wled/)
-- [Game Display als Beispiel mit UI](../modules/game-display/)
+- [WLED-Modul](../modules/wled/) - Externe Hardware-Steuerung
+- [Game Display](../modules/game-display/) - Vue.js Frontend-Modul
+- [Darts Caller](../modules/darts-caller/) - Audio/TTS-Modul mit Voice Pack Generator

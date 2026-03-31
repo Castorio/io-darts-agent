@@ -173,7 +173,7 @@ export interface ModuleConfigResponse {
 }
 
 export interface ModuleConfigFieldSchema {
-  type: 'string' | 'number' | 'boolean' | 'select';
+  type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'group';
   label: string;
   description?: string;
   default?: string | number | boolean;
@@ -181,6 +181,15 @@ export interface ModuleConfigFieldSchema {
   options?: { value: string | number; label: string }[];
   min?: number;
   max?: number;
+  // Conditional visibility
+  showIf?: {
+    field: string;
+    value: unknown;
+  };
+  // For group type - nested fields
+  fields?: Record<string, ModuleConfigFieldSchema>;
+  // Placeholder text for input fields
+  placeholder?: string;
 }
 
 export interface UpdateModuleConfigRequest {

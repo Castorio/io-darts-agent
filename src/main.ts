@@ -18,6 +18,7 @@ import {
   registerCallerRoutes,
   registerDeveloperRoutes,
 } from './api/routes/index.js';
+import { createAuthMiddleware } from './api/middleware/auth.js';
 // Analytics routes are loaded from the module itself
 import { registerAnalyticsRoutes } from '../modules/player-analytics/src/routes.js';
 import { ElevenLabsService, VoicePackGenerator } from './core/modules/handlers/index.js';
@@ -619,6 +620,10 @@ async function main(): Promise<void> {
   await server.initialize(config);
   const fastify = server.getInstance();
 
+  // Register authentication middleware (must be before routes)
+  const authMiddleware = createAuthMiddleware(server);
+  fastify.addHook('onRequest', authMiddleware);
+
   // Register Setup Routes
   registerSetupRoutes(fastify, server, {
     saveConfig: async (newConfig: HubConfiguration) => {
@@ -713,9 +718,9 @@ async function main(): Promise<void> {
       // Convert manifest config schema to API format
       const schema: Record<string, import('./types/api.js').ModuleConfigFieldSchema> = {};
       if (mod.manifest.config) {
-        for (const [key, field] of Object.entries(mod.manifest.config)) {
-          schema[key] = {
-            type: field.type,
+        const convertField = (field: import('./types/modules.js').ModuleConfigField): import('./types/api.js').ModuleConfigFieldSchema => {
+          const result: import('./types/api.js').ModuleConfigFieldSchema = {
+            type: field.type as 'string' | 'number' | 'boolean' | 'select' | 'color' | 'group',
             label: field.label,
             description: field.description,
             default: field.default,
@@ -723,7 +728,20 @@ async function main(): Promise<void> {
             min: field.min,
             max: field.max,
             options: field.options,
+            showIf: field.showIf,
+            placeholder: field.placeholder,
           };
+          // Recursively convert nested fields for group type
+          if (field.type === 'group' && field.fields) {
+            result.fields = {};
+            for (const [nestedKey, nestedField] of Object.entries(field.fields)) {
+              result.fields[nestedKey] = convertField(nestedField);
+            }
+          }
+          return result;
+        };
+        for (const [key, field] of Object.entries(mod.manifest.config)) {
+          schema[key] = convertField(field);
         }
       }
 
@@ -1264,20 +1282,26 @@ async function main(): Promise<void> {
 
   // Graceful shutdown
   let isShuttingDown = false;
-  const shutdown = async (signal?: string): Promise<void> => {
+  const shutdown = (signal?: string): void => {
     if (isShuttingDown) return; // Prevent multiple shutdown calls
     isShuttingDown = true;
 
     console.log(`\n🛑 Shutting down${signal ? ` (${signal})` : ''}...`);
+
     try {
       wsManager.stop();
       stopHub();
-      await server.stop();
+      // Don't await - just trigger shutdown and exit immediately
+      server.stop().catch(() => {});
       console.log('✅ Server stopped cleanly');
     } catch (error) {
       console.error('Error during shutdown:', error);
     }
-    process.exit(0);
+
+    // Use setImmediate to let cleanup run, then exit
+    setImmediate(() => {
+      process.exit(0);
+    });
   };
 
   process.on('SIGINT', () => shutdown('SIGINT'));

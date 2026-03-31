@@ -204,6 +204,15 @@ const SPECIAL_SCORES: Record<number, string> = {
 /**
  * Darts Caller Handler class
  */
+/**
+ * Match state interface for tracking current game state
+ */
+interface MatchState {
+  players: Array<{ name: string; remaining?: number; color?: string }>;
+  currentPlayerIndex: number;
+  startScore?: number;
+}
+
 export class DartsCallerHandler {
   private config: DartsCallerConfig;
   private callbackQueue: CallRequest[] = [];
@@ -215,6 +224,7 @@ export class DartsCallerHandler {
   private audioPlayer: LocalAudioPlayer;
   private knownPlayerNames: Set<string> = new Set();
   private playerNameGenerationInProgress: Set<string> = new Set();
+  private currentMatchState: MatchState | null = null;
 
   // Statistics
   private stats = {
@@ -551,6 +561,69 @@ export class DartsCallerHandler {
   }
 
   /**
+   * Handle player change event with waiting for audio generation if needed
+   */
+  private async handlePlayerChange(playerName: string, remaining?: number): Promise<void> {
+    // Wait for audio generation if in progress (max 10 seconds)
+    if (this.playerNameGenerationInProgress.has(playerName)) {
+      console.log(`🎤 Waiting for audio generation of "${playerName}"...`);
+      const maxWaitTime = 10000; // 10 seconds
+      const checkInterval = 200; // Check every 200ms
+      let waited = 0;
+
+      while (this.playerNameGenerationInProgress.has(playerName) && waited < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+        waited += checkInterval;
+      }
+
+      if (waited >= maxWaitTime) {
+        console.log(`⚠️ Timeout waiting for audio generation of "${playerName}"`);
+      } else {
+        console.log(`✅ Audio generation for "${playerName}" completed after ${waited}ms`);
+      }
+    }
+
+    const playerAudioFile = this.getPlayerAudioFile(playerName);
+    const hasAudio = this.hasPlayerAudio(playerName);
+
+    if (remaining && this.getCallSetting('checkouts', 'callCheckouts') && this.isCheckoutPossible(remaining)) {
+      // Announce player name first, then checkout requirement
+      if (this.config.callerType === 'voicepack' && hasAudio) {
+        console.log(`🔊 Playing player audio for "${playerName}" (file: ${playerAudioFile})`);
+        this.generateCall('player', playerName, playerAudioFile, 5);
+        // Slight delay before checkout announcement
+        setTimeout(() => {
+          this.generateCall(
+            'checkout',
+            `You require ${remaining}`,
+            `require_${remaining}`,
+            4
+          );
+        }, 500);
+      } else {
+        // Fallback: combined announcement
+        console.log(`🔊 Fallback announcement for "${playerName}" (hasAudio: ${hasAudio})`);
+        this.generateCall(
+          'player',
+          `${playerName}, you require ${remaining}`,
+          `require_${remaining}`,
+          5
+        );
+      }
+      this.stats.checkoutsAnnounced++;
+    } else {
+      // Just announce player name
+      if (this.config.callerType === 'voicepack' && hasAudio) {
+        console.log(`🔊 Playing player audio for "${playerName}" (file: ${playerAudioFile})`);
+        this.generateCall('player', playerName, playerAudioFile, 3);
+      } else {
+        console.log(`🔊 Fallback announcement for "${playerName}" (hasAudio: ${hasAudio})`);
+        this.generateCall('player', playerName, undefined, 3);
+      }
+    }
+  }
+
+  /**
    * Get the audio file name for a player name
    */
   private getPlayerAudioFile(playerName: string): string {
@@ -596,8 +669,9 @@ export class DartsCallerHandler {
     switch (eventType) {
       case 'match.start':
       case 'match.started':
-        // Reset known players for new match
+        // Reset known players and match state for new match
         this.knownPlayerNames.clear();
+        this.currentMatchState = null;
         if (this.getCallSetting('gameStart', 'callGameStart')) {
           this.generateCall('game', 'Game on!', 'game_on', 10);
         }
@@ -605,9 +679,27 @@ export class DartsCallerHandler {
 
       case 'match.state':
         // Process players from match state to generate missing voice files
+        // And store match state for later use (e.g., getting remaining score)
         {
-          const players = eventData.players as Array<{ name: string; [key: string]: unknown }> | undefined;
+          const players = eventData.players as Array<{ name: string; remaining?: number; color?: string; [key: string]: unknown }> | undefined;
+          const currentPlayerIndex = eventData.player as number ?? 0;
+          const scores = eventData.scores as number[] | undefined;
+          const startScore = eventData.startScore as number | undefined;
+
           if (players && players.length > 0) {
+            // Update match state with current scores
+            this.currentMatchState = {
+              players: players.map((p, idx) => ({
+                name: p.name,
+                remaining: scores ? scores[idx] : p.remaining,
+                color: p.color,
+              })),
+              currentPlayerIndex,
+              startScore,
+            };
+
+            console.log(`📊 Match state updated:`, JSON.stringify(this.currentMatchState, null, 2));
+
             // Fire and forget - don't block event processing
             this.processMatchPlayers(players).catch((err) => {
               console.error('Error processing match players:', err);
@@ -642,44 +734,35 @@ export class DartsCallerHandler {
 
       case 'player.change':
       case 'player.changed':
+        console.log(`📥 Received player.changed event:`, JSON.stringify(eventData, null, 2));
         if (this.getCallSetting('playerChange', 'callPlayerChange')) {
           const playerName = eventData.playerName as string;
-          const remaining = eventData.remaining as number;
-          if (playerName) {
-            // First announce the player name (if voice pack mode and audio exists)
-            const playerAudioFile = this.getPlayerAudioFile(playerName);
+          const playerIndex = eventData.playerIndex as number | undefined;
 
-            if (remaining && this.getCallSetting('checkouts', 'callCheckouts') && this.isCheckoutPossible(remaining)) {
-              // Announce player name first, then checkout requirement
-              if (this.config.callerType === 'voicepack' && this.hasPlayerAudio(playerName)) {
-                this.generateCall('player', playerName, playerAudioFile, 5);
-                // Slight delay before checkout announcement
-                setTimeout(() => {
-                  this.generateCall(
-                    'checkout',
-                    `You require ${remaining}`,
-                    `require_${remaining}`,
-                    4
-                  );
-                }, 500);
-              } else {
-                // Fallback: combined announcement
-                this.generateCall(
-                  'player',
-                  `${playerName}, you require ${remaining}`,
-                  `require_${remaining}`,
-                  5
-                );
-              }
-              this.stats.checkoutsAnnounced++;
+          // Get remaining from event data, or fall back to stored match state
+          let remaining = eventData.remaining as number | undefined;
+
+          if (!remaining && this.currentMatchState) {
+            // Try to get remaining from match state by player name or index
+            if (playerIndex !== undefined && this.currentMatchState.players[playerIndex]) {
+              remaining = this.currentMatchState.players[playerIndex].remaining;
+              console.log(`📊 Got remaining from match state by index ${playerIndex}: ${remaining}`);
             } else {
-              // Just announce player name
-              if (this.config.callerType === 'voicepack' && this.hasPlayerAudio(playerName)) {
-                this.generateCall('player', playerName, playerAudioFile, 3);
-              } else {
-                this.generateCall('player', playerName, undefined, 3);
+              // Find by name
+              const player = this.currentMatchState.players.find(p => p.name === playerName);
+              if (player) {
+                remaining = player.remaining;
+                console.log(`📊 Got remaining from match state by name "${playerName}": ${remaining}`);
               }
             }
+          }
+
+          console.log(`🎯 Player change: "${playerName}", remaining: ${remaining}, callCheckouts: ${this.getCallSetting('checkouts', 'callCheckouts')}, isCheckout: ${remaining ? this.isCheckoutPossible(remaining) : 'N/A'}`);
+          if (playerName) {
+            // Handle player change asynchronously to wait for audio generation if needed
+            this.handlePlayerChange(playerName, remaining).catch((err) => {
+              console.error('Error handling player change:', err);
+            });
           }
         }
         break;

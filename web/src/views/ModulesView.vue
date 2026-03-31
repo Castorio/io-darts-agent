@@ -163,19 +163,6 @@ onMounted(() => {
 
             <!-- Actions -->
             <div class="flex items-center gap-2">
-              <!-- WLED specific config link -->
-              <router-link
-                v-if="module.id === 'wled' || module.name.toLowerCase().includes('wled')"
-                :to="`/modules/${module.id}/wled`"
-              >
-                <BaseButton variant="ghost" size="sm">
-                  <svg class="w-4 h-4 mr-1 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                  {{ t('modules.eventActions') }}
-                </BaseButton>
-              </router-link>
               <router-link :to="`/modules/${module.id}`">
                 <BaseButton variant="ghost" size="sm">
                   <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

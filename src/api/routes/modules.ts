@@ -806,28 +806,70 @@ export function registerModuleRoutes(
       }
     }
 
-    // Add standard intents that are always available
-    const standardIntents = [
-      { id: 'player.achievement.180', description: 'Player scored 180', category: 'Player Achievements' },
-      { id: 'player.achievement.171', description: 'Player scored 171', category: 'Player Achievements' },
-      { id: 'player.achievement.highScore', description: 'Player achieved a high score (140+)', category: 'Player Achievements' },
-      { id: 'player.achievement.highCheckout', description: 'Player achieved a high checkout (100+)', category: 'Player Achievements' },
-      { id: 'player.achievement.checkout', description: 'Player checked out', category: 'Player Achievements' },
-      { id: 'player.achievement.bust', description: 'Player busted', category: 'Player Achievements' },
-      { id: 'player.achievement.perfectLeg', description: 'Player achieved a perfect leg (9-darter)', category: 'Player Achievements' },
-      { id: 'match.milestone.started', description: 'Match started', category: 'Match Milestones' },
-      { id: 'match.milestone.ended', description: 'Match ended', category: 'Match Milestones' },
-      { id: 'match.milestone.legWon', description: 'A leg was won', category: 'Match Milestones' },
-      { id: 'match.milestone.gameWon', description: 'A game (set) was won', category: 'Match Milestones' },
-      { id: 'match.milestone.matchPoint', description: 'Match point situation', category: 'Match Milestones' },
-      { id: 'player.stats.updated', description: 'Player statistics were updated', category: 'Player Stats' },
-      { id: 'player.stats.newRecord', description: 'Player achieved a new personal record', category: 'Player Stats' },
-    ];
+    // Sort by category and then by id
+    // NOTE: Only module-defined intents are returned. System events (180s, checkouts, etc.)
+    // come from the Autodarts event stream and are NOT intents.
+    allIntents.sort((a, b) => {
+      const catA = a.category || 'Other';
+      const catB = b.category || 'Other';
+      if (catA !== catB) return catA.localeCompare(catB);
+      return a.id.localeCompare(b.id);
+    });
 
-    // Add standard intents that are not already in the list
-    for (const intent of standardIntents) {
-      if (!allIntents.some(i => i.id === intent.id)) {
-        allIntents.push(intent);
+    return {
+      success: true,
+      intents: allIntents,
+    };
+  });
+
+  /**
+   * GET /api/intents/available - Get all available intents with full schema
+   * Returns complete intent definitions including payload schema
+   */
+  fastify.get<{
+    Reply: {
+      success: boolean;
+      intents?: Array<{
+        id: string;
+        description: string;
+        category?: string;
+        sourceModule: string;
+        sourceModuleName: string;
+        payload?: Record<string, { type: string; description?: string }>;
+      }>;
+      error?: string;
+    };
+  }>('/api/intents/available', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    // Collect all intents from all modules with full schema
+    const allIntents: Array<{
+      id: string;
+      description: string;
+      category?: string;
+      sourceModule: string;
+      sourceModuleName: string;
+      payload?: Record<string, { type: string; description?: string }>;
+    }> = [];
+
+    // Get intents from all module manifests
+    for (const module of deps.listModules()) {
+      const manifest = deps.getModuleManifest(module.id);
+      if (manifest?.intents?.emits) {
+        for (const emit of manifest.intents.emits) {
+          allIntents.push({
+            id: emit.id,
+            description: emit.description,
+            category: emit.category,
+            sourceModule: module.id,
+            sourceModuleName: manifest.name || module.id,
+            payload: emit.payload,
+          });
+        }
       }
     }
 

@@ -313,6 +313,34 @@ export class PlayerService {
   }
 
   /**
+   * Match a player name synchronously (for use when data is already loaded)
+   * Returns undefined if service not initialized or no match found
+   */
+  matchPlayerSync(autodartsName: string): LocalPlayer | undefined {
+    if (!this.initialized) return undefined;
+
+    // Try exact match first
+    let player = this.repository.getByName(autodartsName);
+    if (player) return player;
+
+    // Try nickname match
+    const lowerName = autodartsName.toLowerCase();
+    player = this.repository
+      .getAll()
+      .find((p) => p.nickname?.toLowerCase() === lowerName);
+
+    return player;
+  }
+
+  /**
+   * Get player color by name (synchronous)
+   */
+  getPlayerColor(playerName: string): string | undefined {
+    const player = this.matchPlayerSync(playerName);
+    return player?.color;
+  }
+
+  /**
    * Ensure service is initialized
    */
   private async ensureInitialized(): Promise<void> {

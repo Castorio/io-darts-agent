@@ -23,172 +23,50 @@
   "intents": {
     "emits": [
       {
-        "id": "player.achievement.180",
-        "description": "Player scored 180 (maximum score with 3 darts)",
-        "category": "player.achievement",
-        "payload": {
-          "playerId": { "type": "string", "description": "Player ID" },
-          "playerName": { "type": "string", "description": "Player name" },
-          "matchId": { "type": "string", "description": "Match ID" },
-          "gameType": { "type": "string", "description": "Game type (e.g. X01)" }
-        }
-      },
-      {
-        "id": "player.achievement.171",
-        "description": "Player scored 171 (highest checkout possible with 3 darts)",
-        "category": "player.achievement",
-        "payload": {
-          "playerId": { "type": "string" },
-          "playerName": { "type": "string" },
-          "matchId": { "type": "string" }
-        }
-      },
-      {
-        "id": "player.achievement.highScore",
-        "description": "Player scored 140+ in a single turn",
-        "category": "player.achievement",
-        "payload": {
-          "playerId": { "type": "string" },
-          "playerName": { "type": "string" },
-          "matchId": { "type": "string" },
-          "score": { "type": "number", "description": "Actual score" },
-          "threshold": { "type": "number", "description": "Threshold that was met (140)" }
-        }
-      },
-      {
-        "id": "player.achievement.100plus",
-        "description": "Player scored 100+ in a single turn",
-        "category": "player.achievement",
-        "payload": {
-          "playerId": { "type": "string" },
-          "playerName": { "type": "string" },
-          "matchId": { "type": "string" },
-          "score": { "type": "number" },
-          "threshold": { "type": "number" }
-        }
-      },
-      {
-        "id": "player.achievement.checkout",
-        "description": "Player completed a checkout",
-        "category": "player.achievement",
-        "payload": {
-          "playerId": { "type": "string" },
-          "playerName": { "type": "string" },
-          "matchId": { "type": "string" },
-          "checkout": { "type": "number", "description": "Checkout score" },
-          "darts": { "type": "number", "description": "Number of darts used" }
-        }
-      },
-      {
-        "id": "player.achievement.highCheckout",
-        "description": "Player completed a high checkout (100+)",
-        "category": "player.achievement",
-        "payload": {
-          "playerId": { "type": "string" },
-          "playerName": { "type": "string" },
-          "matchId": { "type": "string" },
-          "checkout": { "type": "number" },
-          "darts": { "type": "number" }
-        }
-      },
-      {
-        "id": "player.achievement.bust",
-        "description": "Player busted (went over or hit wrong double)",
-        "category": "player.achievement",
-        "payload": {
-          "playerId": { "type": "string" },
-          "playerName": { "type": "string" },
-          "matchId": { "type": "string" }
-        }
-      },
-      {
-        "id": "match.milestone.legWon",
-        "description": "Player won a leg",
-        "category": "match.milestone",
-        "payload": {
-          "playerId": { "type": "string" },
-          "playerName": { "type": "string" },
-          "matchId": { "type": "string" },
-          "legNumber": { "type": "number" },
-          "dartsThrown": { "type": "number" }
-        }
-      },
-      {
-        "id": "match.milestone.ended",
-        "description": "Match ended",
-        "category": "match.milestone",
-        "payload": {
-          "matchId": { "type": "string" },
-          "winnerId": { "type": "string", "optional": true },
-          "winnerName": { "type": "string", "optional": true },
-          "isAborted": { "type": "boolean" }
-        }
-      },
-      {
-        "id": "analytics.match.summary",
-        "description": "Match analysis completed with summary statistics for all players",
+        "id": "analytics.ready",
+        "description": "Match analysis has been completed and results are available",
         "category": "analytics",
         "payload": {
-          "matchId": { "type": "string" },
-          "gameType": { "type": "string" },
-          "startingScore": { "type": "number" },
-          "isAborted": { "type": "boolean" },
-          "winnerId": { "type": "string", "optional": true },
-          "winnerName": { "type": "string", "optional": true },
-          "duration": { "type": "number", "description": "Match duration in ms", "optional": true },
-          "players": { "type": "array", "description": "Array of player summaries with averages, 180s, etc." }
+          "matchId": { "type": "string", "description": "Match ID that was analyzed" },
+          "playerCount": { "type": "number", "description": "Number of players analyzed" },
+          "tipsGenerated": { "type": "boolean", "description": "Whether training tips were generated" }
         }
       },
       {
-        "id": "analytics.player.aboveAverage",
-        "description": "Player performed significantly above their historical average (10%+)",
+        "id": "analytics.tips.ready",
+        "description": "Training tips have been generated for a player",
+        "category": "analytics",
+        "payload": {
+          "playerId": { "type": "string" },
+          "playerName": { "type": "string" },
+          "tipCount": { "type": "number", "description": "Number of tips generated" },
+          "focusAreas": { "type": "array", "description": "Areas that need improvement" }
+        }
+      },
+      {
+        "id": "analytics.performance.changed",
+        "description": "Significant performance change detected for a player",
         "category": "analytics",
         "payload": {
           "playerId": { "type": "string" },
           "playerName": { "type": "string" },
           "matchId": { "type": "string" },
-          "matchAverage": { "type": "number", "description": "Average in this match" },
-          "historicalAverage": { "type": "number", "description": "Historical average" },
-          "percentAbove": { "type": "number", "description": "Percentage above historical" }
-        }
-      },
-      {
-        "id": "analytics.player.belowAverage",
-        "description": "Player performed significantly below their historical average (10%+)",
-        "category": "analytics",
-        "payload": {
-          "playerId": { "type": "string" },
-          "playerName": { "type": "string" },
-          "matchId": { "type": "string" },
+          "direction": { "type": "string", "description": "above or below historical average" },
           "matchAverage": { "type": "number" },
           "historicalAverage": { "type": "number" },
-          "percentBelow": { "type": "number" }
+          "percentChange": { "type": "number" }
         }
       },
       {
-        "id": "analytics.player.newRecord",
-        "description": "Player set a new personal record",
+        "id": "analytics.record.set",
+        "description": "Player set a new personal record (detected by analytics)",
         "category": "analytics",
         "payload": {
           "playerId": { "type": "string" },
           "playerName": { "type": "string" },
-          "matchId": { "type": "string" },
-          "recordType": { "type": "string", "description": "Type of record (highestTurnScore, highestCheckout, etc.)" },
+          "recordType": { "type": "string", "description": "Type of record" },
           "oldValue": { "type": "number" },
           "newValue": { "type": "number" }
-        }
-      },
-      {
-        "id": "analytics.player.milestone",
-        "description": "Player reached a milestone (e.g. 100 180s)",
-        "category": "analytics",
-        "payload": {
-          "playerId": { "type": "string" },
-          "playerName": { "type": "string" },
-          "matchId": { "type": "string" },
-          "milestoneType": { "type": "string", "description": "Type of milestone" },
-          "total": { "type": "number", "description": "Total count" },
-          "newInMatch": { "type": "number", "description": "New count in this match" }
         }
       }
     ]

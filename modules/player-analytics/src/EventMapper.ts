@@ -16,6 +16,72 @@ import {
   DartSegment,
 } from './types.js';
 
+/**
+ * Match result event data from match.result
+ */
+export interface MatchResultEventData {
+  matchId: string;
+  winner: number;
+  winnerName: string;
+  variant: string;
+  type: string;
+  leg: number;
+  set: number;
+  round: number;
+  players: Array<{
+    index: number;
+    name: string;
+    userId: string | null;
+  }>;
+  scores: Array<{
+    legs: number;
+    sets: number;
+  }>;
+  chalkboards: Array<{
+    rows: Array<{
+      round: number;
+      score: number;
+      points: number;
+      isScoreStruck?: boolean;
+      isPointsStruck?: boolean;
+    }>;
+  }>;
+  stats: Array<{
+    legStats: MatchResultStats;
+    matchStats: MatchResultStats;
+    setStats?: MatchResultStats;
+  }>;
+  settings: {
+    baseScore: number;
+    bullMode: string;
+    inMode: string;
+    maxRounds: number;
+    outMode: string;
+  };
+}
+
+export interface MatchResultStats {
+  average: number;
+  averageUntil170: number;
+  checkoutPercent: number;
+  checkoutPoints: number;
+  checkoutPointsAverage: number;
+  checkouts: number;
+  checkoutsHit: number;
+  dartsThrown: number;
+  dartsUntil170: number;
+  first9Average: number;
+  first9Score: number;
+  less60: number;
+  plus60: number;
+  plus100: number;
+  plus140: number;
+  plus170: number;
+  score: number;
+  scoreUntil170: number;
+  total180: number;
+}
+
 export interface MatchState {
   matchId: string;
   autodartsMatchId: string;
@@ -42,6 +108,7 @@ export interface MappedAction {
     | 'leg.end'
     | 'game.end'
     | 'match.end'
+    | 'match.result'
     | 'match.abort';
   matchId: string;
   data: unknown;
@@ -80,6 +147,9 @@ export class EventMapper {
 
       case 'match.finished':
         return this.handleMatchEnd(event.data as AutodartsMatchEndData);
+
+      case 'match.result':
+        return this.handleMatchResult(event.data as MatchResultEventData);
 
       case 'match.delete':
         return this.handleMatchAbort(event.data as { matchId: string });
@@ -257,6 +327,31 @@ export class EventMapper {
 
     this.currentMatch = null;
     return action;
+  }
+
+  private handleMatchResult(data: MatchResultEventData): MappedAction | null {
+    // match.result contains final stats and chalkboards for all players
+    // This can be used to enrich analytics data even if we missed some events
+    const matchId = this.currentMatch?.autodartsMatchId || data.matchId;
+
+    return {
+      type: 'match.result',
+      matchId,
+      data: {
+        matchId: data.matchId,
+        winner: data.winner,
+        winnerName: data.winnerName,
+        variant: data.variant,
+        players: data.players,
+        scores: data.scores,
+        chalkboards: data.chalkboards,
+        stats: data.stats,
+        settings: data.settings,
+        round: data.round,
+        leg: data.leg,
+        set: data.set,
+      },
+    };
   }
 
   private parseSegment(segment: { number: number; bed: string }): DartSegment {

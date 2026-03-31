@@ -301,43 +301,48 @@ interface InitPayload {
 
 Module können auf folgende Autodarts-Events reagieren:
 
-### Match Events
+### Native Events (von Autodarts)
 
 | Event | Beschreibung | Wichtige Daten |
 |-------|-------------|----------------|
-| `match.started` | Match gestartet | `players`, `mode`, `startScore` |
-| `match.finished` | Match beendet | `winner`, `finalScores` |
-| `match.deleted` | Match abgebrochen | `matchId` |
-| `match.state` | Match-Status Update | Vollständiger Match-State |
-
-### Wurf Events
-
-| Event | Beschreibung | Wichtige Daten |
-|-------|-------------|----------------|
-| `throw.detected` | Wurf erkannt | `segment`, `points`, `remaining` |
-| `throw.180` | 180er geworfen | - |
-| `throw.triple` | Triple getroffen | `segment` |
-| `throw.double` | Double getroffen | `segment` |
-| `throw.bullseye` | Bullseye (D25) | - |
-| `throw.bull` | Single Bull (S25) | - |
-| `throw.miss` | Fehlwurf (0 Punkte) | - |
-| `throw.bust` | Überworfen | - |
-
-### Spieler Events
-
-| Event | Beschreibung | Wichtige Daten |
-|-------|-------------|----------------|
-| `player.changed` | Spielerwechsel | `playerIndex`, `playerName`, `color` |
-| `turn.started` | Aufnahme gestartet | `playerIndex` |
-| `turn.finished` | Aufnahme beendet | `darts`, `turnScore` |
-
-### Spiel Events
-
-| Event | Beschreibung | Wichtige Daten |
-|-------|-------------|----------------|
+| `match.start` | Match gestartet | `matchId`, `boardId` |
+| `match.state` | Match-Status Update | `players`, `gameScores`, `player`, `round`, `settings` |
+| `match.finished` | Match beendet (Gewinner ermittelt) | `winner`, `winnerName`, `matchId` |
+| `match.result` | Match-Ergebnis mit vollständigen Daten | `winner`, `winnerName`, `chalkboards`, `stats`, `scores`, `settings` |
+| `match.finish` | Match geschlossen (Benutzer klickt "Beenden") | `matchId` |
+| `match.delete` | Match abgebrochen | `matchId` |
+| `throw.detected` | Wurf erkannt | `segment`, `points`, `remaining`, `playerIndex` |
 | `game.finished` | Leg/Set gewonnen | `winner`, `checkoutPath` |
-| `takeout.started` | Dart-Entnahme | - |
-| `takeout.finished` | Dart-Entnahme fertig | - |
+| `takeout.started` | Dart-Entnahme gestartet | `matchId` |
+| `takeout.finished` | Dart-Entnahme beendet | `matchId` |
+
+### Synthetische Events (generiert von EventParser)
+
+Diese Events werden vom IO-Darts-Agent aus `match.state` Updates generiert:
+
+| Event | Beschreibung | Wichtige Daten |
+|-------|-------------|----------------|
+| `player.change` | Spielerwechsel | `playerIndex`, `playerName`, `remaining`, `players[]` mit Farben |
+| `turn.finished` | Aufnahme beendet | `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining` |
+
+> **Hinweis:** Synthetische Events bieten praktische Hooks für Module. Das `turn.finished` Event wird ausgelöst wenn:
+> - 3 Darts geworfen wurden
+> - Ein Bust auftritt
+> - Die Rundennummer sich ändert
+
+### Wurf Sub-Events
+
+Diese werden aus `throw.detected` Daten abgeleitet:
+
+| Event | Auslöser | Daten |
+|-------|----------|-------|
+| `throw.triple` | `multiplier === 3` | `segment` |
+| `throw.double` | `multiplier === 2` | `segment` |
+| `throw.bullseye` | `number === 25 && multiplier === 2` | - |
+| `throw.bull` | `number === 25 && multiplier === 1` | - |
+| `throw.miss` | `points === 0` | - |
+| `throw.180` | `turnPoints === 180` | - |
+| `throw.bust` | Match State zeigt Bust | - |
 
 ## Frontend-Entwicklung
 
@@ -496,17 +501,50 @@ function onStop() {
 const playerColor = event.data.color || '#ffffff'
 ```
 
-### 5. Temporäre Effekte
+### 5. Temporäre Effekte mit Spielerfarben-Wiederherstellung
 
 ```typescript
-// Effekt mit automatischem Restore
-async function flashEffect(duration = 1000) {
-  const previousState = await getDeviceState()
+// Effekt mit automatischer Wiederherstellung der Spielerfarbe (empfohlen)
+async function flashEffect(duration = 1000, playerColor: string) {
   await setEffect('flash')
 
   setTimeout(async () => {
-    await restoreState(previousState)
+    // Zur Spielerfarbe zurückkehren, nicht zum vorherigen Gerätezustand
+    await setColor(playerColor)
   }, duration)
+}
+```
+
+> **Best Practice:** Bei temporären Effekten zur aktuellen Spielerfarbe zurückkehren statt zum vorherigen Gerätezustand. Dies gewährleistet konsistentes Verhalten auch wenn der vorherige Zustand falsch oder unbekannt war.
+
+### 6. Fade-Zeit / Übergänge
+
+```typescript
+// Unterstützung für sanfte Übergänge bei Farbwechseln
+async function setColorWithFade(color: string, fadeTimeMs: number) {
+  const payload = {
+    seg: [{ col: [[r, g, b]] }],
+    transition: Math.round(fadeTimeMs / 100) // WLED verwendet 100ms Einheiten
+  }
+  await sendToDevice(payload)
+}
+```
+
+### 7. Einzelspieler-Unterstützung
+
+```typescript
+// Sowohl Einzelspieler- als auch Mehrspieler-Spiele behandeln
+async function handlePlayerChange(event) {
+  // Dieses Event wird für beide Modi ausgelöst
+  const playerColor = event.data.color || '#ffffff'
+  await setColor(playerColor)
+}
+
+async function handleTakeoutFinished(event) {
+  // Spielerfarbe nach Dart-Entnahme wiederherstellen
+  // Funktioniert für Einzel- und Mehrspieler
+  const currentPlayer = getCurrentPlayerFromMatchState()
+  await setColor(currentPlayer.color)
 }
 ```
 
@@ -530,7 +568,19 @@ Siehe [Game Display Module](/modules/game-display/) als Referenz für ein Modul 
 
 ### Modul mit externer Hardware
 
-Siehe [WLED Module](/modules/wled/) als Referenz für ein Modul, das externe Hardware steuert.
+Siehe [WLED Module](/modules/wled/) als Referenz für ein Modul, das externe Hardware steuert mit:
+- Dauer-basierte Effekte, die zur Spielerfarbe zurückkehren
+- Konfigurierbare Fade-Zeit (Übergänge)
+- Einzelspieler- und Mehrspieler-Unterstützung
+- Event-basierte Aktionskonfiguration
+- Intent-System-Unterstützung für Modul-zu-Modul-Kommunikation
+
+### Modul mit Audio/TTS
+
+Siehe [Darts Caller Module](/modules/darts-caller/) als Referenz für ein Modul, das:
+- Browser-TTS oder Audio-Dateien verwendet
+- Voice Pack Generator mit ElevenLabs enthält
+- Mehrere Ausgabemodi unterstützt (Browser, lokal, Audio-Packs)
 
 ## Debugging
 

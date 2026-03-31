@@ -6,7 +6,7 @@
 
 import type { ParsedEvent } from '@autodarts-hub/module-sdk';
 import { PlayerStore } from './PlayerStore.js';
-import { EventMapper, MappedAction } from './EventMapper.js';
+import { EventMapper, MappedAction, MatchResultStats } from './EventMapper.js';
 import { AITipsGenerator } from './AITipsGenerator.js';
 import {
   PlayerAnalyticsConfig,
@@ -170,6 +170,10 @@ export class PlayerAnalyticsHandler {
         await this.handleMatchEnd(action);
         break;
 
+      case 'match.result':
+        await this.handleMatchResult(action);
+        break;
+
       case 'match.abort':
         await this.handleMatchAbort(action);
         break;
@@ -283,57 +287,13 @@ export class PlayerAnalyticsHandler {
     this.currentLeg.turns.push(data.turnData);
     this.currentLeg.dartsThrown += data.turnData.throws.length;
 
-    // Emit achievement intents based on turn score
-    const turnScore = data.turnData.totalScore;
-    const intentPayload = {
-      playerId: matchPlayer?.playerId,
-      playerName: data.playerName,
-      matchId: this.activeMatchId,
-      gameType: match.gameType,
-      score: turnScore,
-    };
-
-    if (turnScore === 180) {
-      await this.emitIntent('player.achievement.180', intentPayload);
-    } else if (turnScore === 171) {
-      await this.emitIntent('player.achievement.171', intentPayload);
-    } else if (turnScore >= 140) {
-      await this.emitIntent('player.achievement.highScore', {
-        ...intentPayload,
-        threshold: 140,
-      });
-    } else if (turnScore >= 100) {
-      await this.emitIntent('player.achievement.100plus', {
-        ...intentPayload,
-        threshold: 100,
-      });
-    }
+    // Note: We do NOT emit player achievement intents here.
+    // Player events (180s, checkouts, etc.) come from the system event stream.
+    // The analytics module only emits module-specific intents like "analysis ready".
 
     // Check for leg end (checkout)
     if (data.turnData.isCheckout) {
-      // Emit checkout intent
-      const checkoutScore = data.turnData.startingScore;
-      await this.emitIntent('player.achievement.checkout', {
-        ...intentPayload,
-        checkout: checkoutScore,
-        darts: data.turnData.throws.length,
-      });
-
-      // High checkout (100+)
-      if (checkoutScore >= 100) {
-        await this.emitIntent('player.achievement.highCheckout', {
-          ...intentPayload,
-          checkout: checkoutScore,
-          darts: data.turnData.throws.length,
-        });
-      }
-
       await this.handleLegEnd(matchPlayer?.playerId);
-    }
-
-    // Check for bust
-    if (data.turnData.isBust) {
-      await this.emitIntent('player.achievement.bust', intentPayload);
     }
 
     this.log('Turn recorded', {
@@ -528,28 +488,20 @@ export class PlayerAnalyticsHandler {
     const averageDiff = matchAverage - historicalAverage;
     const percentChange = historicalAverage > 0 ? (averageDiff / historicalAverage) * 100 : 0;
 
-    // Emit performance intent if significant change (>10%)
+    // Emit performance change intent if significant change (>10%)
     if (Math.abs(percentChange) > 10 && matchTurns.length >= 3) {
-      if (percentChange > 10) {
-        await this.emitIntent('analytics.player.aboveAverage', {
-          ...basePayload,
-          matchAverage: Math.round(matchAverage * 100) / 100,
-          historicalAverage: Math.round(historicalAverage * 100) / 100,
-          percentAbove: Math.round(percentChange * 10) / 10,
-        });
-      } else if (percentChange < -10) {
-        await this.emitIntent('analytics.player.belowAverage', {
-          ...basePayload,
-          matchAverage: Math.round(matchAverage * 100) / 100,
-          historicalAverage: Math.round(historicalAverage * 100) / 100,
-          percentBelow: Math.round(Math.abs(percentChange) * 10) / 10,
-        });
-      }
+      await this.emitIntent('analytics.performance.changed', {
+        ...basePayload,
+        direction: percentChange > 0 ? 'above' : 'below',
+        matchAverage: Math.round(matchAverage * 100) / 100,
+        historicalAverage: Math.round(historicalAverage * 100) / 100,
+        percentChange: Math.round(Math.abs(percentChange) * 10) / 10,
+      });
     }
 
-    // Check for new personal records
+    // Check for new personal records (detected by analytics)
     if (newStats.highestTurnScore > oldStats.highestTurnScore) {
-      await this.emitIntent('analytics.player.newRecord', {
+      await this.emitIntent('analytics.record.set', {
         ...basePayload,
         recordType: 'highestTurnScore',
         oldValue: oldStats.highestTurnScore,
@@ -558,7 +510,7 @@ export class PlayerAnalyticsHandler {
     }
 
     if (newStats.highestCheckout > oldStats.highestCheckout) {
-      await this.emitIntent('analytics.player.newRecord', {
+      await this.emitIntent('analytics.record.set', {
         ...basePayload,
         recordType: 'highestCheckout',
         oldValue: oldStats.highestCheckout,
@@ -566,15 +518,9 @@ export class PlayerAnalyticsHandler {
       });
     }
 
-    if (newStats.count180s > oldStats.count180s) {
-      const new180s = newStats.count180s - oldStats.count180s;
-      await this.emitIntent('analytics.player.milestone', {
-        ...basePayload,
-        milestoneType: '180s',
-        total: newStats.count180s,
-        newInMatch: new180s,
-      });
-    }
+    // Note: We don't emit intents for 180s count changes - that's a system event.
+    // analytics.record.set is only for records that the analytics module detects
+    // by comparing current match stats against historical data.
   }
 
   /**
@@ -598,44 +544,101 @@ export class PlayerAnalyticsHandler {
   }
 
   /**
-   * Emit match summary intent with analytics
+   * Emit analytics.ready intent when match analysis is complete
    */
   private async emitMatchSummaryIntent(match: MatchData): Promise<void> {
-    const playerSummaries = match.players.map((player) => {
-      const turns = this.getPlayerTurnsInMatch(match, player.playerId);
-      const totalScore = turns.reduce((sum, t) => sum + t.totalScore, 0);
-      const average = turns.length > 0 ? totalScore / turns.length : 0;
-      const count180s = turns.filter((t) => t.totalScore === 180).length;
-      const highestScore = Math.max(...turns.map((t) => t.totalScore), 0);
-      const checkouts = turns.filter((t) => t.isCheckout && !t.isBust);
-      const highestCheckout = checkouts.length > 0
-        ? Math.max(...checkouts.map((t) => t.startingScore))
-        : 0;
+    // Emit analytics.ready - signals that match analysis is complete
+    await this.emitIntent('analytics.ready', {
+      matchId: match.id,
+      playerCount: match.players.length,
+      tipsGenerated: this.config.generateTipsAfterMatch && !match.isAborted,
+    });
+  }
 
-      return {
-        playerId: player.playerId,
-        playerName: player.playerName,
-        average: Math.round(average * 100) / 100,
-        turns: turns.length,
-        totalScore,
-        count180s,
-        highestScore,
-        highestCheckout,
-        isWinner: match.winnerId === player.playerId,
+  /**
+   * Handle match result - processes final stats and chalkboards
+   */
+  private async handleMatchResult(action: MappedAction): Promise<void> {
+    const data = action.data as {
+      matchId: string;
+      winner: number;
+      winnerName: string;
+      variant: string;
+      players: Array<{ index: number; name: string; userId: string | null }>;
+      scores: Array<{ legs: number; sets: number }>;
+      chalkboards: Array<{
+        rows: Array<{
+          round: number;
+          score: number;
+          points: number;
+          isScoreStruck?: boolean;
+          isPointsStruck?: boolean;
+        }>;
+      }>;
+      stats: Array<{
+        legStats: MatchResultStats;
+        matchStats: MatchResultStats;
+        setStats?: MatchResultStats;
+      }>;
+      settings: {
+        baseScore: number;
+        bullMode: string;
+        inMode: string;
+        maxRounds: number;
+        outMode: string;
       };
+      round: number;
+      leg: number;
+      set: number;
+    };
+
+    this.log('Match result received', {
+      matchId: data.matchId,
+      winner: data.winnerName,
+      playerCount: data.players.length,
     });
 
-    await this.emitIntent('analytics.match.summary', {
-      matchId: match.id,
-      gameType: match.gameType,
-      startingScore: match.startingScore,
-      isAborted: match.isAborted,
-      winnerId: match.winnerId,
-      winnerName: match.players.find((p) => p.playerId === match.winnerId)?.playerName,
-      duration: match.endedAt && match.timestamp
-        ? match.endedAt.getTime() - match.timestamp.getTime()
-        : undefined,
-      players: playerSummaries,
+    // Store match result stats for each player
+    // This can be used to enrich analytics or reconcile any missed events
+    for (let i = 0; i < data.players.length; i++) {
+      const player = data.players[i];
+      const playerStats = data.stats[i];
+      const playerScore = data.scores[i];
+      const playerChalkboard = data.chalkboards[i];
+
+      if (playerStats) {
+        const matchStats = playerStats.matchStats || playerStats.legStats;
+
+        this.log('Player match result', {
+          player: player.name,
+          average: matchStats?.average,
+          dartsThrown: matchStats?.dartsThrown,
+          checkoutPercent: matchStats?.checkoutPercent,
+          total180: matchStats?.total180,
+          legs: playerScore?.legs,
+          sets: playerScore?.sets,
+          isWinner: i === data.winner,
+          rounds: playerChalkboard?.rows?.length,
+        });
+      }
+    }
+
+    // Emit analytics.match.result intent with full result data
+    await this.emitIntent('analytics.match.result', {
+      matchId: data.matchId,
+      winner: data.winner,
+      winnerName: data.winnerName,
+      variant: data.variant,
+      playerCount: data.players.length,
+      players: data.players.map((p, idx) => ({
+        name: p.name,
+        index: p.index,
+        isWinner: idx === data.winner,
+        legs: data.scores[idx]?.legs ?? 0,
+        sets: data.scores[idx]?.sets ?? 0,
+        stats: data.stats[idx]?.matchStats || data.stats[idx]?.legStats || null,
+      })),
+      settings: data.settings,
     });
   }
 
@@ -690,6 +693,15 @@ export class PlayerAnalyticsHandler {
           this.log('Tips generated', {
             player: player.playerName,
             count: tips.length,
+          });
+
+          // Emit analytics.tips.ready intent
+          const focusAreas = [...new Set(tips.map((t) => t.category))];
+          await this.emitIntent('analytics.tips.ready', {
+            playerId: player.playerId,
+            playerName: player.playerName,
+            tipCount: tips.length,
+            focusAreas,
           });
         }
       } catch (error) {

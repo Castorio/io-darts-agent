@@ -9,58 +9,7 @@ import BaseButton from '../components/BaseButton.vue'
 import BaseInput from '../components/BaseInput.vue'
 import MediaUpload from '../components/MediaUpload.vue'
 import AnimationGenerator from '../components/AnimationGenerator.vue'
-
-// Animation event types
-type AnimationEventType =
-  | '180'
-  | 'bull'
-  | 'doubleBull'
-  | 'highScore'
-  | 'checkout'
-  | 'legWin'
-  | 'setWin'
-  | 'matchWin'
-  | 'bust'
-
-interface AnimationConfig {
-  enabled: boolean
-  url: string
-  duration: number
-  sound?: string
-}
-
-interface PlayerAnimations {
-  playerId?: string
-  playerName?: string
-  animations: Partial<Record<AnimationEventType, AnimationConfig>>
-}
-
-interface GameDisplayConfig {
-  displayName: string
-  idleMode: 'black' | 'image' | 'lastGame'
-  idleImageUrl: string
-  showCheckouts: boolean
-  checkoutThreshold: number
-  animationSpeed: 'slow' | 'normal' | 'fast'
-  showOtherPlayers: boolean
-  // Animation settings
-  animationsEnabled: boolean
-  defaultAnimations: Partial<Record<AnimationEventType, AnimationConfig>>
-  playerAnimations: PlayerAnimations[]
-}
-
-// Animation event definitions for UI
-const animationEvents: Array<{ key: AnimationEventType; label: string; description: string }> = [
-  { key: '180', label: '180', description: 'Perfekte Aufnahme (3x Triple 20)' },
-  { key: 'highScore', label: 'High Score (140+)', description: 'Aufnahme mit 140 oder mehr Punkten' },
-  { key: 'bull', label: 'Bull', description: 'Single Bull (25 Punkte)' },
-  { key: 'doubleBull', label: 'Double Bull', description: 'Bull\'s Eye (50 Punkte)' },
-  { key: 'checkout', label: 'Checkout', description: 'Erfolgreiches Finish auf 0' },
-  { key: 'legWin', label: 'Leg Gewinn', description: 'Ein Leg gewonnen' },
-  { key: 'setWin', label: 'Set Gewinn', description: 'Ein Set gewonnen' },
-  { key: 'matchWin', label: 'Match Gewinn', description: 'Das Match gewonnen' },
-  { key: 'bust', label: 'Bust', description: 'Überworfen / ungültiger Wurf' },
-]
+import StatusBadge from '../components/StatusBadge.vue'
 
 const route = useRoute()
 const modulesStore = useModulesStore()
@@ -69,171 +18,183 @@ const playersStore = usePlayersStore()
 const moduleId = computed(() => route.params.id as string)
 const module = computed(() => modulesStore.selectedModule)
 
-// Configuration state
-const config = ref<GameDisplayConfig>({
-  displayName: 'Main Display',
-  idleMode: 'lastGame',
-  idleImageUrl: '',
-  showCheckouts: true,
-  checkoutThreshold: 170,
-  animationSpeed: 'normal',
-  showOtherPlayers: true,
-  animationsEnabled: true,
-  defaultAnimations: {},
-  playerAnimations: [],
-})
+// Configuration state - loaded dynamically from module
+const config = ref<Record<string, unknown>>({})
 
-// Currently editing animation
-const editingAnimation = ref<{ eventKey: AnimationEventType; isPlayer: boolean; playerIndex?: number } | null>(null)
-const editAnimationForm = ref<{ enabled: boolean; url: string; duration: number; sound: string }>({
-  enabled: false,
-  url: '',
-  duration: 3000,
-  sound: '',
-})
-
-// Player-specific animations UI state
-const selectedPlayerForAnimations = ref<string | null>(null)
-const showPlayerAnimationModal = ref(false)
-
+// UI state
 const isSaving = ref(false)
 const saveMessage = ref<{ type: 'success' | 'error'; text: string } | null>(null)
+const actionLoading = ref(false)
+
+// Current language for i18n
+const currentLang = computed(() => {
+  const browserLang = navigator.language.split('-')[0]
+  return ['de', 'en', 'es'].includes(browserLang) ? browserLang : 'de'
+})
+
+// i18n translations from module.json
+const i18n = computed(() => {
+  const translations = module.value?.i18n as Record<string, {
+    name?: string
+    description?: string
+    config?: Record<string, { label?: string; description?: string; options?: Record<string, string> }>
+    strings?: Record<string, string>
+  }> | undefined
+
+  const lang = currentLang.value
+  const t = translations?.[lang] || translations?.['en'] || {}
+
+  return {
+    name: t.name || module.value?.name || 'Game Display',
+    description: t.description || module.value?.description || '',
+    config: t.config || {},
+    strings: {
+      backToModule: lang === 'de' ? 'Zurück zum Modul' : lang === 'es' ? 'Volver al Módulo' : 'Back to Module',
+      configuration: lang === 'de' ? 'Konfiguration' : lang === 'es' ? 'Configuración' : 'Configuration',
+      displayPreview: lang === 'de' ? 'Display Vorschau' : lang === 'es' ? 'Vista Previa' : 'Display Preview',
+      displayPreviewDesc: lang === 'de' ? 'So sieht das Display auf externen Bildschirmen aus' : lang === 'es' ? 'Así se ve la pantalla en monitores externos' : 'This is how the display looks on external screens',
+      openInNewWindow: lang === 'de' ? 'Im neuen Fenster öffnen' : lang === 'es' ? 'Abrir en nueva ventana' : 'Open in new window',
+      copyUrl: lang === 'de' ? 'URL kopieren' : lang === 'es' ? 'Copiar URL' : 'Copy URL',
+      openDisplay: lang === 'de' ? 'Display öffnen' : lang === 'es' ? 'Abrir pantalla' : 'Open Display',
+      save: lang === 'de' ? 'Speichern' : lang === 'es' ? 'Guardar' : 'Save',
+      saved: lang === 'de' ? 'Konfiguration gespeichert!' : lang === 'es' ? '¡Configuración guardada!' : 'Configuration saved!',
+      saveError: lang === 'de' ? 'Fehler beim Speichern' : lang === 'es' ? 'Error al guardar' : 'Error saving',
+      urlCopied: lang === 'de' ? 'URL kopiert!' : lang === 'es' ? '¡URL copiada!' : 'URL copied!',
+      copyFailed: lang === 'de' ? 'Kopieren fehlgeschlagen' : lang === 'es' ? 'Error al copiar' : 'Copy failed',
+      start: lang === 'de' ? 'Starten' : lang === 'es' ? 'Iniciar' : 'Start',
+      stop: lang === 'de' ? 'Stoppen' : lang === 'es' ? 'Detener' : 'Stop',
+      animations: lang === 'de' ? 'Animationen' : lang === 'es' ? 'Animaciones' : 'Animations',
+      animationsDesc: lang === 'de' ? 'GIF- oder Video-Animationen für besondere Ereignisse' : lang === 'es' ? 'Animaciones GIF o video para eventos especiales' : 'GIF or video animations for special events',
+      usage: lang === 'de' ? 'Verwendung' : lang === 'es' ? 'Uso' : 'Usage',
+      step1Title: lang === 'de' ? 'Display öffnen' : lang === 'es' ? 'Abrir pantalla' : 'Open display',
+      step1Desc: lang === 'de' ? 'Klicken Sie auf "Display öffnen" oder kopieren Sie die URL und öffnen Sie diese auf einem externen Bildschirm.' : lang === 'es' ? 'Haga clic en "Abrir pantalla" o copie la URL y ábrala en un monitor externo.' : 'Click "Open Display" or copy the URL and open it on an external screen.',
+      step2Title: lang === 'de' ? 'Spiel starten' : lang === 'es' ? 'Iniciar juego' : 'Start game',
+      step2Desc: lang === 'de' ? 'Starten Sie ein Match in Autodarts. Das Display aktualisiert sich automatisch in Echtzeit.' : lang === 'es' ? 'Inicie un partido en Autodarts. La pantalla se actualiza automáticamente en tiempo real.' : 'Start a match in Autodarts. The display updates automatically in real-time.',
+      step3Title: lang === 'de' ? 'Spielen!' : lang === 'es' ? '¡Jugar!' : 'Play!',
+      step3Desc: lang === 'de' ? 'Der aktuelle Punktestand, Checkout-Vorschläge und alle Würfe werden live angezeigt.' : lang === 'es' ? 'La puntuación actual, sugerencias de checkout y todos los lanzamientos se muestran en vivo.' : 'The current score, checkout suggestions and all throws are displayed live.',
+      clickPreview: lang === 'de' ? 'Klicken Sie auf die Vorschau oder nutzen Sie den Button oben, um das Display in einem neuen Fenster zu öffnen. Sie können die URL auch auf einem anderen Gerät im selben Netzwerk öffnen.' : lang === 'es' ? 'Haga clic en la vista previa o use el botón de arriba para abrir la pantalla en una nueva ventana. También puede abrir la URL en otro dispositivo de la misma red.' : 'Click on the preview or use the button above to open the display in a new window. You can also open the URL on another device on the same network.',
+      ...t.strings
+    }
+  }
+})
+
+// Config schema from module.json
+const configSchema = computed(() => {
+  return (module.value?.config?.schema || module.value?.config || {}) as Record<string, ConfigField>
+})
+
+// Get translated label for a config field
+function getConfigLabel(key: string): string {
+  return i18n.value.config[key]?.label || configSchema.value[key]?.label || key
+}
+
+// Get translated description for a config field
+function getConfigDescription(key: string): string | undefined {
+  return i18n.value.config[key]?.description || configSchema.value[key]?.description
+}
+
+// Get translated option label for select fields
+function getOptionLabel(fieldKey: string, optionValue: string): string {
+  const i18nOptions = i18n.value.config[fieldKey]?.options
+  if (i18nOptions && i18nOptions[optionValue]) {
+    return i18nOptions[optionValue]
+  }
+  const field = configSchema.value[fieldKey]
+  if (field?.type === 'select' && field.options) {
+    const option = field.options.find((o: { value: string | number }) => o.value === optionValue)
+    return option?.label || optionValue
+  }
+  return optionValue
+}
+
+// Check if field should be shown based on showIf condition
+function shouldShowField(field: ConfigField): boolean {
+  if (!field.showIf) return true
+  const { field: dependentField, value: expectedValue } = field.showIf
+  const actualValue = config.value[dependentField]
+  if (Array.isArray(expectedValue)) {
+    return expectedValue.includes(actualValue)
+  }
+  return actualValue === expectedValue
+}
+
+// Type definitions for config fields
+interface ConfigField {
+  type: string
+  label?: string
+  description?: string
+  default?: unknown
+  showIf?: { field: string; value: unknown }
+  options?: Array<{ value: string | number; label: string }>
+  min?: number
+  max?: number
+  step?: number
+  fields?: Record<string, ConfigField>
+}
+
+// Get sorted basic fields (non-animation, non-group fields)
+const basicFields = computed(() => {
+  const entries = Object.entries(configSchema.value)
+  return entries.filter(([key, field]) => {
+    // Exclude animation groups and player-specific settings
+    if (key.startsWith('animation') && field.type === 'group') return false
+    if (key === 'defaultAnimations' || key === 'playerAnimations') return false
+    return shouldShowField(field)
+  })
+})
+
+// Get animation group fields
+const animationFields = computed(() => {
+  const entries = Object.entries(configSchema.value)
+  return entries.filter(([key, field]) => {
+    if (!key.startsWith('animation') || field.type !== 'group') return false
+    if (key === 'animationsEnabled') return false
+    return shouldShowField(field)
+  })
+})
 
 // Load config from module
 watch(
   () => module.value?.config.values,
   (values) => {
     if (values) {
-      config.value = {
-        displayName: (values.displayName as string) || 'Main Display',
-        idleMode: (values.idleMode as 'black' | 'image' | 'lastGame') || 'lastGame',
-        idleImageUrl: (values.idleImageUrl as string) || '',
-        showCheckouts: values.showCheckouts !== false,
-        checkoutThreshold: (values.checkoutThreshold as number) || 170,
-        animationSpeed: (values.animationSpeed as 'slow' | 'normal' | 'fast') || 'normal',
-        showOtherPlayers: values.showOtherPlayers !== false,
-        animationsEnabled: values.animationsEnabled !== false,
-        defaultAnimations: (values.defaultAnimations as Partial<Record<AnimationEventType, AnimationConfig>>) || {},
-        playerAnimations: (values.playerAnimations as PlayerAnimations[]) || [],
-      }
+      config.value = { ...values }
     }
   },
   { immediate: true }
 )
 
-// Animation helper functions
-function getAnimationConfig(eventKey: AnimationEventType): AnimationConfig | undefined {
-  return config.value.defaultAnimations[eventKey]
-}
-
-function isAnimationEnabled(eventKey: AnimationEventType): boolean {
-  return config.value.defaultAnimations[eventKey]?.enabled || false
-}
-
-function openAnimationEditor(eventKey: AnimationEventType) {
-  editingAnimation.value = { eventKey, isPlayer: false }
-  const existing = config.value.defaultAnimations[eventKey]
-  editAnimationForm.value = existing
-    ? { enabled: existing.enabled, url: existing.url, duration: existing.duration, sound: existing.sound || '' }
-    : { enabled: true, url: '', duration: 3000, sound: '' }
-}
-
-function saveAnimationConfig() {
-  if (!editingAnimation.value) return
-
-  const { eventKey } = editingAnimation.value
-  config.value.defaultAnimations[eventKey] = { ...editAnimationForm.value }
-  editingAnimation.value = null
-}
-
-function removeAnimationConfig(eventKey: AnimationEventType) {
-  delete config.value.defaultAnimations[eventKey]
-}
-
-function closeAnimationEditor() {
-  editingAnimation.value = null
-}
-
-// Player-specific animation functions
-function getPlayerAnimations(playerName: string): PlayerAnimations | undefined {
-  return config.value.playerAnimations.find(
-    (pa) => pa.playerName?.toLowerCase() === playerName.toLowerCase()
-  )
-}
-
-function hasPlayerAnimations(playerName: string): boolean {
-  const pa = getPlayerAnimations(playerName)
-  if (!pa) return false
-  return Object.values(pa.animations).some((a) => a?.enabled)
-}
-
-function getPlayerAnimationCount(playerName: string): number {
-  const pa = getPlayerAnimations(playerName)
-  if (!pa) return 0
-  return Object.values(pa.animations).filter((a) => a?.enabled).length
-}
-
-function openPlayerAnimationEditor(playerName: string) {
-  selectedPlayerForAnimations.value = playerName
-  showPlayerAnimationModal.value = true
-}
-
-function getPlayerAnimationConfig(playerName: string, eventKey: AnimationEventType): AnimationConfig | undefined {
-  const pa = getPlayerAnimations(playerName)
-  return pa?.animations[eventKey]
-}
-
-function isPlayerAnimationEnabled(playerName: string, eventKey: AnimationEventType): boolean {
-  return getPlayerAnimationConfig(playerName, eventKey)?.enabled || false
-}
-
-function openPlayerEventAnimationEditor(playerName: string, eventKey: AnimationEventType) {
-  const playerIndex = config.value.playerAnimations.findIndex(
-    (pa) => pa.playerName?.toLowerCase() === playerName.toLowerCase()
-  )
-
-  editingAnimation.value = { eventKey, isPlayer: true, playerIndex: playerIndex >= 0 ? playerIndex : undefined }
-
-  const existing = getPlayerAnimationConfig(playerName, eventKey)
-  editAnimationForm.value = existing
-    ? { enabled: existing.enabled, url: existing.url, duration: existing.duration, sound: existing.sound || '' }
-    : { enabled: true, url: '', duration: 3000, sound: '' }
-}
-
-function savePlayerAnimationConfig() {
-  if (!editingAnimation.value || !selectedPlayerForAnimations.value) return
-
-  const { eventKey, playerIndex } = editingAnimation.value
-  const playerName = selectedPlayerForAnimations.value
-
-  if (playerIndex !== undefined && playerIndex >= 0) {
-    // Update existing player animations
-    config.value.playerAnimations[playerIndex].animations[eventKey] = { ...editAnimationForm.value }
-  } else {
-    // Create new player animations entry
-    config.value.playerAnimations.push({
-      playerName,
-      animations: {
-        [eventKey]: { ...editAnimationForm.value },
-      },
-    })
+// Get value with default fallback
+function getValue(key: string): unknown {
+  if (config.value[key] !== undefined) {
+    return config.value[key]
   }
-
-  editingAnimation.value = null
+  return configSchema.value[key]?.default
 }
 
-function removePlayerAnimationConfig(playerName: string, eventKey: AnimationEventType) {
-  const pa = config.value.playerAnimations.find(
-    (p) => p.playerName?.toLowerCase() === playerName.toLowerCase()
-  )
-  if (pa) {
-    delete pa.animations[eventKey]
+// Update a single value
+function updateValue(key: string, value: unknown) {
+  config.value = { ...config.value, [key]: value }
+}
+
+// Get nested group value
+function getGroupValue(groupKey: string, fieldKey: string): unknown {
+  const groupValue = config.value[groupKey] as Record<string, unknown> | undefined
+  if (groupValue && groupValue[fieldKey] !== undefined) {
+    return groupValue[fieldKey]
   }
+  const groupSchema = configSchema.value[groupKey]
+  if (groupSchema?.type === 'group' && groupSchema.fields) {
+    return groupSchema.fields[fieldKey]?.default
+  }
+  return undefined
 }
 
-function closePlayerAnimationModal() {
-  showPlayerAnimationModal.value = false
-  selectedPlayerForAnimations.value = null
+// Update nested group value
+function updateGroupValue(groupKey: string, fieldKey: string, value: unknown) {
+  const groupValue = (config.value[groupKey] as Record<string, unknown>) || {}
+  const newGroupValue = { ...groupValue, [fieldKey]: value }
+  updateValue(groupKey, newGroupValue)
 }
 
 // Save configuration
@@ -244,15 +205,15 @@ async function saveConfig() {
   saveMessage.value = null
 
   try {
-    await modulesStore.updateConfig(module.value.id, config.value as unknown as Record<string, unknown>)
-    saveMessage.value = { type: 'success', text: 'Konfiguration gespeichert!' }
+    await modulesStore.updateConfig(module.value.id, config.value)
+    saveMessage.value = { type: 'success', text: i18n.value.strings.saved }
     setTimeout(() => {
       saveMessage.value = null
     }, 3000)
   } catch (e) {
     saveMessage.value = {
       type: 'error',
-      text: e instanceof Error ? e.message : 'Fehler beim Speichern',
+      text: e instanceof Error ? e.message : i18n.value.strings.saveError,
     }
   } finally {
     isSaving.value = false
@@ -261,14 +222,14 @@ async function saveConfig() {
 
 // Handle AI-generated animation ready
 function onAnimationReady(eventType: string, url: string) {
-  const key = eventType as AnimationEventType
-  config.value.defaultAnimations[key] = {
-    enabled: true,
-    url,
-    duration: 3000,
-    sound: '',
-  }
-  saveMessage.value = { type: 'success', text: `Animation für "${animationEvents.find((e) => e.key === key)?.label || eventType}" hinzugefügt!` }
+  const animationKey = `animation${eventType.charAt(0).toUpperCase()}${eventType.slice(1)}`
+  const currentGroup = (config.value[animationKey] as Record<string, unknown>) || {}
+  updateValue(animationKey, {
+    ...currentGroup,
+    type: 'gif',
+    mediaUrl: url
+  })
+  saveMessage.value = { type: 'success', text: `Animation für "${eventType}" hinzugefügt!` }
   setTimeout(() => {
     saveMessage.value = null
   }, 3000)
@@ -285,12 +246,33 @@ async function copyDisplayUrl() {
   const displayUrl = `${window.location.origin}/module-ui/game-display/`
   try {
     await navigator.clipboard.writeText(displayUrl)
-    saveMessage.value = { type: 'success', text: 'URL kopiert!' }
+    saveMessage.value = { type: 'success', text: i18n.value.strings.urlCopied }
     setTimeout(() => {
       saveMessage.value = null
     }, 2000)
   } catch {
-    saveMessage.value = { type: 'error', text: 'Kopieren fehlgeschlagen' }
+    saveMessage.value = { type: 'error', text: i18n.value.strings.copyFailed }
+  }
+}
+
+// Module control
+async function startModule() {
+  if (!module.value) return
+  actionLoading.value = true
+  try {
+    await modulesStore.startModule(module.value.id)
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function stopModule() {
+  if (!module.value) return
+  actionLoading.value = true
+  try {
+    await modulesStore.stopModule(module.value.id)
+  } finally {
+    actionLoading.value = false
   }
 }
 
@@ -311,731 +293,470 @@ onMounted(() => {
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
-        Zurück zum Modul
+        {{ i18n.strings.backToModule }}
       </router-link>
 
-      <!-- Header -->
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-white">Game Display Konfiguration</h1>
-          <p class="text-dark-400 mt-1">Einstellungen für die Spielstandsanzeige</p>
-        </div>
-
-        <!-- Open Display Button -->
-        <div class="flex items-center gap-3">
-          <BaseButton variant="secondary" @click="copyDisplayUrl">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-            </svg>
-            URL kopieren
-          </BaseButton>
-          <BaseButton @click="openDisplay">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-            Display öffnen
-          </BaseButton>
-        </div>
+      <!-- Loading State -->
+      <div v-if="modulesStore.isLoading" class="flex items-center justify-center py-12">
+        <svg class="animate-spin h-8 w-8 text-autodarts-500" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
       </div>
 
-      <!-- Display Preview -->
-      <BaseCard title="Display Vorschau" subtitle="So sieht das Display auf externen Bildschirmen aus">
-        <div class="relative rounded-xl overflow-hidden border border-dark-600 bg-dark-900">
-          <!-- Preview Frame -->
-          <div class="aspect-video relative">
-            <iframe
-              src="/module-ui/game-display/"
-              class="absolute inset-0 w-full h-full"
-              style="pointer-events: none;"
-            />
-            <!-- Overlay for click handling -->
+      <!-- Module Content -->
+      <template v-else-if="module">
+        <!-- Header -->
+        <div class="flex items-start justify-between">
+          <div class="flex items-start gap-4">
             <div
-              class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
-              @click="openDisplay"
+              :class="[
+                'w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0',
+                module.status === 'running' ? 'bg-autodarts-500/20' : 'bg-dark-700',
+              ]"
             >
-              <div class="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/10 backdrop-blur-sm">
-                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                <span class="text-white font-medium">Im neuen Fenster öffnen</span>
-              </div>
+              <!-- Display Icon -->
+              <svg
+                :class="['w-8 h-8', module.status === 'running' ? 'text-autodarts-400' : 'text-dark-400']"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
             </div>
-          </div>
-        </div>
-        <p class="text-sm text-dark-400 mt-3">
-          Klicken Sie auf die Vorschau oder nutzen Sie den Button oben, um das Display in einem neuen Fenster zu öffnen.
-          Sie können die URL auch auf einem anderen Gerät im selben Netzwerk öffnen.
-        </p>
-      </BaseCard>
-
-      <!-- Configuration -->
-      <BaseCard title="Einstellungen">
-        <form @submit.prevent="saveConfig" class="space-y-6">
-          <!-- Display Name -->
-          <div>
-            <BaseInput
-              v-model="config.displayName"
-              label="Display Name"
-              placeholder="z.B. Hauptdisplay, TV Links, etc."
-            />
-            <p class="text-sm text-dark-400 mt-1">
-              Ein Name zur Identifikation dieses Displays (für zukünftige Multi-Display-Unterstützung)
-            </p>
-          </div>
-
-          <!-- Idle Mode -->
-          <div>
-            <label class="block text-sm font-medium text-dark-200 mb-3">Idle-Modus (wenn kein Spiel aktiv ist)</label>
-            <div class="grid grid-cols-3 gap-3">
-              <button
-                type="button"
-                @click="config.idleMode = 'black'"
-                :class="[
-                  'px-4 py-4 rounded-lg border-2 text-center transition-all',
-                  config.idleMode === 'black'
-                    ? 'border-autodarts-500 bg-autodarts-500/10 text-white'
-                    : 'border-dark-600 text-dark-400 hover:border-dark-500',
-                ]"
-              >
-                <svg class="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-                Schwarzer Bildschirm
-              </button>
-              <button
-                type="button"
-                @click="config.idleMode = 'image'"
-                :class="[
-                  'px-4 py-4 rounded-lg border-2 text-center transition-all',
-                  config.idleMode === 'image'
-                    ? 'border-autodarts-500 bg-autodarts-500/10 text-white'
-                    : 'border-dark-600 text-dark-400 hover:border-dark-500',
-                ]"
-              >
-                <svg class="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Eigenes Bild
-              </button>
-              <button
-                type="button"
-                @click="config.idleMode = 'lastGame'"
-                :class="[
-                  'px-4 py-4 rounded-lg border-2 text-center transition-all',
-                  config.idleMode === 'lastGame'
-                    ? 'border-autodarts-500 bg-autodarts-500/10 text-white'
-                    : 'border-dark-600 text-dark-400 hover:border-dark-500',
-                ]"
-              >
-                <svg class="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Letztes Spiel
-              </button>
-            </div>
-            <p class="text-sm text-dark-400 mt-2">
-              {{
-                config.idleMode === 'black'
-                  ? 'Der Bildschirm wird komplett schwarz, wenn kein Spiel läuft.'
-                  : config.idleMode === 'image'
-                  ? 'Ein eigenes Bild wird angezeigt, wenn kein Spiel läuft.'
-                  : 'Der Endstand des letzten Spiels wird angezeigt, bis ein neues Spiel startet.'
-              }}
-            </p>
-          </div>
-
-          <!-- Idle Image URL (only when image mode selected) -->
-          <div v-if="config.idleMode === 'image'" class="pl-4 border-l-2 border-autodarts-500/30">
-            <MediaUpload
-              v-model="config.idleImageUrl"
-              label="Idle-Bild"
-              placeholder="URL eingeben oder Bild hochladen"
-              media-type="image"
-              accept="image/*"
-            />
-            <p class="text-sm text-dark-400 mt-1">
-              Dieses Bild wird angezeigt, wenn kein Spiel aktiv ist.
-            </p>
-          </div>
-
-          <!-- Show Checkouts -->
-          <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50 border border-dark-600">
             <div>
-              <p class="text-white font-medium">Checkout-Vorschläge anzeigen</p>
-              <p class="text-sm text-dark-400 mt-1">
-                Zeigt mögliche Checkout-Wege an, wenn ein Finish erreichbar ist
-              </p>
-            </div>
-            <button
-              type="button"
-              @click="config.showCheckouts = !config.showCheckouts"
-              :class="[
-                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                config.showCheckouts ? 'bg-autodarts-600' : 'bg-dark-600',
-              ]"
-            >
-              <span
-                :class="[
-                  'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                  config.showCheckouts ? 'translate-x-6' : 'translate-x-1',
-                ]"
-              />
-            </button>
-          </div>
-
-          <!-- Checkout Threshold -->
-          <div v-if="config.showCheckouts">
-            <label class="block text-sm font-medium text-dark-200 mb-2">
-              Checkout-Vorschläge ab Punktzahl: {{ config.checkoutThreshold }}
-            </label>
-            <input
-              type="range"
-              v-model.number="config.checkoutThreshold"
-              min="2"
-              max="170"
-              class="w-full accent-autodarts-500"
-            />
-            <div class="flex justify-between text-sm text-dark-400 mt-1">
-              <span>2</span>
-              <span>170</span>
-            </div>
-          </div>
-
-          <!-- Animation Speed -->
-          <div>
-            <label class="block text-sm font-medium text-dark-200 mb-3">Animationsgeschwindigkeit</label>
-            <div class="grid grid-cols-3 gap-3">
-              <button
-                v-for="speed in ['slow', 'normal', 'fast'] as const"
-                :key="speed"
-                type="button"
-                @click="config.animationSpeed = speed"
-                :class="[
-                  'px-4 py-3 rounded-lg border-2 text-center transition-all',
-                  config.animationSpeed === speed
-                    ? 'border-autodarts-500 bg-autodarts-500/10 text-white'
-                    : 'border-dark-600 text-dark-400 hover:border-dark-500',
-                ]"
-              >
-                {{ speed === 'slow' ? 'Langsam' : speed === 'normal' ? 'Normal' : 'Schnell' }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Show Other Players -->
-          <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50 border border-dark-600">
-            <div>
-              <p class="text-white font-medium">Andere Spieler anzeigen</p>
-              <p class="text-sm text-dark-400 mt-1">
-                Zeigt die Punktestände der anderen Spieler am unteren Bildschirmrand
-              </p>
-            </div>
-            <button
-              type="button"
-              @click="config.showOtherPlayers = !config.showOtherPlayers"
-              :class="[
-                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                config.showOtherPlayers ? 'bg-autodarts-600' : 'bg-dark-600',
-              ]"
-            >
-              <span
-                :class="[
-                  'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                  config.showOtherPlayers ? 'translate-x-6' : 'translate-x-1',
-                ]"
-              />
-            </button>
-          </div>
-
-          <!-- Save Message -->
-          <div
-            v-if="saveMessage"
-            :class="[
-              'p-3 rounded-lg',
-              saveMessage.type === 'success'
-                ? 'bg-green-500/10 text-green-400'
-                : 'bg-red-500/10 text-red-400',
-            ]"
-          >
-            {{ saveMessage.text }}
-          </div>
-
-          <!-- Save Button -->
-          <div class="flex justify-end">
-            <BaseButton type="submit" :loading="isSaving">
-              Speichern
-            </BaseButton>
-          </div>
-        </form>
-      </BaseCard>
-
-      <!-- Animations Configuration -->
-      <BaseCard title="Animationen" subtitle="GIF- oder Video-Animationen für besondere Ereignisse">
-        <!-- Enable Animations Toggle -->
-        <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50 border border-dark-600 mb-6">
-          <div>
-            <p class="text-white font-medium">Animationen aktivieren</p>
-            <p class="text-sm text-dark-400 mt-1">
-              Zeigt Animationen bei besonderen Ereignissen wie 180, Checkout etc.
-            </p>
-          </div>
-          <button
-            type="button"
-            @click="config.animationsEnabled = !config.animationsEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-              config.animationsEnabled ? 'bg-autodarts-600' : 'bg-dark-600',
-            ]"
-          >
-            <span
-              :class="[
-                'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                config.animationsEnabled ? 'translate-x-6' : 'translate-x-1',
-              ]"
-            />
-          </button>
-        </div>
-
-        <!-- Animation Events List -->
-        <div v-if="config.animationsEnabled" class="space-y-3">
-          <div
-            v-for="event in animationEvents"
-            :key="event.key"
-            class="flex items-center justify-between p-4 rounded-lg border transition-all"
-            :class="isAnimationEnabled(event.key)
-              ? 'border-autodarts-500/50 bg-autodarts-500/5'
-              : 'border-dark-600 bg-dark-700/30'"
-          >
-            <div class="flex-1">
               <div class="flex items-center gap-3">
-                <p class="text-white font-medium">{{ event.label }}</p>
-                <span
-                  v-if="isAnimationEnabled(event.key)"
-                  class="px-2 py-0.5 rounded-full bg-autodarts-500/20 text-autodarts-400 text-xs"
-                >
-                  Aktiv
-                </span>
+                <h1 class="text-2xl font-bold text-white">{{ i18n.name }}</h1>
+                <StatusBadge :status="module.status" />
               </div>
-              <p class="text-sm text-dark-400 mt-1">{{ event.description }}</p>
-              <p
-                v-if="getAnimationConfig(event.key)?.url"
-                class="text-xs text-dark-500 mt-1 truncate max-w-md"
-              >
-                {{ getAnimationConfig(event.key)?.url }}
-              </p>
+              <p class="text-dark-400 mt-1">{{ i18n.description }}</p>
             </div>
-            <div class="flex items-center gap-2">
-              <BaseButton
-                variant="ghost"
-                size="sm"
-                @click="openAnimationEditor(event.key)"
-              >
-                {{ isAnimationEnabled(event.key) ? 'Bearbeiten' : 'Einrichten' }}
-              </BaseButton>
-              <BaseButton
-                v-if="isAnimationEnabled(event.key)"
-                variant="ghost"
-                size="sm"
-                @click="removeAnimationConfig(event.key)"
-              >
-                <svg class="w-4 h-4 text-dark-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </BaseButton>
-            </div>
-          </div>
-        </div>
-
-        <!-- Info when disabled -->
-        <div v-else class="text-center py-8">
-          <svg class="w-12 h-12 mx-auto text-dark-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p class="text-dark-400 mt-3">Aktivieren Sie Animationen, um besondere Ereignisse hervorzuheben</p>
-        </div>
-
-        <!-- Player-Specific Animations Section -->
-        <div v-if="config.animationsEnabled && playersStore.players.length > 0" class="mt-8 pt-6 border-t border-dark-700">
-          <h4 class="text-lg font-medium text-white mb-4">Spieler-spezifische Animationen</h4>
-          <p class="text-sm text-dark-400 mb-4">
-            Überschreiben Sie die Standard-Animationen für einzelne Spieler mit individuellen GIFs oder Videos.
-          </p>
-
-          <div class="space-y-3">
-            <div
-              v-for="player in playersStore.players"
-              :key="player.id"
-              class="flex items-center justify-between p-4 rounded-lg border transition-all"
-              :class="hasPlayerAnimations(player.name)
-                ? 'border-autodarts-500/50 bg-autodarts-500/5'
-                : 'border-dark-600 bg-dark-700/30'"
-            >
-              <div class="flex items-center gap-3">
-                <!-- Player color indicator -->
-                <div
-                  class="w-4 h-4 rounded-full flex-shrink-0"
-                  :style="{ backgroundColor: player.color || '#3b82f6' }"
-                />
-                <div>
-                  <p class="text-white font-medium">{{ player.name }}</p>
-                  <p v-if="hasPlayerAnimations(player.name)" class="text-xs text-autodarts-400 mt-0.5">
-                    {{ getPlayerAnimationCount(player.name) }} Animation(en) konfiguriert
-                  </p>
-                  <p v-else class="text-xs text-dark-500 mt-0.5">
-                    Verwendet Standard-Animationen
-                  </p>
-                </div>
-              </div>
-              <BaseButton
-                variant="ghost"
-                size="sm"
-                @click="openPlayerAnimationEditor(player.name)"
-              >
-                {{ hasPlayerAnimations(player.name) ? 'Bearbeiten' : 'Konfigurieren' }}
-              </BaseButton>
-            </div>
-          </div>
-        </div>
-
-        <!-- No Players Info -->
-        <div v-else-if="config.animationsEnabled && playersStore.players.length === 0" class="mt-6 pt-6 border-t border-dark-700">
-          <div class="text-center py-4">
-            <p class="text-dark-400">
-              Erstellen Sie Spieler im <router-link to="/players" class="text-autodarts-400 hover:underline">Spieler-Bereich</router-link>, um individuelle Animationen zu konfigurieren.
-            </p>
-          </div>
-        </div>
-
-        <!-- Save Animations Button -->
-        <div v-if="config.animationsEnabled" class="flex justify-end mt-6 pt-4 border-t border-dark-700">
-          <BaseButton @click="saveConfig" :loading="isSaving">
-            Animationen speichern
-          </BaseButton>
-        </div>
-      </BaseCard>
-
-      <!-- AI Animation Generator -->
-      <AnimationGenerator
-        v-if="config.animationsEnabled"
-        @animation-ready="onAnimationReady"
-      />
-
-      <!-- Usage Info -->
-      <BaseCard title="Verwendung">
-        <div class="space-y-4">
-          <div class="flex items-start gap-4">
-            <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
-              <span class="text-autodarts-400 font-bold">1</span>
-            </div>
-            <div>
-              <p class="text-white font-medium">Display öffnen</p>
-              <p class="text-dark-400 text-sm mt-1">
-                Klicken Sie auf "Display öffnen" oder kopieren Sie die URL und öffnen Sie diese auf einem externen Bildschirm.
-              </p>
-            </div>
-          </div>
-
-          <div class="flex items-start gap-4">
-            <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
-              <span class="text-autodarts-400 font-bold">2</span>
-            </div>
-            <div>
-              <p class="text-white font-medium">Spiel starten</p>
-              <p class="text-dark-400 text-sm mt-1">
-                Starten Sie ein Match in Autodarts. Das Display aktualisiert sich automatisch in Echtzeit.
-              </p>
-            </div>
-          </div>
-
-          <div class="flex items-start gap-4">
-            <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
-              <span class="text-autodarts-400 font-bold">3</span>
-            </div>
-            <div>
-              <p class="text-white font-medium">Spielen!</p>
-              <p class="text-dark-400 text-sm mt-1">
-                Der aktuelle Punktestand, Checkout-Vorschläge und alle Würfe werden live angezeigt.
-              </p>
-            </div>
-          </div>
-        </div>
-      </BaseCard>
-    </div>
-
-    <!-- Animation Editor Modal -->
-    <Teleport to="body">
-      <div
-        v-if="editingAnimation && !editingAnimation.isPlayer"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-      >
-        <div
-          class="absolute inset-0 bg-black/70"
-          @click="closeAnimationEditor"
-        />
-        <div class="relative bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-lg w-full">
-          <h3 class="text-lg font-semibold text-white mb-4">
-            Animation konfigurieren: {{ animationEvents.find(e => e.key === editingAnimation?.eventKey)?.label }}
-          </h3>
-
-          <div class="space-y-4">
-            <!-- Enable Toggle -->
-            <div class="flex items-center justify-between p-3 rounded-lg bg-dark-700/50 border border-dark-600">
-              <span class="text-white">Animation aktiviert</span>
-              <button
-                type="button"
-                @click="editAnimationForm.enabled = !editAnimationForm.enabled"
-                :class="[
-                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                  editAnimationForm.enabled ? 'bg-autodarts-600' : 'bg-dark-600',
-                ]"
-              >
-                <span
-                  :class="[
-                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                    editAnimationForm.enabled ? 'translate-x-6' : 'translate-x-1',
-                  ]"
-                />
-              </button>
-            </div>
-
-            <!-- Animation URL / Upload -->
-            <MediaUpload
-              v-model="editAnimationForm.url"
-              label="Animation (GIF/Video)"
-              placeholder="URL eingeben oder Datei hochladen"
-              media-type="animation"
-              accept="image/gif,video/mp4,video/webm"
-            />
-
-            <!-- Duration -->
-            <div>
-              <label class="block text-sm font-medium text-dark-200 mb-2">
-                Anzeigedauer: {{ editAnimationForm.duration / 1000 }}s
-              </label>
-              <input
-                type="range"
-                v-model.number="editAnimationForm.duration"
-                min="1000"
-                max="10000"
-                step="500"
-                class="w-full accent-autodarts-500"
-              />
-              <div class="flex justify-between text-sm text-dark-400 mt-1">
-                <span>1s</span>
-                <span>10s</span>
-              </div>
-            </div>
-
-            <!-- Sound (optional) -->
-            <MediaUpload
-              v-model="editAnimationForm.sound"
-              label="Sound (optional)"
-              placeholder="URL eingeben oder Sound hochladen"
-              media-type="sound"
-              accept="audio/mpeg,audio/wav,audio/ogg"
-            />
           </div>
 
           <!-- Actions -->
-          <div class="flex items-center justify-end gap-3 mt-6">
-            <BaseButton
-              variant="ghost"
-              @click="closeAnimationEditor"
-            >
-              Abbrechen
+          <div class="flex items-center gap-3">
+            <BaseButton variant="secondary" @click="copyDisplayUrl">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              {{ i18n.strings.copyUrl }}
             </BaseButton>
-            <BaseButton @click="saveAnimationConfig">
-              Speichern
+            <BaseButton @click="openDisplay">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              {{ i18n.strings.openDisplay }}
+            </BaseButton>
+            <BaseButton
+              v-if="module.status === 'running'"
+              variant="secondary"
+              :loading="actionLoading"
+              @click="stopModule"
+            >
+              {{ i18n.strings.stop }}
+            </BaseButton>
+            <BaseButton
+              v-else
+              :loading="actionLoading"
+              @click="startModule"
+            >
+              {{ i18n.strings.start }}
             </BaseButton>
           </div>
         </div>
-      </div>
-    </Teleport>
 
-    <!-- Player Animation Modal -->
-    <Teleport to="body">
-      <div
-        v-if="showPlayerAnimationModal && selectedPlayerForAnimations"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-      >
-        <div
-          class="absolute inset-0 bg-black/70"
-          @click="closePlayerAnimationModal"
-        />
-        <div class="relative bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          <div class="flex items-center justify-between mb-6">
-            <div>
-              <h3 class="text-lg font-semibold text-white">
-                Animationen für {{ selectedPlayerForAnimations }}
-              </h3>
-              <p class="text-sm text-dark-400 mt-1">
-                Individuelle Animationen überschreiben die Standard-Einstellungen
-              </p>
-            </div>
-            <button
-              @click="closePlayerAnimationModal"
-              class="p-2 rounded-lg hover:bg-dark-700 transition-colors"
-            >
-              <svg class="w-5 h-5 text-dark-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <!-- Event list for player -->
-          <div class="space-y-3">
-            <div
-              v-for="event in animationEvents"
-              :key="event.key"
-              class="flex items-center justify-between p-4 rounded-lg border transition-all"
-              :class="isPlayerAnimationEnabled(selectedPlayerForAnimations, event.key)
-                ? 'border-autodarts-500/50 bg-autodarts-500/5'
-                : 'border-dark-600 bg-dark-700/30'"
-            >
-              <div class="flex-1">
-                <div class="flex items-center gap-3">
-                  <p class="text-white font-medium">{{ event.label }}</p>
-                  <span
-                    v-if="isPlayerAnimationEnabled(selectedPlayerForAnimations, event.key)"
-                    class="px-2 py-0.5 rounded-full bg-autodarts-500/20 text-autodarts-400 text-xs"
-                  >
-                    Individuell
-                  </span>
-                  <span
-                    v-else-if="isAnimationEnabled(event.key)"
-                    class="px-2 py-0.5 rounded-full bg-dark-600 text-dark-400 text-xs"
-                  >
-                    Standard
-                  </span>
+        <!-- Display Preview -->
+        <BaseCard :title="i18n.strings.displayPreview" :subtitle="i18n.strings.displayPreviewDesc">
+          <div class="relative rounded-xl overflow-hidden border border-dark-600 bg-dark-900">
+            <!-- Preview Frame -->
+            <div class="aspect-video relative">
+              <iframe
+                src="/module-ui/game-display/"
+                class="absolute inset-0 w-full h-full"
+                style="pointer-events: none;"
+              />
+              <!-- Overlay for click handling -->
+              <div
+                class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+                @click="openDisplay"
+              >
+                <div class="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/10 backdrop-blur-sm">
+                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  <span class="text-white font-medium">{{ i18n.strings.openInNewWindow }}</span>
                 </div>
-                <p class="text-sm text-dark-400 mt-1">{{ event.description }}</p>
-                <p
-                  v-if="getPlayerAnimationConfig(selectedPlayerForAnimations, event.key)?.url"
-                  class="text-xs text-dark-500 mt-1 truncate max-w-md"
-                >
-                  {{ getPlayerAnimationConfig(selectedPlayerForAnimations, event.key)?.url }}
+              </div>
+            </div>
+          </div>
+          <p class="text-sm text-dark-400 mt-3">
+            {{ i18n.strings.clickPreview }}
+          </p>
+        </BaseCard>
+
+        <!-- Configuration -->
+        <BaseCard :title="i18n.strings.configuration">
+          <form @submit.prevent="saveConfig" class="space-y-6">
+            <!-- Dynamic Basic Fields -->
+            <template v-for="[key, field] in basicFields" :key="key">
+              <!-- String Field -->
+              <div v-if="field.type === 'string' && !key.toLowerCase().includes('url')">
+                <BaseInput
+                  :model-value="(getValue(key) as string) || ''"
+                  @update:model-value="updateValue(key, $event)"
+                  :label="getConfigLabel(key)"
+                />
+                <p v-if="getConfigDescription(key)" class="text-sm text-dark-400 mt-1">
+                  {{ getConfigDescription(key) }}
                 </p>
               </div>
-              <div class="flex items-center gap-2">
-                <BaseButton
-                  variant="ghost"
-                  size="sm"
-                  @click="openPlayerEventAnimationEditor(selectedPlayerForAnimations, event.key)"
-                >
-                  {{ isPlayerAnimationEnabled(selectedPlayerForAnimations, event.key) ? 'Bearbeiten' : 'Einrichten' }}
-                </BaseButton>
-                <BaseButton
-                  v-if="isPlayerAnimationEnabled(selectedPlayerForAnimations, event.key)"
-                  variant="ghost"
-                  size="sm"
-                  @click="removePlayerAnimationConfig(selectedPlayerForAnimations, event.key)"
-                >
-                  <svg class="w-4 h-4 text-dark-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </BaseButton>
-              </div>
-            </div>
-          </div>
 
-          <div class="flex justify-end mt-6 pt-4 border-t border-dark-700">
-            <BaseButton @click="closePlayerAnimationModal">
-              Fertig
-            </BaseButton>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- Player Event Animation Editor Modal -->
-    <Teleport to="body">
-      <div
-        v-if="editingAnimation && editingAnimation.isPlayer"
-        class="fixed inset-0 z-[60] flex items-center justify-center p-4"
-      >
-        <div
-          class="absolute inset-0 bg-black/70"
-          @click="closeAnimationEditor"
-        />
-        <div class="relative bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-lg w-full">
-          <h3 class="text-lg font-semibold text-white mb-4">
-            {{ selectedPlayerForAnimations }} - {{ animationEvents.find(e => e.key === editingAnimation?.eventKey)?.label }}
-          </h3>
-
-          <div class="space-y-4">
-            <!-- Enable Toggle -->
-            <div class="flex items-center justify-between p-3 rounded-lg bg-dark-700/50 border border-dark-600">
-              <span class="text-white">Individuelle Animation aktiviert</span>
-              <button
-                type="button"
-                @click="editAnimationForm.enabled = !editAnimationForm.enabled"
-                :class="[
-                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                  editAnimationForm.enabled ? 'bg-autodarts-600' : 'bg-dark-600',
-                ]"
-              >
-                <span
-                  :class="[
-                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                    editAnimationForm.enabled ? 'translate-x-6' : 'translate-x-1',
-                  ]"
+              <!-- URL/Media Field -->
+              <div v-else-if="field.type === 'string' && key.toLowerCase().includes('url')">
+                <MediaUpload
+                  :model-value="(getValue(key) as string) || ''"
+                  @update:model-value="updateValue(key, $event)"
+                  :label="getConfigLabel(key)"
+                  :media-type="key.toLowerCase().includes('sound') ? 'sound' : 'image'"
                 />
-              </button>
+                <p v-if="getConfigDescription(key)" class="text-sm text-dark-400 mt-1">
+                  {{ getConfigDescription(key) }}
+                </p>
+              </div>
+
+              <!-- Select Field -->
+              <div v-else-if="field.type === 'select'">
+                <label class="block text-sm font-medium text-dark-200 mb-3">{{ getConfigLabel(key) }}</label>
+                <div :class="['grid gap-3', field.options && field.options.length <= 3 ? `grid-cols-${field.options.length}` : 'grid-cols-2 md:grid-cols-3']">
+                  <button
+                    v-for="option in field.options"
+                    :key="option.value"
+                    type="button"
+                    @click="updateValue(key, option.value)"
+                    :class="[
+                      'px-4 py-4 rounded-lg border-2 text-center transition-all',
+                      getValue(key) === option.value
+                        ? 'border-autodarts-500 bg-autodarts-500/10 text-white'
+                        : 'border-dark-600 text-dark-400 hover:border-dark-500',
+                    ]"
+                  >
+                    {{ getOptionLabel(key, String(option.value)) }}
+                  </button>
+                </div>
+                <p v-if="getConfigDescription(key)" class="text-sm text-dark-400 mt-2">
+                  {{ getConfigDescription(key) }}
+                </p>
+              </div>
+
+              <!-- Boolean Field -->
+              <div v-else-if="field.type === 'boolean'" class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50 border border-dark-600">
+                <div>
+                  <p class="text-white font-medium">{{ getConfigLabel(key) }}</p>
+                  <p v-if="getConfigDescription(key)" class="text-sm text-dark-400 mt-1">
+                    {{ getConfigDescription(key) }}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  @click="updateValue(key, !getValue(key))"
+                  :class="[
+                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                    getValue(key) ? 'bg-autodarts-600' : 'bg-dark-600',
+                  ]"
+                >
+                  <span
+                    :class="[
+                      'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                      getValue(key) ? 'translate-x-6' : 'translate-x-1',
+                    ]"
+                  />
+                </button>
+              </div>
+
+              <!-- Number Field (Range) -->
+              <div v-else-if="field.type === 'number' && field.max">
+                <label class="block text-sm font-medium text-dark-200 mb-2">
+                  {{ getConfigLabel(key) }}:
+                  <span v-if="key.includes('Duration')">
+                    {{ (getValue(key) as number) === 0 ? 'Unbegrenzt' : ((getValue(key) as number) / 1000) + 's' }}
+                  </span>
+                  <span v-else>{{ getValue(key) }}</span>
+                </label>
+                <input
+                  type="range"
+                  :value="getValue(key) as number"
+                  @input="updateValue(key, Number(($event.target as HTMLInputElement).value))"
+                  :min="field.min ?? 0"
+                  :max="field.max"
+                  :step="field.step ?? (key.includes('Duration') ? 1000 : 1)"
+                  class="w-full accent-autodarts-500"
+                />
+                <div class="flex justify-between text-sm text-dark-400 mt-1">
+                  <span>{{ key.includes('Duration') && field.min === 0 ? 'Unbegrenzt' : (field.min ?? 0) }}</span>
+                  <span>{{ key.includes('Duration') ? ((field.max || 0) / 1000) + 's' : field.max }}</span>
+                </div>
+                <p v-if="getConfigDescription(key)" class="text-sm text-dark-400 mt-1">
+                  {{ getConfigDescription(key) }}
+                </p>
+              </div>
+
+              <!-- Number Field (Input) -->
+              <div v-else-if="field.type === 'number'">
+                <label class="block text-sm font-medium text-dark-200 mb-2">
+                  {{ getConfigLabel(key) }}
+                </label>
+                <input
+                  type="number"
+                  :value="getValue(key) as number"
+                  @input="updateValue(key, Number(($event.target as HTMLInputElement).value))"
+                  :min="field.min"
+                  :step="field.step ?? 1"
+                  class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500"
+                />
+                <p v-if="getConfigDescription(key)" class="text-sm text-dark-400 mt-1">
+                  {{ getConfigDescription(key) }}
+                </p>
+              </div>
+
+              <!-- Color Field -->
+              <div v-else-if="field.type === 'color'">
+                <label class="block text-sm font-medium text-dark-200 mb-2">{{ getConfigLabel(key) }}</label>
+                <div class="flex items-center gap-3">
+                  <input
+                    type="color"
+                    :value="getValue(key) as string"
+                    @input="updateValue(key, ($event.target as HTMLInputElement).value)"
+                    class="w-12 h-10 rounded-lg cursor-pointer border border-dark-600 bg-transparent"
+                  />
+                  <input
+                    type="text"
+                    :value="getValue(key) as string"
+                    @input="updateValue(key, ($event.target as HTMLInputElement).value)"
+                    placeholder="#0a0a0f"
+                    class="flex-1 px-4 py-2 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500 font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    @click="updateValue(key, field.default as string)"
+                    class="px-3 py-2 rounded-lg bg-dark-700 border border-dark-600 text-dark-400 hover:text-white hover:border-dark-500 transition-colors text-sm"
+                  >
+                    Reset
+                  </button>
+                </div>
+                <p v-if="getConfigDescription(key)" class="text-sm text-dark-400 mt-1">
+                  {{ getConfigDescription(key) }}
+                </p>
+              </div>
+            </template>
+
+            <!-- Save Message -->
+            <div
+              v-if="saveMessage"
+              :class="[
+                'p-3 rounded-lg',
+                saveMessage.type === 'success'
+                  ? 'bg-green-500/10 text-green-400'
+                  : 'bg-red-500/10 text-red-400',
+              ]"
+            >
+              {{ saveMessage.text }}
             </div>
 
-            <!-- Animation URL / Upload -->
-            <MediaUpload
-              v-model="editAnimationForm.url"
-              label="Animation (GIF/Video)"
-              placeholder="URL eingeben oder Datei hochladen"
-              media-type="animation"
-              accept="image/gif,video/mp4,video/webm"
-            />
+            <!-- Save Button -->
+            <div class="flex justify-end">
+              <BaseButton type="submit" :loading="isSaving">
+                {{ i18n.strings.save }}
+              </BaseButton>
+            </div>
+          </form>
+        </BaseCard>
 
-            <!-- Duration -->
+        <!-- Animations Configuration -->
+        <BaseCard :title="i18n.strings.animations" :subtitle="i18n.strings.animationsDesc">
+          <!-- Enable Animations Toggle -->
+          <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50 border border-dark-600 mb-6">
             <div>
-              <label class="block text-sm font-medium text-dark-200 mb-2">
-                Anzeigedauer: {{ editAnimationForm.duration / 1000 }}s
-              </label>
-              <input
-                type="range"
-                v-model.number="editAnimationForm.duration"
-                min="1000"
-                max="10000"
-                step="500"
-                class="w-full accent-autodarts-500"
+              <p class="text-white font-medium">{{ getConfigLabel('animationsEnabled') }}</p>
+              <p class="text-sm text-dark-400 mt-1">
+                {{ getConfigDescription('animationsEnabled') }}
+              </p>
+            </div>
+            <button
+              type="button"
+              @click="updateValue('animationsEnabled', !getValue('animationsEnabled'))"
+              :class="[
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                getValue('animationsEnabled') ? 'bg-autodarts-600' : 'bg-dark-600',
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                  getValue('animationsEnabled') ? 'translate-x-6' : 'translate-x-1',
+                ]"
               />
-              <div class="flex justify-between text-sm text-dark-400 mt-1">
-                <span>1s</span>
-                <span>10s</span>
+            </button>
+          </div>
+
+          <!-- Animation Groups -->
+          <div v-if="getValue('animationsEnabled')" class="space-y-4">
+            <div
+              v-for="[key, field] in animationFields"
+              :key="key"
+              class="p-4 rounded-lg border border-dark-600 bg-dark-700/30"
+            >
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h4 class="text-white font-medium">{{ field.label || key }}</h4>
+                  <p v-if="field.description" class="text-sm text-dark-400 mt-1">
+                    {{ field.description }}
+                  </p>
+                </div>
+                <!-- Quick status indicator -->
+                <span
+                  v-if="getGroupValue(key, 'type') !== 'none'"
+                  class="px-2 py-0.5 rounded-full bg-autodarts-500/20 text-autodarts-400 text-xs"
+                >
+                  {{ getGroupValue(key, 'type') === 'builtin' ? 'Built-in' : (getGroupValue(key, 'type') as string)?.toUpperCase() }}
+                </span>
+              </div>
+
+              <!-- Nested Fields -->
+              <div class="space-y-4" v-if="field.fields">
+                <template v-for="[nestedKey, nestedField] in Object.entries(field.fields)" :key="`${key}.${nestedKey}`">
+                  <!-- Type Select -->
+                  <div v-if="nestedField.type === 'select'">
+                    <label class="block text-sm font-medium text-dark-200 mb-2">
+                      {{ nestedField.label || nestedKey }}
+                    </label>
+                    <select
+                      :value="getGroupValue(key, nestedKey)"
+                      @change="updateGroupValue(key, nestedKey, ($event.target as HTMLSelectElement).value)"
+                      class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500"
+                    >
+                      <option
+                        v-for="option in nestedField.options"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <!-- Media URL (only show if type is gif or video) -->
+                  <div v-else-if="nestedField.type === 'string' && nestedKey.toLowerCase().includes('url')">
+                    <template v-if="getGroupValue(key, 'type') === 'gif' || getGroupValue(key, 'type') === 'video'">
+                      <MediaUpload
+                        :model-value="(getGroupValue(key, nestedKey) as string) || ''"
+                        @update:model-value="updateGroupValue(key, nestedKey, $event)"
+                        :label="nestedField.label || nestedKey"
+                        :media-type="nestedKey.toLowerCase().includes('sound') ? 'sound' : 'animation'"
+                      />
+                    </template>
+                  </div>
+
+                  <!-- Duration Slider -->
+                  <div v-else-if="nestedField.type === 'number' && nestedKey === 'duration'">
+                    <label class="block text-sm font-medium text-dark-200 mb-2">
+                      {{ nestedField.label || nestedKey }}: {{ (Number(getGroupValue(key, nestedKey)) || Number(nestedField.default) || 3000) / 1000 }}s
+                    </label>
+                    <input
+                      type="range"
+                      :value="(getGroupValue(key, nestedKey) as number) || nestedField.default"
+                      @input="updateGroupValue(key, nestedKey, Number(($event.target as HTMLInputElement).value))"
+                      :min="nestedField.min ?? 500"
+                      :max="nestedField.max ?? 10000"
+                      :step="500"
+                      class="w-full accent-autodarts-500"
+                    />
+                  </div>
+
+                  <!-- Threshold Number -->
+                  <div v-else-if="nestedField.type === 'number' && nestedKey === 'threshold'">
+                    <label class="block text-sm font-medium text-dark-200 mb-2">
+                      {{ nestedField.label || nestedKey }}: {{ getGroupValue(key, nestedKey) || nestedField.default }}
+                    </label>
+                    <input
+                      type="range"
+                      :value="(getGroupValue(key, nestedKey) as number) || nestedField.default"
+                      @input="updateGroupValue(key, nestedKey, Number(($event.target as HTMLInputElement).value))"
+                      :min="nestedField.min ?? 100"
+                      :max="nestedField.max ?? 179"
+                      :step="1"
+                      class="w-full accent-autodarts-500"
+                    />
+                  </div>
+                </template>
               </div>
             </div>
 
-            <!-- Sound (optional) -->
-            <MediaUpload
-              v-model="editAnimationForm.sound"
-              label="Sound (optional)"
-              placeholder="URL eingeben oder Sound hochladen"
-              media-type="sound"
-              accept="audio/mpeg,audio/wav,audio/ogg"
-            />
+            <!-- Save Animations Button -->
+            <div class="flex justify-end mt-6 pt-4 border-t border-dark-700">
+              <BaseButton @click="saveConfig" :loading="isSaving">
+                {{ i18n.strings.save }}
+              </BaseButton>
+            </div>
           </div>
 
-          <!-- Actions -->
-          <div class="flex items-center justify-end gap-3 mt-6">
-            <BaseButton
-              variant="ghost"
-              @click="closeAnimationEditor"
-            >
-              Abbrechen
-            </BaseButton>
-            <BaseButton @click="savePlayerAnimationConfig">
-              Speichern
-            </BaseButton>
+          <!-- Info when disabled -->
+          <div v-else class="text-center py-8">
+            <svg class="w-12 h-12 mx-auto text-dark-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-dark-400 mt-3">{{ getConfigDescription('animationsEnabled') }}</p>
           </div>
-        </div>
-      </div>
-    </Teleport>
+        </BaseCard>
+
+        <!-- AI Animation Generator -->
+        <AnimationGenerator
+          v-if="getValue('animationsEnabled')"
+          @animation-ready="onAnimationReady"
+        />
+
+        <!-- Usage Info -->
+        <BaseCard :title="i18n.strings.usage">
+          <div class="space-y-4">
+            <div class="flex items-start gap-4">
+              <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
+                <span class="text-autodarts-400 font-bold">1</span>
+              </div>
+              <div>
+                <p class="text-white font-medium">{{ i18n.strings.step1Title }}</p>
+                <p class="text-dark-400 text-sm mt-1">
+                  {{ i18n.strings.step1Desc }}
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-4">
+              <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
+                <span class="text-autodarts-400 font-bold">2</span>
+              </div>
+              <div>
+                <p class="text-white font-medium">{{ i18n.strings.step2Title }}</p>
+                <p class="text-dark-400 text-sm mt-1">
+                  {{ i18n.strings.step2Desc }}
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-4">
+              <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
+                <span class="text-autodarts-400 font-bold">3</span>
+              </div>
+              <div>
+                <p class="text-white font-medium">{{ i18n.strings.step3Title }}</p>
+                <p class="text-dark-400 text-sm mt-1">
+                  {{ i18n.strings.step3Desc }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </BaseCard>
+      </template>
+    </div>
   </AppLayout>
 </template>

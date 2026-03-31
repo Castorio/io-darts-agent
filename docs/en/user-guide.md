@@ -329,6 +329,23 @@ Configure what shows when no game is running:
 - **Black Screen**: Display goes completely black
 - **Custom Image**: Show your own image
 
+### Match Started Screen
+
+Configure what shows when a match starts:
+- **Default**: Shows default match started animation
+- **Custom Image/GIF**: Display your own image or animated GIF
+
+### Match Results
+
+After a match ends, the display shows a results table with:
+- Chalkboard showing all throws
+- Match statistics (averages, darts thrown, etc.)
+- Final scores
+
+Configure the results display:
+- **Display Duration**: How long to show results (0 = until manually dismissed)
+- **Background Color**: Custom background color for the results screen
+
 ---
 
 ## Darts Caller Module

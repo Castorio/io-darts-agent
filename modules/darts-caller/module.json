@@ -63,38 +63,7 @@
         }
       }
     ],
-    "defaultSubscriptions": [
-      {
-        "intentId": "player.achievement.180",
-        "enabled": true,
-        "action": { "type": "playPhrase", "config": { "phrase": "oneEighty" } }
-      },
-      {
-        "intentId": "player.achievement.171",
-        "enabled": true,
-        "action": { "type": "playPhrase", "config": { "phrase": "oneSeventyOne" } }
-      },
-      {
-        "intentId": "player.achievement.highCheckout",
-        "enabled": true,
-        "action": { "type": "playPhrase", "config": { "phrase": "gameShot" } }
-      },
-      {
-        "intentId": "player.achievement.bust",
-        "enabled": true,
-        "action": { "type": "playPhrase", "config": { "phrase": "bust" } }
-      },
-      {
-        "intentId": "match.milestone.legWon",
-        "enabled": true,
-        "action": { "type": "playPhrase", "config": { "phrase": "gameShot" } }
-      },
-      {
-        "intentId": "match.milestone.ended",
-        "enabled": true,
-        "action": { "type": "playPhrase", "config": { "phrase": "matchShot" } }
-      }
-    ]
+    "defaultSubscriptions": []
   },
   "config": {
     "enabled": {

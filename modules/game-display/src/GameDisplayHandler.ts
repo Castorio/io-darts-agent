@@ -55,6 +55,14 @@ export interface GameDisplayConfig {
   displayName?: string;
   idleMode?: 'black' | 'image' | 'lastGame';
   idleImageUrl?: string;
+  // Match started screen
+  matchStartedMode?: 'default' | 'image';
+  matchStartedImageUrl?: string;
+  matchStartedDuration?: number;
+  gameOnBackgroundColor?: string;
+  // Match results
+  matchResultsDuration?: number;
+  matchResultsBackgroundColor?: string;
   showCheckouts?: boolean;
   checkoutThreshold?: number;
   animationSpeed?: 'slow' | 'normal' | 'fast';

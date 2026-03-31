@@ -142,6 +142,16 @@ export { ConfigService, loadConfigFromEnv } from './core/config/ConfigService.js
 // Module System exports
 export { ModuleProtocol, ModuleBridge, ModuleManager, ModuleInstaller } from './core/modules/index.js';
 
+// Match Status Service exports
+export {
+  MatchStatusService,
+  getMatchStatusService,
+  createMatchStatusService,
+  type MatchStatus,
+  type MatchPlayerStatus,
+  type MatchStatusListener,
+} from './core/match/index.js';
+
 export * from './types/index.js';
 
 // Main entry point

@@ -179,6 +179,8 @@ export default {
     saveIntentReactions: 'Save reactions',
     intentsSaved: 'Reactions saved',
     intentsSaveFailed: 'Failed to save reactions',
+    noIntentsAvailable: 'No intents available',
+    noIntentsAvailableDesc: 'No intents are registered by other modules yet. Start modules that provide intents (e.g. Player Analytics).',
     // Install view
     backToModules: 'Back to Modules',
     installTitle: 'Install Module',

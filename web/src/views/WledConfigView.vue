@@ -31,6 +31,7 @@ interface EventConfig {
   brightness?: number
   speed?: number
   intensity?: number
+  fadeTime?: number // Fade/transition time in seconds (0-10)
   usePlayerColor?: boolean
 }
 
@@ -39,6 +40,15 @@ interface WledConfig {
   wledPort: number
   events: Record<string, EventConfig>
   playerColors?: string[]
+}
+
+// Available intent from other modules
+interface AvailableIntent {
+  id: string
+  description: string
+  category?: string
+  sourceModule: string
+  sourceModuleName: string
 }
 
 const route = useRoute()
@@ -70,24 +80,41 @@ const effects = ref<WledEffect[]>([])
 const isLoadingWledData = ref(false)
 const wledDataError = ref<string | null>(null)
 
-// Fallback effects if WLED is not reachable (common WLED effects)
-const fallbackEffects: WledEffect[] = [
-  { id: 0, name: 'Solid' },
-  { id: 1, name: 'Blink' },
-  { id: 2, name: 'Breathe' },
-  { id: 9, name: 'Rainbow' },
-  { id: 12, name: 'Fade' },
-  { id: 17, name: 'Twinkle' },
-  { id: 20, name: 'Sparkle' },
-  { id: 23, name: 'Strobe' },
-  { id: 43, name: 'Gradient' },
-  { id: 52, name: 'Fire 2012' },
-  { id: 53, name: 'Colorwaves' },
-  { id: 62, name: 'Meteor' },
-  { id: 65, name: 'Ripple' },
-  { id: 82, name: 'Fireworks' },
-  { id: 83, name: 'Fireworks Starburst' },
-]
+// Fallback effects from module.json (loaded dynamically)
+const fallbackEffects = computed<WledEffect[]>(() => {
+  return (module.value?.effects as WledEffect[]) || []
+})
+
+// Available intents from other modules
+const availableIntents = ref<AvailableIntent[]>([])
+const isLoadingIntents = ref(false)
+
+/**
+ * Load available intents from all modules
+ */
+async function loadAvailableIntents() {
+  isLoadingIntents.value = true
+  try {
+    const response = await fetch('/api/intents/available')
+    const data = await response.json()
+    if (data.success && data.intents) {
+      availableIntents.value = data.intents
+      console.log(`Loaded ${availableIntents.value.length} available intents`)
+
+      // Initialize event configs for intents
+      for (const intent of availableIntents.value) {
+        const intentKey = `intent:${intent.id}`
+        if (!eventConfigs.value[intentKey]) {
+          eventConfigs.value[intentKey] = { actionType: 'none' }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load available intents:', e)
+  } finally {
+    isLoadingIntents.value = false
+  }
+}
 
 /**
  * Load presets and effects from WLED device
@@ -117,57 +144,101 @@ async function loadWledData() {
       console.log(`Loaded ${effects.value.length} effects from WLED`)
     } else {
       // Use fallback effects
-      effects.value = fallbackEffects
+      effects.value = fallbackEffects.value
       console.warn('Using fallback effects:', effectsResponse.error)
     }
   } catch (e) {
     wledDataError.value = e instanceof Error ? e.message : 'Fehler beim Laden der WLED-Daten'
     // Use fallback effects
-    effects.value = fallbackEffects
+    effects.value = fallbackEffects.value
   } finally {
     isLoadingWledData.value = false
   }
 }
 
-// Event configurations - Autodarts events
-const eventConfigs = ref<Record<string, EventConfig>>({
-  'match.started': { actionType: 'preset', presetId: 2 },
-  'match.finished': { actionType: 'preset', presetId: 5 },
-  'match.deleted': { actionType: 'solid', color1: '#333333', brightness: 50 },
-  'turn.started': { actionType: 'none' },
-  'turn.finished': { actionType: 'none' },
-  'throw.detected': { actionType: 'effect', effectId: 1, color1: '#22c55e', speed: 200 },
-  'throw.triple': { actionType: 'effect', effectId: 7, color1: '#8b5cf6', speed: 150 },
-  'throw.double': { actionType: 'effect', effectId: 18, color1: '#f59e0b', speed: 180 },
-  'throw.bull': { actionType: 'effect', effectId: 20, color1: '#ef4444', speed: 200 },
-  'throw.bullseye': { actionType: 'effect', effectId: 40, color1: '#ef4444', color2: '#f59e0b', speed: 255 },
-  'throw.180': { actionType: 'preset', presetId: 3 },
-  'throw.highfinish': { actionType: 'effect', effectId: 40, color1: '#22c55e', color2: '#f59e0b', speed: 200 },
-  'throw.miss': { actionType: 'solid', color1: '#ef4444', brightness: 100 },
-  'player.changed': { actionType: 'effect', effectId: 3, color1: '#3b82f6', speed: 100 },
-  'takeout.started': { actionType: 'solid', color1: '#333333', brightness: 30 },
-  'takeout.finished': { actionType: 'solid', color1: '#22c55e', brightness: 200 },
+// Event configurations - starts empty, loaded from module config
+const eventConfigs = ref<Record<string, EventConfig>>({})
+
+// Current language for i18n
+const currentLang = computed(() => {
+  // Try to get browser language, fallback to 'de'
+  const browserLang = navigator.language.split('-')[0]
+  return ['de', 'en', 'es'].includes(browserLang) ? browserLang : 'de'
 })
 
-// Event metadata for display
-const eventMeta: Record<string, { label: string; description: string }> = {
-  'match.started': { label: 'Match gestartet', description: 'Wird ausgelöst wenn ein neues Match beginnt' },
-  'match.finished': { label: 'Match beendet', description: 'Wird ausgelöst wenn ein Match zu Ende ist' },
-  'match.deleted': { label: 'Match abgebrochen', description: 'Wird ausgelöst wenn ein Match abgebrochen wird' },
-  'turn.started': { label: 'Aufnahme gestartet', description: 'Ein Spieler beginnt seine Aufnahme' },
-  'turn.finished': { label: 'Aufnahme beendet', description: 'Ein Spieler beendet seine Aufnahme' },
-  'throw.detected': { label: 'Wurf erkannt', description: 'Ein normaler Wurf wurde erkannt' },
-  'throw.triple': { label: 'Triple getroffen', description: 'Ein Triple-Feld wurde getroffen' },
-  'throw.double': { label: 'Double getroffen', description: 'Ein Double-Feld wurde getroffen' },
-  'throw.bull': { label: 'Single Bull', description: 'Das äußere Bull wurde getroffen (25)' },
-  'throw.bullseye': { label: 'Bullseye!', description: 'Das Bullseye wurde getroffen (50)' },
-  'throw.180': { label: '180!', description: 'Eine perfekte 180 wurde geworfen' },
-  'throw.highfinish': { label: 'High Finish', description: 'Ein Checkout über 100 Punkte' },
-  'throw.miss': { label: 'Fehlwurf', description: 'Die Scheibe wurde verfehlt' },
-  'player.changed': { label: 'Spielerwechsel', description: 'Der aktive Spieler hat gewechselt' },
-  'takeout.started': { label: 'Pfeile ziehen', description: 'Die Pfeile werden aus der Scheibe gezogen' },
-  'takeout.finished': { label: 'Pfeile gezogen', description: 'Die Pfeile wurden aus der Scheibe gezogen' },
+// i18n translations from module.json
+const i18n = computed(() => {
+  const translations = module.value?.i18n as Record<string, {
+    name?: string
+    description?: string
+    config?: Record<string, { label?: string; description?: string }>
+    strings?: Record<string, string>
+  }> | undefined
+
+  const lang = currentLang.value
+  const t = translations?.[lang] || translations?.['en'] || {}
+
+  return {
+    // Module info
+    name: t.name || module.value?.name || 'WLED Modul',
+    description: t.description || module.value?.description || '',
+
+    // Config fields
+    config: t.config || {},
+
+    // UI strings with defaults
+    strings: {
+      connectionSuccess: t.strings?.connectionSuccess || 'Successfully connected to WLED!',
+      connectionFailed: t.strings?.connectionFailed || 'Failed to connect to WLED',
+      testConnection: t.strings?.testConnection || 'Test Connection',
+      eventActions: t.strings?.eventActions || 'Event Actions',
+      playerColors: t.strings?.playerColors || 'Player Colors',
+      // Additional strings with multi-language defaults
+      backToModules: lang === 'de' ? 'Zurück zu Module' : lang === 'es' ? 'Volver a Módulos' : 'Back to Modules',
+      wledConnection: lang === 'de' ? 'WLED Verbindung' : lang === 'es' ? 'Conexión WLED' : 'WLED Connection',
+      wledConnectionDesc: lang === 'de' ? 'Konfigurieren Sie die Verbindung zu Ihrem WLED Controller' : lang === 'es' ? 'Configure la conexión a su controlador WLED' : 'Configure the connection to your WLED controller',
+      connected: lang === 'de' ? 'Verbunden' : lang === 'es' ? 'Conectado' : 'Connected',
+      notConnected: lang === 'de' ? 'Nicht verbunden' : lang === 'es' ? 'No conectado' : 'Not connected',
+      connect: lang === 'de' ? 'Verbinden' : lang === 'es' ? 'Conectar' : 'Connect',
+      reconnect: lang === 'de' ? 'Neu verbinden' : lang === 'es' ? 'Reconectar' : 'Reconnect',
+      presetsEffectsAvailable: lang === 'de' ? 'Presets, Effekte verfügbar' : lang === 'es' ? 'Presets, efectos disponibles' : 'presets, effects available',
+      playerColorsDesc: lang === 'de' ? 'Definieren Sie Farben für bis zu 6 Spieler (werden verwendet wenn \'Spielerfarbe verwenden\' aktiviert ist)' : lang === 'es' ? 'Defina colores para hasta 6 jugadores' : 'Define colors for up to 6 players (used when \'Use player color\' is enabled)',
+      playerColorsInfo: lang === 'de' ? 'Diese Farben werden verwendet, wenn bei einem Event die Aktion "Spielerfarbe" gewählt wird. Bei einem Spielerwechsel wird die LED-Farbe entsprechend dem aktuellen Spieler gesetzt.' : lang === 'es' ? 'Estos colores se usan cuando se selecciona la acción "Color del jugador".' : 'These colors are used when "Player color" action is selected. On player change, the LED color will be set according to the current player.',
+      player: lang === 'de' ? 'Spieler' : lang === 'es' ? 'Jugador' : 'Player',
+      testPlayerColors: lang === 'de' ? 'Spielerfarben testen:' : lang === 'es' ? 'Probar colores de jugadores:' : 'Test player colors:',
+      eventActionsDesc: lang === 'de' ? 'Konfigurieren Sie die WLED-Aktion für jedes Autodarts-Event' : lang === 'es' ? 'Configure la acción WLED para cada evento de Autodarts' : 'Configure the WLED action for each Autodarts event',
+      saveConfig: lang === 'de' ? 'Konfiguration speichern' : lang === 'es' ? 'Guardar configuración' : 'Save Configuration',
+      configSaved: lang === 'de' ? 'Konfiguration gespeichert' : lang === 'es' ? 'Configuración guardada' : 'Configuration saved',
+      saveError: lang === 'de' ? 'Fehler beim Speichern' : lang === 'es' ? 'Error al guardar' : 'Error saving',
+      quickActions: lang === 'de' ? 'Schnellaktionen' : lang === 'es' ? 'Acciones Rápidas' : 'Quick Actions',
+      rainbowTest: lang === 'de' ? 'Rainbow Test' : lang === 'es' ? 'Prueba Arcoíris' : 'Rainbow Test',
+      ledsOff: lang === 'de' ? 'LEDs aus' : lang === 'es' ? 'LEDs apagados' : 'LEDs off',
+      green: lang === 'de' ? 'Grün' : lang === 'es' ? 'Verde' : 'Green',
+      red: lang === 'de' ? 'Rot' : lang === 'es' ? 'Rojo' : 'Red',
+      start: lang === 'de' ? 'Starten' : lang === 'es' ? 'Iniciar' : 'Start',
+      stop: lang === 'de' ? 'Stoppen' : lang === 'es' ? 'Detener' : 'Stop',
+      loadingIntents: lang === 'de' ? 'Lade Modul-Intents...' : lang === 'es' ? 'Cargando intents de módulos...' : 'Loading module intents...',
+    }
+  }
+})
+
+// Get translated config field label/description
+const getConfigLabel = (fieldKey: string) => {
+  return i18n.value.config[fieldKey]?.label || fieldKey
 }
+// Event metadata from module.json (with i18n support)
+const eventMeta = computed<Record<string, { label: string; description: string }>>(() => {
+  const meta = module.value?.eventMeta as Record<string, { label: Record<string, string>; description: Record<string, string> }> || {}
+  const result: Record<string, { label: string; description: string }> = {}
+
+  for (const [key, value] of Object.entries(meta)) {
+    result[key] = {
+      label: value.label?.[currentLang.value] || value.label?.['en'] || key,
+      description: value.description?.[currentLang.value] || value.description?.['en'] || ''
+    }
+  }
+  return result
+})
 
 // Saving state
 const isSaving = ref(false)
@@ -176,25 +247,55 @@ const saveMessage = ref<{ type: 'success' | 'error'; text: string } | null>(null
 // Action loading
 const actionLoading = ref(false)
 
-// Group events by category
-const eventGroups = computed(() => [
-  {
-    title: 'Match Events',
-    events: ['match.started', 'match.finished', 'match.deleted'],
+// Event groups from module.json (with i18n support)
+const eventGroups = computed(() => {
+  const groups = module.value?.eventGroups as Array<{ title: Record<string, string>; events: string[] }> || []
+  return groups.map(group => ({
+    title: group.title?.[currentLang.value] || group.title?.['en'] || 'Events',
+    events: group.events || []
+  }))
+})
+
+// Intent group (dynamically loaded from other modules)
+const intentGroup = computed(() => {
+  if (availableIntents.value.length === 0) return null
+
+  // Group intents by source module
+  const intentsByModule = new Map<string, AvailableIntent[]>()
+  for (const intent of availableIntents.value) {
+    const existing = intentsByModule.get(intent.sourceModuleName) || []
+    existing.push(intent)
+    intentsByModule.set(intent.sourceModuleName, existing)
+  }
+
+  return {
+    title: currentLang.value === 'de' ? 'Modul-Intents' : currentLang.value === 'es' ? 'Intents de Módulos' : 'Module Intents',
+    subtitle: currentLang.value === 'de'
+      ? 'Reagiere auf Ereignisse von anderen Modulen'
+      : currentLang.value === 'es'
+      ? 'Reaccionar a eventos de otros módulos'
+      : 'React to events from other modules',
+    intents: availableIntents.value,
+    intentsByModule
+  }
+})
+
+// Initialize event configs for all events from eventGroups
+watch(
+  () => module.value?.eventGroups,
+  (groups) => {
+    if (groups && Array.isArray(groups)) {
+      const allEvents = (groups as Array<{ events: string[] }>).flatMap(g => g.events || [])
+      for (const eventName of allEvents) {
+        if (!eventConfigs.value[eventName]) {
+          // Initialize with default 'none' action
+          eventConfigs.value[eventName] = { actionType: 'none' }
+        }
+      }
+    }
   },
-  {
-    title: 'Wurf Events',
-    events: ['throw.detected', 'throw.triple', 'throw.double', 'throw.bull', 'throw.bullseye', 'throw.180', 'throw.highfinish', 'throw.miss'],
-  },
-  {
-    title: 'Spieler Events',
-    events: ['player.changed', 'turn.started', 'turn.finished'],
-  },
-  {
-    title: 'Board Events',
-    events: ['takeout.started', 'takeout.finished'],
-  },
-])
+  { immediate: true }
+)
 
 // Load config from module
 watch(
@@ -204,6 +305,7 @@ watch(
       wledHost.value = (values.wledHost as string) || ''
       wledPort.value = (values.wledPort as number) || 80
       if (values.events) {
+        // Merge saved events with initialized events
         eventConfigs.value = { ...eventConfigs.value, ...(values.events as Record<string, EventConfig>) }
       }
       if (values.playerColors && Array.isArray(values.playerColors)) {
@@ -233,8 +335,8 @@ async function connectToWled() {
   } catch (e) {
     connectionError.value = e instanceof Error ? e.message : 'Verbindung fehlgeschlagen'
     isConnected.value = false
-    // Use fallback effects even if connection fails
-    effects.value = fallbackEffects
+    // Use fallback effects from module.json if connection fails
+    effects.value = fallbackEffects.value
   } finally {
     isConnecting.value = false
   }
@@ -255,14 +357,14 @@ async function saveConfig() {
     }
 
     await modulesStore.updateConfig(module.value.id, config as unknown as Record<string, unknown>)
-    saveMessage.value = { type: 'success', text: 'Konfiguration gespeichert' }
+    saveMessage.value = { type: 'success', text: i18n.value.strings.configSaved }
     setTimeout(() => {
       saveMessage.value = null
     }, 3000)
   } catch (e) {
     saveMessage.value = {
       type: 'error',
-      text: e instanceof Error ? e.message : 'Fehler beim Speichern',
+      text: e instanceof Error ? e.message : i18n.value.strings.saveError,
     }
   } finally {
     isSaving.value = false
@@ -271,7 +373,7 @@ async function saveConfig() {
 
 async function testEvent(_eventName: string, config: EventConfig) {
   if (!wledHost.value) {
-    alert('Bitte erst WLED IP-Adresse eingeben')
+    alert(currentLang.value === 'de' ? 'Bitte erst WLED IP-Adresse eingeben' : currentLang.value === 'es' ? 'Por favor, ingrese primero la dirección IP de WLED' : 'Please enter WLED IP address first')
     return
   }
 
@@ -311,10 +413,14 @@ async function testEvent(_eventName: string, config: EventConfig) {
     )
 
     if (!response.success) {
-      alert('Fehler: ' + (response.error || 'Unbekannter Fehler'))
+      const errorLabel = currentLang.value === 'de' ? 'Fehler' : currentLang.value === 'es' ? 'Error' : 'Error'
+      const unknownError = currentLang.value === 'de' ? 'Unbekannter Fehler' : currentLang.value === 'es' ? 'Error desconocido' : 'Unknown error'
+      alert(errorLabel + ': ' + (response.error || unknownError))
     }
   } catch (e) {
-    alert('Test fehlgeschlagen: ' + (e instanceof Error ? e.message : 'Unbekannter Fehler'))
+    const testFailed = currentLang.value === 'de' ? 'Test fehlgeschlagen' : currentLang.value === 'es' ? 'Prueba fallida' : 'Test failed'
+    const unknownError = currentLang.value === 'de' ? 'Unbekannter Fehler' : currentLang.value === 'es' ? 'Error desconocido' : 'Unknown error'
+    alert(testFailed + ': ' + (e instanceof Error ? e.message : unknownError))
   }
 }
 
@@ -338,8 +444,10 @@ async function stopModule() {
   }
 }
 
-onMounted(() => {
-  modulesStore.fetchModule(moduleId.value)
+onMounted(async () => {
+  await modulesStore.fetchModule(moduleId.value)
+  // Load available intents from other modules
+  await loadAvailableIntents()
 })
 </script>
 
@@ -354,7 +462,7 @@ onMounted(() => {
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
-        Zurück zu Module
+        {{ i18n.strings.backToModules }}
       </router-link>
 
       <!-- Loading State -->
@@ -388,10 +496,10 @@ onMounted(() => {
             </div>
             <div>
               <div class="flex items-center gap-3">
-                <h1 class="text-2xl font-bold text-white">WLED Modul</h1>
+                <h1 class="text-2xl font-bold text-white">{{ i18n.name }}</h1>
                 <StatusBadge :status="module.status" />
               </div>
-              <p class="text-dark-400 mt-1">Steuerung von WLED LED-Strips basierend auf Autodarts-Events</p>
+              <p class="text-dark-400 mt-1">{{ i18n.description }}</p>
             </div>
           </div>
 
@@ -403,31 +511,31 @@ onMounted(() => {
               :loading="actionLoading"
               @click="stopModule"
             >
-              Stoppen
+              {{ i18n.strings.stop }}
             </BaseButton>
             <BaseButton
               v-else
               :loading="actionLoading"
               @click="startModule"
             >
-              Starten
+              {{ i18n.strings.start }}
             </BaseButton>
           </div>
         </div>
 
         <!-- Connection Settings -->
-        <BaseCard title="WLED Verbindung" subtitle="Konfigurieren Sie die Verbindung zu Ihrem WLED Controller">
+        <BaseCard :title="i18n.strings.wledConnection" :subtitle="i18n.strings.wledConnectionDesc">
           <div class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div class="md:col-span-2">
                 <BaseInput
                   v-model="wledHost"
-                  label="WLED IP-Adresse / Hostname"
-                  placeholder="192.168.1.100 oder wled.local"
+                  :label="getConfigLabel('wledHost')"
+                  placeholder="192.168.1.100"
                 />
               </div>
               <div>
-                <label class="block text-sm font-medium text-dark-200 mb-1">Port</label>
+                <label class="block text-sm font-medium text-dark-200 mb-1">{{ getConfigLabel('wledPort') }}</label>
                 <input
                   type="number"
                   v-model.number="wledPort"
@@ -449,11 +557,11 @@ onMounted(() => {
                 />
                 <div>
                   <p class="text-white font-medium">
-                    {{ isConnected ? 'Verbunden' : 'Nicht verbunden' }}
+                    {{ isConnected ? i18n.strings.connected : i18n.strings.notConnected }}
                   </p>
                   <p v-if="connectionError" class="text-sm text-red-400">{{ connectionError }}</p>
                   <p v-else-if="isConnected" class="text-sm text-dark-400">
-                    {{ presets.length }} Presets, {{ effects.length }} Effekte verfügbar
+                    {{ presets.length }} Presets, {{ effects.length }} {{ i18n.strings.presetsEffectsAvailable }}
                   </p>
                 </div>
               </div>
@@ -464,18 +572,17 @@ onMounted(() => {
                 :disabled="!wledHost"
                 @click="connectToWled"
               >
-                {{ isConnected ? 'Neu verbinden' : 'Verbinden' }}
+                {{ isConnected ? i18n.strings.reconnect : i18n.strings.connect }}
               </BaseButton>
             </div>
           </div>
         </BaseCard>
 
         <!-- Player Colors Configuration -->
-        <BaseCard title="Spielerfarben" subtitle="Definieren Sie Farben für bis zu 6 Spieler (werden verwendet wenn 'Spielerfarbe verwenden' aktiviert ist)">
+        <BaseCard :title="i18n.strings.playerColors" :subtitle="i18n.strings.playerColorsDesc">
           <div class="space-y-4">
             <p class="text-sm text-dark-400">
-              Diese Farben werden verwendet, wenn bei einem Event die Aktion "Spielerfarbe" gewählt wird.
-              Bei einem Spielerwechsel wird die LED-Farbe entsprechend dem aktuellen Spieler gesetzt.
+              {{ i18n.strings.playerColorsInfo }}
             </p>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div
@@ -484,7 +591,7 @@ onMounted(() => {
                 class="space-y-2"
               >
                 <label class="block text-sm font-medium text-dark-200">
-                  Spieler {{ index + 1 }}
+                  {{ i18n.strings.player }} {{ index + 1 }}
                 </label>
                 <div class="flex items-center gap-2">
                   <input
@@ -511,7 +618,7 @@ onMounted(() => {
 
             <!-- Test Player Colors -->
             <div class="pt-4 border-t border-dark-700">
-              <p class="text-sm text-dark-400 mb-3">Spielerfarben testen:</p>
+              <p class="text-sm text-dark-400 mb-3">{{ i18n.strings.testPlayerColors }}</p>
               <div class="flex flex-wrap gap-2">
                 <button
                   v-for="(color, index) in playerColors"
@@ -520,7 +627,7 @@ onMounted(() => {
                   :style="{ backgroundColor: color }"
                   @click="testEvent(`player.${index}`, { actionType: 'solid', color1: color, brightness: 255 })"
                 >
-                  Spieler {{ index + 1 }}
+                  {{ i18n.strings.player }} {{ index + 1 }}
                 </button>
               </div>
             </div>
@@ -528,7 +635,7 @@ onMounted(() => {
         </BaseCard>
 
         <!-- Event Configuration -->
-        <BaseCard title="Event-Aktionen" subtitle="Konfigurieren Sie die WLED-Aktion für jedes Autodarts-Event">
+        <BaseCard :title="i18n.strings.eventActions" :subtitle="i18n.strings.eventActionsDesc">
           <div class="space-y-6">
             <div v-for="group in eventGroups" :key="group.title" class="space-y-3">
               <h3 class="text-sm font-medium text-dark-300 uppercase tracking-wider">
@@ -548,6 +655,44 @@ onMounted(() => {
                 />
               </div>
             </div>
+
+            <!-- Module Intents Section -->
+            <div v-if="intentGroup && intentGroup.intents.length > 0" class="space-y-3 pt-4 border-t border-dark-700">
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm font-medium text-dark-300 uppercase tracking-wider">
+                  {{ intentGroup.title }}
+                </h3>
+                <span class="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-400">
+                  {{ intentGroup.intents.length }}
+                </span>
+              </div>
+              <p class="text-xs text-dark-400">{{ intentGroup.subtitle }}</p>
+
+              <!-- Group by source module -->
+              <div v-for="[moduleName, intents] in intentGroup.intentsByModule" :key="moduleName" class="space-y-2">
+                <p class="text-xs text-dark-500 font-medium pl-2">{{ moduleName }}</p>
+                <WledEventConfig
+                  v-for="intent in intents"
+                  :key="`intent:${intent.id}`"
+                  :event-name="`intent:${intent.id}`"
+                  :event-label="intent.id"
+                  :event-description="intent.description"
+                  v-model="eventConfigs[`intent:${intent.id}`]"
+                  :presets="presets"
+                  :effects="effects"
+                  @test="testEvent"
+                />
+              </div>
+            </div>
+
+            <!-- Loading intents indicator -->
+            <div v-else-if="isLoadingIntents" class="flex items-center gap-2 text-dark-400 text-sm py-4">
+              <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              {{ i18n.strings.loadingIntents }}
+            </div>
           </div>
 
           <template #footer>
@@ -565,14 +710,14 @@ onMounted(() => {
               <div v-else />
 
               <BaseButton :loading="isSaving" @click="saveConfig">
-                Konfiguration speichern
+                {{ i18n.strings.saveConfig }}
               </BaseButton>
             </div>
           </template>
         </BaseCard>
 
         <!-- Quick Actions -->
-        <BaseCard title="Schnellaktionen">
+        <BaseCard :title="i18n.strings.quickActions">
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <button
               class="p-4 rounded-lg bg-dark-700/50 hover:bg-dark-700 transition-colors text-center"
@@ -581,7 +726,7 @@ onMounted(() => {
               <svg class="w-8 h-8 mx-auto text-purple-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
-              <span class="text-sm text-white">Rainbow Test</span>
+              <span class="text-sm text-white">{{ i18n.strings.rainbowTest }}</span>
             </button>
             <button
               class="p-4 rounded-lg bg-dark-700/50 hover:bg-dark-700 transition-colors text-center"
@@ -590,7 +735,7 @@ onMounted(() => {
               <svg class="w-8 h-8 mx-auto text-dark-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
               </svg>
-              <span class="text-sm text-white">LEDs aus</span>
+              <span class="text-sm text-white">{{ i18n.strings.ledsOff }}</span>
             </button>
             <button
               class="p-4 rounded-lg bg-dark-700/50 hover:bg-dark-700 transition-colors text-center"
@@ -599,7 +744,7 @@ onMounted(() => {
               <svg class="w-8 h-8 mx-auto text-green-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
-              <span class="text-sm text-white">Grün</span>
+              <span class="text-sm text-white">{{ i18n.strings.green }}</span>
             </button>
             <button
               class="p-4 rounded-lg bg-dark-700/50 hover:bg-dark-700 transition-colors text-center"
@@ -608,7 +753,7 @@ onMounted(() => {
               <svg class="w-8 h-8 mx-auto text-red-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
-              <span class="text-sm text-white">Rot</span>
+              <span class="text-sm text-white">{{ i18n.strings.red }}</span>
             </button>
           </div>
         </BaseCard>

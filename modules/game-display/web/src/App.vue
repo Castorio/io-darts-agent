@@ -28,6 +28,13 @@ const turnScore = computed(() => store.turnScore)
 const remainingScore = computed(() => store.remainingScore)
 const isBusted = computed(() => store.isBusted)
 
+// Match started state
+const isMatchStarted = computed(() => store.isMatchStarted)
+
+// Match results state
+const showMatchResults = computed(() => store.showMatchResults)
+const matchResults = computed(() => store.matchResults)
+
 // Player color with fallback
 const playerColor = computed(() => {
   return activePlayer.value?.color || '#3b82f6'
@@ -165,9 +172,183 @@ onUnmounted(() => {
         {{ isDemo ? t('demo.stop') : t('demo.start') }}
       </button>
 
+      <!-- Match Started State - waiting for first throw -->
+      <div
+        v-if="isMatchStarted && !gameState.isActive"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        :style="{ backgroundColor: config.matchStartedMode === 'default' ? (config.gameOnBackgroundColor || '#0a0a0f') : 'transparent' }"
+      >
+        <!-- Mode: Default "Game On!" screen -->
+        <div v-if="config.matchStartedMode === 'default'" class="text-center">
+          <div class="relative">
+            <!-- Animated glow -->
+            <div class="absolute inset-0 blur-3xl opacity-60 bg-green-500 animate-pulse" />
+            <!-- Main text -->
+            <h1 class="relative text-[8rem] lg:text-[14rem] font-black text-white uppercase tracking-tight"
+                style="text-shadow: 0 0 100px rgba(34, 197, 94, 0.6);">
+              {{ t('game.gameOn') }}
+            </h1>
+          </div>
+          <p class="text-white/50 text-2xl mt-6 animate-pulse">{{ t('game.waitingForFirstThrow') }}</p>
+        </div>
+
+        <!-- Mode: Custom Image/GIF -->
+        <div v-else-if="config.matchStartedMode === 'image' && config.matchStartedImageUrl" class="fixed inset-0 z-50 flex items-center justify-center bg-black">
+          <img
+            :src="config.matchStartedImageUrl"
+            alt="Match Started"
+            class="max-w-full max-h-full object-contain"
+            @error="(e: Event) => (e.target as HTMLImageElement).style.display = 'none'"
+          />
+          <p class="absolute bottom-10 text-white/50 text-xl animate-pulse">{{ t('game.waitingForFirstThrow') }}</p>
+        </div>
+
+        <!-- Fallback to default -->
+        <div v-else class="text-center">
+          <div class="relative">
+            <div class="absolute inset-0 blur-3xl opacity-60 bg-green-500 animate-pulse" />
+            <h1 class="relative text-[8rem] lg:text-[14rem] font-black text-white uppercase tracking-tight"
+                style="text-shadow: 0 0 100px rgba(34, 197, 94, 0.6);">
+              {{ t('game.gameOn') }}
+            </h1>
+          </div>
+          <p class="text-white/50 text-2xl mt-6 animate-pulse">{{ t('game.waitingForFirstThrow') }}</p>
+        </div>
+      </div>
+      <!-- End Match Started overlay -->
+
+      <!-- Match Results Table -->
+      <div
+        v-else-if="showMatchResults && matchResults"
+        class="fixed inset-0 z-40 flex flex-col items-center justify-center p-8"
+        :style="{ backgroundColor: config.matchResultsBackgroundColor }"
+      >
+        <!-- Header -->
+        <div class="text-center mb-8">
+          <h1 class="text-4xl lg:text-6xl font-bold text-white uppercase tracking-tight mb-4">
+            {{ t('game.matchResults') }}
+          </h1>
+          <div
+            v-if="matchResults.winner !== null && gameState.players[matchResults.winner]"
+            class="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"
+          >
+            <svg class="w-6 h-6 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+            </svg>
+            <span class="text-2xl font-bold text-yellow-400">
+              {{ gameState.players[matchResults.winner].name }}
+            </span>
+            <span class="text-lg text-yellow-400/70">{{ t('game.winner') }}</span>
+          </div>
+        </div>
+
+        <!-- Results Table Grid -->
+        <div class="w-full max-w-6xl grid gap-8" :class="matchResults.chalkboards.length === 2 ? 'grid-cols-2' : 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-3'">
+          <div
+            v-for="(board, boardIndex) in matchResults.chalkboards"
+            :key="boardIndex"
+            class="bg-white/5 border rounded-2xl overflow-hidden transition-all"
+            :class="matchResults.winner === boardIndex ? 'border-yellow-500/50 ring-2 ring-yellow-500/30' : 'border-white/10'"
+          >
+            <!-- Player Header -->
+            <div
+              class="px-6 py-4 border-b border-white/10 flex items-center justify-between"
+              :style="{ backgroundColor: gameState.players[boardIndex]?.color + '20' }"
+            >
+              <div class="flex items-center gap-3">
+                <div
+                  class="w-4 h-4 rounded-full"
+                  :style="{ backgroundColor: gameState.players[boardIndex]?.color || '#3b82f6' }"
+                />
+                <span class="text-xl font-bold text-white uppercase">
+                  {{ gameState.players[boardIndex]?.name || `Player ${boardIndex + 1}` }}
+                </span>
+                <span
+                  v-if="matchResults.winner === boardIndex"
+                  class="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-xs font-bold uppercase"
+                >
+                  {{ t('game.winner') }}
+                </span>
+              </div>
+              <!-- Stats -->
+              <div v-if="matchResults.stats[boardIndex]" class="flex items-center gap-4 text-sm text-white/60">
+                <span v-if="matchResults.stats[boardIndex].average">
+                  Ø {{ matchResults.stats[boardIndex].average?.toFixed(1) }}
+                </span>
+                <span v-if="matchResults.stats[boardIndex].highestCheckout">
+                  HCO: {{ matchResults.stats[boardIndex].highestCheckout }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Chalkboard Rows -->
+            <div class="overflow-y-auto max-h-[400px]">
+              <table class="w-full">
+                <thead class="sticky top-0 bg-dark-900/95 backdrop-blur">
+                  <tr class="text-sm text-white/50 uppercase tracking-wider">
+                    <th class="px-4 py-2 text-left w-16">{{ t('game.round') }}</th>
+                    <th class="px-4 py-2 text-center">{{ t('game.points') }}</th>
+                    <th class="px-4 py-2 text-right">{{ t('game.remaining') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in board.rows"
+                    :key="row.round"
+                    class="border-t border-white/5 hover:bg-white/5 transition-colors"
+                  >
+                    <td class="px-4 py-2 text-white/50 text-sm">{{ row.round }}</td>
+                    <td
+                      class="px-4 py-2 text-center text-xl font-semibold"
+                      :class="row.isPointsStruck ? 'text-red-400 line-through' : 'text-white'"
+                    >
+                      {{ row.points }}
+                    </td>
+                    <td
+                      class="px-4 py-2 text-right text-lg font-medium"
+                      :class="row.isScoreStruck ? 'text-red-400 line-through' : row.score === 0 ? 'text-green-400' : 'text-white/80'"
+                    >
+                      {{ row.score }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Stats Footer -->
+            <div
+              v-if="matchResults.stats && matchResults.stats[boardIndex]"
+              class="px-6 py-3 border-t border-white/10 bg-white/5 grid grid-cols-3 gap-4 text-center"
+            >
+              <div>
+                <p class="text-xs text-white/40 uppercase">{{ t('game.average') }}</p>
+                <p class="text-lg font-bold text-white">
+                  {{ matchResults.stats[boardIndex]?.average?.toFixed(1) || '-' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-white/40 uppercase">{{ t('game.darts') }}</p>
+                <p class="text-lg font-bold text-white">
+                  {{ matchResults.stats[boardIndex]?.dartsThrown || '-' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-white/40 uppercase">{{ t('game.checkout') }}</p>
+                <p class="text-lg font-bold text-white">
+                  {{ (matchResults.stats[boardIndex]?.checkoutPercent ?? 0) > 0 ? matchResults.stats[boardIndex]?.checkoutPercent?.toFixed(0) + '%' : '-' }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Continue hint -->
+        <p class="text-white/30 mt-8 text-sm">{{ t('game.waitingForNextGame') }}</p>
+      </div>
+
       <!-- Waiting State / Idle Mode -->
       <div
-        v-if="!gameState.isActive"
+        v-else-if="!gameState.isActive"
         class="flex-1 flex items-center justify-center"
       >
         <!-- Mode: Black Screen -->

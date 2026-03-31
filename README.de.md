@@ -48,8 +48,8 @@ Lade das passende Paket für dein System herunter:
 
 | Modul | Beschreibung |
 |-------|-------------|
-| **WLED Lichtsteuerung** | Steuert WLED-kompatible LED-Strips basierend auf Spielereignissen. Spielerfarben, Spezialeffekte für 180er, Triples, Bulls und mehr. Unterstützt Presets, Effekte und konfigurierbare Übergangszeiten. |
-| **Game Display** | Zeigt Spielstand auf externen Displays/Tablets in Echtzeit an. Checkout-Vorschläge, Spielerfarben, Animationen für besondere Events. |
+| **WLED Lichtsteuerung** | Steuert WLED-kompatible LED-Strips basierend auf Spielereignissen. Spielerfarben, Spezialeffekte für 180er, Triples, Bulls und mehr. Unterstützt Presets, Effekte, konfigurierbare Übergangszeiten und Intent-Aktionen. |
+| **Game Display** | Zeigt Spielstand auf externen Displays/Tablets in Echtzeit an. Checkout-Vorschläge, Spielerfarben, Animationen, Match-Start-Bildschirm und Ergebnistabelle mit Statistiken. |
 | **Darts Caller** | Professioneller Darts-Caller mit TTS oder eigenen Audio-Packs. Ansagen für Scores, Checkouts, Spielerwechsel und besondere Events. Inkl. Voice Pack Generator mit ElevenLabs-Integration. |
 
 ### Modul-Features
@@ -60,7 +60,9 @@ Lade das passende Paket für dein System herunter:
 - Temporäre Effekte mit Dauer und Übergangszeit (Fade)
 - Unterstützung für Presets, Effekte, Solid-Farben
 - Multi-Color-Effekte (bis zu 3 Farben)
-- Einzelspieler-Modus-Unterstützung
+- Einzelspieler-Modus-Unterstützung (takeout.finished wendet Spielerfarbe an)
+- Intent-System-Unterstützung für Modul-zu-Modul-Kommunikation
+- Automatische Spielerfarben-Wiederherstellung nach Event-Animationen
 
 #### Game Display
 - Echtzeit-Score-Updates
@@ -70,6 +72,10 @@ Lade das passende Paket für dein System herunter:
 - Multi-Spieler-Übersicht
 - Demo-Modus zum Testen
 - Eigene Animationen pro Event und Spieler
+- Match-Start-Bildschirm (konfigurierbar: Standard oder eigenes Bild/GIF)
+- Match-Ergebnistabelle mit Chalkboard und Statistiken
+- Konfigurierbare Anzeigedauer der Ergebnisse (automatisch ausblenden oder manuell)
+- Konfigurierbare Hintergrundfarben
 
 #### Darts Caller
 - Score-Ansagen nach jeder Aufnahme
@@ -97,7 +103,9 @@ Der Agent verarbeitet folgende Autodarts Events:
 | Event | Beschreibung |
 |-------|-------------|
 | `match.start` | Match wurde gestartet |
-| `match.finished` | Match wurde beendet |
+| `match.finished` | Match wurde beendet (Gewinner ermittelt) |
+| `match.finish` | Match wurde geschlossen (Benutzer hat "Beenden" geklickt) |
+| `match.result` | Match-Ergebnis mit Chalkboard, Statistiken und Scores |
 | `match.delete` | Match wurde abgebrochen |
 | `match.state` | Match-Zustandsupdate (Scores, Spieler, etc.) |
 | `throw.detected` | Wurf wurde erkannt |
@@ -231,6 +239,12 @@ POST   /api/modules/:id/stop    # Modul stoppen
 PUT    /api/modules/:id/config  # Config aktualisieren
 DELETE /api/modules/:id         # Modul deinstallieren
 POST   /api/modules/install     # Von Git-URL installieren
+
+# Intents
+GET    /api/intents             # Liste aller verfügbaren Intents (Basis)
+GET    /api/intents/available   # Liste aller Intents mit vollständigem Payload-Schema
+GET    /api/modules/:id/intents # Modul-Intent-Aktionen abrufen
+PUT    /api/modules/:id/intents # Modul-Intent-Abonnements aktualisieren
 
 # Match
 GET    /api/match/current       # Aktueller Match-Status

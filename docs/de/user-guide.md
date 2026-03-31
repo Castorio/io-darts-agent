@@ -29,8 +29,8 @@ IO-Darts-Agent ist eine Software, die sich mit deinem Autodarts-System verbindet
 
 - **🎨 LED-Beleuchtung steuern** - Bei einem Triple blinkt deine WLED-Beleuchtung
 - **📺 Punktestand anzeigen** - Zeige den Spielstand auf einem zweiten Bildschirm
+- **🎙️ Sprach-Ansagen** - Professioneller Darts-Caller für Scores und Checkouts
 - **🔔 Benachrichtigungen senden** - Erhalte Meldungen bei besonderen Ereignissen
-- **🎵 Sounds abspielen** - (kommt bald)
 - **Und vieles mehr** - Das System ist erweiterbar!
 
 ---
@@ -204,7 +204,8 @@ Klicke auf **WLED konfigurieren**:
 
 1. **WLED IP-Adresse**: Gib die IP deines WLED-Controllers ein (z.B. `192.168.1.100`)
 2. **Port**: Normalerweise `80`
-3. Klicke auf **Speichern**
+3. **Fade-Zeit**: Übergangszeit in Millisekunden für sanfte Farbwechsel (optional)
+4. Klicke auf **Speichern**
 
 ### Event-Aktionen einrichten
 
@@ -217,19 +218,20 @@ Für jedes Ereignis kannst du eine Aktion festlegen:
    - **Aktionstyp**: `Effekt`
    - **Effekt**: `Blink` oder `Rainbow`
    - **Helligkeit**: `255` (Maximum)
-   - **Dauer**: `500` (0.5 Sekunden, dann zurück zum vorherigen Zustand)
+   - **Dauer**: `500` (0.5 Sekunden, dann zurück zur Spielerfarbe)
 3. Aktiviere **Spielerfarbe verwenden** (optional)
 
 #### Beliebte Konfigurationen
 
 | Event | Empfohlene Aktion |
 |-------|-------------------|
-| **Match Start** | Effekt "Rainbow" |
+| **Match Start** | Effekt "Rainbow", Dauer 2000ms |
 | **Spielerwechsel** | Solid-Farbe mit Spielerfarbe |
 | **Triple** | Kurzer Blink (500ms) |
-| **Bullseye** | Goldener Flash |
+| **Bullseye** | Goldener Flash (500ms) |
 | **180** | Feuerwerk-Effekt (3s) |
 | **Bust** | Roter Alarm (1s) |
+| **Takeout beendet** | Spielerfarbe wiederherstellen |
 
 ### Spielerfarben
 
@@ -238,6 +240,18 @@ Wenn du **Spielerfarbe verwenden** aktivierst, nimmt der Effekt automatisch die 
 1. In der **Spielerverwaltung** Spielerprofile anlegen
 2. Jedem Spieler eine Farbe zuweisen
 3. Der Name muss mit dem Autodarts-Namen übereinstimmen
+
+### Einzelspieler-Modus
+
+Das WLED-Modul unterstützt auch Einzelspieler-Spiele:
+- Spielerfarbe wird nach Match-Start angewendet (nach optionaler Start-Animation)
+- Spielerfarbe wird nach jedem Takeout wiederhergestellt
+- Kein Spielerwechsel-Event nötig
+
+### Dauer und Fade-Zeit
+
+- **Dauer**: Wie lange ein Effekt dauert bevor zur Spielerfarbe zurückgekehrt wird
+- **Fade-Zeit**: Wie sanft der Übergang geschieht (global oder pro Aktion)
 
 ---
 
@@ -306,6 +320,99 @@ Wenn kein Spiel läuft, kannst du den Demo-Modus nutzen:
 2. Das Display zeigt Beispieldaten
 3. Klicke auf **Demo beenden** zum Zurücksetzen
 
+### Idle-Modus Optionen
+
+Konfiguriere was angezeigt wird, wenn kein Spiel läuft:
+- **Wartebildschirm**: Standard "Warte auf Spiel..."
+- **Letztes Spiel**: Zeige Ergebnisse des letzten Spiels
+- **Schwarzer Bildschirm**: Display wird komplett schwarz
+- **Eigenes Bild**: Zeige dein eigenes Bild
+
+### Match-Start Bildschirm
+
+Konfiguriere was beim Match-Start angezeigt wird:
+- **Standard**: Zeigt Standard-Match-Start-Animation
+- **Eigenes Bild/GIF**: Zeige dein eigenes Bild oder animiertes GIF
+
+### Match-Ergebnisse
+
+Nach Match-Ende zeigt das Display eine Ergebnistabelle mit:
+- Chalkboard mit allen Würfen
+- Match-Statistiken (Durchschnitte, geworfene Darts, etc.)
+- Finale Punktestände
+
+Konfiguriere die Ergebnisanzeige:
+- **Anzeigedauer**: Wie lange die Ergebnisse angezeigt werden (0 = bis manuell geschlossen)
+- **Hintergrundfarbe**: Eigene Hintergrundfarbe für den Ergebnisbildschirm
+
+---
+
+## Darts Caller Modul
+
+Professioneller Darts-Caller mit Sprach-Ansagen.
+
+### Was es macht
+
+- Sagt Scores nach jeder Aufnahme an
+- Sagt Checkout-Anforderungen an ("You require...")
+- Spezial-Ansagen für 180, Bust, Game Shot, Match Shot
+- Sagt Spielernamen beim Spielerwechsel an
+
+### Darts Caller öffnen
+
+1. Gehe zu **Module**
+2. Klicke auf **Darts Caller**
+
+### Caller konfigurieren
+
+Klicke auf **Konfigurieren**:
+
+### Ausgabe-Modi
+
+| Modus | Beschreibung |
+|-------|-------------|
+| **Browser TTS** | Verwendet die eingebaute Text-to-Speech des Browsers |
+| **Audio Pack** | Verwendet voraufgenommene Audio-Dateien (MP3) |
+| **Lokale Wiedergabe** | Spielt Audio direkt auf dem Server ab |
+
+### Browser TTS verwenden
+
+1. Wähle **TTS** als Ausgabetyp
+2. Konfiguriere Stimme, Geschwindigkeit und Tonhöhe
+3. Halte einen Browser-Tab mit dem Hub offen
+
+### Audio Packs verwenden
+
+1. Wähle **Audio** als Ausgabetyp
+2. Wähle ein Audio Pack (oder nutze den Voice Pack Generator)
+3. Audio-Dateien werden im Browser abgespielt
+
+### Voice Pack Generator
+
+Erstelle eigene Voice Packs mit ElevenLabs TTS:
+
+1. Hole dir einen API-Key von [elevenlabs.io](https://elevenlabs.io)
+2. Gib deinen API-Key ein
+3. Wähle eine Stimme
+4. Konfiguriere Stabilität und Klarheit
+5. Klicke auf **Voice Pack generieren**
+
+Der Generator erstellt alle benötigten Dateien:
+- Score-Ansagen (0-180)
+- Checkout-Ansagen (2-170)
+- Spezial-Ansagen (game on, game shot, bust, etc.)
+
+### Ansage-Optionen
+
+| Option | Beschreibung |
+|--------|-------------|
+| **Scores ansagen** | Sagt Scores nach jeder Aufnahme an |
+| **Nur hohe Scores** | Sagt nur Scores ≥100 an |
+| **Checkouts ansagen** | Sagt Checkout-Anforderungen an |
+| **Spielerwechsel ansagen** | Sagt Spielernamen an |
+| **180 ansagen** | Spezielle 180-Ansage |
+| **Busts ansagen** | Sagt Busts an |
+
 ---
 
 ## Spielerverwaltung
@@ -332,6 +439,7 @@ Klicke in der Seitenleiste auf **Spieler**:
 Die Farben werden von Modulen verwendet:
 - **WLED**: LEDs leuchten in der Spielerfarbe
 - **Game Display**: Hintergrund in der Spielerfarbe
+- **Darts Caller**: Kann spielerspezifische Sounds abspielen
 
 ### Aliase verstehen
 
@@ -387,6 +495,7 @@ Klicke in der Seitenleiste auf **Einstellungen**:
 | **Server-Port** | Port auf dem der Hub läuft (Standard: 3000) |
 | **Autodarts-Zugangsdaten** | E-Mail/Passwort ändern |
 | **Board** | Anderes Board auswählen |
+| **Sprache** | Interface-Sprache wählen (DE, EN, ES) |
 
 > ⚠️ **Hinweis**: Nach Änderungen muss der Server möglicherweise neu gestartet werden.
 
@@ -450,6 +559,17 @@ Ja! Öffne einfach die Display-URL im Browser des Tablets. Das Tablet muss im se
 
 Das ist normal! Das Display aktualisiert sich automatisch, sobald ein Spiel in Autodarts startet.
 
+### ❓ Das Display zeigt falsche Daten bei Spielstart?
+
+Das Display sollte automatisch vollständige Match-Daten via API abrufen. Prüfe die Browser-Konsole auf "Match started, fetching full match data...".
+
+### ❓ Sprach-Ansagen funktionieren nicht?
+
+1. Für Browser TTS: Halte einen Browser-Tab offen
+2. Für Audio Packs: Prüfe ob die Dateien existieren
+3. Prüfe die Lautstärke-Einstellungen
+4. Prüfe die Browser-Konsole auf Fehler
+
 ---
 
 ## Problemlösung
@@ -487,6 +607,19 @@ Error: EADDRINUSE :::3000
 1. Prüfe ob Spielerprofile angelegt sind
 2. Der Name muss exakt mit Autodarts übereinstimmen (oder als Alias)
 3. Starte das Modul neu
+
+### WLED Farbe zeigt nicht im Einzelspieler-Modus
+
+1. Stelle sicher, dass `player.change` eine Aktion mit **Spielerfarbe verwenden** aktiviert hat
+2. Diese Aktion wird auch für Einzelspieler-Spiele verwendet
+3. Prüfe die Konsolen-Logs auf 🎨 WLED Meldungen
+
+### Voice Pack Generator funktioniert nicht
+
+1. Prüfe deinen ElevenLabs API-Key
+2. Prüfe dein Zeichen-Kontingent bei ElevenLabs
+3. Stelle sicher, dass du eine Internetverbindung hast
+4. Prüfe die Server-Logs auf Fehler
 
 ---
 

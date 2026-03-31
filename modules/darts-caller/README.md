@@ -12,6 +12,8 @@ Professioneller Darts-Caller für IO-Darts-Agent. Sagt Scores, Checkouts und Spi
 - **Voice Pack Generator** - Erstelle eigene Voice Packs mit ElevenLabs TTS
 - **Lokale Wiedergabe** - Audio kann Server-seitig abgespielt werden
 - **Konfigurierbar** - Einzelne Ansagetypen aktivieren/deaktivieren
+- **Dynamische Spielernamen** - Neue Spieler werden automatisch erkannt und deren Namen via ElevenLabs TTS generiert
+- **Multi-Voice-Pack** - Unterstützung für verschiedene Stimmen/Sprachen
 
 ## Konfiguration
 
@@ -145,12 +147,23 @@ Der Generator erstellt automatisch alle benötigten Dateien:
 - Checkout-Ansagen (2-170)
 - Spezial-Ansagen (Game on, Game shot, etc.)
 
+### Dynamische Spielernamen-Generierung
+
+Wenn neue Spieler erkannt werden und ElevenLabs konfiguriert ist:
+
+1. Bei `match.start` werden alle Spielernamen geprüft
+2. Fehlende Audio-Dateien werden automatisch via ElevenLabs generiert
+3. Die generierten Dateien werden im aktiven Voice Pack gespeichert
+4. Bei zukünftigen Spielen sind die Namen sofort verfügbar
+
 ## Events
 
 | Event | Aktion |
 |-------|--------|
-| `match.start` | Sagt "Game on!" an |
+| `match.start` | Sagt "Game on!" an, generiert ggf. fehlende Spielernamen |
 | `match.finished` | Sagt "Game shot and the match!" mit Gewinner an |
+| `match.result` | (Intern verarbeitet für Statistiken) |
+| `match.finish` | (Intern verarbeitet) |
 | `game.finished` | Sagt "Game shot!" mit Gewinner an |
 | `turn.finished` | Sagt Score und Checkout an |
 | `player.change` | Sagt Spielername an, danach "You require X" |

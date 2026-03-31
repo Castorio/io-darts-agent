@@ -14,6 +14,9 @@ Zeigt den aktuellen Spielstand auf einem separaten Display in Echtzeit an. Perfe
 - **Premium Design** - Dunkler, moderner Look mit sanften Animationen
 - **Responsive** - Passt sich verschiedenen Bildschirmgrößen an
 - **Demo-Modus** - Zum Testen ohne aktives Spiel
+- **Match-Start Bildschirm** - Konfigurierbarer Bildschirm bei Spielstart (Standard-Animation oder eigenes Bild/GIF)
+- **Match-Ergebnisse** - Ergebnistabelle mit Chalkboard und Statistiken nach Spielende
+- **Konfigurierbare Hintergrundfarben** - Anpassbare Farben für verschiedene Anzeigen
 
 ## Screenshot
 
@@ -97,6 +100,25 @@ Diese URL kann auch auf anderen Geräten im selben Netzwerk geöffnet werden (z.
 | **Schwarzer Bildschirm** | Display wird komplett schwarz |
 | **Eigenes Bild** | Zeigt ein konfiguriertes Bild |
 
+### Match-Start Bildschirm
+
+| Modus | Beschreibung |
+|-------|-------------|
+| **Standard** | Zeigt Standard-Match-Start-Animation |
+| **Eigenes Bild/GIF** | Zeigt dein eigenes Bild oder animiertes GIF |
+
+### Match-Ergebnisse
+
+Nach Match-Ende zeigt das Display eine Ergebnistabelle mit:
+- Chalkboard mit allen Würfen
+- Match-Statistiken (Durchschnitte, geworfene Darts, etc.)
+- Finale Punktestände
+
+| Einstellung | Beschreibung | Standard |
+|-------------|-------------|----------|
+| **Anzeigedauer** | Wie lange Ergebnisse angezeigt werden (0 = manuell schließen) | 0 |
+| **Hintergrundfarbe** | Hintergrundfarbe für den Ergebnisbildschirm | #1a1a2e |
+
 ### Animationen
 
 Für bestimmte Events können Animationen konfiguriert werden:
@@ -152,13 +174,15 @@ Das Display verbindet sich mit dem Hub-WebSocket unter `/api/events` und empfän
 
 | Event | Aktion |
 |-------|--------|
-| `match.start` | Holt vollständige Match-Daten via API |
+| `match.start` | Holt vollständige Match-Daten via API, zeigt Match-Start Bildschirm |
 | `match.state` | Aktualisiert Spielstand, Spieler, Scores |
 | `throw.detected` | Zeigt Wurf an, aktualisiert Score |
 | `player.change` | Wechselt aktiven Spieler, ändert Hintergrundfarbe |
 | `turn.finished` | Zeigt finale Aufnahme |
 | `game.finished` | Zeigt Leg/Set-Gewinn Animation |
 | `match.finished` | Zeigt Spielende Animation |
+| `match.result` | Zeigt Ergebnistabelle mit Chalkboard und Statistiken |
+| `match.finish` | Schließt Ergebnisanzeige (Benutzer klickt "Beenden") |
 | `match.delete` | Kehrt zur Idle-Ansicht zurück |
 
 ### Wichtig: Match-Start

@@ -93,7 +93,12 @@ export interface MatchDeleteData {
   id: string;
 }
 
-export type MatchEventData = MatchStartData | MatchDeleteData;
+export interface MatchFinishData {
+  event: 'finish';
+  id: string;
+}
+
+export type MatchEventData = MatchStartData | MatchDeleteData | MatchFinishData;
 
 // Throw Events
 export interface ThrowCoords {
@@ -254,7 +259,9 @@ export type AutodartsEventType =
   | 'board.event'
   | 'match.start'
   | 'match.delete'
+  | 'match.finish'
   | 'match.state'
+  | 'match.result'
   | 'throw.detected'
   | 'takeout.started'
   | 'takeout.finished'
@@ -320,6 +327,41 @@ export interface TurnFinishedEvent extends ParsedEvent<{
   round: number;
 }> {
   type: 'turn.finished';
+}
+
+export interface MatchResultPlayerStats {
+  legStats: MatchStats;
+  matchStats: MatchStats;
+  setStats?: MatchStats;
+}
+
+export interface MatchResultScore {
+  legs: number;
+  sets: number;
+}
+
+export interface MatchResultData {
+  matchId: string;
+  winner: number;
+  winnerName: string;
+  variant: string;
+  type: string;
+  leg: number;
+  set: number;
+  round: number;
+  players: Array<{
+    index: number;
+    name: string;
+    userId: string | null;
+  }>;
+  scores: MatchResultScore[];
+  chalkboards: Chalkboard[];
+  stats: MatchResultPlayerStats[];
+  settings: MatchSettings;
+}
+
+export interface MatchResultEvent extends ParsedEvent<MatchResultData> {
+  type: 'match.result';
 }
 
 // EventBus Types

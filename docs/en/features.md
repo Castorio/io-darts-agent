@@ -26,7 +26,9 @@ IO-Darts-Agent is a middleware solution that mediates between the Autodarts plat
 |-------|-------------|------|
 | `match.start` | New match started | Match ID, board ID |
 | `match.state` | Match state update | Players, scores, settings |
-| `match.finished` | Match finished | Winner, final scores |
+| `match.finished` | Match finished (winner determined) | Winner, final scores |
+| `match.result` | Match result with full data | Chalkboard, stats, scores |
+| `match.finish` | Match dismissed (user clicked "Finish") | Match ID |
 | `match.delete` | Match cancelled | Match ID |
 | `throw.detected` | Throw detected | Segment, points, multiplier |
 | `game.finished` | Leg/Set won | Winner |
@@ -138,18 +140,20 @@ Controls WLED-compatible LED controllers based on game events.
 - Multi-color effects (up to 3 colors)
 - Fade time (transition time) for smooth color changes
 - Single-player mode support
+- Intent system support for module-to-module communication
 
 **Supported Events:**
-- Match start/end
+- Match start/end/result/finish
 - Player change
 - Throws (Triple, Double, Bullseye, Miss, 180)
 - Bust
 - Takeout finished
 
-**New Features:**
+**Key Features:**
 - **Duration with player color restore**: After a temporary effect, the player's color is restored (not the previous WLED state)
 - **Fade Time**: Global and per-action transition time in milliseconds
 - **Single-player support**: Player color is applied after match start and takeout in single-player games
+- **Intent Actions**: React to intents from other modules (e.g., caller announcements trigger light effects)
 
 ### Game Display Module
 
@@ -166,10 +170,17 @@ Shows the current game score on a separate display in real-time.
 - Configurable animations per event
 - Idle mode options (waiting screen, last game, black screen, custom image)
 - Multi-language support
+- Configurable background colors
 
 **Match Start Handling:**
 - Automatically fetches full match data via API when match starts
 - Prevents showing default values (501, "Player") at game start
+- Match started screen with configurable display modes (default animation, custom image/GIF)
+
+**Match Results:**
+- Match results table with chalkboard and statistics
+- Configurable display duration (auto-hide after timeout or manual dismiss)
+- Configurable background color for results screen
 
 ### Darts Caller Module
 

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { APIServer } from '../Server.js';
 import type { MatchStateData, MatchPlayer, MatchStats } from '../../types/index.js';
+import { getMatchStatusService, type MatchStatus } from '../../core/match/index.js';
 
 /**
  * Current match response
@@ -238,6 +239,72 @@ export function registerMatchRoutes(
       gameScores: match.gameScores,
       turnScore: match.turnScore,
       currentPlayer: match.player,
+    };
+  });
+
+  /**
+   * GET /api/match/status - Get match status from the centralized service
+   *
+   * This endpoint uses the MatchStatusService which provides:
+   * - Consistent state across all modules
+   * - Player colors from the local player database
+   * - Structured player data with colors and averages
+   */
+  fastify.get<{
+    Reply: MatchStatus;
+  }>('/api/match/status', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return getMatchStatusService().getStatus();
+    }
+
+    return getMatchStatusService().getStatus();
+  });
+
+  /**
+   * GET /api/match/status/active - Check if a match is active (lightweight)
+   */
+  fastify.get<{
+    Reply: { active: boolean; matchId: string | null };
+  }>('/api/match/status/active', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { active: false, matchId: null };
+    }
+
+    const service = getMatchStatusService();
+    return {
+      active: service.isMatchActive(),
+      matchId: service.getMatchId(),
+    };
+  });
+
+  /**
+   * GET /api/match/status/player - Get current player info
+   */
+  fastify.get<{
+    Reply: {
+      hasMatch: boolean;
+      currentPlayer: {
+        index: number;
+        name: string;
+        score: number;
+        average: number;
+        color?: string;
+      } | null;
+    };
+  }>('/api/match/status/player', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { hasMatch: false, currentPlayer: null };
+    }
+
+    const service = getMatchStatusService();
+    const player = service.getCurrentPlayer();
+
+    return {
+      hasMatch: service.hasMatch(),
+      currentPlayer: player,
     };
   });
 }

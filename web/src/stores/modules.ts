@@ -32,6 +32,16 @@ interface ModuleDetailLocal {
     restartCount: number
     lastError?: string
   }
+  // Extended fields from module.json (optional, module-specific)
+  eventMeta?: Record<string, { label: Record<string, string>; description: Record<string, string> }>
+  eventGroups?: Array<{ title: Record<string, string>; events: string[] }>
+  effects?: Array<{ id: number; name: string }>
+  intents?: {
+    actions?: Array<{ type: string; label: string; description?: string; configSchema?: Record<string, unknown> }>
+    emits?: Array<{ id: string; description?: string; category?: string }>
+    defaultSubscriptions?: unknown[]
+  }
+  i18n?: Record<string, unknown>
 }
 
 export const useModulesStore = defineStore('modules', () => {

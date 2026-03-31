@@ -26,6 +26,7 @@ interface EventConfig {
   speed?: number
   intensity?: number
   duration?: number // Duration in ms - after this time, WLED reverts to previous state
+  fadeTime?: number // Fade/transition time in 100ms units (0-100 = 0-10s) for smooth color transitions
   usePlayerColor?: boolean // If true, use player color instead of fixed color
 }
 
@@ -62,10 +63,21 @@ const config = computed({
     speed: props.modelValue.speed ?? 128,
     intensity: props.modelValue.intensity ?? 128,
     duration: props.modelValue.duration ?? 0,
+    fadeTime: props.modelValue.fadeTime ?? 0, // 0 = instant, in 100ms units (0-100 = 0-10s)
     usePlayerColor: props.modelValue.usePlayerColor ?? false,
   }),
   set: (value: EventConfig) => emit('update:modelValue', value),
 })
+
+// Fade time presets for quick selection (in 100ms units for WLED API)
+const fadeTimePresets = [
+  { label: 'Sofort', value: 0 },
+  { label: '0.2s', value: 2 },
+  { label: '0.5s', value: 5 },
+  { label: '1s', value: 10 },
+  { label: '2s', value: 20 },
+  { label: '5s', value: 50 },
+]
 
 // Duration presets for quick selection
 const durationPresets = [
@@ -505,6 +517,32 @@ async function testAction() {
         </div>
         <p class="text-xs text-dark-500">
           {{ config.duration === 0 ? 'Effekt bleibt aktiv bis zum nächsten Event' : `Nach ${config.duration}ms wird der vorherige WLED-Zustand wiederhergestellt` }}
+        </p>
+      </div>
+
+      <!-- Fade Time Selection (for effect/solid/preset) -->
+      <div v-if="config.actionType !== 'none' && config.actionType !== 'off'" class="space-y-2">
+        <label class="block text-sm font-medium text-dark-200">
+          Übergangszeit (Fade)
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="preset in fadeTimePresets"
+            :key="preset.value"
+            type="button"
+            @click="updateConfig('fadeTime', preset.value)"
+            :class="[
+              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+              config.fadeTime === preset.value
+                ? 'bg-cyan-600 text-white'
+                : 'bg-dark-700 text-dark-300 hover:bg-dark-600',
+            ]"
+          >
+            {{ preset.label }}
+          </button>
+        </div>
+        <p class="text-xs text-dark-500">
+          {{ config.fadeTime === 0 ? 'Sofortiger Wechsel ohne Übergang' : `Sanfter Übergang über ${(config.fadeTime ?? 0) / 10}s` }}
         </p>
       </div>
 

@@ -8,13 +8,93 @@
   "events": [
     "match.start",
     "match.delete",
+    "match.finish",
     "match.finished",
+    "match.result",
     "match.state",
     "throw.detected",
     "player.change",
     "turn.finished",
     "game.finished"
   ],
+  "intents": {
+    "actions": [
+      {
+        "type": "showAnimation",
+        "label": "Show Animation",
+        "description": "Display a custom animation overlay",
+        "configSchema": {
+          "animationType": {
+            "type": "select",
+            "label": "Animation Type",
+            "options": [
+              { "value": "celebration", "label": "Celebration" },
+              { "value": "alert", "label": "Alert" },
+              { "value": "custom", "label": "Custom Media" }
+            ],
+            "default": "celebration"
+          },
+          "mediaUrl": {
+            "type": "string",
+            "label": "Media URL",
+            "description": "URL to GIF or video (for custom type)",
+            "default": ""
+          },
+          "duration": {
+            "type": "number",
+            "label": "Duration (ms)",
+            "default": 3000,
+            "min": 500,
+            "max": 10000
+          }
+        }
+      },
+      {
+        "type": "showMessage",
+        "label": "Show Message",
+        "description": "Display a text message overlay",
+        "configSchema": {
+          "message": {
+            "type": "string",
+            "label": "Message",
+            "default": ""
+          },
+          "style": {
+            "type": "select",
+            "label": "Style",
+            "options": [
+              { "value": "success", "label": "Success (Green)" },
+              { "value": "info", "label": "Info (Blue)" },
+              { "value": "warning", "label": "Warning (Yellow)" },
+              { "value": "error", "label": "Error (Red)" }
+            ],
+            "default": "info"
+          },
+          "duration": {
+            "type": "number",
+            "label": "Duration (ms)",
+            "default": 3000,
+            "min": 1000,
+            "max": 10000
+          }
+        }
+      },
+      {
+        "type": "playSound",
+        "label": "Play Sound",
+        "description": "Play a sound effect",
+        "configSchema": {
+          "soundUrl": {
+            "type": "string",
+            "label": "Sound URL",
+            "description": "URL to audio file (MP3, WAV)",
+            "default": ""
+          }
+        }
+      }
+    ],
+    "defaultSubscriptions": []
+  },
   "config": {
     "displayName": {
       "type": "string",
@@ -39,6 +119,52 @@
       "description": "URL to the image shown in idle mode (only for 'Custom Image')",
       "default": "",
       "showIf": { "field": "idleMode", "value": "image" }
+    },
+    "matchStartedMode": {
+      "type": "select",
+      "label": "Match Started Mode",
+      "description": "What to show when a match has started but no throws have been made yet",
+      "default": "default",
+      "options": [
+        { "value": "default", "label": "Default (Game On! screen)" },
+        { "value": "image", "label": "Custom Image/GIF" }
+      ]
+    },
+    "matchStartedImageUrl": {
+      "type": "string",
+      "label": "Match Started Image URL",
+      "description": "URL to image or GIF shown when match starts",
+      "default": "",
+      "showIf": { "field": "matchStartedMode", "value": "image" }
+    },
+    "matchStartedDuration": {
+      "type": "number",
+      "label": "Match Started Duration (ms)",
+      "description": "How long the match started screen is shown before showing the game",
+      "default": 3000,
+      "min": 1000,
+      "max": 10000
+    },
+    "gameOnBackgroundColor": {
+      "type": "color",
+      "label": "Game On Background Color",
+      "description": "Background color of the Game On! screen",
+      "default": "#0a0a0f",
+      "showIf": { "field": "matchStartedMode", "value": "default" }
+    },
+    "matchResultsDuration": {
+      "type": "number",
+      "label": "Match Results Display Duration (ms)",
+      "description": "How long to show the results table after a match ends (0 = until dismissed manually)",
+      "default": 30000,
+      "min": 0,
+      "max": 120000
+    },
+    "matchResultsBackgroundColor": {
+      "type": "color",
+      "label": "Match Results Background Color",
+      "description": "Background color of the results table",
+      "default": "#0a0a0f"
     },
     "showCheckouts": {
       "type": "boolean",
@@ -394,6 +520,34 @@
           "label": "Idle Image URL",
           "description": "URL to the image shown in idle mode"
         },
+        "matchStartedMode": {
+          "label": "Match Started Mode",
+          "description": "What to show when a match has started but no throws have been made yet",
+          "options": {
+            "default": "Default (Game On! screen)",
+            "image": "Custom Image/GIF"
+          }
+        },
+        "matchStartedImageUrl": {
+          "label": "Match Started Image URL",
+          "description": "URL to image or GIF shown when match starts"
+        },
+        "matchStartedDuration": {
+          "label": "Match Started Duration",
+          "description": "How long the match started screen is shown"
+        },
+        "gameOnBackgroundColor": {
+          "label": "Game On Background Color",
+          "description": "Background color of the Game On! screen"
+        },
+        "matchResultsDuration": {
+          "label": "Match Results Display Duration",
+          "description": "How long to show the results table after a match ends (0 = until dismissed manually)"
+        },
+        "matchResultsBackgroundColor": {
+          "label": "Match Results Background Color",
+          "description": "Background color of the results table"
+        },
         "showCheckouts": {
           "label": "Show Checkout Suggestions",
           "description": "Shows possible checkout paths"
@@ -422,6 +576,8 @@
         "legWon": "Leg Won!",
         "matchWon": "Match Won!",
         "waitingForGame": "Waiting for game...",
+        "matchStarted": "Game On!",
+        "waitingForFirstThrow": "Waiting for first throw...",
         "dartsRemaining": "darts remaining",
         "average": "Average",
         "legs": "Legs",
@@ -448,6 +604,34 @@
         "idleImageUrl": {
           "label": "Idle-Bild URL",
           "description": "URL zum Bild, das im Idle-Modus angezeigt wird"
+        },
+        "matchStartedMode": {
+          "label": "Match-Start-Modus",
+          "description": "Was angezeigt wird, wenn ein Match gestartet wurde aber noch kein Wurf erfolgt ist",
+          "options": {
+            "default": "Standard (Game On! Anzeige)",
+            "image": "Eigenes Bild/GIF"
+          }
+        },
+        "matchStartedImageUrl": {
+          "label": "Match-Start Bild URL",
+          "description": "URL zu Bild oder GIF, das beim Match-Start angezeigt wird"
+        },
+        "matchStartedDuration": {
+          "label": "Match-Start Anzeigedauer",
+          "description": "Wie lange die Match-Start-Anzeige sichtbar ist"
+        },
+        "gameOnBackgroundColor": {
+          "label": "Game On Hintergrundfarbe",
+          "description": "Hintergrundfarbe der Game On! Anzeige"
+        },
+        "matchResultsDuration": {
+          "label": "Anzeigedauer Ergebnistabelle",
+          "description": "Wie lange die Ergebnistabelle nach Spielende angezeigt wird (0 = bis manuell geschlossen)"
+        },
+        "matchResultsBackgroundColor": {
+          "label": "Hintergrundfarbe Ergebnistabelle",
+          "description": "Hintergrundfarbe der Ergebnistabelle"
         },
         "showCheckouts": {
           "label": "Checkout-Vorschläge anzeigen",
@@ -477,6 +661,8 @@
         "legWon": "Leg gewonnen!",
         "matchWon": "Match gewonnen!",
         "waitingForGame": "Warte auf Spiel...",
+        "matchStarted": "Game On!",
+        "waitingForFirstThrow": "Warte auf ersten Wurf...",
         "dartsRemaining": "Darts übrig",
         "average": "Durchschnitt",
         "legs": "Legs",
@@ -503,6 +689,34 @@
         "idleImageUrl": {
           "label": "URL de Imagen Inactiva",
           "description": "URL de la imagen mostrada en modo inactivo"
+        },
+        "matchStartedMode": {
+          "label": "Modo de Inicio de Partida",
+          "description": "Qué mostrar cuando se ha iniciado una partida pero aún no se han hecho lanzamientos",
+          "options": {
+            "default": "Predeterminado (pantalla Game On!)",
+            "image": "Imagen/GIF Personalizado"
+          }
+        },
+        "matchStartedImageUrl": {
+          "label": "URL de Imagen de Inicio",
+          "description": "URL de imagen o GIF mostrado cuando comienza la partida"
+        },
+        "matchStartedDuration": {
+          "label": "Duración de Pantalla de Inicio",
+          "description": "Cuánto tiempo se muestra la pantalla de inicio de partida"
+        },
+        "gameOnBackgroundColor": {
+          "label": "Color de Fondo Game On",
+          "description": "Color de fondo de la pantalla Game On!"
+        },
+        "matchResultsDuration": {
+          "label": "Duración de Resultados",
+          "description": "Cuánto tiempo mostrar la tabla de resultados después de un partido (0 = hasta cerrar manualmente)"
+        },
+        "matchResultsBackgroundColor": {
+          "label": "Color de Fondo de Resultados",
+          "description": "Color de fondo de la tabla de resultados"
         },
         "showCheckouts": {
           "label": "Mostrar Sugerencias de Checkout",
@@ -532,6 +746,8 @@
         "legWon": "¡Leg Ganado!",
         "matchWon": "¡Partida Ganada!",
         "waitingForGame": "Esperando juego...",
+        "matchStarted": "¡Game On!",
+        "waitingForFirstThrow": "Esperando primer lanzamiento...",
         "dartsRemaining": "dardos restantes",
         "average": "Promedio",
         "legs": "Legs",

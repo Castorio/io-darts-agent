@@ -41,6 +41,7 @@ import { PlayerService } from './core/players/PlayerService.js';
 import { PlayerRepository } from './core/players/PlayerRepository.js';
 import { AutodartsHub } from './index.js';
 import { getIntentBus } from './core/intents/index.js';
+import { getMatchStatusService } from './core/match/index.js';
 import type { HubConfiguration } from './types/api.js';
 import type { ModuleListItem, ModuleDetailResponse } from './types/api.js';
 import type { ParsedEvent, ModuleStatus, ModuleManifest, Intent } from './types/index.js';
@@ -54,6 +55,9 @@ const startTime = Date.now();
 
 // Intent Bus for inter-module communication
 const intentBus = getIntentBus({ debug: process.env.NODE_ENV !== 'production' });
+
+// Match Status Service for centralized match state
+const matchStatusService = getMatchStatusService();
 
 // Player service for matching known players
 let playerService: PlayerService | null = null;
@@ -446,6 +450,9 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
     addLog('event', 'autodarts', `Received: ${event.type}`, event.data);
     console.log(`📥 Event: ${event.type}`);
 
+    // Update centralized match status service
+    matchStatusService.handleEvent(event);
+
     // Enrich event with player colors
     const enrichedEvent = await enrichEventWithPlayerColors(event);
 
@@ -457,11 +464,18 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
     // Forward to running modules
     for (const mod of installedModules.values()) {
       if (mod.status === 'running' && mod.eventHandler) {
+        // Debug: Log event forwarding for WLED
+        if (mod.id === 'wled' && event.type === 'throw.detected') {
+          console.log(`🎨 WLED: Forwarding ${event.type} to handler`);
+        }
         addLog('module', mod.id, `Processing event: ${event.type}`);
         mod.eventHandler(enrichedEvent).catch((err) => {
           addLog('module', mod.id, `Error: ${err instanceof Error ? err.message : String(err)}`);
           console.error(`Module ${mod.id} event handler error:`, err);
         });
+      } else if (mod.id === 'wled' && event.type === 'throw.detected') {
+        // Debug: Why WLED is not receiving events
+        console.log(`🎨 WLED: NOT forwarding event. status=${mod.status}, hasHandler=${!!mod.eventHandler}`);
       }
     }
   });
@@ -490,7 +504,15 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
 
             mod.eventHandler = async (event: ParsedEvent) => {
               if (mod.wledHandler) {
+                // Debug: Log before calling handler
+                if (event.type === 'throw.detected') {
+                  console.log(`🎨 WLED [main.ts]: Calling handleEvent for ${event.type}`);
+                }
                 await mod.wledHandler.handleEvent(event);
+                // Debug: Log after calling handler
+                if (event.type === 'throw.detected') {
+                  console.log(`🎨 WLED [main.ts]: handleEvent completed for ${event.type}`);
+                }
               }
             };
           } else if (mod.id === 'game-display') {
@@ -720,6 +742,12 @@ async function main(): Promise<void> {
         stats: {
           restartCount: 0,
         },
+        // Extended fields from module.json (for dynamic UI generation)
+        eventMeta: mod.manifest.eventMeta,
+        eventGroups: mod.manifest.eventGroups,
+        effects: mod.manifest.effects,
+        intents: mod.manifest.intents,
+        i18n: mod.manifest.i18n,
       };
     },
     getModuleManifest: (id: string) => {
@@ -958,6 +986,12 @@ async function main(): Promise<void> {
     playerService,
   });
   console.log('👥 Player management initialized');
+
+  // Connect player color resolver to match status service
+  matchStatusService.setPlayerColorResolver((playerName: string) => {
+    if (!playerService) return undefined;
+    return playerService.getPlayerColor(playerName);
+  });
 
   // Register Media Routes (core media library for all modules)
   const mediaDir = path.join(__dirname, '..', 'media');
@@ -1229,16 +1263,36 @@ async function main(): Promise<void> {
   }
 
   // Graceful shutdown
-  const shutdown = async (): Promise<void> => {
-    console.log('\n🛑 Shutting down...');
-    wsManager.stop();
-    stopHub();
-    await server.stop();
+  let isShuttingDown = false;
+  const shutdown = async (signal?: string): Promise<void> => {
+    if (isShuttingDown) return; // Prevent multiple shutdown calls
+    isShuttingDown = true;
+
+    console.log(`\n🛑 Shutting down${signal ? ` (${signal})` : ''}...`);
+    try {
+      wsManager.stop();
+      stopHub();
+      await server.stop();
+      console.log('✅ Server stopped cleanly');
+    } catch (error) {
+      console.error('Error during shutdown:', error);
+    }
     process.exit(0);
   };
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGHUP', () => shutdown('SIGHUP'));
+
+  // Handle uncaught errors to ensure cleanup
+  process.on('uncaughtException', (error) => {
+    console.error('Uncaught exception:', error);
+    shutdown('uncaughtException');
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled rejection:', reason);
+  });
 }
 
 // Run

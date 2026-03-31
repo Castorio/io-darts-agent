@@ -494,8 +494,55 @@ Modul-Status hat sich geändert.
   "type": "match.finished",
   "data": {
     "matchId": "match-uuid",
-    "winner": "Max",
-    "finalScores": [0, 123]
+    "winner": 0,
+    "winnerName": "Max"
+  }
+}
+```
+
+### match.result
+Wird gesendet wenn ein Match endet mit vollständigen Ergebnisdaten (Chalkboards, Statistiken, Scores).
+
+```json
+{
+  "type": "match.result",
+  "data": {
+    "matchId": "match-uuid",
+    "winner": 0,
+    "winnerName": "Max",
+    "variant": "X01",
+    "type": "Local",
+    "leg": 1,
+    "set": 1,
+    "round": 15,
+    "players": [
+      { "index": 0, "name": "Max", "userId": null },
+      { "index": 1, "name": "Anna", "userId": null }
+    ],
+    "scores": [
+      { "legs": 1, "sets": 0 },
+      { "legs": 0, "sets": 0 }
+    ],
+    "chalkboards": [...],
+    "stats": [
+      {
+        "legStats": { "average": 45.5, "dartsThrown": 12 },
+        "matchStats": { "average": 45.5, "dartsThrown": 12 }
+      }
+    ],
+    "settings": { "baseScore": 501, "legs": 3 }
+  }
+}
+```
+
+### match.finish
+Wird gesendet wenn der Benutzer auf "Beenden" klickt um die Match-Ergebnisse zu schließen.
+
+```json
+{
+  "type": "match.finish",
+  "data": {
+    "matchId": "match-uuid"
   }
 }
 ```

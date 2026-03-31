@@ -6,28 +6,20 @@
 
 import type { ParsedEvent } from '../../../src/types/index.js';
 
-/**
- * Player service interface for player color matching
- */
+// ============================================
+// Types and Interfaces
+// ============================================
+
 export interface PlayerServiceInterface {
   matchPlayer(name: string): Promise<{ name: string; color?: string } | null | undefined>;
 }
 
-/**
- * Logger interface for event logging
- */
 export interface WledLoggerInterface {
   log(source: string, message: string, data?: unknown): void;
 }
 
-/**
- * WLED action types
- */
 export type WledActionType = 'preset' | 'effect' | 'solid' | 'brightness' | 'off' | 'none';
 
-/**
- * WLED action configuration
- */
 export interface WledAction {
   enabled?: boolean;
   actionType?: WledActionType;
@@ -41,13 +33,10 @@ export interface WledAction {
   speed?: number;
   intensity?: number;
   duration?: number;
-  fadeTime?: number; // Transition time in ms for fading between states
+  fadeTime?: number;
   usePlayerColor?: boolean;
 }
 
-/**
- * WLED module configuration
- */
 export interface WledConfig {
   wledHost?: string;
   wledPort?: number;
@@ -56,13 +45,18 @@ export interface WledConfig {
   defaultState?: WledAction;
   autoStart?: boolean;
   playerColors?: Array<string | { r: number; g: number; b: number }>;
-  fadeTime?: number; // Global transition time in ms for fading between states (default: 0)
+  fadeTime?: number;
 }
 
-/**
- * Convert hex color string to RGB object
- */
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
+type RGB = { r: number; g: number; b: number };
+
+// ============================================
+// Utility Functions
+// ============================================
+
+const DEFAULT_WHITE: RGB = { r: 255, g: 255, b: 255 };
+
+function hexToRgb(hex: string): RGB {
   const cleanHex = hex.replace(/^#/, '');
   const bigint = parseInt(cleanHex, 16);
   return {
@@ -72,25 +66,38 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   };
 }
 
-/**
- * Parse color from config - supports both hex strings and RGB objects
- */
-function parseColor(
-  color: unknown,
-  fallback: { r: number; g: number; b: number } = { r: 255, g: 255, b: 255 }
-): { r: number; g: number; b: number } {
+function parseColor(color: unknown, fallback: RGB = DEFAULT_WHITE): RGB {
   if (!color) return fallback;
-
   if (typeof color === 'object' && color !== null && 'r' in color) {
-    return color as { r: number; g: number; b: number };
+    return color as RGB;
   }
-
   if (typeof color === 'string' && color.startsWith('#')) {
     return hexToRgb(color);
   }
-
   return fallback;
 }
+
+// Event key mappings for findAction lookups
+const EVENT_KEY_MAPPINGS: Record<string, string[]> = {
+  'throw.180': ['throw.180', 'throw180'],
+  'throw.bust': ['throw.bust', 'throwBust', 'bust'],
+  'throw.bullseye': ['throw.bullseye', 'throwBullseye', 'throw.doubleBull', 'doubleBull'],
+  'throw.bull': ['throw.bull', 'throwBull', 'throw.singleBull'],
+  'throw.triple': ['throw.triple', 'throwTriple', 'throwHighlight'],
+  'throw.double': ['throw.double', 'throwDouble'],
+  'throw.miss': ['throw.miss', 'throwMiss'],
+  'throw.detected': ['throw.detected', 'throwDetected', 'throwHit'],
+  'player.changed': ['player.changed', 'player.change', 'playerChange'],
+  'match.started': ['match.started', 'match.start', 'matchStart'],
+  'match.finished': ['match.finished', 'matchFinished'],
+  'match.deleted': ['match.deleted', 'match.delete', 'matchDeleted'],
+  'match.finish': ['match.finish', 'matchFinish'],
+  'game.finished': ['game.finished', 'gameFinished'],
+  'turn.started': ['turn.started', 'turnStarted'],
+  'turn.finished': ['turn.finished', 'turnFinished'],
+  'takeout.started': ['takeout.started', 'takeoutStarted'],
+  'takeout.finished': ['takeout.finished', 'takeoutFinished'],
+};
 
 /**
  * WLED Handler class
@@ -210,6 +217,11 @@ export class WledHandler {
   async handleEvent(event: ParsedEvent): Promise<void> {
     this.stats.eventsProcessed++;
 
+    // Debug: Log throw events
+    if (event.type === 'throw.detected') {
+      console.log(`🎨 WLED [throw.detected]: Event received, host=${this.config.wledHost || 'NOT SET'}`);
+    }
+
     // Update current match state from match.state events
     if (event.type === 'match.state') {
       const eventData = event.data as Record<string, unknown>;
@@ -224,71 +236,71 @@ export class WledHandler {
       this.log(`Updated match state: player ${playerIndex} (${this.currentMatchState.playerName})`);
     }
 
-    // Clear match state on match end/delete
-    if (event.type === 'match.finished' || event.type === 'match.delete') {
-      this.currentMatchState = null;
+    // Update current match state from player.change events
+    if ((event.type === 'player.change' || (event.type as string) === 'player.changed') && this.currentMatchState) {
+      const eventData = event.data as Record<string, unknown>;
+      const newPlayerIndex = (eventData.currentPlayer as number) ?? (eventData.player as number) ?? this.currentMatchState.playerIndex;
+      const newPlayerName = (eventData.playerName as string) || '';
+
+      // Update stored match state with new player index
+      this.currentMatchState.playerIndex = newPlayerIndex;
+      if (newPlayerName) {
+        this.currentMatchState.playerName = newPlayerName;
+      } else if (this.currentMatchState.players && this.currentMatchState.players[newPlayerIndex]) {
+        this.currentMatchState.playerName = this.currentMatchState.players[newPlayerIndex].name || '';
+      }
+
+      this.log(`Player changed: player ${newPlayerIndex} (${this.currentMatchState.playerName})`);
+      console.log(`🎨 WLED [player.change]: Updated to player ${newPlayerIndex} (${this.currentMatchState.playerName})`);
+
+      // Execute player color action if configured
+      const playerChangeAction = this.getPlayerChangeAction();
+      if (playerChangeAction && playerChangeAction.actionType && playerChangeAction.actionType !== 'none') {
+        this.log(`Player change - applying player color for ${this.currentMatchState.playerName}`);
+        const playerColor = await this.resolvePlayerColor({ source: 'player.change' });
+        console.log(`🎨 WLED [player.change]: Resolved player color: RGB(${playerColor?.r}, ${playerColor?.g}, ${playerColor?.b})`);
+        await this.executeAction(playerChangeAction, playerColor, 'player.change.playerColor');
+        // Skip further action processing for player.change since we handled it here
+        return;
+      }
+    }
+
+    // Note: match state will be cleared AFTER the action is executed (see below)
+    // to allow match.finished to use player color
+
+    // Debug: Check isConfigured
+    if (event.type === 'throw.detected') {
+      console.log(`🎨 WLED [throw.detected]: isConfigured=${this.isConfigured()}`);
     }
 
     if (!this.isConfigured()) {
       this.log('No host configured');
+      if (event.type === 'throw.detected') {
+        console.log(`🎨 WLED [throw.detected]: Returning - host not configured`);
+      }
       return;
     }
 
+    // Debug: After isConfigured check
+    if (event.type === 'throw.detected') {
+      console.log(`🎨 WLED [throw.detected]: Passed isConfigured check, continuing to getActionForEvent...`);
+    }
+
     // Special handling for match.start: Apply player color after optional start animation
-    // Note: currentMatchState will be set by the first match.state event that follows
     if (event.type === 'match.start') {
-      const matchStartAction = this.getActionForEvent(event);
-
-      // Get player change action config to use for setting player color
-      const eventsConfig = this.config.events || this.config.eventActions || {};
-      const playerChangeAction = eventsConfig['player.change'] || eventsConfig['player.changed'] || eventsConfig['playerChange'];
-      const defaultState = this.config.defaultState;
-      const actionToUse = playerChangeAction || defaultState;
-
-      if (matchStartAction && matchStartAction.action.actionType && matchStartAction.action.actionType !== 'none') {
-        // If there's a start animation with duration, apply player color after its duration
-        // Don't use the default restore logic - handle it here explicitly
-        const delay = matchStartAction.action.duration || 0;
-        if (delay > 0) {
-          this.log(`Match start - will apply player color after ${delay}ms`);
-          console.log(`🎨 WLED [match.start]: Will apply player color after ${delay}ms`);
-          this.applyPlayerColorAfterDelay(delay, actionToUse, 'match.start.playerColor');
-        } else {
-          // No duration configured - apply player color immediately after a short delay for match state
-          this.log(`Match start - will apply player color after 1000ms (no duration set)`);
-          console.log(`🎨 WLED [match.start]: Will apply player color after 1000ms (no duration set)`);
-          this.applyPlayerColorAfterDelay(1000, actionToUse, 'match.start.playerColor');
-        }
-      } else if (actionToUse && actionToUse.actionType && actionToUse.actionType !== 'none') {
-        // No start animation, apply player color directly after 1 second
-        this.log(`Match start - applying player color after 1 second`);
-        console.log(`🎨 WLED [match.start]: Will apply player color after 1000ms (no start animation)`);
-        this.applyPlayerColorAfterDelay(1000, actionToUse, 'match.start.playerColor');
-      } else {
-        console.log(`🎨 WLED [match.start]: No player.change or defaultState action configured for player color`);
-      }
+      this.handleMatchStartPlayerColor(event);
     }
 
     // Special handling for takeout.finished: Apply player color
     // This ensures the player color is shown even in single-player mode where no player.change event occurs
     if (event.type === 'takeout.finished' && this.currentMatchState) {
-      // Try to get the player.change action configuration (which should have usePlayerColor)
-      const eventsConfig = this.config.events || this.config.eventActions || {};
-      const playerChangeAction = eventsConfig['player.change'] || eventsConfig['player.changed'] || eventsConfig['playerChange'];
-
-      // Also check defaultState as fallback
-      const defaultState = this.config.defaultState;
-      const actionToUse = playerChangeAction || defaultState;
+      const actionToUse = this.getPlayerChangeAction();
 
       if (actionToUse && actionToUse.actionType && actionToUse.actionType !== 'none') {
         this.log(`Takeout finished - applying player color for ${this.currentMatchState.playerName}`);
-        console.log(`🎨 WLED [takeout.finished]: Applying player color for ${this.currentMatchState.playerName}`);
-        // Create event with current match state data
-        const eventWithPlayerData = { ...event, data: { ...this.currentMatchState } };
-        const playerColor = await this.resolvePlayerColor(eventWithPlayerData as ParsedEvent);
+        const playerColor = await this.resolvePlayerColor({ source: 'takeout.finished' });
         console.log(`🎨 WLED [takeout.finished]: Resolved player color: RGB(${playerColor?.r}, ${playerColor?.g}, ${playerColor?.b})`);
         await this.executeAction(actionToUse, playerColor, 'takeout.finished.playerColor');
-        // Don't return - continue to process normal takeout.finished action if configured
       } else {
         console.log(`🎨 WLED [takeout.finished]: No player.change or defaultState action configured`);
       }
@@ -310,50 +322,49 @@ export class WledHandler {
     }
 
     // Get player color if needed
-    let playerColor: { r: number; g: number; b: number } | null = null;
+    let playerColor: RGB | null = null;
     if (action.usePlayerColor) {
-      playerColor = await this.resolvePlayerColor(event);
+      playerColor = await this.resolvePlayerColorFromEvent(event);
     }
 
     // Execute the action
     await this.executeAction(action, playerColor, event.type);
 
     // Restore to player color after duration (not to previous WLED state)
-    // Skip for match.start as we handle player color separately via applyPlayerColorAfterDelay
-    if (action.duration && action.duration > 0 && actionType !== 'off' && event.type !== 'match.start') {
+    // Skip for certain events where restore doesn't make sense
+    const skipRestoreEvents = ['match.start', 'match.finished', 'match.delete', 'match.finish'];
+    if (action.duration && action.duration > 0 && actionType !== 'off' && !skipRestoreEvents.includes(event.type)) {
       this.log(`Will restore to player color in ${action.duration}ms`);
-      console.log(`🎨 WLED [${event.type}]: Will restore to player color in ${action.duration}ms`);
-
-      setTimeout(async () => {
-        // Get the player.change action to use for restoring player color
-        const eventsConfig = this.config.events || this.config.eventActions || {};
-        const playerChangeAction = eventsConfig['player.change'] || eventsConfig['player.changed'] || eventsConfig['playerChange'];
-        const defaultState = this.config.defaultState;
-        const restoreAction = playerChangeAction || defaultState;
-
-        if (restoreAction && this.currentMatchState) {
-          // Resolve current player color
-          const currentPlayerColor = await this.resolvePlayerColorFromMatchState();
-          if (currentPlayerColor) {
-            this.log(`Restoring to player color after duration`);
-            console.log(`🎨 WLED [${event.type}]: Restoring to player color RGB(${currentPlayerColor.r}, ${currentPlayerColor.g}, ${currentPlayerColor.b})`);
-            await this.executeAction(restoreAction, currentPlayerColor, `${event.type}.restore`);
-          }
-        } else {
-          this.log(`No action or match state for restore after duration`);
-        }
-      }, action.duration);
+      this.schedulePlayerColorRestore(action.duration, event.type);
     }
+
+    // Clear match state AFTER action execution for match end/delete
+    // This ensures match.finished can use player color if usePlayerColor is enabled
+    if (event.type === 'match.finished' || event.type === 'match.delete') {
+      this.currentMatchState = null;
+      this.log('Match state cleared after action execution');
+    }
+  }
+
+  /**
+   * Get the player change action configuration
+   */
+  private getPlayerChangeAction(): WledAction | undefined {
+    const eventsConfig = this.getEventsConfig();
+    return eventsConfig['player.change'] || eventsConfig['player.changed'] || eventsConfig['playerChange'] || this.config.defaultState;
+  }
+
+  /**
+   * Get events configuration object
+   */
+  private getEventsConfig(): Record<string, WledAction> {
+    return this.config.events || this.config.eventActions || {};
   }
 
   /**
    * Apply player color after a delay, waiting for match state to be available
    */
-  private applyPlayerColorAfterDelay(
-    delay: number,
-    action: WledAction | undefined,
-    source: string
-  ): void {
+  private applyPlayerColorAfterDelay(delay: number, action: WledAction | undefined, source: string): void {
     if (!action) {
       console.log(`🎨 WLED [${source}]: No action provided, skipping`);
       return;
@@ -362,315 +373,226 @@ export class WledHandler {
     console.log(`🎨 WLED [${source}]: Scheduling player color application in ${delay}ms`);
 
     setTimeout(async () => {
-      console.log(`🎨 WLED [${source}]: Timer fired, checking for match state...`);
       // Wait up to 2 seconds for match state to be available
-      let attempts = 0;
-      while (!this.currentMatchState && attempts < 20) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        attempts++;
-      }
-
-      console.log(`🎨 WLED [${source}]: Match state available: ${!!this.currentMatchState}, attempts: ${attempts}`);
+      await this.waitForMatchState(2000);
 
       if (this.currentMatchState) {
-        // Resolve player color using stored match state
-        const playerIdx = this.currentMatchState.playerIndex;
-        const players = this.currentMatchState.players;
-        let playerColor: { r: number; g: number; b: number } | null = null;
-
-        console.log(`🎨 WLED [${source}]: Player ${playerIdx} (${this.currentMatchState.playerName}), ${players?.length || 0} players in match`);
-
-        // Check for enriched color in players array
-        if (players && players[playerIdx]?.color) {
-          playerColor = parseColor(players[playerIdx].color!);
-          this.log(`Using enriched player color: ${players[playerIdx].color}`);
-          console.log(`🎨 WLED [${source}]: Using enriched player color: ${players[playerIdx].color}`);
-        } else if (this.playerService && this.currentMatchState.playerName) {
-          // Try player service
-          try {
-            const matched = await this.playerService.matchPlayer(this.currentMatchState.playerName);
-            if (matched?.color) {
-              playerColor = parseColor(matched.color);
-              this.log(`Matched player color: ${matched.color}`);
-              console.log(`🎨 WLED [${source}]: Matched player color via service: ${matched.color}`);
-            }
-          } catch (e) {
-            this.log(`Could not match player: ${e}`);
-            console.log(`🎨 WLED [${source}]: Could not match player: ${e}`);
-          }
+        const playerColor = await this.resolvePlayerColor({ source });
+        if (playerColor) {
+          console.log(`🎨 WLED [${source}]: Applying player color RGB(${playerColor.r}, ${playerColor.g}, ${playerColor.b})`);
+          await this.executeAction(action, playerColor, source);
         }
-
-        // Fallback to default colors
-        if (!playerColor) {
-          const defaultColors = this.config.playerColors || this.defaultPlayerColors;
-          const colorConfig = defaultColors[playerIdx % defaultColors.length];
-          playerColor = parseColor(colorConfig);
-          this.log(`Using default player ${playerIdx + 1} color`);
-          console.log(`🎨 WLED [${source}]: Using default player ${playerIdx + 1} color`);
-        }
-
-        this.log(`${source}: Applying player color for ${this.currentMatchState.playerName}`);
-        console.log(`🎨 WLED [${source}]: Applying player color RGB(${playerColor.r}, ${playerColor.g}, ${playerColor.b}) for ${this.currentMatchState.playerName}`);
-        await this.executeAction(action, playerColor, source);
       } else {
         this.log(`${source}: No match state available after waiting`);
-        console.log(`🎨 WLED [${source}]: No match state available after waiting ${attempts * 100}ms`);
       }
     }, delay);
   }
 
   /**
-   * Resolve player color from stored match state (for restore after duration)
+   * Schedule player color restore after an action duration
    */
-  private async resolvePlayerColorFromMatchState(): Promise<{ r: number; g: number; b: number } | null> {
-    if (!this.currentMatchState) return null;
+  private schedulePlayerColorRestore(duration: number, eventType: string): void {
+    console.log(`🎨 WLED [${eventType}]: Will restore to player color in ${duration}ms`);
 
-    const playerIdx = this.currentMatchState.playerIndex;
-    const players = this.currentMatchState.players;
+    setTimeout(async () => {
+      const restoreAction = this.getPlayerChangeAction();
+      if (restoreAction && this.currentMatchState) {
+        const playerColor = await this.resolvePlayerColor({ source: `${eventType}.restore` });
+        if (playerColor) {
+          console.log(`🎨 WLED [${eventType}]: Restoring to player color RGB(${playerColor.r}, ${playerColor.g}, ${playerColor.b})`);
+          await this.executeAction(restoreAction, playerColor, `${eventType}.restore`);
+        }
+      } else {
+        this.log(`No action or match state for restore after duration`);
+      }
+    }, duration);
+  }
 
-    // Check for enriched color in players array
-    if (players && players[playerIdx]?.color) {
-      return parseColor(players[playerIdx].color!);
+  /**
+   * Wait for match state to be available
+   */
+  private async waitForMatchState(timeoutMs: number): Promise<boolean> {
+    const interval = 100;
+    let elapsed = 0;
+    while (!this.currentMatchState && elapsed < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      elapsed += interval;
+    }
+    return !!this.currentMatchState;
+  }
+
+  /**
+   * Handle match start player color application
+   */
+  private handleMatchStartPlayerColor(event: ParsedEvent): void {
+    const matchStartAction = this.getActionForEvent(event);
+    const actionToUse = this.getPlayerChangeAction();
+
+    if (!actionToUse || !actionToUse.actionType || actionToUse.actionType === 'none') {
+      console.log(`🎨 WLED [match.start]: No player.change or defaultState action configured`);
+      return;
+    }
+
+    // Determine delay based on whether there's a start animation
+    let delay = 1000; // Default 1 second delay for match state to arrive
+    if (matchStartAction?.action.actionType && matchStartAction.action.actionType !== 'none') {
+      delay = matchStartAction.action.duration || 1000;
+    }
+
+    console.log(`🎨 WLED [match.start]: Will apply player color after ${delay}ms`);
+    this.applyPlayerColorAfterDelay(delay, actionToUse, 'match.start.playerColor');
+  }
+
+  /**
+   * Resolve player color - unified method for all color lookups
+   * @param options.playerIndex - Player index to get color for (optional, uses match state if not provided)
+   * @param options.playerName - Player name for service lookup (optional)
+   * @param options.players - Players array (optional, uses match state if not provided)
+   * @param options.source - Source identifier for logging
+   */
+  private async resolvePlayerColor(options: {
+    playerIndex?: number;
+    playerName?: string;
+    players?: Array<{ name?: string; color?: string; index?: number }> | null;
+    source?: string;
+  } = {}): Promise<RGB | null> {
+    const source = options.source || 'unknown';
+    let playerIdx = options.playerIndex ?? this.currentMatchState?.playerIndex ?? 0;
+    let playerName = options.playerName ?? this.currentMatchState?.playerName;
+    const players = options.players ?? this.currentMatchState?.players ?? null;
+
+    // Get player info from players array
+    if (players && players[playerIdx]) {
+      const player = players[playerIdx];
+      if (!playerName) playerName = player.name;
+
+      // Check for enriched color
+      if (player.color) {
+        this.log(`[${source}] Using enriched color for ${playerName}: ${player.color}`);
+        return parseColor(player.color);
+      }
     }
 
     // Try player service
-    if (this.playerService && this.currentMatchState.playerName) {
+    if (this.playerService && playerName) {
       try {
-        const matched = await this.playerService.matchPlayer(this.currentMatchState.playerName);
+        const matched = await this.playerService.matchPlayer(playerName);
         if (matched?.color) {
+          this.log(`[${source}] Matched player ${playerName} color: ${matched.color}`);
           return parseColor(matched.color);
         }
       } catch (e) {
-        this.log(`Could not match player: ${e}`);
+        this.log(`[${source}] Player service error: ${e}`);
       }
     }
 
     // Fallback to default colors
     const defaultColors = this.config.playerColors || this.defaultPlayerColors;
     const colorConfig = defaultColors[playerIdx % defaultColors.length];
-    return parseColor(colorConfig);
+    const color = parseColor(colorConfig);
+    this.log(`[${source}] Using default player ${playerIdx + 1} color: RGB(${color.r},${color.g},${color.b})`);
+    return color;
   }
 
   /**
-   * Resolve player color from event data and player service
+   * Resolve player color from event data
    */
-  private async resolvePlayerColor(
-    event: ParsedEvent
-  ): Promise<{ r: number; g: number; b: number } | null> {
+  private async resolvePlayerColorFromEvent(event: ParsedEvent): Promise<RGB | null> {
     const eventData = event.data as Record<string, unknown>;
+    const eventType = event.type as string;
 
-    // Try to get player info from various event formats
-    let playerIdx = (eventData?.playerIndex as number) ?? (eventData?.player as number) ?? 0;
-    let currentPlayerName = eventData?.playerName as string;
-    let players: Array<{ name?: string; color?: string; index?: number }> | null = null;
+    // Determine player index based on event type
+    let playerIdx: number;
+    let playerName: string | undefined = (eventData?.winnerName as string) ?? (eventData?.playerName as string) ?? undefined;
 
-    // For match.state events, get current player from players array
-    if (eventData?.players) {
-      players = eventData.players as Array<{ name?: string; color?: string; index?: number }>;
+    if (eventType === 'match.finished' || eventType === 'game.finished') {
+      playerIdx = (eventData?.winner as number) ?? 0;
+    } else if (eventType === 'player.change' || eventType === 'player.changed') {
+      playerIdx = (eventData?.currentPlayer as number) ?? (eventData?.player as number) ?? 0;
+    } else {
+      playerIdx = (eventData?.playerIndex as number) ?? (eventData?.player as number) ?? this.currentMatchState?.playerIndex ?? 0;
+      if (!playerName) playerName = this.currentMatchState?.playerName ?? undefined;
     }
 
-    // Fallback to stored match state for events without player info (like throw.detected)
-    if (!currentPlayerName && !players && this.currentMatchState) {
-      playerIdx = this.currentMatchState.playerIndex;
-      currentPlayerName = this.currentMatchState.playerName;
-      players = this.currentMatchState.players;
-      this.log(`Using stored match state: player ${playerIdx} (${currentPlayerName})`);
-    }
+    // Get players array from event or match state
+    const players = (eventData?.players as Array<{ name?: string; color?: string; index?: number }>) ?? this.currentMatchState?.players ?? null;
 
-    // Try to get player name and color from players array
-    if (!currentPlayerName && players && players.length > 0) {
-      const currentPlayer = players[playerIdx];
-      if (currentPlayer) {
-        currentPlayerName = currentPlayer.name || '';
-        // If the player already has a color from enrichment, use it directly
-        if (currentPlayer.color) {
-          this.log(`Using enriched player color for ${currentPlayerName}: ${currentPlayer.color}`);
-          return parseColor(currentPlayer.color);
-        }
-      }
-    }
-
-    // Check if player has enriched color in stored match state
-    if (players && players.length > 0) {
-      const currentPlayer = players[playerIdx];
-      if (currentPlayer?.color) {
-        this.log(`Using enriched player color for ${currentPlayer.name}: ${currentPlayer.color}`);
-        return parseColor(currentPlayer.color);
-      }
-    }
-
-    // Try to match the player by name using player service
-    if (this.playerService && currentPlayerName) {
-      try {
-        const matchedPlayer = await this.playerService.matchPlayer(currentPlayerName);
-        if (matchedPlayer && matchedPlayer.color) {
-          this.log(`Matched known player: ${matchedPlayer.name} with color ${matchedPlayer.color}`);
-          return parseColor(matchedPlayer.color);
-        }
-      } catch (e) {
-        this.log(`Could not match player: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
-
-    // Fallback to generic player colors from config or defaults
-    const playerColorsConfig = this.config.playerColors || this.defaultPlayerColors;
-    const playerColorsRgb = playerColorsConfig.map((c) => parseColor(c));
-    const color = playerColorsRgb[playerIdx % playerColorsRgb.length];
-    this.log(`Using generic player ${playerIdx + 1} color: RGB(${color.r},${color.g},${color.b})`);
-    return color;
+    return this.resolvePlayerColor({
+      playerIndex: playerIdx,
+      playerName,
+      players,
+      source: eventType,
+    });
   }
 
   /**
    * Get action configuration for an event
    */
-  private getActionForEvent(
-    event: ParsedEvent
-  ): { action: WledAction; eventKey: string } | null {
-    const eventsConfig = this.config.events || this.config.eventActions || {};
-
+  private getActionForEvent(event: ParsedEvent): { action: WledAction; eventKey: string } | null {
+    const eventsConfig = this.getEventsConfig();
     const eventType = event.type as string;
     const eventData = event.data as Record<string, unknown>;
 
     // Handle throw events with special conditions
     if (eventType === 'throw.detected') {
-      const turnPoints = (eventData.turnPoints as number) || 0;
-      const segment = eventData.segment as Record<string, unknown>;
-      const multiplier = (segment?.multiplier as number) || 0;
-      const number = (segment?.number as number) || 0;
-      const points = (eventData.points as number) || 0;
-
-      if (turnPoints === 180) {
-        return this.findAction(eventsConfig, 'throw.180', [
-          'throw.180',
-          'throw180',
-        ]);
-      }
-      if (eventData.busted) {
-        return this.findAction(eventsConfig, 'throw.bust', [
-          'throw.bust',
-          'throwBust',
-          'bust',
-        ]);
-      }
-      if (number === 25 && multiplier === 2) {
-        return this.findAction(eventsConfig, 'throw.bullseye', [
-          'throw.bullseye',
-          'throwBullseye',
-          'throw.doubleBull',
-          'doubleBull',
-        ]);
-      }
-      if (number === 25 && multiplier === 1) {
-        return this.findAction(eventsConfig, 'throw.bull', [
-          'throw.bull',
-          'throwBull',
-          'throw.singleBull',
-        ]);
-      }
-      if (multiplier === 3) {
-        return this.findAction(eventsConfig, 'throw.triple', [
-          'throw.triple',
-          'throwTriple',
-          'throwHighlight',
-        ]);
-      }
-      if (multiplier === 2) {
-        return this.findAction(eventsConfig, 'throw.double', [
-          'throw.double',
-          'throwDouble',
-        ]);
-      }
-      // Check for miss
-      if (points === 0) {
-        return this.findAction(eventsConfig, 'throw.miss', [
-          'throw.miss',
-          'throwMiss',
-        ]);
-      }
-      // Default throw
-      return this.findAction(eventsConfig, 'throw.detected', [
-        'throw.detected',
-        'throwDetected',
-        'throwHit',
-      ]);
+      const eventKey = this.getThrowEventKey(eventData);
+      return this.findActionByKey(eventsConfig, eventKey);
     }
 
-    // Handle player change
-    if (eventType === 'player.change' || eventType === 'player.changed') {
-      return this.findAction(eventsConfig, 'player.changed', [
-        'player.changed',
-        'player.change',
-        'playerChange',
-      ]);
-    }
-
-    // Handle match events
-    if (eventType === 'match.start' || eventType === 'match.started') {
-      return this.findAction(eventsConfig, 'match.started', [
-        'match.started',
-        'match.start',
-        'matchStart',
-      ]);
-    }
-    if (eventType === 'match.finished') {
-      return this.findAction(eventsConfig, 'match.finished', [
-        'match.finished',
-        'matchFinished',
-      ]);
-    }
-    if (eventType === 'match.delete' || eventType === 'match.deleted') {
-      return this.findAction(eventsConfig, 'match.deleted', [
-        'match.deleted',
-        'match.delete',
-        'matchDeleted',
-      ]);
-    }
-    if (eventType === 'game.finished') {
-      return this.findAction(eventsConfig, 'game.finished', [
-        'game.finished',
-        'gameFinished',
-      ]);
-    }
-
-    // Handle turn events
-    if (eventType === 'turn.started') {
-      return this.findAction(eventsConfig, 'turn.started', [
-        'turn.started',
-        'turnStarted',
-      ]);
-    }
-    if (eventType === 'turn.finished') {
-      return this.findAction(eventsConfig, 'turn.finished', [
-        'turn.finished',
-        'turnFinished',
-      ]);
-    }
-
-    // Handle takeout events
-    if (eventType === 'takeout.started') {
-      return this.findAction(eventsConfig, 'takeout.started', [
-        'takeout.started',
-        'takeoutStarted',
-      ]);
-    }
-    if (eventType === 'takeout.finished') {
-      return this.findAction(eventsConfig, 'takeout.finished', [
-        'takeout.finished',
-        'takeoutFinished',
-      ]);
-    }
-
-    return null;
+    // Map event type to canonical key
+    const eventKey = this.getCanonicalEventKey(eventType);
+    return eventKey ? this.findActionByKey(eventsConfig, eventKey) : null;
   }
 
   /**
-   * Find action by trying multiple keys
+   * Determine the event key for throw events
    */
-  private findAction(
-    config: Record<string, WledAction>,
-    eventKey: string,
-    keys: string[]
-  ): { action: WledAction; eventKey: string } | null {
+  private getThrowEventKey(eventData: Record<string, unknown>): string {
+    const turnPoints = (eventData.turnPoints as number) || 0;
+    const segment = eventData.segment as Record<string, unknown>;
+    const multiplier = (segment?.multiplier as number) || 0;
+    const number = (segment?.number as number) || 0;
+    const points = (eventData.points as number) || 0;
+
+    if (turnPoints === 180) return 'throw.180';
+    if (eventData.busted) return 'throw.bust';
+    if (number === 25 && multiplier === 2) return 'throw.bullseye';
+    if (number === 25 && multiplier === 1) return 'throw.bull';
+    if (multiplier === 3) return 'throw.triple';
+    if (multiplier === 2) return 'throw.double';
+    if (points === 0) return 'throw.miss';
+    return 'throw.detected';
+  }
+
+  /**
+   * Map event type to canonical event key
+   */
+  private getCanonicalEventKey(eventType: string): string | null {
+    const typeMapping: Record<string, string> = {
+      'player.change': 'player.changed',
+      'player.changed': 'player.changed',
+      'match.start': 'match.started',
+      'match.started': 'match.started',
+      'match.finished': 'match.finished',
+      'match.delete': 'match.deleted',
+      'match.deleted': 'match.deleted',
+      'match.finish': 'match.finish',
+      'game.finished': 'game.finished',
+      'turn.started': 'turn.started',
+      'turn.finished': 'turn.finished',
+      'takeout.started': 'takeout.started',
+      'takeout.finished': 'takeout.finished',
+    };
+    return typeMapping[eventType] || null;
+  }
+
+  /**
+   * Find action by event key using pre-defined mappings
+   */
+  private findActionByKey(config: Record<string, WledAction>, eventKey: string): { action: WledAction; eventKey: string } | null {
+    const keys = EVENT_KEY_MAPPINGS[eventKey];
+    if (!keys) return null;
+
     for (const key of keys) {
       if (config[key]) {
         return { action: config[key], eventKey };
@@ -815,99 +737,74 @@ export class WledHandler {
     const { type, config = {} } = action;
     this.log(`Executing intent action: ${type} for intent ${intent.id}`, config);
 
-    // Parse color from config (can be hex string or RGB object)
-    const parseColorLocal = (color: unknown): { r: number; g: number; b: number } | undefined => {
-      if (!color) return undefined;
-      if (typeof color === 'string') {
-        // Parse hex color
-        const hex = color.replace('#', '');
-        return {
-          r: parseInt(hex.substring(0, 2), 16),
-          g: parseInt(hex.substring(2, 4), 16),
-          b: parseInt(hex.substring(4, 6), 16),
-        };
-      }
-      if (typeof color === 'object' && 'r' in color) {
-        return color as { r: number; g: number; b: number };
-      }
-      return undefined;
-    };
-
     const eventType = `intent.${intent.id}`;
+    const getColor = (color: unknown, fallback: RGB): RGB => color ? parseColor(color, fallback) : fallback;
 
     switch (type) {
-      case 'solidColor': {
+      case 'solidColor':
         await this.executeAction({
           actionType: 'solid',
-          color: parseColorLocal(config.color) ?? { r: 255, g: 0, b: 0 },
+          color: getColor(config.color, { r: 255, g: 0, b: 0 }),
           brightness: config.brightness as number ?? 255,
           duration: config.duration as number ?? 0,
         }, null, eventType);
         break;
-      }
 
-      case 'effect': {
+      case 'effect':
         await this.executeAction({
           actionType: 'effect',
           effectId: config.effectId as number ?? 0,
           speed: config.speed as number ?? 128,
           intensity: config.intensity as number ?? 128,
-          color: parseColorLocal(config.color),
+          color: config.color ? parseColor(config.color) : undefined,
           duration: config.duration as number ?? 2000,
         }, null, eventType);
         break;
-      }
 
-      case 'preset': {
+      case 'preset':
         await this.executeAction({
           actionType: 'preset',
           presetId: config.presetId as number ?? 1,
           duration: config.duration as number ?? 0,
         }, null, eventType);
         break;
-      }
 
-      case 'flash': {
-        const color = parseColorLocal(config.color) ?? { r: 255, g: 255, b: 255 };
-        const duration = config.duration as number ?? 500;
-        const count = config.count as number ?? 3;
-
-        // Flash effect using strobe
-        for (let i = 0; i < count; i++) {
-          await this.executeAction({
-            actionType: 'solid',
-            color,
-            brightness: 255,
-          }, null, eventType + '.flash');
-          await new Promise(resolve => setTimeout(resolve, duration / 2));
-          await this.executeAction({
-            actionType: 'off',
-          }, null, eventType + '.off');
-          await new Promise(resolve => setTimeout(resolve, duration / 2));
-        }
+      case 'flash':
+        await this.executeFlashAction(config, eventType);
         break;
-      }
 
-      case 'rainbow': {
+      case 'rainbow':
         await this.executeAction({
           actionType: 'effect',
-          effectId: 9, // Rainbow effect
+          effectId: 9,
           speed: config.speed as number ?? 200,
           intensity: 128,
           duration: config.duration as number ?? 3000,
         }, null, eventType);
         break;
-      }
 
-      case 'off': {
-        await this.executeAction({
-          actionType: 'off',
-        }, null, eventType);
+      case 'off':
+        await this.executeAction({ actionType: 'off' }, null, eventType);
         break;
-      }
 
       default:
         this.log(`Unknown intent action type: ${type}`);
+    }
+  }
+
+  /**
+   * Execute flash action with multiple on/off cycles
+   */
+  private async executeFlashAction(config: Record<string, unknown>, eventType: string): Promise<void> {
+    const color = config.color ? parseColor(config.color) : DEFAULT_WHITE;
+    const duration = config.duration as number ?? 500;
+    const count = config.count as number ?? 3;
+
+    for (let i = 0; i < count; i++) {
+      await this.executeAction({ actionType: 'solid', color, brightness: 255 }, null, `${eventType}.flash`);
+      await new Promise(resolve => setTimeout(resolve, duration / 2));
+      await this.executeAction({ actionType: 'off' }, null, `${eventType}.off`);
+      await new Promise(resolve => setTimeout(resolve, duration / 2));
     }
   }
 }

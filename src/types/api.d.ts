@@ -115,6 +115,33 @@ export interface ModuleDetailResponse {
         restartCount: number;
         lastError?: string;
     };
+    eventMeta?: Record<string, {
+        label: Record<string, string>;
+        description: Record<string, string>;
+    }>;
+    eventGroups?: Array<{
+        title: Record<string, string>;
+        events: string[];
+    }>;
+    effects?: Array<{
+        id: number;
+        name: string;
+    }>;
+    intents?: {
+        actions?: Array<{
+            type: string;
+            label: string;
+            description?: string;
+            configSchema?: Record<string, unknown>;
+        }>;
+        emits?: Array<{
+            id: string;
+            description?: string;
+            category?: string;
+        }>;
+        defaultSubscriptions?: unknown[];
+    };
+    i18n?: Record<string, unknown>;
 }
 export interface ModuleConfigResponse {
     schema: Record<string, ModuleConfigFieldSchema>;

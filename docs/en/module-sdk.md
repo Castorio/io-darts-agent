@@ -307,7 +307,9 @@ Modules can react to the following Autodarts events:
 |-------|-------------|----------------|
 | `match.start` | Match started | `matchId`, `boardId` |
 | `match.state` | Match status update | `players`, `gameScores`, `player`, `round`, `settings` |
-| `match.finished` | Match finished | `winner`, `finalScores` |
+| `match.finished` | Match finished (winner determined) | `winner`, `winnerName`, `matchId` |
+| `match.result` | Match result with full data | `winner`, `winnerName`, `chalkboards`, `stats`, `scores`, `settings` |
+| `match.finish` | Match dismissed (user clicked "Finish") | `matchId` |
 | `match.delete` | Match cancelled | `matchId` |
 | `throw.detected` | Throw detected | `segment`, `points`, `remaining`, `playerIndex` |
 | `game.finished` | Leg/Set won | `winner`, `checkoutPath` |
@@ -571,6 +573,7 @@ See [WLED Module](/modules/wled/) as reference for a module that controls extern
 - Configurable fade time (transitions)
 - Single-player and multi-player support
 - Event-based action configuration
+- Intent system support for module-to-module communication
 
 ### Module with Audio/TTS
 

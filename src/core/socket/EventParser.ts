@@ -5,7 +5,9 @@ import type {
   BoardEventData,
   MatchStartData,
   MatchDeleteData,
+  MatchFinishData,
   MatchStateData,
+  MatchResultData,
   ThrowSegment,
   ThrowCoords,
 } from '../../types/index.js';
@@ -117,11 +119,11 @@ export class EventParser {
   }
 
   /**
-   * Parse match start/delete events
+   * Parse match start/delete/finish events
    */
   private parseMatchEvent(
     raw: AutodartsMessage,
-    data: MatchStartData | MatchDeleteData,
+    data: MatchStartData | MatchDeleteData | MatchFinishData,
     timestamp: Date
   ): ParsedEvent {
     if (data.event === 'start') {
@@ -155,6 +157,29 @@ export class EventParser {
 
       return {
         type: 'match.delete',
+        timestamp,
+        raw,
+        data: {
+          matchId: data.id,
+          boardId: this.boardId,
+        },
+      };
+    }
+
+    // User clicked "Finish" after match ended (dismisses results screen)
+    if (data.event === 'finish') {
+      this.currentMatchId = null;
+      this.lastPlayerIndex = null;
+      this.currentMatchState = null;
+      this.lastMatchUpdate = null;
+      this.lastRound = null;
+      this.lastTurnScore = null;
+      this.lastTurnBusted = false;
+      this.lastGameScores = [];
+      this.lastDartsInTurn = 0;
+
+      return {
+        type: 'match.finish',
         timestamp,
         raw,
         data: {
@@ -372,6 +397,41 @@ export class EventParser {
           winnerName: data.players[data.winner]?.name ?? 'Unknown',
         },
       });
+
+      // Also emit match.result with full result data (chalkboards, stats, scores)
+      const matchResultData: MatchResultData = {
+        matchId: data.id,
+        winner: data.winner,
+        winnerName: data.players[data.winner]?.name ?? 'Unknown',
+        variant: data.variant,
+        type: data.type,
+        leg: data.leg,
+        set: data.set,
+        round: data.round,
+        players: data.players.map((p) => ({
+          index: p.index,
+          name: p.name,
+          userId: p.userId,
+        })),
+        scores: (data.scores as unknown as Array<{ legs: number; sets: number }>)?.map((s) => ({
+          legs: s.legs ?? 0,
+          sets: s.sets ?? 0,
+        })) ?? [],
+        chalkboards: data.chalkboards ?? [],
+        stats: data.stats?.legStats?.map((legStat, idx) => ({
+          legStats: legStat,
+          matchStats: data.stats.matchStats[idx] ?? legStat,
+          setStats: data.stats.setStats?.[idx],
+        })) ?? [],
+        settings: data.settings,
+      };
+      events.push({
+        type: 'match.result',
+        timestamp,
+        raw,
+        data: matchResultData,
+      });
+
       this.currentMatchId = null;
       this.lastPlayerIndex = null;
       this.currentMatchState = null;

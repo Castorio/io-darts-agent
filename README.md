@@ -48,8 +48,8 @@ Download the appropriate package for your system:
 
 | Module | Description |
 |--------|-------------|
-| **WLED Lighting Controller** | Controls WLED-compatible LED strips based on game events. Player colors, special effects for 180s, triples, bulls, and more. Supports presets, effects, and configurable fade times. |
-| **Game Display** | Shows game score on external displays/tablets in real-time. Checkout suggestions, player colors, animations for special events. |
+| **WLED Lighting Controller** | Controls WLED-compatible LED strips based on game events. Player colors, special effects for 180s, triples, bulls, and more. Supports presets, effects, configurable fade times, and intent-based actions. |
+| **Game Display** | Shows game score on external displays/tablets in real-time. Checkout suggestions, player colors, animations, match started screen, and results table with statistics. |
 | **Darts Caller** | Professional darts caller with TTS or custom audio packs. Announces scores, checkouts, player changes, and special events. Includes Voice Pack Generator with ElevenLabs integration. |
 
 ### Module Features
@@ -60,7 +60,9 @@ Download the appropriate package for your system:
 - Temporary effects with duration and fade time
 - Support for presets, effects, solid colors
 - Multi-color effects (up to 3 colors)
-- Single-player mode support
+- Single-player mode support (takeout.finished applies player color)
+- Intent system support for module-to-module communication
+- Automatic player color restore after event animations
 
 #### Game Display
 - Real-time score updates
@@ -70,6 +72,10 @@ Download the appropriate package for your system:
 - Multi-player overview
 - Demo mode for testing
 - Custom animations per event and player
+- Match started screen (configurable: default or custom image/GIF)
+- Match results table with chalkboard and statistics
+- Configurable results display duration (auto-hide or manual dismiss)
+- Configurable background colors
 
 #### Darts Caller
 - Score announcements after each turn
@@ -97,7 +103,9 @@ The agent processes the following Autodarts events:
 | Event | Description |
 |-------|-------------|
 | `match.start` | Match was started |
-| `match.finished` | Match was finished |
+| `match.finished` | Match was finished (winner determined) |
+| `match.finish` | Match dismissed (user clicked "Finish" button) |
+| `match.result` | Match result with chalkboard, stats, and scores |
 | `match.delete` | Match was cancelled |
 | `match.state` | Match state update (scores, players, etc.) |
 | `throw.detected` | Throw was detected |
@@ -231,6 +239,12 @@ POST   /api/modules/:id/stop    # Stop module
 PUT    /api/modules/:id/config  # Update config
 DELETE /api/modules/:id         # Uninstall module
 POST   /api/modules/install     # Install from Git URL
+
+# Intents
+GET    /api/intents             # List all available intents (basic)
+GET    /api/intents/available   # List all intents with full payload schema
+GET    /api/modules/:id/intents # Get module intent actions
+PUT    /api/modules/:id/intents # Update module intent subscriptions
 
 # Match
 GET    /api/match/current       # Current match state

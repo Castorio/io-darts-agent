@@ -7,15 +7,116 @@
   "repository": "https://github.com/autodarts/autodarts-wled-module",
   "entry": "dist/index.js",
   "events": [
-    "match.start",
-    "match.delete",
+    "match.started",
     "match.finished",
+    "match.finish",
+    "match.deleted",
     "throw.detected",
-    "player.change",
+    "throw.triple",
+    "throw.double",
+    "throw.bull",
+    "throw.bullseye",
+    "throw.180",
+    "throw.highfinish",
+    "throw.miss",
+    "player.changed",
+    "turn.started",
     "turn.finished",
     "takeout.started",
     "takeout.finished",
     "game.finished"
+  ],
+  "eventMeta": {
+    "match.started": {
+      "label": { "de": "Match gestartet", "en": "Match started", "es": "Partido iniciado" },
+      "description": { "de": "Wird ausgelöst wenn ein neues Match beginnt", "en": "Triggered when a new match starts", "es": "Se activa cuando comienza un nuevo partido" }
+    },
+    "match.finished": {
+      "label": { "de": "Match beendet", "en": "Match finished", "es": "Partido terminado" },
+      "description": { "de": "Wird ausgelöst wenn ein Match zu Ende ist", "en": "Triggered when a match ends", "es": "Se activa cuando termina un partido" }
+    },
+    "match.finish": {
+      "label": { "de": "Match verlassen", "en": "Match left", "es": "Partido abandonado" },
+      "description": { "de": "Benutzer klickt auf Beenden (nach der Ergebnisanzeige)", "en": "User clicks finish (after results screen)", "es": "El usuario hace clic en finalizar" }
+    },
+    "match.deleted": {
+      "label": { "de": "Match abgebrochen", "en": "Match cancelled", "es": "Partido cancelado" },
+      "description": { "de": "Match wurde abgebrochen", "en": "Match was cancelled", "es": "El partido fue cancelado" }
+    },
+    "throw.detected": {
+      "label": { "de": "Wurf erkannt", "en": "Throw detected", "es": "Tiro detectado" },
+      "description": { "de": "Ein normaler Wurf wurde erkannt", "en": "A normal throw was detected", "es": "Se detectó un tiro normal" }
+    },
+    "throw.triple": {
+      "label": { "de": "Triple getroffen", "en": "Triple hit", "es": "Triple golpeado" },
+      "description": { "de": "Ein Triple-Feld wurde getroffen", "en": "A triple field was hit", "es": "Se golpeó un campo triple" }
+    },
+    "throw.double": {
+      "label": { "de": "Double getroffen", "en": "Double hit", "es": "Doble golpeado" },
+      "description": { "de": "Ein Double-Feld wurde getroffen", "en": "A double field was hit", "es": "Se golpeó un campo doble" }
+    },
+    "throw.bull": {
+      "label": { "de": "Single Bull", "en": "Single Bull", "es": "Bull simple" },
+      "description": { "de": "Das äußere Bull wurde getroffen (25)", "en": "The outer bull was hit (25)", "es": "Se golpeó el bull exterior (25)" }
+    },
+    "throw.bullseye": {
+      "label": { "de": "Bullseye!", "en": "Bullseye!", "es": "¡Bullseye!" },
+      "description": { "de": "Das Bullseye wurde getroffen (50)", "en": "The bullseye was hit (50)", "es": "Se golpeó el bullseye (50)" }
+    },
+    "throw.180": {
+      "label": { "de": "180!", "en": "180!", "es": "¡180!" },
+      "description": { "de": "Eine perfekte 180 wurde geworfen", "en": "A perfect 180 was thrown", "es": "Se lanzó un 180 perfecto" }
+    },
+    "throw.highfinish": {
+      "label": { "de": "High Finish", "en": "High Finish", "es": "High Finish" },
+      "description": { "de": "Ein Checkout über 100 Punkte", "en": "A checkout over 100 points", "es": "Un checkout de más de 100 puntos" }
+    },
+    "throw.miss": {
+      "label": { "de": "Fehlwurf", "en": "Miss", "es": "Fallo" },
+      "description": { "de": "Die Scheibe wurde verfehlt", "en": "The board was missed", "es": "Se falló el tablero" }
+    },
+    "player.changed": {
+      "label": { "de": "Spielerwechsel", "en": "Player changed", "es": "Cambio de jugador" },
+      "description": { "de": "Der aktive Spieler hat gewechselt", "en": "The active player has changed", "es": "El jugador activo ha cambiado" }
+    },
+    "turn.started": {
+      "label": { "de": "Aufnahme gestartet", "en": "Turn started", "es": "Turno iniciado" },
+      "description": { "de": "Ein Spieler beginnt seine Aufnahme", "en": "A player starts their turn", "es": "Un jugador comienza su turno" }
+    },
+    "turn.finished": {
+      "label": { "de": "Aufnahme beendet", "en": "Turn finished", "es": "Turno terminado" },
+      "description": { "de": "Ein Spieler beendet seine Aufnahme", "en": "A player finishes their turn", "es": "Un jugador termina su turno" }
+    },
+    "takeout.started": {
+      "label": { "de": "Pfeile ziehen", "en": "Pulling darts", "es": "Sacando dardos" },
+      "description": { "de": "Die Pfeile werden aus der Scheibe gezogen", "en": "Darts are being pulled from the board", "es": "Los dardos se están sacando del tablero" }
+    },
+    "takeout.finished": {
+      "label": { "de": "Pfeile gezogen", "en": "Darts pulled", "es": "Dardos sacados" },
+      "description": { "de": "Die Pfeile wurden aus der Scheibe gezogen", "en": "Darts have been pulled from the board", "es": "Los dardos han sido sacados del tablero" }
+    },
+    "game.finished": {
+      "label": { "de": "Leg beendet", "en": "Leg finished", "es": "Leg terminado" },
+      "description": { "de": "Ein Leg wurde beendet", "en": "A leg has been finished", "es": "Se ha terminado un leg" }
+    }
+  },
+  "eventGroups": [
+    {
+      "title": { "de": "Match Events", "en": "Match Events", "es": "Eventos de Partido" },
+      "events": ["match.started", "match.finished", "match.finish", "match.deleted"]
+    },
+    {
+      "title": { "de": "Wurf Events", "en": "Throw Events", "es": "Eventos de Tiro" },
+      "events": ["throw.detected", "throw.triple", "throw.double", "throw.bull", "throw.bullseye", "throw.180", "throw.highfinish", "throw.miss"]
+    },
+    {
+      "title": { "de": "Spieler Events", "en": "Player Events", "es": "Eventos de Jugador" },
+      "events": ["player.changed", "turn.started", "turn.finished"]
+    },
+    {
+      "title": { "de": "Board Events", "en": "Board Events", "es": "Eventos del Tablero" },
+      "events": ["takeout.started", "takeout.finished"]
+    }
   ],
   "config": {
     "wledHost": {
@@ -121,40 +222,7 @@
         "description": "Turn off all LEDs"
       }
     ],
-    "defaultSubscriptions": [
-      {
-        "intentId": "player.achievement.180",
-        "enabled": true,
-        "action": {
-          "type": "rainbow",
-          "config": { "duration": 5000, "speed": 200 }
-        }
-      },
-      {
-        "intentId": "player.achievement.highCheckout",
-        "enabled": true,
-        "action": {
-          "type": "effect",
-          "config": { "effectId": 82, "duration": 3000, "color": "#00ff00" }
-        }
-      },
-      {
-        "intentId": "player.achievement.bust",
-        "enabled": true,
-        "action": {
-          "type": "flash",
-          "config": { "color": "#ff0000", "duration": 300, "count": 2 }
-        }
-      },
-      {
-        "intentId": "match.milestone.ended",
-        "enabled": true,
-        "action": {
-          "type": "effect",
-          "config": { "effectId": 82, "duration": 5000 }
-        }
-      }
-    ]
+    "defaultSubscriptions": []
   },
   "i18n": {
     "en": {

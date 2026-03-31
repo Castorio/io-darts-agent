@@ -206,14 +206,13 @@ async function loadIntentConfig() {
   if (!module.value) return
 
   try {
-    // Load module intent actions
+    // Load module intent actions (what this module can do)
     const intentsResponse = await api.getModuleIntents(module.value.id)
-    if (intentsResponse.success && intentsResponse.actions && intentsResponse.actions.length > 0) {
-      hasIntentSupport.value = true
+    if (intentsResponse.success && intentsResponse.actions) {
       availableActions.value = intentsResponse.actions
     }
 
-    // Load available intents from system
+    // Load available intents from system (what events can trigger actions)
     const availableIntentsResponse = await api.getAvailableIntents()
     if (availableIntentsResponse.success && availableIntentsResponse.intents) {
       availableIntents.value = availableIntentsResponse.intents
@@ -224,8 +223,14 @@ async function loadIntentConfig() {
     if (subscriptionsResponse.success && subscriptionsResponse.subscriptions) {
       intentSubscriptions.value = subscriptionsResponse.subscriptions
     }
+
+    // Always show intent config for every module
+    // Even modules without their own actions can subscribe to intents from other modules
+    hasIntentSupport.value = true
   } catch (e) {
     console.error('Failed to load intent config:', e)
+    // Even on error, if we know the module supports actions, show the section
+    hasIntentSupport.value = false
   }
 }
 
@@ -444,8 +449,12 @@ onMounted(async () => {
           </div>
         </BaseCard>
 
-        <!-- Configuration -->
-        <BaseCard :title="t('modules.configuration')" :subtitle="t('modules.configurationSubtitle')">
+        <!-- Configuration (hidden for modules with dedicated config pages) -->
+        <BaseCard
+          v-if="!['wled', 'game-display'].includes(module.id)"
+          :title="t('modules.configuration')"
+          :subtitle="t('modules.configurationSubtitle')"
+        >
           <div v-if="Object.keys(configSchema).length === 0" class="text-center py-8">
             <p class="text-dark-400">{{ t('modules.noConfigOptions') }}</p>
           </div>
@@ -555,20 +564,31 @@ onMounted(async () => {
           </form>
         </BaseCard>
 
-        <!-- Intent Subscriptions -->
+        <!-- Intent Subscriptions (hidden for modules with dedicated config pages) -->
         <BaseCard
-          v-if="hasIntentSupport"
+          v-if="hasIntentSupport && !['wled', 'game-display'].includes(module.id)"
           :title="t('modules.intentReactions')"
           :subtitle="t('modules.intentReactionsSubtitle')"
         >
+          <!-- No intents available -->
+          <div v-if="availableIntents.length === 0" class="text-center py-8">
+            <svg class="w-12 h-12 mx-auto text-dark-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <p class="text-dark-400 mt-3">{{ t('modules.noIntentsAvailable') }}</p>
+            <p class="text-sm text-dark-500 mt-1">{{ t('modules.noIntentsAvailableDesc') }}</p>
+          </div>
+
+          <!-- Intent configuration -->
           <IntentSubscriptionConfig
+            v-else
             :available-intents="availableIntents"
             :available-actions="availableActions"
             v-model="intentSubscriptions"
           />
 
           <template #footer>
-            <div class="flex items-center justify-between">
+            <div v-if="availableIntents.length > 0" class="flex items-center justify-between">
               <!-- Save Message -->
               <div
                 v-if="intentSaveMessage"

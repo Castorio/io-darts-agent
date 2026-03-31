@@ -12,6 +12,18 @@ export interface ModuleManifest {
     config?: ModuleConfigSchema;
     i18n?: ModuleI18n;
     intents?: ModuleIntentsConfig;
+    eventMeta?: Record<string, {
+        label: Record<string, string>;
+        description: Record<string, string>;
+    }>;
+    eventGroups?: Array<{
+        title: Record<string, string>;
+        events: string[];
+    }>;
+    effects?: Array<{
+        id: number;
+        name: string;
+    }>;
 }
 /**
  * Module i18n configuration

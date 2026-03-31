@@ -11,6 +11,7 @@ Steuert WLED-kompatible LED-Controller basierend auf Autodarts-Spielevents.
 - **Presets & Effekte** - Unterstützung für WLED-Presets und alle WLED-Effekte
 - **Multi-Color** - Bis zu 3 Farben pro Effekt
 - **Einzelspieler-Modus** - Spielerfarbe wird auch ohne Spielerwechsel korrekt angezeigt
+- **Intent-System** - Reagiert auf Intents von anderen Modulen (z.B. Caller-Ansagen lösen Lichteffekte aus)
 
 ## Voraussetzungen
 
@@ -58,6 +59,8 @@ Für jedes Ereignis kann eine Aktion konfiguriert werden:
 | Event | Wann ausgelöst |
 |-------|----------------|
 | **Match Start** | Spiel wird gestartet |
+| **Match Ergebnis** | Match-Ergebnis wird angezeigt |
+| **Match Beenden** | Benutzer schließt Match-Ergebnisse |
 | **Match Ende** | Spiel ist beendet |
 | **Match Abbruch** | Spiel wird abgebrochen |
 | **Spielerwechsel** | Anderer Spieler ist dran |
@@ -106,6 +109,16 @@ Das WLED-Modul unterstützt auch Einzelspieler-Spiele korrekt:
 1. **Bei Match-Start**: Die Spielerfarbe wird nach der optionalen Start-Animation automatisch angewendet
 2. **Nach jedem Takeout**: Die Spielerfarbe wird erneut angewendet
 3. **Kein Spielerwechsel nötig**: Die Farbe bleibt auch ohne `player.change`-Event aktiv
+
+### Intent-System
+
+Das WLED-Modul kann auf Intents von anderen Modulen reagieren:
+
+1. **Aktivierung**: In der Modul-Konfiguration können Intent-Abonnements konfiguriert werden
+2. **Verfügbare Intents**: Abhängig von installierten Modulen (z.B. Caller-Ansagen)
+3. **Aktionen**: Jeder Intent kann eine WLED-Aktion auslösen (Effekt, Solid, Preset, etc.)
+
+Beispiel: Wenn der Darts Caller "180" ansagt, kann WLED einen speziellen Lichteffekt abspielen.
 
 ## Beispiel-Konfiguration
 

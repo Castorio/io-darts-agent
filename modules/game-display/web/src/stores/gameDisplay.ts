@@ -50,6 +50,31 @@ export interface DartThrow {
   index: number // 0, 1, or 2
 }
 
+// Chalkboard row for match results
+export interface ChalkboardRow {
+  round: number
+  score: number
+  points: number
+  isScoreStruck: boolean
+  isPointsStruck: boolean
+}
+
+// Match results with chalkboards
+export interface MatchResults {
+  chalkboards: Array<{
+    playerIndex: number
+    rows: ChalkboardRow[]
+  }>
+  winner: number | null
+  stats: Array<{
+    average?: number
+    dartsThrown?: number
+    checkoutPercent?: number
+    highestCheckout?: number
+    first9Average?: number
+  }>
+}
+
 export interface GameState {
   matchId: string | null
   isActive: boolean
@@ -75,6 +100,14 @@ export interface GameState {
 export interface DisplayConfig {
   idleMode: 'black' | 'image' | 'lastGame'
   idleImageUrl: string
+  // Match started screen config
+  matchStartedMode: 'default' | 'image'
+  matchStartedImageUrl: string
+  matchStartedDuration: number // Duration in ms before showing game
+  gameOnBackgroundColor: string // Background color for Game On! screen
+  // Match results config
+  matchResultsDuration: number // 0 = infinite (until new match)
+  matchResultsBackgroundColor: string // Background color for results table
   showCheckouts: boolean
   checkoutThreshold: number
   animationSpeed: 'slow' | 'normal' | 'fast'
@@ -126,6 +159,14 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   const config = ref<DisplayConfig>({
     idleMode: 'lastGame',
     idleImageUrl: '',
+    // Match started screen
+    matchStartedMode: 'default',
+    matchStartedImageUrl: '',
+    matchStartedDuration: 3000, // 3 seconds default
+    gameOnBackgroundColor: '#0a0a0f', // Default dark background
+    // Match results
+    matchResultsDuration: 0, // 0 = infinite
+    matchResultsBackgroundColor: '#0a0a0f', // Dark background
     showCheckouts: true,
     checkoutThreshold: 170,
     animationSpeed: 'normal',
@@ -136,6 +177,10 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     playerAnimations: [],
   })
 
+  // Match started state - shown when match.start event received but no match data yet
+  const isMatchStarted = ref(false)
+  const matchStartedMatchId = ref<string | null>(null)
+
   // Active animation queue
   const activeAnimation = ref<ActiveAnimation | null>(null)
   const animationQueue = ref<ActiveAnimation[]>([])
@@ -143,6 +188,11 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   // Track if we have a "last game" to show
   const hasLastGame = ref(false)
   const lastGameState = ref<GameState | null>(null)
+
+  // Match results (chalkboards) for showing final results table
+  const matchResults = ref<MatchResults | null>(null)
+  const showMatchResults = ref(false)
+  let matchResultsTimer: ReturnType<typeof setTimeout> | null = null
 
   // Computed
   const activePlayer = computed(() => {
@@ -190,6 +240,14 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         config.value = {
           idleMode: data.idleMode || 'lastGame',
           idleImageUrl: data.idleImageUrl || '',
+          // Match started screen
+          matchStartedMode: data.matchStartedMode || 'default',
+          matchStartedImageUrl: data.matchStartedImageUrl || '',
+          matchStartedDuration: data.matchStartedDuration ?? 3000,
+          gameOnBackgroundColor: data.gameOnBackgroundColor || '#0a0a0f',
+          // Match results
+          matchResultsDuration: data.matchResultsDuration ?? 0,
+          matchResultsBackgroundColor: data.matchResultsBackgroundColor || '#0a0a0f',
           showCheckouts: data.showCheckouts !== false,
           checkoutThreshold: data.checkoutThreshold || 170,
           animationSpeed: data.animationSpeed || 'normal',
@@ -281,9 +339,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     switch (type) {
       case 'match.start':
-        // match.start only has matchId - fetch full match data from API
-        console.log('Match started, fetching full match data...')
-        fetchCurrentMatch()
+        // match.start event received - show "match started" screen while waiting for data
+        handleMatchStart(data as Record<string, unknown>)
         break
 
       case 'match.state':
@@ -310,14 +367,47 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         handleMatchFinished(data as Record<string, unknown>)
         break
 
+      case 'match.result':
+      case 'match.results':
+        handleMatchResults(data as Record<string, unknown>)
+        break
+
       case 'match.delete':
         resetGame()
+        break
+
+      case 'match.finish':
+        // User pressed "Finish" button after match ended - go to idle
+        handleMatchFinish()
         break
     }
   }
 
+  function handleMatchStart(data: Record<string, unknown>) {
+    console.log('handleMatchStart data:', data)
+
+    // Cancel any pending match results timer and hide results
+    if (matchResultsTimer) {
+      clearTimeout(matchResultsTimer)
+      matchResultsTimer = null
+    }
+    showMatchResults.value = false
+
+    // Set match started state
+    isMatchStarted.value = true
+    matchStartedMatchId.value = (data.matchId as string) || null
+
+    // Fetch full match data from API
+    console.log('Match started, fetching full match data...')
+    fetchCurrentMatch()
+  }
+
   function handleMatchState(data: Record<string, unknown>) {
     console.log('handleMatchState data:', data)
+
+    // Clear match started state when we receive actual match data
+    isMatchStarted.value = false
+    matchStartedMatchId.value = null
 
     gameState.value.matchId = data.matchId as string
     gameState.value.isActive = true
@@ -575,6 +665,103 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     gameState.value.isActive = false
   }
 
+  function handleMatchResults(data: Record<string, unknown>) {
+    console.log('handleMatchResults data:', data)
+
+    // Parse chalkboards
+    const chalkboards = data.chalkboards as Array<Record<string, unknown>> | undefined
+    const stats = data.stats as Array<Record<string, unknown>> | undefined
+    const winnerIndex = data.winner as number | undefined
+    const players = data.players as Array<Record<string, unknown>> | undefined
+
+    if (chalkboards) {
+      // Update player names from result data if available
+      if (players) {
+        players.forEach((p, idx) => {
+          if (gameState.value.players[idx]) {
+            gameState.value.players[idx].name = (p.name as string) || gameState.value.players[idx].name
+          }
+        })
+      }
+
+      matchResults.value = {
+        chalkboards: chalkboards.map((cb, index) => {
+          const rows = cb.rows as Array<Record<string, unknown>> | undefined
+          return {
+            playerIndex: index,
+            rows: rows?.map((row) => ({
+              round: (row.round as number) || 0,
+              score: (row.score as number) || 0,
+              points: (row.points as number) || 0,
+              isScoreStruck: (row.isScoreStruck as boolean) || false,
+              isPointsStruck: (row.isPointsStruck as boolean) || false,
+            })) || [],
+          }
+        }),
+        winner: winnerIndex ?? null,
+        stats: stats?.map((playerStats) => {
+          // Stats can be in two formats:
+          // 1. Direct stats object (legacy)
+          // 2. Nested { legStats, matchStats, setStats } (new format from match.result)
+          const legStats = playerStats.legStats as Record<string, unknown> | undefined
+          const matchStats = playerStats.matchStats as Record<string, unknown> | undefined
+          const statsSource = matchStats || legStats || playerStats
+
+          return {
+            average: (statsSource.average as number) ?? undefined,
+            dartsThrown: (statsSource.dartsThrown as number) ?? undefined,
+            checkoutPercent: (statsSource.checkoutPercent as number) ?? undefined,
+            highestCheckout: (statsSource.checkoutPoints as number) ?? undefined,
+            first9Average: (statsSource.first9Average as number) ?? undefined,
+          }
+        }) || [],
+      }
+
+      // Show match results screen
+      showMatchResults.value = true
+
+      // Start auto-hide timer if duration is set
+      // Note: matchResultsDuration is already in milliseconds (e.g. 30000 = 30s)
+      if (matchResultsTimer) {
+        clearTimeout(matchResultsTimer)
+        matchResultsTimer = null
+      }
+
+      const durationMs = config.value.matchResultsDuration
+      if (durationMs > 0) {
+        console.log(`Match results will auto-hide in ${durationMs}ms (${durationMs / 1000}s)`)
+        matchResultsTimer = setTimeout(() => {
+          console.log('Auto-hiding match results')
+          showMatchResults.value = false
+          matchResultsTimer = null
+        }, durationMs)
+      }
+    }
+  }
+
+  // Handle match.finish event (user pressed "Finish" button)
+  function handleMatchFinish() {
+    console.log('handleMatchFinish - transitioning to idle')
+
+    // Cancel any pending match results timer
+    if (matchResultsTimer) {
+      clearTimeout(matchResultsTimer)
+      matchResultsTimer = null
+    }
+
+    // Hide match results and go to idle
+    showMatchResults.value = false
+
+    // Save last game state
+    if (gameState.value.players.length > 0) {
+      lastGameState.value = JSON.parse(JSON.stringify(gameState.value))
+      hasLastGame.value = true
+    }
+
+    // Deactivate game
+    gameState.value.isActive = false
+  }
+
   function updateCheckoutStatus() {
     const remaining = gameState.value.currentTurn.remaining
     // Checkout is possible if remaining is between 2 and 170 and not busted
@@ -668,6 +855,18 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       hasLastGame.value = true
     }
 
+    // Reset match started state
+    isMatchStarted.value = false
+    matchStartedMatchId.value = null
+
+    // Reset match results and cancel timer
+    if (matchResultsTimer) {
+      clearTimeout(matchResultsTimer)
+      matchResultsTimer = null
+    }
+    matchResults.value = null
+    showMatchResults.value = false
+
     gameState.value = {
       matchId: null,
       isActive: false,
@@ -742,6 +941,11 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
   }
 
+  // Hide match results and go back to idle
+  function hideMatchResults() {
+    showMatchResults.value = false
+  }
+
   return {
     // State
     gameState,
@@ -751,6 +955,12 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     lastGameState,
     activeAnimation,
     animationQueue,
+    // Match started state
+    isMatchStarted,
+    matchStartedMatchId,
+    // Match results state
+    matchResults,
+    showMatchResults,
     // Computed
     activePlayer,
     otherPlayers,
@@ -766,6 +976,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     handleEvent,
     resetGame,
     startDemo,
+    hideMatchResults,
     // Animation actions
     triggerAnimation,
     dismissAnimation,

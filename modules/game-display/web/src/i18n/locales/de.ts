@@ -8,6 +8,17 @@ export default {
     waitingForNextGame: 'Warte auf nächstes Spiel...',
     atTurn: 'Am Zug',
     bust: 'Bust!',
+    gameOn: 'Game On!',
+    waitingForFirstThrow: 'Warte auf ersten Wurf...',
+    loadingPlayers: 'Spieler werden geladen...',
+    // Match Results
+    matchResults: 'Ergebnis',
+    round: 'Runde',
+    points: 'Punkte',
+    remaining: 'Rest',
+    average: 'Average',
+    darts: 'Darts',
+    checkout: 'CO%',
   },
 
   // Score display

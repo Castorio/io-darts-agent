@@ -127,6 +127,10 @@ export class WledHandler {
      */
     async handleEvent(event) {
         this.stats.eventsProcessed++;
+        // Debug: Log all incoming events
+        if (event.type === 'throw.detected') {
+            console.log(`🎨 WLED [${event.type}]: Event received, host=${this.config.wledHost || 'NOT SET'}`);
+        }
         // Update current match state from match.state events
         if (event.type === 'match.state') {
             const eventData = event.data;
@@ -140,13 +144,60 @@ export class WledHandler {
             };
             this.log(`Updated match state: player ${playerIndex} (${this.currentMatchState.playerName})`);
         }
+        // Handle player.change events - update match state and apply player color
+        if ((event.type === 'player.change' || event.type === 'player.changed') && this.currentMatchState) {
+            const eventData = event.data || {};
+            const newPlayerIndex = eventData.currentPlayer ?? eventData.player ?? this.currentMatchState.playerIndex;
+            const newPlayerName = eventData.playerName || '';
+
+            // Update stored match state with new player index
+            this.currentMatchState.playerIndex = newPlayerIndex;
+            if (newPlayerName) {
+                this.currentMatchState.playerName = newPlayerName;
+            } else if (this.currentMatchState.players && this.currentMatchState.players[newPlayerIndex]) {
+                this.currentMatchState.playerName = this.currentMatchState.players[newPlayerIndex].name || '';
+            }
+
+            this.log(`Player changed: player ${newPlayerIndex} (${this.currentMatchState.playerName})`);
+            console.log(`🎨 WLED [player.change]: Updated to player ${newPlayerIndex} (${this.currentMatchState.playerName})`);
+
+            // Execute player color action if configured
+            const eventsConfig = this.config.events || this.config.eventActions || {};
+            const playerChangeAction = eventsConfig['player.change'] || eventsConfig['player.changed'] || eventsConfig['playerChange'];
+            const defaultState = this.config.defaultState;
+            const actionToUse = playerChangeAction || defaultState;
+
+            if (actionToUse && actionToUse.actionType && actionToUse.actionType !== 'none') {
+                this.log(`Player change - applying player color for ${this.currentMatchState.playerName}`);
+                // Create event with current match state data
+                const eventWithPlayerData = { ...event, data: { ...this.currentMatchState, currentPlayer: newPlayerIndex } };
+                const playerColor = await this.resolvePlayerColor(eventWithPlayerData);
+                console.log(`🎨 WLED [player.change]: Resolved player color: RGB(${playerColor?.r}, ${playerColor?.g}, ${playerColor?.b})`);
+                await this.executeAction(actionToUse, playerColor, 'player.change.playerColor');
+                // Skip further action processing for player.change since we handled it here
+                return;
+            } else {
+                console.log(`🎨 WLED [player.change]: No player.change action configured`);
+            }
+        }
         // Clear match state on match end/delete
         if (event.type === 'match.finished' || event.type === 'match.delete') {
             this.currentMatchState = null;
         }
-        if (!this.isConfigured()) {
+        const isConf = this.isConfigured();
+        if (event.type === 'throw.detected') {
+            console.log(`🎨 WLED [throw.detected]: isConfigured=${isConf}, host=${this.config.wledHost}`);
+        }
+        if (!isConf) {
             this.log('No host configured');
+            if (event.type === 'throw.detected') {
+                console.log(`🎨 WLED [throw.detected]: Returning - host not configured`);
+            }
             return;
+        }
+        // Debug: After isConfigured check
+        if (event.type === 'throw.detected') {
+            console.log(`🎨 WLED [throw.detected]: Passed isConfigured check, continuing...`);
         }
         // Special handling for match.start: Apply player color after optional start animation
         // Note: currentMatchState will be set by the first match.state event that follows
@@ -197,16 +248,39 @@ export class WledHandler {
                 console.log(`🎨 WLED [takeout.finished]: No player.change or defaultState action configured`);
             }
         }
-        const actionResult = this.getActionForEvent(event);
+        // Debug: Before calling getActionForEvent
+        if (event.type === 'throw.detected') {
+            console.log(`🎨 WLED [throw.detected]: About to call getActionForEvent...`);
+        }
+        let actionResult;
+        try {
+            actionResult = this.getActionForEvent(event);
+        } catch (err) {
+            console.error(`🎨 WLED [throw.detected]: ERROR in getActionForEvent:`, err);
+            return;
+        }
+        if (event.type === 'throw.detected') {
+            console.log(`🎨 WLED [throw.detected]: getActionForEvent result:`, actionResult ? `found action for ${actionResult.eventKey}` : 'null');
+        }
         if (!actionResult) {
             this.log(`No config for event: ${event.type}`);
+            if (event.type === 'throw.detected') {
+                const eventsConfig = this.config.events || this.config.eventActions || {};
+                console.log(`🎨 WLED [throw.detected]: No action found. Available event keys:`, Object.keys(eventsConfig));
+            }
             return;
         }
         const { action, eventKey } = actionResult;
         // Check action type
         const actionType = action.actionType;
+        if (event.type === 'throw.detected') {
+            console.log(`🎨 WLED [throw.detected]: actionType=${actionType}, eventKey=${eventKey}`);
+        }
         if (!actionType || actionType === 'none') {
             this.log(`Action type is none for ${eventKey}`);
+            if (event.type === 'throw.detected') {
+                console.log(`🎨 WLED [throw.detected]: Action type is 'none', skipping`);
+            }
             return;
         }
         // Get player color if needed
@@ -400,6 +474,21 @@ export class WledHandler {
         const eventsConfig = this.config.events || this.config.eventActions || {};
         const eventType = event.type;
         const eventData = event.data;
+
+        // Helper: Check if action is valid (not 'none' and has actionType)
+        const isValidAction = (result) => {
+            return result && result.action && result.action.actionType && result.action.actionType !== 'none';
+        };
+
+        // Helper: Get fallback to throw.detected
+        const getFallbackToDetected = () => {
+            return this.findAction(eventsConfig, 'throw.detected', [
+                'throw.detected',
+                'throwDetected',
+                'throwHit',
+            ]);
+        };
+
         // Handle throw events with special conditions
         if (eventType === 'throw.detected') {
             const turnPoints = eventData.turnPoints || 0;
@@ -407,53 +496,69 @@ export class WledHandler {
             const multiplier = segment?.multiplier || 0;
             const number = segment?.number || 0;
             const points = eventData.points || 0;
+            let result;
+
             if (turnPoints === 180) {
-                return this.findAction(eventsConfig, 'throw.180', [
+                result = this.findAction(eventsConfig, 'throw.180', [
                     'throw.180',
                     'throw180',
                 ]);
+                if (isValidAction(result)) return result;
+                return getFallbackToDetected();
             }
             if (eventData.busted) {
-                return this.findAction(eventsConfig, 'throw.bust', [
+                result = this.findAction(eventsConfig, 'throw.bust', [
                     'throw.bust',
                     'throwBust',
                     'bust',
                 ]);
+                if (isValidAction(result)) return result;
+                return getFallbackToDetected();
             }
             if (number === 25 && multiplier === 2) {
-                return this.findAction(eventsConfig, 'throw.bullseye', [
+                result = this.findAction(eventsConfig, 'throw.bullseye', [
                     'throw.bullseye',
                     'throwBullseye',
                     'throw.doubleBull',
                     'doubleBull',
                 ]);
+                if (isValidAction(result)) return result;
+                return getFallbackToDetected();
             }
             if (number === 25 && multiplier === 1) {
-                return this.findAction(eventsConfig, 'throw.bull', [
+                result = this.findAction(eventsConfig, 'throw.bull', [
                     'throw.bull',
                     'throwBull',
                     'throw.singleBull',
                 ]);
+                if (isValidAction(result)) return result;
+                return getFallbackToDetected();
             }
             if (multiplier === 3) {
-                return this.findAction(eventsConfig, 'throw.triple', [
+                result = this.findAction(eventsConfig, 'throw.triple', [
                     'throw.triple',
                     'throwTriple',
                     'throwHighlight',
                 ]);
+                if (isValidAction(result)) return result;
+                return getFallbackToDetected();
             }
             if (multiplier === 2) {
-                return this.findAction(eventsConfig, 'throw.double', [
+                result = this.findAction(eventsConfig, 'throw.double', [
                     'throw.double',
                     'throwDouble',
                 ]);
+                if (isValidAction(result)) return result;
+                return getFallbackToDetected();
             }
             // Check for miss
             if (points === 0) {
-                return this.findAction(eventsConfig, 'throw.miss', [
+                result = this.findAction(eventsConfig, 'throw.miss', [
                     'throw.miss',
                     'throwMiss',
                 ]);
+                if (isValidAction(result)) return result;
+                return getFallbackToDetected();
             }
             // Default throw
             return this.findAction(eventsConfig, 'throw.detected', [

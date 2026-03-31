@@ -56,7 +56,11 @@ export interface MatchDeleteData {
     event: 'delete';
     id: string;
 }
-export type MatchEventData = MatchStartData | MatchDeleteData;
+export interface MatchFinishData {
+    event: 'finish';
+    id: string;
+}
+export type MatchEventData = MatchStartData | MatchDeleteData | MatchFinishData;
 export interface ThrowCoords {
     x: number;
     y: number;
@@ -186,7 +190,7 @@ export interface MatchStateData {
     players: MatchPlayer[];
     host: unknown;
 }
-export type AutodartsEventType = 'board.state' | 'board.event' | 'match.start' | 'match.delete' | 'match.state' | 'throw.detected' | 'takeout.started' | 'takeout.finished' | 'player.change' | 'turn.finished' | 'game.finished' | 'match.finished' | 'raw';
+export type AutodartsEventType = 'board.state' | 'board.event' | 'match.start' | 'match.delete' | 'match.finish' | 'match.state' | 'match.result' | 'throw.detected' | 'takeout.started' | 'takeout.finished' | 'player.change' | 'turn.finished' | 'game.finished' | 'match.finished' | 'raw';
 export interface ParsedEvent<T = unknown> {
     type: AutodartsEventType;
     timestamp: Date;
@@ -237,6 +241,37 @@ export interface TurnFinishedEvent extends ParsedEvent<{
     round: number;
 }> {
     type: 'turn.finished';
+}
+export interface MatchResultPlayerStats {
+    legStats: MatchStats;
+    matchStats: MatchStats;
+    setStats?: MatchStats;
+}
+export interface MatchResultScore {
+    legs: number;
+    sets: number;
+}
+export interface MatchResultData {
+    matchId: string;
+    winner: number;
+    winnerName: string;
+    variant: string;
+    type: string;
+    leg: number;
+    set: number;
+    round: number;
+    players: Array<{
+        index: number;
+        name: string;
+        userId: string | null;
+    }>;
+    scores: MatchResultScore[];
+    chalkboards: Chalkboard[];
+    stats: MatchResultPlayerStats[];
+    settings: MatchSettings;
+}
+export interface MatchResultEvent extends ParsedEvent<MatchResultData> {
+    type: 'match.result';
 }
 export type EventHandler<T = unknown> = (event: ParsedEvent<T>) => void | Promise<void>;
 export interface EventSubscription {

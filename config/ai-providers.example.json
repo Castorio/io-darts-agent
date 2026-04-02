@@ -1,0 +1,55 @@
+[
+  {
+    "id": "openai",
+    "type": "openai",
+    "name": "OpenAI",
+    "apiKey": "",
+    "enabled": false
+  },
+  {
+    "id": "anthropic",
+    "type": "anthropic",
+    "name": "Anthropic",
+    "apiKey": "",
+    "enabled": false
+  },
+  {
+    "id": "ollama",
+    "type": "ollama",
+    "name": "Ollama (Lokal)",
+    "apiKey": "",
+    "baseUrl": "http://localhost:11434",
+    "enabled": true
+  },
+  {
+    "id": "elevenlabs",
+    "type": "elevenlabs",
+    "name": "ElevenLabs",
+    "apiKey": "",
+    "enabled": false,
+    "options": {
+      "defaultModel": "eleven_multilingual_v2"
+    }
+  },
+  {
+    "id": "stability",
+    "type": "stability",
+    "name": "Stability AI",
+    "apiKey": "",
+    "enabled": false
+  },
+  {
+    "id": "runway",
+    "type": "runway",
+    "name": "Runway ML",
+    "apiKey": "",
+    "enabled": false
+  },
+  {
+    "id": "replicate",
+    "type": "replicate",
+    "name": "Replicate",
+    "apiKey": "",
+    "enabled": false
+  }
+]

@@ -46,6 +46,7 @@ lerna-debug.log*
 # Config files with credentials - NEVER COMMIT!
 config/hub.config.json
 config/*.config.json
+config/ai-providers.json
 !config/*.example.json
 
 # Environment files

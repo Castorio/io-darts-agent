@@ -910,6 +910,111 @@ async function handleTakeoutFinished(event) {
 }
 ```
 
+### 8. Player-Specific Configuration Overrides
+
+Modules can support player-specific settings that override the default configuration when a particular player is active. This pattern is used by WLED, Darts Caller, and Game Display modules.
+
+#### Configuration Structure
+
+```json
+{
+  "config": {
+    "playerOverrides": {
+      "type": "array",
+      "label": "Player Overrides",
+      "description": "Player-specific configuration overrides",
+      "default": [],
+      "hidden": true
+    }
+  }
+}
+```
+
+#### Override Data Structure
+
+```typescript
+interface PlayerOverride {
+  playerId?: string      // Optional Autodarts player ID
+  playerName: string     // Player name (for display and fallback matching)
+  // Module-specific fields:
+  color?: string         // e.g., for WLED
+  animations?: {         // e.g., for Game Display
+    '180'?: { enabled: boolean; url?: string; sound?: string }
+    legWin?: { enabled: boolean; url?: string; sound?: string }
+    // ...
+  }
+  voiceStyle?: string    // e.g., for Darts Caller
+}
+```
+
+#### Implementing Player Matching
+
+**Important:** Autodarts sends player names in lowercase. Always use case-insensitive comparisons:
+
+```typescript
+function getPlayerOverride(
+  playerOverrides: PlayerOverride[],
+  playerName?: string,
+  playerId?: string
+): PlayerOverride | undefined {
+  if (!playerOverrides || playerOverrides.length === 0) {
+    return undefined
+  }
+
+  // 1. Try matching by playerId first (exact match)
+  if (playerId) {
+    const byId = playerOverrides.find(p => p.playerId === playerId)
+    if (byId) return byId
+  }
+
+  // 2. Try matching by playerName (case-insensitive!)
+  if (playerName) {
+    const byName = playerOverrides.find(
+      p => p.playerName.toLowerCase() === playerName.toLowerCase()
+    )
+    if (byName) return byName
+  }
+
+  return undefined
+}
+```
+
+#### UI Integration
+
+The main application provides the `/api/players` API which lists registered players. Modules can use this to let users select players for overrides:
+
+```typescript
+// Load available players
+const players = await fetch('/api/players').then(r => r.json())
+
+// players: Array<{ id: string, name: string, color?: string }>
+```
+
+#### Event Handling with Overrides
+
+```typescript
+async function handleEvent(event: GameEvent) {
+  const { playerName, playerId } = event.data
+
+  // Get player-specific config
+  const playerOverride = getPlayerOverride(
+    config.playerOverrides,
+    playerName,
+    playerId
+  )
+
+  if (playerOverride?.animations?.['180']?.enabled) {
+    // Use player-specific animation
+    await playAnimation(playerOverride.animations['180'].url)
+  } else if (config.animations?.['180']?.enabled) {
+    // Fall back to default config
+    await playAnimation(config.animations['180'].url)
+  }
+}
+```
+
+> **Best Practice:** Always check player-specific overrides first, then fall back to default module configuration. This allows for personalized experiences per player while maintaining defaults for unconfigured players.
+
 ## Example Modules
 
 ### Minimal Module

@@ -910,6 +910,111 @@ async function handleTakeoutFinished(event) {
 }
 ```
 
+### 8. Spieler-spezifische Konfigurationsüberschreibungen
+
+Module können spieler-spezifische Einstellungen unterstützen, die die Standard-Konfiguration überschreiben, wenn ein bestimmter Spieler aktiv ist. Dieses Pattern wird von WLED, Darts Caller und Game Display verwendet.
+
+#### Konfigurationsstruktur
+
+```json
+{
+  "config": {
+    "playerOverrides": {
+      "type": "array",
+      "label": "Player Overrides",
+      "description": "Player-specific configuration overrides",
+      "default": [],
+      "hidden": true
+    }
+  }
+}
+```
+
+#### Überschreibungs-Datenstruktur
+
+```typescript
+interface PlayerOverride {
+  playerId?: string      // Optionale Autodarts-Spieler-ID
+  playerName: string     // Spielername (für Anzeige und Fallback-Matching)
+  // Modul-spezifische Felder:
+  color?: string         // z.B. für WLED
+  animations?: {         // z.B. für Game Display
+    '180'?: { enabled: boolean; url?: string; sound?: string }
+    legWin?: { enabled: boolean; url?: string; sound?: string }
+    // ...
+  }
+  voiceStyle?: string    // z.B. für Darts Caller
+}
+```
+
+#### Spieler-Matching implementieren
+
+**Wichtig:** Autodarts sendet Spielernamen in Kleinbuchstaben. Verwende immer case-insensitive Vergleiche:
+
+```typescript
+function getPlayerOverride(
+  playerOverrides: PlayerOverride[],
+  playerName?: string,
+  playerId?: string
+): PlayerOverride | undefined {
+  if (!playerOverrides || playerOverrides.length === 0) {
+    return undefined
+  }
+
+  // 1. Zuerst nach playerId suchen (exakte Übereinstimmung)
+  if (playerId) {
+    const byId = playerOverrides.find(p => p.playerId === playerId)
+    if (byId) return byId
+  }
+
+  // 2. Nach playerName suchen (case-insensitive!)
+  if (playerName) {
+    const byName = playerOverrides.find(
+      p => p.playerName.toLowerCase() === playerName.toLowerCase()
+    )
+    if (byName) return byName
+  }
+
+  return undefined
+}
+```
+
+#### UI-Integration
+
+Die Hauptanwendung stellt die `/api/players`-API bereit, die im System registrierte Spieler auflistet. Module können dies nutzen, um Spieler für Überschreibungen auszuwählen:
+
+```typescript
+// Verfügbare Spieler laden
+const players = await fetch('/api/players').then(r => r.json())
+
+// players: Array<{ id: string, name: string, color?: string }>
+```
+
+#### Event-Behandlung mit Überschreibungen
+
+```typescript
+async function handleEvent(event: GameEvent) {
+  const { playerName, playerId } = event.data
+
+  // Spieler-spezifische Konfiguration laden
+  const playerOverride = getPlayerOverride(
+    config.playerOverrides,
+    playerName,
+    playerId
+  )
+
+  if (playerOverride?.animations?.['180']?.enabled) {
+    // Spieler-spezifische Animation verwenden
+    await playAnimation(playerOverride.animations['180'].url)
+  } else if (config.animations?.['180']?.enabled) {
+    // Auf Standard-Konfiguration zurückfallen
+    await playAnimation(config.animations['180'].url)
+  }
+}
+```
+
+> **Best Practice:** Prüfe immer zuerst die spieler-spezifische Überschreibung, dann falle auf die Standard-Modul-Konfiguration zurück. Dies ermöglicht personalisierte Erlebnisse pro Spieler, während Standardwerte für nicht konfigurierte Spieler erhalten bleiben.
+
 ## Beispiel-Module
 
 ### Minimal-Modul

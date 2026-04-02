@@ -73,14 +73,14 @@ async function saveConfig() {
 
   try {
     await modulesStore.updateConfig(module.value.id, configValues.value)
-    saveMessage.value = { type: 'success', text: 'Konfiguration gespeichert' }
+    saveMessage.value = { type: 'success', text: t('modules.configSaved') }
     setTimeout(() => {
       saveMessage.value = null
     }, 3000)
   } catch (e) {
     saveMessage.value = {
       type: 'error',
-      text: e instanceof Error ? e.message : 'Fehler beim Speichern',
+      text: e instanceof Error ? e.message : t('modules.configSaveError'),
     }
   } finally {
     isSaving.value = false
@@ -318,7 +318,7 @@ onMounted(async () => {
               <p class="text-dark-400 mt-1">{{ module.description }}</p>
               <div class="flex items-center gap-4 mt-2 text-sm text-dark-500">
                 <span>v{{ module.version }}</span>
-                <span v-if="module.author">von {{ module.author }}</span>
+                <span v-if="module.author">{{ t('modules.author') }}: {{ module.author }}</span>
               </div>
             </div>
           </div>

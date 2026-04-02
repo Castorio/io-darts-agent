@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '../api/client'
 import BaseButton from './BaseButton.vue'
+
+const { t } = useI18n()
 
 interface MediaFile {
   name: string
@@ -116,13 +119,13 @@ async function handleFileSelect(event: Event) {
   // Validate file type
   const allowedTypes = acceptTypes.value.split(',').map((t) => t.trim())
   if (!allowedTypes.some((type) => file.type.match(type.replace('*', '.*')))) {
-    error.value = 'Ungültiger Dateityp. Erlaubt: GIF, MP4, WebM'
+    error.value = t('mediaUpload.invalidFileType')
     return
   }
 
   // Validate file size (max 50MB)
   if (file.size > 50 * 1024 * 1024) {
-    error.value = 'Datei zu groß. Maximum: 50MB'
+    error.value = t('mediaUpload.fileTooLarge')
     return
   }
 
@@ -141,10 +144,10 @@ async function handleFileSelect(event: Event) {
         await loadMediaLibrary()
       }
     } else {
-      error.value = result.error || 'Upload fehlgeschlagen'
+      error.value = result.error || t('mediaUpload.uploadFailed')
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Upload fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('mediaUpload.uploadFailed')
   } finally {
     isUploading.value = false
     uploadProgress.value = 0
@@ -176,7 +179,7 @@ async function loadMediaLibrary() {
     const foldersResult = await api.listMediaFolders(mediaType.value)
     mediaFolders.value = foldersResult.folders || []
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Fehler beim Laden'
+    error.value = e instanceof Error ? e.message : t('mediaUpload.loadError')
   } finally {
     isLoadingMedia.value = false
   }
@@ -200,7 +203,7 @@ async function deleteMediaFile(file: MediaFile) {
       emit('update:modelValue', '')
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Löschen fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('mediaUpload.deleteFailed')
   }
 }
 
@@ -236,7 +239,7 @@ watch(showMediaLibrary, (open) => {
           type="text"
           :value="modelValue"
           @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
-          :placeholder="placeholder || 'URL eingeben oder Datei hochladen'"
+          :placeholder="placeholder || t('mediaUpload.urlPlaceholder')"
           class="w-full px-4 py-2.5 pr-10 rounded-lg bg-dark-800 border border-dark-600 text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-autodarts-500 focus:border-autodarts-500"
         />
         <!-- Clear button -->
@@ -275,7 +278,7 @@ watch(showMediaLibrary, (open) => {
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
         </svg>
-        <span class="text-dark-200 text-sm">{{ isUploading ? 'Lädt...' : 'Upload' }}</span>
+        <span class="text-dark-200 text-sm">{{ isUploading ? t('common.loading') : t('mediaUpload.upload') }}</span>
       </label>
 
       <!-- Media library button -->
@@ -287,7 +290,7 @@ watch(showMediaLibrary, (open) => {
         <svg class="w-5 h-5 text-dark-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-        <span class="text-dark-200 text-sm hidden sm:inline">Mediathek</span>
+        <span class="text-dark-200 text-sm hidden sm:inline">{{ t('mediaUpload.library') }}</span>
       </button>
     </div>
 
@@ -318,7 +321,7 @@ watch(showMediaLibrary, (open) => {
           <div class="flex-1 min-w-0">
             <p class="text-sm text-white truncate">{{ displayValue }}</p>
             <p class="text-xs text-dark-400 mt-0.5">
-              {{ isExternalUrl ? 'Externe URL' : isUploadedFile ? 'Hochgeladene Datei' : 'URL' }}
+              {{ isExternalUrl ? t('mediaUpload.externalUrl') : isUploadedFile ? t('mediaUpload.uploadedFile') : 'URL' }}
             </p>
           </div>
         </div>
@@ -341,7 +344,7 @@ watch(showMediaLibrary, (open) => {
         <div class="relative bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
           <!-- Header -->
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-white">Mediathek</h3>
+            <h3 class="text-lg font-semibold text-white">{{ t('mediaUpload.library') }}</h3>
             <button
               @click="showMediaLibrary = false"
               class="p-2 rounded-lg hover:bg-dark-700 transition-colors"
@@ -364,7 +367,7 @@ watch(showMediaLibrary, (open) => {
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
-              Root
+              {{ t('media.root') }}
             </button>
 
             <template v-for="crumb in breadcrumbs" :key="crumb.path">
@@ -394,15 +397,15 @@ watch(showMediaLibrary, (open) => {
             <svg class="w-16 h-16 text-dark-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <p class="text-dark-400 mt-4">{{ currentFolder ? 'Dieser Ordner ist leer' : 'Noch keine Medien hochgeladen' }}</p>
-            <p class="text-dark-500 text-sm mt-1">Nutze den Upload-Button um Dateien hinzuzufügen</p>
+            <p class="text-dark-400 mt-4">{{ currentFolder ? t('mediaUpload.folderEmpty') : t('mediaUpload.noFilesYet') }}</p>
+            <p class="text-dark-500 text-sm mt-1">{{ t('mediaUpload.useUploadButton') }}</p>
           </div>
 
           <!-- Content -->
           <div v-else class="flex-1 overflow-y-auto space-y-4">
             <!-- Folders -->
             <div v-if="currentFolders.length > 0">
-              <h4 class="text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">Ordner</h4>
+              <h4 class="text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">{{ t('media.folders') }}</h4>
               <div class="grid grid-cols-4 sm:grid-cols-6 gap-2">
                 <button
                   v-for="folder in currentFolders"
@@ -421,7 +424,7 @@ watch(showMediaLibrary, (open) => {
 
             <!-- Files -->
             <div v-if="currentFiles.length > 0">
-              <h4 class="text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">Dateien</h4>
+              <h4 class="text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">{{ t('media.files') }}</h4>
               <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 <div
                   v-for="file in currentFiles"
@@ -508,11 +511,11 @@ watch(showMediaLibrary, (open) => {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
               </svg>
               <span class="text-white font-medium text-sm">
-                {{ currentFolder ? `In "${currentFolder.split('/').pop()}" hochladen` : 'Neue Datei hochladen' }}
+                {{ currentFolder ? t('mediaUpload.uploadToFolder', { folder: currentFolder.split('/').pop() }) : t('mediaUpload.uploadNewFile') }}
               </span>
             </label>
             <BaseButton variant="ghost" @click="showMediaLibrary = false">
-              Schließen
+              {{ t('common.close') }}
             </BaseButton>
           </div>
         </div>

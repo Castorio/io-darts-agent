@@ -96,13 +96,13 @@ async function startMatch() {
       startScore.value
     )
     if (result.success) {
-      message.value = { type: 'success', text: `Match started: ${result.matchId}` }
+      message.value = { type: 'success', text: t('dev.matchStarted', { player1: player1Name.value, player2: player2Name.value }) }
       await loadStatus()
     } else {
-      message.value = { type: 'error', text: result.error || 'Failed to start match' }
+      message.value = { type: 'error', text: result.error || t('dev.matchStartFailed') }
     }
   } catch (e) {
-    message.value = { type: 'error', text: e instanceof Error ? e.message : 'Error' }
+    message.value = { type: 'error', text: e instanceof Error ? e.message : t('dev.matchStartFailed') }
   }
 }
 
@@ -111,13 +111,13 @@ async function endMatch(cancelled = false) {
     message.value = null
     const result = await api.simulateMatchEnd(undefined, cancelled)
     if (result.success) {
-      message.value = { type: 'success', text: cancelled ? 'Match cancelled' : 'Match finished' }
+      message.value = { type: 'success', text: cancelled ? t('dev.matchCancelled') : t('dev.matchFinished') }
       await loadStatus()
     } else {
-      message.value = { type: 'error', text: result.error || 'Failed to end match' }
+      message.value = { type: 'error', text: result.error || t('dev.matchEndFailed') }
     }
   } catch (e) {
-    message.value = { type: 'error', text: e instanceof Error ? e.message : 'Error' }
+    message.value = { type: 'error', text: e instanceof Error ? e.message : t('dev.matchEndFailed') }
   }
 }
 
@@ -128,14 +128,14 @@ async function simulateThrow(number: number, multiplier: 1 | 2 | 3) {
     if (result.success) {
       message.value = {
         type: 'success',
-        text: `Throw: ${result.points} points, remaining: ${result.remaining}`,
+        text: t('dev.throwResult', { points: result.points, remaining: result.remaining }),
       }
       await loadStatus()
     } else {
-      message.value = { type: 'error', text: result.error || 'Failed to simulate throw' }
+      message.value = { type: 'error', text: result.error || t('dev.throwFailed') }
     }
   } catch (e) {
-    message.value = { type: 'error', text: e instanceof Error ? e.message : 'Error' }
+    message.value = { type: 'error', text: e instanceof Error ? e.message : t('dev.throwFailed') }
   }
 }
 
@@ -144,13 +144,13 @@ async function endTurn() {
     message.value = null
     const result = await api.simulateTurnEnd()
     if (result.success) {
-      message.value = { type: 'success', text: `Turn ended. Next: ${result.nextPlayer}` }
+      message.value = { type: 'success', text: t('dev.turnEnded', { player: result.nextPlayer }) }
       await loadStatus()
     } else {
-      message.value = { type: 'error', text: result.error || 'Failed to end turn' }
+      message.value = { type: 'error', text: result.error || t('dev.turnEndFailed') }
     }
   } catch (e) {
-    message.value = { type: 'error', text: e instanceof Error ? e.message : 'Error' }
+    message.value = { type: 'error', text: e instanceof Error ? e.message : t('dev.turnEndFailed') }
   }
 }
 
@@ -159,13 +159,13 @@ async function runScenario(id: string) {
     message.value = null
     const result = await api.runScenario(id)
     if (result.success) {
-      message.value = { type: 'success', text: `Scenario "${id}" executed` }
+      message.value = { type: 'success', text: t('dev.scenarioExecuted', { name: id }) }
       await loadStatus()
     } else {
-      message.value = { type: 'error', text: result.error || 'Failed to run scenario' }
+      message.value = { type: 'error', text: result.error || t('dev.scenarioFailed') }
     }
   } catch (e) {
-    message.value = { type: 'error', text: e instanceof Error ? e.message : 'Error' }
+    message.value = { type: 'error', text: e instanceof Error ? e.message : t('dev.scenarioFailed') }
   }
 }
 
@@ -221,7 +221,7 @@ onMounted(loadStatus)
           <div v-if="matchActive && matchState" class="space-y-4">
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div class="p-3 rounded-lg bg-dark-700/50">
-                <p class="text-xs text-dark-400 mb-1">Match ID</p>
+                <p class="text-xs text-dark-400 mb-1">{{ t('dev.matchId') }}</p>
                 <p class="text-white font-mono text-sm truncate">{{ matchState.matchId }}</p>
               </div>
               <div class="p-3 rounded-lg bg-dark-700/50">
@@ -261,7 +261,7 @@ onMounted(loadStatus)
                   </span>
                 </div>
                 <div class="text-3xl font-bold text-white">{{ matchState.scores[idx] }}</div>
-                <div class="text-sm text-dark-400">Legs: {{ matchState.gameScores[idx] }}</div>
+                <div class="text-sm text-dark-400">{{ t('dev.legs') }}: {{ matchState.gameScores[idx] }}</div>
               </div>
             </div>
 
@@ -374,9 +374,9 @@ onMounted(loadStatus)
                   v-model.number="customMultiplier"
                   class="w-full px-3 py-2 rounded-lg bg-dark-700 border border-dark-600 text-white"
                 >
-                  <option :value="1">Single</option>
-                  <option :value="2">Double</option>
-                  <option :value="3">Triple</option>
+                  <option :value="1">{{ t('dev.single') }}</option>
+                  <option :value="2">{{ t('dev.double') }}</option>
+                  <option :value="3">{{ t('dev.triple') }}</option>
                 </select>
               </div>
               <BaseButton @click="simulateThrow(customNumber, customMultiplier)">

@@ -56,7 +56,7 @@ async function loadSettings() {
   } catch (e) {
     message.value = {
       type: 'error',
-      text: e instanceof Error ? e.message : 'Fehler beim Laden der Einstellungen',
+      text: e instanceof Error ? e.message : t('settings.saveFailed'),
     }
   } finally {
     isLoading.value = false
@@ -110,26 +110,26 @@ async function saveSettings() {
     }
 
     if (Object.keys(updates).length === 0) {
-      message.value = { type: 'success', text: 'Keine Änderungen vorgenommen' }
+      message.value = { type: 'success', text: t('settings.saved') }
       return
     }
 
     const result = await api.updateSettings(updates)
 
     if (result.success) {
-      message.value = { type: 'success', text: 'Einstellungen gespeichert' }
+      message.value = { type: 'success', text: t('settings.saved') }
       // Clear password fields
       webAuthPassword.value = ''
       autodartsPassword.value = ''
       // Reload settings
       await loadSettings()
     } else {
-      message.value = { type: 'error', text: result.error || 'Fehler beim Speichern' }
+      message.value = { type: 'error', text: result.error || t('settings.saveFailed') }
     }
   } catch (e) {
     message.value = {
       type: 'error',
-      text: e instanceof Error ? e.message : 'Fehler beim Speichern',
+      text: e instanceof Error ? e.message : t('settings.saveFailed'),
     }
   } finally {
     isSaving.value = false

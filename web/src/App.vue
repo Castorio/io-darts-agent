@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useAppStore } from './stores/app'
+import { useI18n } from 'vue-i18n'
 
 const appStore = useAppStore()
+const { t } = useI18n()
 </script>
 
 <template>
@@ -30,7 +32,7 @@ const appStore = useAppStore()
           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
         />
       </svg>
-      <p class="text-dark-400 mt-4">IO-Darts-Agent wird geladen...</p>
+      <p class="text-dark-400 mt-4">{{ t('common.loading') }}</p>
     </div>
   </div>
 

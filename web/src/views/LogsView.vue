@@ -69,7 +69,7 @@ function connectToWebSocket() {
 
   ws.onopen = () => {
     isConnected.value = true
-    addLocalLog('system', 'Console', 'WebSocket verbunden')
+    addLocalLog('system', 'Console', t('logs.wsConnected'))
   }
 
   ws.onmessage = (event) => {
@@ -89,7 +89,7 @@ function connectToWebSocket() {
 
   ws.onclose = () => {
     isConnected.value = false
-    addLocalLog('system', 'Console', 'WebSocket getrennt. Reconnecting...')
+    addLocalLog('system', 'Console', t('logs.wsDisconnected'))
 
     // Reconnect after delay
     if (reconnectTimeout) {
@@ -139,12 +139,12 @@ function scrollToBottom() {
 
 function clearLogs() {
   logs.value = []
-  addLocalLog('system', 'Console', 'Logs gelöscht')
+  addLocalLog('system', 'Console', t('logs.logsCleared'))
 }
 
 function togglePause() {
   isPaused.value = !isPaused.value
-  addLocalLog('system', 'Console', isPaused.value ? 'Log-Stream pausiert' : 'Log-Stream fortgesetzt')
+  addLocalLog('system', 'Console', isPaused.value ? t('logs.streamPaused') : t('logs.streamResumed'))
 }
 
 function exportLogs() {

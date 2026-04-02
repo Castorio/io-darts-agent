@@ -148,7 +148,7 @@ async function loadWledData() {
       console.warn('Using fallback effects:', effectsResponse.error)
     }
   } catch (e) {
-    wledDataError.value = e instanceof Error ? e.message : 'Fehler beim Laden der WLED-Daten'
+    wledDataError.value = e instanceof Error ? e.message : (currentLang.value === 'de' ? 'Fehler beim Laden der WLED-Daten' : currentLang.value === 'es' ? 'Error al cargar datos WLED' : 'Error loading WLED data')
     // Use fallback effects
     effects.value = fallbackEffects.value
   } finally {
@@ -330,10 +330,10 @@ async function connectToWled() {
       // Load presets and effects from WLED
       await loadWledData()
     } else {
-      throw new Error(response.error || 'Verbindung fehlgeschlagen')
+      throw new Error(response.error || i18n.value.strings.connectionFailed)
     }
   } catch (e) {
-    connectionError.value = e instanceof Error ? e.message : 'Verbindung fehlgeschlagen'
+    connectionError.value = e instanceof Error ? e.message : i18n.value.strings.connectionFailed
     isConnected.value = false
     // Use fallback effects from module.json if connection fails
     effects.value = fallbackEffects.value

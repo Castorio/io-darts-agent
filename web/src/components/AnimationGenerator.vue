@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '../api/client'
 import BaseCard from './BaseCard.vue'
 import BaseButton from './BaseButton.vue'
+
+const { t } = useI18n()
 
 // Types
 interface AnimationStyle {
@@ -28,17 +31,17 @@ interface AnimationJob {
 
 type DartEventType = '180' | 'bull' | 'doubleBull' | 'highScore' | 'checkout' | 'legWin' | 'setWin' | 'matchWin' | 'bust'
 
-// Event definitions
-const eventDefinitions: Record<DartEventType, { label: string; icon: string }> = {
-  '180': { label: '180', icon: '🎯' },
-  bull: { label: 'Bull', icon: '🎯' },
-  doubleBull: { label: 'Double Bull', icon: '🎯' },
-  highScore: { label: 'High Score', icon: '🔥' },
-  checkout: { label: 'Checkout', icon: '✅' },
-  legWin: { label: 'Leg Gewinn', icon: '🏆' },
-  setWin: { label: 'Set Gewinn', icon: '🏆' },
-  matchWin: { label: 'Match Gewinn', icon: '🥇' },
-  bust: { label: 'Bust', icon: '💥' },
+// Event definitions - labels will be translated in template
+const eventDefinitions: Record<DartEventType, { labelKey: string; icon: string }> = {
+  '180': { labelKey: 'animationGen.event180', icon: '🎯' },
+  bull: { labelKey: 'animationGen.eventBull', icon: '🎯' },
+  doubleBull: { labelKey: 'animationGen.eventDoubleBull', icon: '🎯' },
+  highScore: { labelKey: 'animationGen.eventHighScore', icon: '🔥' },
+  checkout: { labelKey: 'animationGen.eventCheckout', icon: '✅' },
+  legWin: { labelKey: 'animationGen.eventLegWin', icon: '🏆' },
+  setWin: { labelKey: 'animationGen.eventSetWin', icon: '🏆' },
+  matchWin: { labelKey: 'animationGen.eventMatchWin', icon: '🥇' },
+  bust: { labelKey: 'animationGen.eventBust', icon: '💥' },
 }
 
 // Emit for when animation is generated
@@ -103,7 +106,7 @@ async function loadData() {
     // Load jobs
     await loadJobs()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Fehler beim Laden'
+    error.value = e instanceof Error ? e.message : t('animationGen.loadError')
   } finally {
     isLoading.value = false
   }
@@ -171,7 +174,7 @@ async function generateAnimations() {
     // Start polling
     startPolling()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Fehler beim Generieren'
+    error.value = e instanceof Error ? e.message : t('animationGen.generateError')
   } finally {
     isGenerating.value = false
   }
@@ -239,17 +242,17 @@ function getStatusColor(status: string): string {
 function getStatusLabel(status: string): string {
   switch (status) {
     case 'pending':
-      return 'Wartend'
+      return t('animationGen.statusPending')
     case 'queued':
-      return 'In Warteschlange'
+      return t('animationGen.statusQueued')
     case 'processing':
-      return 'Wird generiert...'
+      return t('animationGen.statusProcessing')
     case 'completed':
-      return 'Fertig'
+      return t('animationGen.statusCompleted')
     case 'failed':
-      return 'Fehlgeschlagen'
+      return t('animationGen.statusFailed')
     case 'cancelled':
-      return 'Abgebrochen'
+      return t('animationGen.statusCancelled')
     default:
       return status
   }
@@ -269,7 +272,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <BaseCard title="KI Animation Generator" subtitle="Generiere einzigartige Animationen mit KI">
+  <BaseCard :title="t('animationGen.title')" :subtitle="t('animationGen.subtitle')">
     <!-- Loading State -->
     <div v-if="isLoading" class="flex items-center justify-center py-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-autodarts-500" />
@@ -285,11 +288,10 @@ onUnmounted(() => {
           d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
         />
       </svg>
-      <h4 class="text-lg font-medium text-white mb-2">KI-Generierung nicht verfügbar</h4>
+      <h4 class="text-lg font-medium text-white mb-2">{{ t('animationGen.notAvailable') }}</h4>
       <p class="text-dark-400 max-w-md mx-auto">
-        Um KI-Animationen zu generieren, muss ein AI-Provider (z.B. Runway) in den
-        <router-link to="/ai-settings" class="text-autodarts-400 hover:underline">AI Einstellungen</router-link>
-        konfiguriert werden.
+        {{ t('animationGen.notAvailableDesc') }}
+        <router-link to="/ai-settings" class="text-autodarts-400 hover:underline">{{ t('animationGen.aiSettings') }}</router-link>
       </p>
     </div>
 
@@ -303,14 +305,14 @@ onUnmounted(() => {
       <!-- Style Selection -->
       <div>
         <div class="flex items-center justify-between mb-3">
-          <label class="block text-sm font-medium text-dark-200">Stil wählen</label>
+          <label class="block text-sm font-medium text-dark-200">{{ t('animationGen.selectStyle') }}</label>
           <label class="flex items-center gap-2 text-sm text-dark-400">
             <input
               type="checkbox"
               v-model="useCustomStyle"
               class="rounded border-dark-500 bg-dark-700 text-autodarts-500 focus:ring-autodarts-500"
             />
-            Eigener Stil
+            {{ t('animationGen.customStyle') }}
           </label>
         </div>
 
@@ -345,12 +347,12 @@ onUnmounted(() => {
           <input
             v-model="customStyleName"
             type="text"
-            placeholder="Stil-Name (z.B. 'Galaxy')"
+            :placeholder="t('animationGen.styleNamePlaceholder')"
             class="w-full px-4 py-2 rounded-lg bg-dark-800 border border-dark-600 text-white placeholder-dark-400 focus:border-autodarts-500 focus:ring-1 focus:ring-autodarts-500"
           />
           <textarea
             v-model="customStylePrompt"
-            placeholder="Beschreibung des Stils (z.B. 'Galaxie, Sterne, kosmische Nebel, lila und blau')"
+            :placeholder="t('animationGen.styleDescPlaceholder')"
             rows="3"
             class="w-full px-4 py-2 rounded-lg bg-dark-800 border border-dark-600 text-white placeholder-dark-400 focus:border-autodarts-500 focus:ring-1 focus:ring-autodarts-500 resize-none"
           />
@@ -360,11 +362,11 @@ onUnmounted(() => {
       <!-- Event Selection -->
       <div>
         <div class="flex items-center justify-between mb-3">
-          <label class="block text-sm font-medium text-dark-200">Ereignisse wählen</label>
+          <label class="block text-sm font-medium text-dark-200">{{ t('animationGen.selectEvents') }}</label>
           <div class="flex items-center gap-2">
-            <button @click="selectAllEvents" class="text-xs text-autodarts-400 hover:underline">Alle</button>
+            <button @click="selectAllEvents" class="text-xs text-autodarts-400 hover:underline">{{ t('common.all') }}</button>
             <span class="text-dark-600">|</span>
-            <button @click="deselectAllEvents" class="text-xs text-dark-400 hover:underline">Keine</button>
+            <button @click="deselectAllEvents" class="text-xs text-dark-400 hover:underline">{{ t('common.none') }}</button>
           </div>
         </div>
 
@@ -381,7 +383,7 @@ onUnmounted(() => {
             ]"
           >
             <span class="mr-1">{{ def.icon }}</span>
-            {{ def.label }}
+            {{ t(def.labelKey) }}
           </button>
         </div>
       </div>
@@ -390,9 +392,9 @@ onUnmounted(() => {
       <div class="flex items-center justify-between pt-4 border-t border-dark-700">
         <p class="text-sm text-dark-400">
           <template v-if="selectedEvents.size > 0">
-            {{ selectedEvents.size }} Ereignis{{ selectedEvents.size !== 1 ? 'se' : '' }} ausgewählt
+            {{ t('animationGen.eventsSelected', { count: selectedEvents.size }) }}
           </template>
-          <template v-else> Wähle mindestens ein Ereignis </template>
+          <template v-else>{{ t('animationGen.selectAtLeastOne') }}</template>
         </p>
 
         <BaseButton
@@ -408,21 +410,21 @@ onUnmounted(() => {
               d="M13 10V3L4 14h7v7l9-11h-7z"
             />
           </svg>
-          Animationen generieren
+          {{ t('animationGen.generateButton') }}
         </BaseButton>
       </div>
 
       <!-- Jobs List -->
       <div v-if="jobs.length > 0" class="pt-6 border-t border-dark-700">
         <div class="flex items-center justify-between mb-4">
-          <h4 class="text-lg font-medium text-white">Generierungs-Jobs</h4>
+          <h4 class="text-lg font-medium text-white">{{ t('animationGen.jobsTitle') }}</h4>
           <BaseButton
             v-if="completedJobs.length > 0 || failedJobs.length > 0"
             variant="ghost"
             size="sm"
             @click="clearFinished"
           >
-            Abgeschlossene löschen
+            {{ t('animationGen.clearFinished') }}
           </BaseButton>
         </div>
 
@@ -438,7 +440,7 @@ onUnmounted(() => {
 
               <div>
                 <p class="text-white font-medium">
-                  {{ eventDefinitions[job.eventType as DartEventType]?.label || job.eventType }}
+                  {{ t(eventDefinitions[job.eventType as DartEventType]?.labelKey || job.eventType) }}
                   <span class="text-dark-400 text-sm ml-2">({{ job.style.name }})</span>
                 </p>
                 <p :class="['text-sm', getStatusColor(job.status)]">
@@ -457,7 +459,7 @@ onUnmounted(() => {
                 :href="job.resultUrl"
                 target="_blank"
                 class="p-2 rounded-lg bg-dark-600 hover:bg-dark-500 text-dark-300 hover:text-white transition-colors"
-                title="Vorschau"
+                :title="t('animationGen.preview')"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -481,7 +483,7 @@ onUnmounted(() => {
                 size="sm"
                 @click="useAnimation(job)"
               >
-                Verwenden
+                {{ t('animationGen.use') }}
               </BaseButton>
 
               <!-- Cancel Button (if processing) -->
@@ -491,7 +493,7 @@ onUnmounted(() => {
                 size="sm"
                 @click="cancelJob(job.id)"
               >
-                Abbrechen
+                {{ t('common.cancel') }}
               </BaseButton>
 
               <!-- Error message -->

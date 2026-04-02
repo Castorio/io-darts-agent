@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useModulesStore } from '../stores/modules'
 import { usePlayersStore } from '../stores/players'
 import AppLayout from '../components/AppLayout.vue'
@@ -10,6 +11,8 @@ import BaseInput from '../components/BaseInput.vue'
 import MediaUpload from '../components/MediaUpload.vue'
 import AnimationGenerator from '../components/AnimationGenerator.vue'
 import StatusBadge from '../components/StatusBadge.vue'
+
+const { t } = useI18n()
 
 // Player animation override interface
 interface PlayerAnimationOverride {
@@ -64,14 +67,8 @@ const selectedPlayerOverride = ref<string | null>(null)
 const showPlayerOverrideModal = ref(false)
 const selectedAnimationType = ref<'throw180' | 'legWin' | 'matchWin' | 'checkout'>('throw180')
 
-// Current language for i18n
-const currentLang = computed(() => {
-  const browserLang = navigator.language.split('-')[0]
-  return ['de', 'en', 'es'].includes(browserLang) ? browserLang : 'de'
-})
-
-// i18n translations from module.json
-const i18n = computed(() => {
+// i18n translations from module.json (for module-specific config labels)
+const moduleI18n = computed(() => {
   const translations = module.value?.i18n as Record<string, {
     name?: string
     description?: string
@@ -79,68 +76,15 @@ const i18n = computed(() => {
     strings?: Record<string, string>
   }> | undefined
 
-  const lang = currentLang.value
-  const t = translations?.[lang] || translations?.['en'] || {}
+  const browserLang = navigator.language.split('-')[0]
+  const lang = ['de', 'en', 'es'].includes(browserLang) ? browserLang : 'en'
+  const tr = translations?.[lang] || translations?.['en'] || {}
 
   return {
-    name: t.name || module.value?.name || 'Game Display',
-    description: t.description || module.value?.description || '',
-    config: t.config || {},
-    strings: {
-      backToModule: lang === 'de' ? 'Zurück zum Modul' : lang === 'es' ? 'Volver al Módulo' : 'Back to Module',
-      configuration: lang === 'de' ? 'Konfiguration' : lang === 'es' ? 'Configuración' : 'Configuration',
-      displayPreview: lang === 'de' ? 'Display Vorschau' : lang === 'es' ? 'Vista Previa' : 'Display Preview',
-      displayPreviewDesc: lang === 'de' ? 'So sieht das Display auf externen Bildschirmen aus' : lang === 'es' ? 'Así se ve la pantalla en monitores externos' : 'This is how the display looks on external screens',
-      openInNewWindow: lang === 'de' ? 'Im neuen Fenster öffnen' : lang === 'es' ? 'Abrir en nueva ventana' : 'Open in new window',
-      copyUrl: lang === 'de' ? 'URL kopieren' : lang === 'es' ? 'Copiar URL' : 'Copy URL',
-      openDisplay: lang === 'de' ? 'Display öffnen' : lang === 'es' ? 'Abrir pantalla' : 'Open Display',
-      save: lang === 'de' ? 'Speichern' : lang === 'es' ? 'Guardar' : 'Save',
-      saved: lang === 'de' ? 'Konfiguration gespeichert!' : lang === 'es' ? '¡Configuración guardada!' : 'Configuration saved!',
-      saveError: lang === 'de' ? 'Fehler beim Speichern' : lang === 'es' ? 'Error al guardar' : 'Error saving',
-      urlCopied: lang === 'de' ? 'URL kopiert!' : lang === 'es' ? '¡URL copiada!' : 'URL copied!',
-      copyFailed: lang === 'de' ? 'Kopieren fehlgeschlagen' : lang === 'es' ? 'Error al copiar' : 'Copy failed',
-      start: lang === 'de' ? 'Starten' : lang === 'es' ? 'Iniciar' : 'Start',
-      stop: lang === 'de' ? 'Stoppen' : lang === 'es' ? 'Detener' : 'Stop',
-      animations: lang === 'de' ? 'Animationen' : lang === 'es' ? 'Animaciones' : 'Animations',
-      animationsDesc: lang === 'de' ? 'GIF- oder Video-Animationen für besondere Ereignisse' : lang === 'es' ? 'Animaciones GIF o video para eventos especiales' : 'GIF or video animations for special events',
-      winAnimationOptions: lang === 'de' ? 'Win Animation Optionen' : lang === 'es' ? 'Opciones de Animación de Victoria' : 'Win Animation Display Options',
-      winAnimationOverlayInfo: lang === 'de' ? 'Diese Optionen erscheinen als Overlay über dem GIF/Video' : lang === 'es' ? 'Estas opciones aparecen como superposición sobre el GIF/Video' : 'These options appear as overlay on top of the GIF/Video',
-      usage: lang === 'de' ? 'Verwendung' : lang === 'es' ? 'Uso' : 'Usage',
-      step1Title: lang === 'de' ? 'Display öffnen' : lang === 'es' ? 'Abrir pantalla' : 'Open display',
-      step1Desc: lang === 'de' ? 'Klicken Sie auf "Display öffnen" oder kopieren Sie die URL und öffnen Sie diese auf einem externen Bildschirm.' : lang === 'es' ? 'Haga clic en "Abrir pantalla" o copie la URL y ábrala en un monitor externo.' : 'Click "Open Display" or copy the URL and open it on an external screen.',
-      step2Title: lang === 'de' ? 'Spiel starten' : lang === 'es' ? 'Iniciar juego' : 'Start game',
-      step2Desc: lang === 'de' ? 'Starten Sie ein Match in Autodarts. Das Display aktualisiert sich automatisch in Echtzeit.' : lang === 'es' ? 'Inicie un partido en Autodarts. La pantalla se actualiza automáticamente en tiempo real.' : 'Start a match in Autodarts. The display updates automatically in real-time.',
-      step3Title: lang === 'de' ? 'Spielen!' : lang === 'es' ? '¡Jugar!' : 'Play!',
-      step3Desc: lang === 'de' ? 'Der aktuelle Punktestand, Checkout-Vorschläge und alle Würfe werden live angezeigt.' : lang === 'es' ? 'La puntuación actual, sugerencias de checkout y todos los lanzamientos se muestran en vivo.' : 'The current score, checkout suggestions and all throws are displayed live.',
-      clickPreview: lang === 'de' ? 'Klicken Sie auf die Vorschau oder nutzen Sie den Button oben, um das Display in einem neuen Fenster zu öffnen. Sie können die URL auch auf einem anderen Gerät im selben Netzwerk öffnen.' : lang === 'es' ? 'Haga clic en la vista previa o use el botón de arriba para abrir la pantalla en una nueva ventana. También puede abrir la URL en otro dispositivo de la misma red.' : 'Click on the preview or use the button above to open the display in a new window. You can also open the URL on another device on the same network.',
-      // Tab labels
-      tabDisplay: lang === 'de' ? 'Display' : lang === 'es' ? 'Pantalla' : 'Display',
-      tabAnimations: lang === 'de' ? 'Animationen' : lang === 'es' ? 'Animaciones' : 'Animations',
-      tabPlayers: lang === 'de' ? 'Spieler' : lang === 'es' ? 'Jugadores' : 'Players',
-      cancel: lang === 'de' ? 'Abbrechen' : lang === 'es' ? 'Cancelar' : 'Cancel',
-      edit: lang === 'de' ? 'Bearbeiten' : lang === 'es' ? 'Editar' : 'Edit',
-      // Player overrides
-      playerAnimations: lang === 'de' ? 'Spieler-Animationen' : lang === 'es' ? 'Animaciones de Jugadores' : 'Player Animations',
-      playerAnimationsDesc: lang === 'de' ? 'Individuelle Animationen pro Spieler - werden angezeigt wenn der Spieler am Zug ist' : lang === 'es' ? 'Animaciones individuales por jugador - se muestran cuando es el turno del jugador' : 'Individual animations per player - shown when player is active',
-      customAnimationsActive: lang === 'de' ? 'Individuelle Animationen aktiv' : lang === 'es' ? 'Animaciones personalizadas activas' : 'Custom animations active',
-      usingDefaultAnimations: lang === 'de' ? 'Verwendet Standard-Animationen' : lang === 'es' ? 'Usando animaciones predeterminadas' : 'Using default animations',
-      configure: lang === 'de' ? 'Konfigurieren' : lang === 'es' ? 'Configurar' : 'Configure',
-      playerSettings: lang === 'de' ? 'Spieler-Einstellungen' : lang === 'es' ? 'Configuración del Jugador' : 'Player Settings',
-      noPlayers: lang === 'de' ? 'Keine Spieler vorhanden.' : lang === 'es' ? 'No hay jugadores.' : 'No players found.',
-      createPlayers: lang === 'de' ? 'Spieler erstellen' : lang === 'es' ? 'Crear jugadores' : 'Create players',
-      animationType: lang === 'de' ? 'Animationstyp' : lang === 'es' ? 'Tipo de animación' : 'Animation type',
-      animation180: lang === 'de' ? '180 Animation' : lang === 'es' ? 'Animación 180' : '180 Animation',
-      animationLegWin: lang === 'de' ? 'Leg Gewonnen' : lang === 'es' ? 'Leg Ganado' : 'Leg Won',
-      animationMatchWin: lang === 'de' ? 'Match Gewonnen' : lang === 'es' ? 'Match Ganado' : 'Match Won',
-      animationCheckout: lang === 'de' ? 'Checkout' : lang === 'es' ? 'Checkout' : 'Checkout',
-      mediaUrl: lang === 'de' ? 'GIF/Video URL' : lang === 'es' ? 'URL de GIF/Video' : 'GIF/Video URL',
-      soundUrl: lang === 'de' ? 'Sound URL' : lang === 'es' ? 'URL de Sonido' : 'Sound URL',
-      useBuiltin: lang === 'de' ? 'Standard' : lang === 'es' ? 'Predeterminado' : 'Built-in',
-      useGif: lang === 'de' ? 'GIF' : lang === 'es' ? 'GIF' : 'GIF',
-      useVideo: lang === 'de' ? 'Video' : lang === 'es' ? 'Video' : 'Video',
-      useNone: lang === 'de' ? 'Keine' : lang === 'es' ? 'Ninguna' : 'None',
-      ...t.strings
-    }
+    name: tr.name || module.value?.name || 'Game Display',
+    description: tr.description || module.value?.description || '',
+    config: tr.config || {},
+    strings: tr.strings || {}
   }
 })
 
@@ -151,17 +95,17 @@ const configSchema = computed(() => {
 
 // Get translated label for a config field
 function getConfigLabel(key: string): string {
-  return i18n.value.config[key]?.label || configSchema.value[key]?.label || key
+  return moduleI18n.value.config[key]?.label || configSchema.value[key]?.label || key
 }
 
 // Get translated description for a config field
 function getConfigDescription(key: string): string | undefined {
-  return i18n.value.config[key]?.description || configSchema.value[key]?.description
+  return moduleI18n.value.config[key]?.description || configSchema.value[key]?.description
 }
 
 // Get translated option label for select fields
 function getOptionLabel(fieldKey: string, optionValue: string): string {
-  const i18nOptions = i18n.value.config[fieldKey]?.options
+  const i18nOptions = moduleI18n.value.config[fieldKey]?.options
   if (i18nOptions && i18nOptions[optionValue]) {
     return i18nOptions[optionValue]
   }
@@ -281,14 +225,14 @@ async function saveConfig() {
 
   try {
     await modulesStore.updateConfig(module.value.id, config.value)
-    saveMessage.value = { type: 'success', text: i18n.value.strings.saved }
+    saveMessage.value = { type: 'success', text: t('gameDisplay.saved') }
     setTimeout(() => {
       saveMessage.value = null
     }, 3000)
   } catch (e) {
     saveMessage.value = {
       type: 'error',
-      text: e instanceof Error ? e.message : i18n.value.strings.saveError,
+      text: e instanceof Error ? e.message : t('gameDisplay.saveError'),
     }
   } finally {
     isSaving.value = false
@@ -304,7 +248,7 @@ function onAnimationReady(eventType: string, url: string) {
     type: 'gif',
     mediaUrl: url
   })
-  saveMessage.value = { type: 'success', text: `Animation für "${eventType}" hinzugefügt!` }
+  saveMessage.value = { type: 'success', text: t('gameDisplay.animationAdded', { type: eventType }) }
   setTimeout(() => {
     saveMessage.value = null
   }, 3000)
@@ -384,12 +328,12 @@ async function copyDisplayUrl() {
   const displayUrl = `${window.location.origin}/module-ui/game-display/`
   try {
     await navigator.clipboard.writeText(displayUrl)
-    saveMessage.value = { type: 'success', text: i18n.value.strings.urlCopied }
+    saveMessage.value = { type: 'success', text: t('gameDisplay.urlCopied') }
     setTimeout(() => {
       saveMessage.value = null
     }, 2000)
   } catch {
-    saveMessage.value = { type: 'error', text: i18n.value.strings.copyFailed }
+    saveMessage.value = { type: 'error', text: t('gameDisplay.copyFailed') }
   }
 }
 
@@ -431,7 +375,7 @@ onMounted(() => {
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
-        {{ i18n.strings.backToModule }}
+        {{ t('gameDisplay.backToModule') }}
       </router-link>
 
       <!-- Loading State -->
@@ -465,10 +409,10 @@ onMounted(() => {
             </div>
             <div>
               <div class="flex items-center gap-3">
-                <h1 class="text-2xl font-bold text-white">{{ i18n.name }}</h1>
+                <h1 class="text-2xl font-bold text-white">{{ moduleI18n.name }}</h1>
                 <StatusBadge :status="module.status" />
               </div>
-              <p class="text-dark-400 mt-1">{{ i18n.description }}</p>
+              <p class="text-dark-400 mt-1">{{ moduleI18n.description }}</p>
             </div>
           </div>
 
@@ -478,13 +422,13 @@ onMounted(() => {
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
               </svg>
-              {{ i18n.strings.copyUrl }}
+              {{ t('gameDisplay.copyUrl') }}
             </BaseButton>
             <BaseButton @click="openDisplay">
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
-              {{ i18n.strings.openDisplay }}
+              {{ t('gameDisplay.openDisplay') }}
             </BaseButton>
             <BaseButton
               v-if="module.status === 'running'"
@@ -492,14 +436,14 @@ onMounted(() => {
               :loading="actionLoading"
               @click="stopModule"
             >
-              {{ i18n.strings.stop }}
+              {{ t('common.stop') }}
             </BaseButton>
             <BaseButton
               v-else
               :loading="actionLoading"
               @click="startModule"
             >
-              {{ i18n.strings.start }}
+              {{ t('common.start') }}
             </BaseButton>
           </div>
         </div>
@@ -508,9 +452,9 @@ onMounted(() => {
         <div class="flex gap-2 border-b border-dark-700 pb-1">
           <button
             v-for="tab in [
-              { id: 'display', label: i18n.strings.tabDisplay, icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
-              { id: 'animations', label: i18n.strings.tabAnimations, icon: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-              { id: 'players', label: i18n.strings.tabPlayers, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' }
+              { id: 'display', label: t('gameDisplay.tabDisplay'), icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+              { id: 'animations', label: t('gameDisplay.tabAnimations'), icon: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+              { id: 'players', label: t('gameDisplay.tabPlayers'), icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' }
             ]"
             :key="tab.id"
             @click="activeTab = tab.id as 'display' | 'animations' | 'players'"
@@ -531,7 +475,7 @@ onMounted(() => {
         <!-- Display Tab -->
         <template v-if="activeTab === 'display'">
           <!-- Display Preview -->
-        <BaseCard :title="i18n.strings.displayPreview" :subtitle="i18n.strings.displayPreviewDesc">
+        <BaseCard :title="t('gameDisplay.displayPreview')" :subtitle="t('gameDisplay.displayPreviewDesc')">
           <div class="relative rounded-xl overflow-hidden border border-dark-600 bg-dark-900">
             <!-- Preview Frame -->
             <div class="aspect-video relative">
@@ -549,18 +493,18 @@ onMounted(() => {
                   <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
-                  <span class="text-white font-medium">{{ i18n.strings.openInNewWindow }}</span>
+                  <span class="text-white font-medium">{{ t('gameDisplay.openInNewWindow') }}</span>
                 </div>
               </div>
             </div>
           </div>
           <p class="text-sm text-dark-400 mt-3">
-            {{ i18n.strings.clickPreview }}
+            {{ t('gameDisplay.clickPreview') }}
           </p>
         </BaseCard>
 
         <!-- Configuration -->
-        <BaseCard :title="i18n.strings.configuration">
+        <BaseCard :title="t('gameDisplay.configuration')">
           <form @submit.prevent="saveConfig" class="space-y-6">
             <!-- Dynamic Basic Fields -->
             <template v-for="[key, field] in basicFields" :key="key">
@@ -730,23 +674,23 @@ onMounted(() => {
             <!-- Save Button -->
             <div class="flex justify-end">
               <BaseButton type="submit" :loading="isSaving">
-                {{ i18n.strings.save }}
+                {{ t('common.save') }}
               </BaseButton>
             </div>
           </form>
         </BaseCard>
 
         <!-- Usage Info -->
-        <BaseCard :title="i18n.strings.usage">
+        <BaseCard :title="t('gameDisplay.usage')">
           <div class="space-y-4">
             <div class="flex items-start gap-4">
               <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
                 <span class="text-autodarts-400 font-bold">1</span>
               </div>
               <div>
-                <p class="text-white font-medium">{{ i18n.strings.step1Title }}</p>
+                <p class="text-white font-medium">{{ t('gameDisplay.step1Title') }}</p>
                 <p class="text-dark-400 text-sm mt-1">
-                  {{ i18n.strings.step1Desc }}
+                  {{ t('gameDisplay.step1Desc') }}
                 </p>
               </div>
             </div>
@@ -756,9 +700,9 @@ onMounted(() => {
                 <span class="text-autodarts-400 font-bold">2</span>
               </div>
               <div>
-                <p class="text-white font-medium">{{ i18n.strings.step2Title }}</p>
+                <p class="text-white font-medium">{{ t('gameDisplay.step2Title') }}</p>
                 <p class="text-dark-400 text-sm mt-1">
-                  {{ i18n.strings.step2Desc }}
+                  {{ t('gameDisplay.step2Desc') }}
                 </p>
               </div>
             </div>
@@ -768,9 +712,9 @@ onMounted(() => {
                 <span class="text-autodarts-400 font-bold">3</span>
               </div>
               <div>
-                <p class="text-white font-medium">{{ i18n.strings.step3Title }}</p>
+                <p class="text-white font-medium">{{ t('gameDisplay.step3Title') }}</p>
                 <p class="text-dark-400 text-sm mt-1">
-                  {{ i18n.strings.step3Desc }}
+                  {{ t('gameDisplay.step3Desc') }}
                 </p>
               </div>
             </div>
@@ -781,7 +725,7 @@ onMounted(() => {
         <!-- Animations Tab -->
         <template v-if="activeTab === 'animations'">
         <!-- Animations Configuration -->
-        <BaseCard :title="i18n.strings.animations" :subtitle="i18n.strings.animationsDesc">
+        <BaseCard :title="t('gameDisplay.animations')" :subtitle="t('gameDisplay.animationsDesc')">
           <!-- Enable Animations Toggle -->
           <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50 border border-dark-600 mb-6">
             <div>
@@ -911,7 +855,7 @@ onMounted(() => {
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                     </svg>
-                    {{ i18n.strings.winAnimationOptions }}
+                    {{ t('gameDisplay.winAnimationOptions') }}
                   </h5>
 
                   <!-- Info for GIF/Video types -->
@@ -919,7 +863,7 @@ onMounted(() => {
                     v-if="getGroupValue(key, 'type') === 'gif' || getGroupValue(key, 'type') === 'video'"
                     class="text-xs text-dark-400 -mt-2"
                   >
-                    {{ i18n.strings.winAnimationOverlayInfo }}
+                    {{ t('gameDisplay.winAnimationOverlayInfo') }}
                   </p>
 
                   <!-- Win Animation specific fields -->
@@ -996,7 +940,7 @@ onMounted(() => {
             <!-- Save Animations Button -->
             <div class="flex justify-end mt-6 pt-4 border-t border-dark-700">
               <BaseButton @click="saveConfig" :loading="isSaving">
-                {{ i18n.strings.save }}
+                {{ t('common.save') }}
               </BaseButton>
             </div>
           </div>
@@ -1020,7 +964,7 @@ onMounted(() => {
 
         <!-- Players Tab -->
         <template v-if="activeTab === 'players'">
-        <BaseCard :title="i18n.strings.playerAnimations" :subtitle="i18n.strings.playerAnimationsDesc">
+        <BaseCard :title="t('gameDisplay.playerAnimations')" :subtitle="t('gameDisplay.playerAnimationsDesc')">
           <div v-if="playersStore.players.length > 0" class="space-y-3">
             <div
               v-for="player in playersStore.players"
@@ -1038,10 +982,10 @@ onMounted(() => {
                 <div>
                   <p class="text-white font-medium">{{ player.name }}</p>
                   <p v-if="hasPlayerOverride(player.name)" class="text-xs text-autodarts-400 mt-0.5">
-                    {{ i18n.strings.customAnimationsActive }}
+                    {{ t('gameDisplay.customAnimationsActive') }}
                   </p>
                   <p v-else class="text-xs text-dark-500 mt-0.5">
-                    {{ i18n.strings.usingDefaultAnimations }}
+                    {{ t('gameDisplay.usingDefaultAnimations') }}
                   </p>
                 </div>
               </div>
@@ -1051,7 +995,7 @@ onMounted(() => {
                   size="sm"
                   @click="openPlayerOverrideEditor(player.name)"
                 >
-                  {{ hasPlayerOverride(player.name) ? i18n.strings.edit : i18n.strings.configure }}
+                  {{ hasPlayerOverride(player.name) ? t('common.edit') : t('gameDisplay.configure') }}
                 </BaseButton>
                 <BaseButton
                   v-if="hasPlayerOverride(player.name)"
@@ -1073,9 +1017,9 @@ onMounted(() => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
             <p class="text-dark-400 mt-3">
-              {{ i18n.strings.noPlayers }}
+              {{ t('gameDisplay.noPlayers') }}
               <router-link to="/players" class="text-autodarts-400 hover:underline">
-                {{ i18n.strings.createPlayers }}
+                {{ t('gameDisplay.createPlayers') }}
               </router-link>
             </p>
           </div>
@@ -1094,17 +1038,17 @@ onMounted(() => {
             />
             <div class="relative bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <h3 class="text-lg font-semibold text-white mb-4">
-                {{ i18n.strings.playerSettings }}: {{ selectedPlayerOverride }}
+                {{ t('gameDisplay.playerSettings') }}: {{ selectedPlayerOverride }}
               </h3>
 
               <!-- Animation Type Tabs -->
               <div class="flex gap-2 mb-6 border-b border-dark-700 pb-2">
                 <button
                   v-for="animType in [
-                    { id: 'throw180', label: i18n.strings.animation180 },
-                    { id: 'legWin', label: i18n.strings.animationLegWin },
-                    { id: 'matchWin', label: i18n.strings.animationMatchWin },
-                    { id: 'checkout', label: i18n.strings.animationCheckout }
+                    { id: 'throw180', label: t('gameDisplay.animation180') },
+                    { id: 'legWin', label: t('gameDisplay.animationLegWin') },
+                    { id: 'matchWin', label: t('gameDisplay.animationMatchWin') },
+                    { id: 'checkout', label: t('gameDisplay.animationCheckout') }
                   ]"
                   :key="animType.id"
                   @click="selectedAnimationType = animType.id as 'throw180' | 'legWin' | 'matchWin' | 'checkout'"
@@ -1122,14 +1066,14 @@ onMounted(() => {
               <div class="space-y-4">
                 <!-- Animation Type Select -->
                 <div>
-                  <label class="block text-sm font-medium text-dark-200 mb-2">{{ i18n.strings.animationType }}</label>
+                  <label class="block text-sm font-medium text-dark-200 mb-2">{{ t('gameDisplay.animationType') }}</label>
                   <div class="grid grid-cols-4 gap-2">
                     <button
                       v-for="type in [
-                        { value: 'builtin', label: i18n.strings.useBuiltin },
-                        { value: 'gif', label: i18n.strings.useGif },
-                        { value: 'video', label: i18n.strings.useVideo },
-                        { value: 'none', label: i18n.strings.useNone }
+                        { value: 'builtin', label: t('gameDisplay.useBuiltin') },
+                        { value: 'gif', label: t('gameDisplay.useGif') },
+                        { value: 'video', label: t('gameDisplay.useVideo') },
+                        { value: 'none', label: t('gameDisplay.useNone') }
                       ]"
                       :key="type.value"
                       type="button"
@@ -1151,7 +1095,7 @@ onMounted(() => {
                   <MediaUpload
                     :model-value="(getPlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'mediaUrl') as string) || ''"
                     @update:model-value="updatePlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'mediaUrl', $event)"
-                    :label="i18n.strings.mediaUrl"
+                    :label="t('gameDisplay.mediaUrl')"
                     media-type="animation"
                   />
                 </template>
@@ -1160,17 +1104,17 @@ onMounted(() => {
                 <MediaUpload
                   :model-value="(getPlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'soundUrl') as string) || ''"
                   @update:model-value="updatePlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'soundUrl', $event)"
-                  :label="i18n.strings.soundUrl"
+                  :label="t('gameDisplay.soundUrl')"
                   media-type="sound"
                 />
               </div>
 
               <div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-dark-700">
                 <BaseButton variant="ghost" @click="closePlayerOverrideModal">
-                  {{ i18n.strings.cancel || 'Cancel' }}
+                  {{ t('common.cancel') }}
                 </BaseButton>
                 <BaseButton @click="closePlayerOverrideModal(); saveConfig()">
-                  {{ i18n.strings.save }}
+                  {{ t('common.save') }}
                 </BaseButton>
               </div>
             </div>

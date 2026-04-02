@@ -406,8 +406,10 @@ export default {
     useNone: 'Ninguno',
     unlimited: 'Ilimitado',
     reset: 'Restablecer',
-    animationAdded: '¡Animación para "{event}" añadida!',
-    edit: 'Editar',
+    animationAdded: '¡Animación para "{type}" añadida!',
+    configure: 'Configurar',
+    saved: '¡Configuración guardada!',
+    saveError: 'Error al guardar',
   },
 
   // AI Settings

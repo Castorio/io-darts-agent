@@ -801,8 +801,10 @@ export default {
     useNone: 'Keine',
     unlimited: 'Unbegrenzt',
     reset: 'Zurücksetzen',
-    animationAdded: 'Animation für "{event}" hinzugefügt!',
-    edit: 'Bearbeiten',
+    animationAdded: 'Animation für "{type}" hinzugefügt!',
+    configure: 'Konfigurieren',
+    saved: 'Konfiguration gespeichert!',
+    saveError: 'Fehler beim Speichern',
   },
 
   // AI Settings

@@ -31,6 +31,8 @@ export default {
     info: 'Info',
     version: 'Versión',
     status: 'Estado',
+    start: 'Iniciar',
+    stop: 'Detener',
     name: 'Nombre',
     description: 'Descripción',
     settings: 'Configuración',

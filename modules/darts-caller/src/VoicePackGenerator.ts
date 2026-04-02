@@ -717,6 +717,134 @@ export class VoicePackGenerator {
 
     return contextPhrases[language] || {};
   }
+
+  /**
+   * Get the output directory path
+   */
+  getOutputDir(): string {
+    return this.outputDir;
+  }
+
+  /**
+   * Import a voice pack from extracted files
+   * @param tempDir - Directory containing extracted pack files
+   * @returns Import result with pack info or error
+   */
+  async importPack(tempDir: string): Promise<{
+    success: boolean;
+    packId?: string;
+    packName?: string;
+    error?: string;
+  }> {
+    try {
+      // Find metadata.json - could be in root or in a subdirectory
+      let metadataPath = path.join(tempDir, 'metadata.json');
+      let sourceDir = tempDir;
+
+      if (!fs.existsSync(metadataPath)) {
+        // Check if there's a single subdirectory containing metadata.json
+        const entries = fs.readdirSync(tempDir, { withFileTypes: true });
+        const subdirs = entries.filter(e => e.isDirectory());
+
+        for (const subdir of subdirs) {
+          const subMetadataPath = path.join(tempDir, subdir.name, 'metadata.json');
+          if (fs.existsSync(subMetadataPath)) {
+            metadataPath = subMetadataPath;
+            sourceDir = path.join(tempDir, subdir.name);
+            break;
+          }
+        }
+
+        if (!fs.existsSync(metadataPath)) {
+          return {
+            success: false,
+            error: 'No metadata.json found in the ZIP file',
+          };
+        }
+      }
+
+      // Parse metadata
+      let metadata: {
+        id?: string;
+        name?: string;
+        voiceId?: string;
+        language?: string;
+        generatedAt?: string;
+        totalFiles?: number;
+        successfulFiles?: number;
+      };
+
+      try {
+        metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+      } catch {
+        return {
+          success: false,
+          error: 'Invalid metadata.json format',
+        };
+      }
+
+      // Validate required fields
+      if (!metadata.id || !metadata.name) {
+        return {
+          success: false,
+          error: 'metadata.json must contain id and name fields',
+        };
+      }
+
+      const packId = metadata.id;
+      const packDir = path.join(this.outputDir, packId);
+
+      // Check if pack already exists
+      if (fs.existsSync(packDir)) {
+        return {
+          success: false,
+          error: `Voice pack '${packId}' already exists. Delete it first to import a new version.`,
+        };
+      }
+
+      // Create pack directory
+      fs.mkdirSync(packDir, { recursive: true });
+
+      // Copy all files from source to pack directory
+      const files = fs.readdirSync(sourceDir);
+      let copiedCount = 0;
+
+      for (const file of files) {
+        const sourcePath = path.join(sourceDir, file);
+        const destPath = path.join(packDir, file);
+
+        // Only copy files (not directories)
+        const stat = fs.statSync(sourcePath);
+        if (stat.isFile()) {
+          fs.copyFileSync(sourcePath, destPath);
+          copiedCount++;
+        }
+      }
+
+      // Update metadata with import info
+      const updatedMetadata = {
+        ...metadata,
+        importedAt: new Date().toISOString(),
+        importedFiles: copiedCount,
+      };
+
+      fs.writeFileSync(
+        path.join(packDir, 'metadata.json'),
+        JSON.stringify(updatedMetadata, null, 2)
+      );
+
+      return {
+        success: true,
+        packId,
+        packName: metadata.name,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown import error',
+      };
+    }
+  }
 }
 
 export function createVoicePackGenerator(

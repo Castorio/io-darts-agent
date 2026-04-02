@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useModulesStore } from '../stores/modules'
 import { api } from '../api/client'
 import AppLayout from '../components/AppLayout.vue'
@@ -52,6 +53,7 @@ interface AvailableIntent {
 }
 
 const route = useRoute()
+const { locale } = useI18n()
 const modulesStore = useModulesStore()
 
 const moduleId = computed(() => route.params.id as string)
@@ -159,11 +161,10 @@ async function loadWledData() {
 // Event configurations - starts empty, loaded from module config
 const eventConfigs = ref<Record<string, EventConfig>>({})
 
-// Current language for i18n
+// Current language for i18n - uses app settings via vue-i18n
 const currentLang = computed(() => {
-  // Try to get browser language, fallback to 'de'
-  const browserLang = navigator.language.split('-')[0]
-  return ['de', 'en', 'es'].includes(browserLang) ? browserLang : 'de'
+  const lang = locale.value.split('-')[0]
+  return ['de', 'en', 'es'].includes(lang) ? lang : 'en'
 })
 
 // i18n translations from module.json

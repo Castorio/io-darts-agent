@@ -622,6 +622,40 @@ export const api = {
     })
   },
 
+  async uploadVoicePack(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${API_BASE}/tts/voicepacks/upload`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new APIError(
+        response.status,
+        data.message || data.error || 'Upload failed'
+      )
+    }
+
+    return data as {
+      success: boolean
+      message?: string
+      pack?: {
+        id: string
+        name: string
+        voiceId: string
+        language: string
+        totalFiles: number
+        generatedAt: string
+      }
+      error?: string
+    }
+  },
+
   // Logs
   async getLogs() {
     return request<

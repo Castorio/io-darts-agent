@@ -12,7 +12,7 @@ import MediaUpload from '../components/MediaUpload.vue'
 import AnimationGenerator from '../components/AnimationGenerator.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // Player animation override interface
 interface PlayerAnimationOverride {
@@ -76,8 +76,8 @@ const moduleI18n = computed(() => {
     strings?: Record<string, string>
   }> | undefined
 
-  const browserLang = navigator.language.split('-')[0]
-  const lang = ['de', 'en', 'es'].includes(browserLang) ? browserLang : 'en'
+  // Use the app's current locale (from settings), not browser language
+  const lang = ['de', 'en', 'es'].includes(locale.value) ? locale.value : 'en'
   const tr = translations?.[lang] || translations?.['en'] || {}
 
   return {
@@ -103,6 +103,22 @@ function getConfigDescription(key: string): string | undefined {
   return moduleI18n.value.config[key]?.description || configSchema.value[key]?.description
 }
 
+// Get translated label for a nested config field (e.g. animationLegWin.type)
+function getNestedConfigLabel(groupKey: string, nestedKey: string): string {
+  // Try combined key first (e.g. "animationLegWin.type")
+  const combinedKey = `${groupKey}.${nestedKey}`
+  const i18nLabel = moduleI18n.value.config[combinedKey]?.label
+  if (i18nLabel) {
+    return i18nLabel
+  }
+  // Fall back to nested field in schema
+  const groupSchema = configSchema.value[groupKey]
+  if (groupSchema?.type === 'group' && groupSchema.fields?.[nestedKey]) {
+    return groupSchema.fields[nestedKey].label || nestedKey
+  }
+  return nestedKey
+}
+
 // Get translated option label for select fields
 function getOptionLabel(fieldKey: string, optionValue: string): string {
   const i18nOptions = moduleI18n.value.config[fieldKey]?.options
@@ -113,6 +129,26 @@ function getOptionLabel(fieldKey: string, optionValue: string): string {
   if (field?.type === 'select' && field.options) {
     const option = field.options.find((o: { value: string | number }) => o.value === optionValue)
     return option?.label || optionValue
+  }
+  return optionValue
+}
+
+// Get translated option label for nested select fields
+function getNestedOptionLabel(groupKey: string, nestedKey: string, optionValue: string): string {
+  // Try combined key first (e.g. "animationLegWin.type")
+  const combinedKey = `${groupKey}.${nestedKey}`
+  const i18nOptions = moduleI18n.value.config[combinedKey]?.options
+  if (i18nOptions && i18nOptions[optionValue]) {
+    return i18nOptions[optionValue]
+  }
+  // Fall back to schema options
+  const groupSchema = configSchema.value[groupKey]
+  if (groupSchema?.type === 'group' && groupSchema.fields?.[nestedKey]) {
+    const nestedField = groupSchema.fields[nestedKey]
+    if (nestedField.type === 'select' && nestedField.options) {
+      const option = nestedField.options.find((o: { value: string | number }) => o.value === optionValue)
+      return option?.label || optionValue
+    }
   }
   return optionValue
 }
@@ -587,7 +623,7 @@ onMounted(() => {
                 <label class="block text-sm font-medium text-dark-200 mb-2">
                   {{ getConfigLabel(key) }}:
                   <span v-if="key.includes('Duration')">
-                    {{ (getValue(key) as number) === 0 ? 'Unbegrenzt' : ((getValue(key) as number) / 1000) + 's' }}
+                    {{ (getValue(key) as number) === 0 ? t('gameDisplay.unlimited') : ((getValue(key) as number) / 1000) + 's' }}
                   </span>
                   <span v-else>{{ getValue(key) }}</span>
                 </label>
@@ -601,7 +637,7 @@ onMounted(() => {
                   class="w-full accent-autodarts-500"
                 />
                 <div class="flex justify-between text-sm text-dark-400 mt-1">
-                  <span>{{ key.includes('Duration') && field.min === 0 ? 'Unbegrenzt' : (field.min ?? 0) }}</span>
+                  <span>{{ key.includes('Duration') && field.min === 0 ? t('gameDisplay.unlimited') : (field.min ?? 0) }}</span>
                   <span>{{ key.includes('Duration') ? ((field.max || 0) / 1000) + 's' : field.max }}</span>
                 </div>
                 <p v-if="getConfigDescription(key)" class="text-sm text-dark-400 mt-1">
@@ -649,7 +685,7 @@ onMounted(() => {
                     @click="updateValue(key, field.default as string)"
                     class="px-3 py-2 rounded-lg bg-dark-700 border border-dark-600 text-dark-400 hover:text-white hover:border-dark-500 transition-colors text-sm"
                   >
-                    Reset
+                    {{ t('gameDisplay.reset') }}
                   </button>
                 </div>
                 <p v-if="getConfigDescription(key)" class="text-sm text-dark-400 mt-1">
@@ -760,9 +796,9 @@ onMounted(() => {
             >
               <div class="flex items-center justify-between mb-4">
                 <div>
-                  <h4 class="text-white font-medium">{{ field.label || key }}</h4>
-                  <p v-if="field.description" class="text-sm text-dark-400 mt-1">
-                    {{ field.description }}
+                  <h4 class="text-white font-medium">{{ getConfigLabel(key) }}</h4>
+                  <p v-if="getConfigDescription(key)" class="text-sm text-dark-400 mt-1">
+                    {{ getConfigDescription(key) }}
                   </p>
                 </div>
                 <!-- Quick status indicator -->
@@ -770,7 +806,7 @@ onMounted(() => {
                   v-if="getGroupValue(key, 'type') !== 'none'"
                   class="px-2 py-0.5 rounded-full bg-autodarts-500/20 text-autodarts-400 text-xs"
                 >
-                  {{ getGroupValue(key, 'type') === 'builtin' ? 'Built-in' : (getGroupValue(key, 'type') as string)?.toUpperCase() }}
+                  {{ getGroupValue(key, 'type') === 'builtin' ? t('gameDisplay.useBuiltin') : (getGroupValue(key, 'type') as string)?.toUpperCase() }}
                 </span>
               </div>
 
@@ -783,7 +819,7 @@ onMounted(() => {
                     <!-- Type Select -->
                     <div v-if="nestedField.type === 'select'">
                       <label class="block text-sm font-medium text-dark-200 mb-2">
-                        {{ nestedField.label || nestedKey }}
+                        {{ getNestedConfigLabel(key, nestedKey) }}
                       </label>
                       <select
                         :value="getGroupValue(key, nestedKey)"
@@ -795,7 +831,7 @@ onMounted(() => {
                           :key="option.value"
                           :value="option.value"
                         >
-                          {{ option.label }}
+                          {{ getNestedOptionLabel(key, nestedKey, String(option.value)) }}
                         </option>
                       </select>
                     </div>
@@ -806,7 +842,7 @@ onMounted(() => {
                         <MediaUpload
                           :model-value="(getGroupValue(key, nestedKey) as string) || ''"
                           @update:model-value="updateGroupValue(key, nestedKey, $event)"
-                          :label="nestedField.label || nestedKey"
+                          :label="getNestedConfigLabel(key, nestedKey)"
                           :media-type="nestedKey.toLowerCase().includes('sound') ? 'sound' : 'animation'"
                         />
                       </template>
@@ -815,7 +851,7 @@ onMounted(() => {
                     <!-- Duration Slider -->
                     <div v-else-if="nestedField.type === 'number' && nestedKey === 'duration'">
                       <label class="block text-sm font-medium text-dark-200 mb-2">
-                        {{ nestedField.label || nestedKey }}: {{ (Number(getGroupValue(key, nestedKey)) || Number(nestedField.default) || 3000) / 1000 }}s
+                        {{ getNestedConfigLabel(key, nestedKey) }}: {{ (Number(getGroupValue(key, nestedKey)) || Number(nestedField.default) || 3000) / 1000 }}s
                       </label>
                       <input
                         type="range"
@@ -831,7 +867,7 @@ onMounted(() => {
                     <!-- Threshold Number -->
                     <div v-else-if="nestedField.type === 'number' && nestedKey === 'threshold'">
                       <label class="block text-sm font-medium text-dark-200 mb-2">
-                        {{ nestedField.label || nestedKey }}: {{ getGroupValue(key, nestedKey) || nestedField.default }}
+                        {{ getNestedConfigLabel(key, nestedKey) }}: {{ getGroupValue(key, nestedKey) || nestedField.default }}
                       </label>
                       <input
                         type="range"
@@ -871,7 +907,7 @@ onMounted(() => {
                     <template v-if="['showPlayerName', 'showStats', 'effectType', 'backgroundColor', 'textColor'].includes(nestedKey)">
                       <!-- Boolean Field (showPlayerName, showStats) -->
                       <div v-if="nestedField.type === 'boolean'" class="flex items-center justify-between py-2 px-3 rounded-lg bg-dark-700/30">
-                        <span class="text-sm text-dark-200">{{ nestedField.label || nestedKey }}</span>
+                        <span class="text-sm text-dark-200">{{ getNestedConfigLabel(key, nestedKey) }}</span>
                         <button
                           type="button"
                           @click="updateGroupValue(key, nestedKey, !(getGroupValue(key, nestedKey) ?? nestedField.default))"
@@ -892,7 +928,7 @@ onMounted(() => {
                       <!-- Select Field (effectType) - only show for builtin type -->
                       <div v-else-if="nestedField.type === 'select' && nestedKey === 'effectType' && getGroupValue(key, 'type') === 'builtin'">
                         <label class="block text-sm font-medium text-dark-200 mb-2">
-                          {{ nestedField.label || nestedKey }}
+                          {{ getNestedConfigLabel(key, nestedKey) }}
                         </label>
                         <div class="grid grid-cols-4 gap-2">
                           <button
@@ -907,14 +943,14 @@ onMounted(() => {
                                 : 'border-dark-600 text-dark-400 hover:border-dark-500',
                             ]"
                           >
-                            {{ option.label }}
+                            {{ getNestedOptionLabel(key, nestedKey, String(option.value)) }}
                           </button>
                         </div>
                       </div>
 
                       <!-- Color Field (backgroundColor, textColor) -->
                       <div v-else-if="nestedField.type === 'color'">
-                        <label class="block text-sm font-medium text-dark-200 mb-2">{{ nestedField.label || nestedKey }}</label>
+                        <label class="block text-sm font-medium text-dark-200 mb-2">{{ getNestedConfigLabel(key, nestedKey) }}</label>
                         <div class="flex items-center gap-2">
                           <input
                             type="color"

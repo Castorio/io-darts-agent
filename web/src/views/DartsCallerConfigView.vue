@@ -571,6 +571,45 @@ async function deleteVoicePack(packId?: string) {
   }
 }
 
+// Voice Pack Upload
+const isUploadingVoicePack = ref(false)
+const voicePackFileInput = ref<HTMLInputElement | null>(null)
+
+function triggerVoicePackUpload() {
+  voicePackFileInput.value?.click()
+}
+
+async function handleVoicePackUpload(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  // Validate file type
+  if (!file.name.toLowerCase().endsWith('.zip')) {
+    saveMessage.value = { type: 'error', text: t('caller.voicePack.invalidZipFile') }
+    target.value = '' // Reset input
+    return
+  }
+
+  isUploadingVoicePack.value = true
+  saveMessage.value = null
+
+  try {
+    const result = await api.uploadVoicePack(file)
+    if (result.success) {
+      saveMessage.value = { type: 'success', text: t('caller.voicePack.uploadSuccess') }
+      loadVoicePackStatus() // Refresh the list
+    } else {
+      saveMessage.value = { type: 'error', text: result.error || t('caller.voicePack.uploadFailed') }
+    }
+  } catch (e) {
+    saveMessage.value = { type: 'error', text: e instanceof Error ? e.message : t('caller.voicePack.uploadFailed') }
+  } finally {
+    isUploadingVoicePack.value = false
+    target.value = '' // Reset input for next upload
+  }
+}
+
 
 // Cleanup on unmount
 onUnmounted(() => {
@@ -1037,6 +1076,26 @@ onMounted(() => {
                 </svg>
                 {{ t('caller.voicePack.generateNew') }}
               </BaseButton>
+
+              <!-- Upload Voice Pack Button -->
+              <BaseButton
+                v-if="voicePackStatus.status !== 'generating'"
+                variant="secondary"
+                :loading="isUploadingVoicePack"
+                @click="triggerVoicePackUpload"
+              >
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                {{ isUploadingVoicePack ? t('caller.voicePack.uploading') : t('caller.voicePack.upload') }}
+              </BaseButton>
+              <input
+                ref="voicePackFileInput"
+                type="file"
+                accept=".zip"
+                class="hidden"
+                @change="handleVoicePackUpload"
+              />
 
               <!-- Cancel Button -->
               <BaseButton

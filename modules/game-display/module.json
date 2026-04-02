@@ -636,7 +636,162 @@
         "defaultAnimationDuration": {
           "label": "Default Animation Duration",
           "description": "Default display duration for animations in milliseconds"
-        }
+        },
+        "animation180": {
+          "label": "180 Animation",
+          "description": "Animation for 180 scores"
+        },
+        "animation180.type": {
+          "label": "Type",
+          "options": {
+            "none": "Disabled",
+            "builtin": "Built-in",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animation180.mediaUrl": { "label": "Media URL" },
+        "animation180.soundUrl": { "label": "Sound URL" },
+        "animation180.duration": { "label": "Duration" },
+        "animationBull": {
+          "label": "Bull Animation",
+          "description": "Animation for single bulls (25)"
+        },
+        "animationBull.type": {
+          "label": "Type",
+          "options": {
+            "none": "Disabled",
+            "builtin": "Built-in",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationBull.mediaUrl": { "label": "Media URL" },
+        "animationBull.soundUrl": { "label": "Sound URL" },
+        "animationBull.duration": { "label": "Duration" },
+        "animationDoubleBull": {
+          "label": "Double Bull Animation",
+          "description": "Animation for double bulls (50)"
+        },
+        "animationDoubleBull.type": {
+          "label": "Type",
+          "options": {
+            "none": "Disabled",
+            "builtin": "Built-in",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationDoubleBull.mediaUrl": { "label": "Media URL" },
+        "animationDoubleBull.soundUrl": { "label": "Sound URL" },
+        "animationDoubleBull.duration": { "label": "Duration" },
+        "animationHighScore": {
+          "label": "High Score Animation",
+          "description": "Animation for high scores"
+        },
+        "animationHighScore.type": {
+          "label": "Type",
+          "options": {
+            "none": "Disabled",
+            "builtin": "Built-in",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationHighScore.threshold": { "label": "From Score" },
+        "animationHighScore.mediaUrl": { "label": "Media URL" },
+        "animationHighScore.soundUrl": { "label": "Sound URL" },
+        "animationHighScore.duration": { "label": "Duration" },
+        "animationCheckout": {
+          "label": "Checkout Animation",
+          "description": "Animation for successful checkouts"
+        },
+        "animationCheckout.type": {
+          "label": "Type",
+          "options": {
+            "none": "Disabled",
+            "builtin": "Built-in",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationCheckout.mediaUrl": { "label": "Media URL" },
+        "animationCheckout.soundUrl": { "label": "Sound URL" },
+        "animationCheckout.duration": { "label": "Duration" },
+        "animationLegWin": {
+          "label": "Leg Win Animation",
+          "description": "Animation when winning a leg"
+        },
+        "animationLegWin.type": {
+          "label": "Type",
+          "options": {
+            "none": "Disabled",
+            "builtin": "Built-in",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationLegWin.mediaUrl": { "label": "Media URL" },
+        "animationLegWin.soundUrl": { "label": "Sound URL" },
+        "animationLegWin.duration": { "label": "Duration" },
+        "animationLegWin.showPlayerName": { "label": "Show Winner Name" },
+        "animationLegWin.showStats": { "label": "Show Statistics" },
+        "animationLegWin.effectType": {
+          "label": "Effect",
+          "options": {
+            "none": "None",
+            "confetti": "Confetti",
+            "fireworks": "Fireworks",
+            "sparkles": "Sparkles"
+          }
+        },
+        "animationLegWin.backgroundColor": { "label": "Background Color" },
+        "animationLegWin.textColor": { "label": "Text Color" },
+        "animationMatchWin": {
+          "label": "Match Win Animation",
+          "description": "Animation when winning the match"
+        },
+        "animationMatchWin.type": {
+          "label": "Type",
+          "options": {
+            "none": "Disabled",
+            "builtin": "Built-in",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationMatchWin.mediaUrl": { "label": "Media URL" },
+        "animationMatchWin.soundUrl": { "label": "Sound URL" },
+        "animationMatchWin.duration": { "label": "Duration" },
+        "animationMatchWin.showPlayerName": { "label": "Show Winner Name" },
+        "animationMatchWin.showStats": { "label": "Show Statistics" },
+        "animationMatchWin.effectType": {
+          "label": "Effect",
+          "options": {
+            "none": "None",
+            "confetti": "Confetti",
+            "fireworks": "Fireworks",
+            "sparkles": "Sparkles"
+          }
+        },
+        "animationMatchWin.backgroundColor": { "label": "Background Color" },
+        "animationMatchWin.textColor": { "label": "Text Color" },
+        "animationBust": {
+          "label": "Bust Animation",
+          "description": "Animation when player busts"
+        },
+        "animationBust.type": {
+          "label": "Type",
+          "options": {
+            "none": "Disabled",
+            "builtin": "Built-in",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationBust.mediaUrl": { "label": "Media URL" },
+        "animationBust.soundUrl": { "label": "Sound URL" },
+        "animationBust.duration": { "label": "Duration" }
       },
       "strings": {
         "currentPlayer": "Current Player",
@@ -721,7 +876,162 @@
         "defaultAnimationDuration": {
           "label": "Standard-Animationsdauer",
           "description": "Standard-Anzeigedauer für Animationen in Millisekunden"
-        }
+        },
+        "animation180": {
+          "label": "180 Animation",
+          "description": "Animation für 180 Punkte"
+        },
+        "animation180.type": {
+          "label": "Typ",
+          "options": {
+            "none": "Deaktiviert",
+            "builtin": "Standard",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animation180.mediaUrl": { "label": "Medien-URL" },
+        "animation180.soundUrl": { "label": "Sound-URL" },
+        "animation180.duration": { "label": "Dauer" },
+        "animationBull": {
+          "label": "Bull Animation",
+          "description": "Animation für Single Bulls (25)"
+        },
+        "animationBull.type": {
+          "label": "Typ",
+          "options": {
+            "none": "Deaktiviert",
+            "builtin": "Standard",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationBull.mediaUrl": { "label": "Medien-URL" },
+        "animationBull.soundUrl": { "label": "Sound-URL" },
+        "animationBull.duration": { "label": "Dauer" },
+        "animationDoubleBull": {
+          "label": "Double Bull Animation",
+          "description": "Animation für Double Bulls (50)"
+        },
+        "animationDoubleBull.type": {
+          "label": "Typ",
+          "options": {
+            "none": "Deaktiviert",
+            "builtin": "Standard",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationDoubleBull.mediaUrl": { "label": "Medien-URL" },
+        "animationDoubleBull.soundUrl": { "label": "Sound-URL" },
+        "animationDoubleBull.duration": { "label": "Dauer" },
+        "animationHighScore": {
+          "label": "High Score Animation",
+          "description": "Animation für hohe Punktzahlen"
+        },
+        "animationHighScore.type": {
+          "label": "Typ",
+          "options": {
+            "none": "Deaktiviert",
+            "builtin": "Standard",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationHighScore.threshold": { "label": "Ab Punktzahl" },
+        "animationHighScore.mediaUrl": { "label": "Medien-URL" },
+        "animationHighScore.soundUrl": { "label": "Sound-URL" },
+        "animationHighScore.duration": { "label": "Dauer" },
+        "animationCheckout": {
+          "label": "Checkout Animation",
+          "description": "Animation für erfolgreiche Checkouts"
+        },
+        "animationCheckout.type": {
+          "label": "Typ",
+          "options": {
+            "none": "Deaktiviert",
+            "builtin": "Standard",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationCheckout.mediaUrl": { "label": "Medien-URL" },
+        "animationCheckout.soundUrl": { "label": "Sound-URL" },
+        "animationCheckout.duration": { "label": "Dauer" },
+        "animationLegWin": {
+          "label": "Leg-Sieg Animation",
+          "description": "Animation beim Gewinnen eines Legs"
+        },
+        "animationLegWin.type": {
+          "label": "Typ",
+          "options": {
+            "none": "Deaktiviert",
+            "builtin": "Standard",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationLegWin.mediaUrl": { "label": "Medien-URL" },
+        "animationLegWin.soundUrl": { "label": "Sound-URL" },
+        "animationLegWin.duration": { "label": "Dauer" },
+        "animationLegWin.showPlayerName": { "label": "Gewinnernamen anzeigen" },
+        "animationLegWin.showStats": { "label": "Statistiken anzeigen" },
+        "animationLegWin.effectType": {
+          "label": "Effekt",
+          "options": {
+            "none": "Keiner",
+            "confetti": "Konfetti",
+            "fireworks": "Feuerwerk",
+            "sparkles": "Funken"
+          }
+        },
+        "animationLegWin.backgroundColor": { "label": "Hintergrundfarbe" },
+        "animationLegWin.textColor": { "label": "Textfarbe" },
+        "animationMatchWin": {
+          "label": "Match-Sieg Animation",
+          "description": "Animation beim Gewinnen des Matches"
+        },
+        "animationMatchWin.type": {
+          "label": "Typ",
+          "options": {
+            "none": "Deaktiviert",
+            "builtin": "Standard",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationMatchWin.mediaUrl": { "label": "Medien-URL" },
+        "animationMatchWin.soundUrl": { "label": "Sound-URL" },
+        "animationMatchWin.duration": { "label": "Dauer" },
+        "animationMatchWin.showPlayerName": { "label": "Gewinnernamen anzeigen" },
+        "animationMatchWin.showStats": { "label": "Statistiken anzeigen" },
+        "animationMatchWin.effectType": {
+          "label": "Effekt",
+          "options": {
+            "none": "Keiner",
+            "confetti": "Konfetti",
+            "fireworks": "Feuerwerk",
+            "sparkles": "Funken"
+          }
+        },
+        "animationMatchWin.backgroundColor": { "label": "Hintergrundfarbe" },
+        "animationMatchWin.textColor": { "label": "Textfarbe" },
+        "animationBust": {
+          "label": "Überworfen Animation",
+          "description": "Animation wenn ein Spieler überwirft"
+        },
+        "animationBust.type": {
+          "label": "Typ",
+          "options": {
+            "none": "Deaktiviert",
+            "builtin": "Standard",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationBust.mediaUrl": { "label": "Medien-URL" },
+        "animationBust.soundUrl": { "label": "Sound-URL" },
+        "animationBust.duration": { "label": "Dauer" }
       },
       "strings": {
         "currentPlayer": "Aktueller Spieler",
@@ -806,7 +1116,162 @@
         "defaultAnimationDuration": {
           "label": "Duración de Animación Predeterminada",
           "description": "Duración predeterminada para animaciones en milisegundos"
-        }
+        },
+        "animation180": {
+          "label": "Animación 180",
+          "description": "Animación para puntuaciones de 180"
+        },
+        "animation180.type": {
+          "label": "Tipo",
+          "options": {
+            "none": "Desactivado",
+            "builtin": "Predeterminado",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animation180.mediaUrl": { "label": "URL de Medios" },
+        "animation180.soundUrl": { "label": "URL de Sonido" },
+        "animation180.duration": { "label": "Duración" },
+        "animationBull": {
+          "label": "Animación Bull",
+          "description": "Animación para bulls simples (25)"
+        },
+        "animationBull.type": {
+          "label": "Tipo",
+          "options": {
+            "none": "Desactivado",
+            "builtin": "Predeterminado",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationBull.mediaUrl": { "label": "URL de Medios" },
+        "animationBull.soundUrl": { "label": "URL de Sonido" },
+        "animationBull.duration": { "label": "Duración" },
+        "animationDoubleBull": {
+          "label": "Animación Double Bull",
+          "description": "Animación para double bulls (50)"
+        },
+        "animationDoubleBull.type": {
+          "label": "Tipo",
+          "options": {
+            "none": "Desactivado",
+            "builtin": "Predeterminado",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationDoubleBull.mediaUrl": { "label": "URL de Medios" },
+        "animationDoubleBull.soundUrl": { "label": "URL de Sonido" },
+        "animationDoubleBull.duration": { "label": "Duración" },
+        "animationHighScore": {
+          "label": "Animación Puntuación Alta",
+          "description": "Animación para puntuaciones altas"
+        },
+        "animationHighScore.type": {
+          "label": "Tipo",
+          "options": {
+            "none": "Desactivado",
+            "builtin": "Predeterminado",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationHighScore.threshold": { "label": "Desde Puntuación" },
+        "animationHighScore.mediaUrl": { "label": "URL de Medios" },
+        "animationHighScore.soundUrl": { "label": "URL de Sonido" },
+        "animationHighScore.duration": { "label": "Duración" },
+        "animationCheckout": {
+          "label": "Animación Checkout",
+          "description": "Animación para checkouts exitosos"
+        },
+        "animationCheckout.type": {
+          "label": "Tipo",
+          "options": {
+            "none": "Desactivado",
+            "builtin": "Predeterminado",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationCheckout.mediaUrl": { "label": "URL de Medios" },
+        "animationCheckout.soundUrl": { "label": "URL de Sonido" },
+        "animationCheckout.duration": { "label": "Duración" },
+        "animationLegWin": {
+          "label": "Animación Victoria de Leg",
+          "description": "Animación al ganar un leg"
+        },
+        "animationLegWin.type": {
+          "label": "Tipo",
+          "options": {
+            "none": "Desactivado",
+            "builtin": "Predeterminado",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationLegWin.mediaUrl": { "label": "URL de Medios" },
+        "animationLegWin.soundUrl": { "label": "URL de Sonido" },
+        "animationLegWin.duration": { "label": "Duración" },
+        "animationLegWin.showPlayerName": { "label": "Mostrar Nombre del Ganador" },
+        "animationLegWin.showStats": { "label": "Mostrar Estadísticas" },
+        "animationLegWin.effectType": {
+          "label": "Efecto",
+          "options": {
+            "none": "Ninguno",
+            "confetti": "Confeti",
+            "fireworks": "Fuegos Artificiales",
+            "sparkles": "Destellos"
+          }
+        },
+        "animationLegWin.backgroundColor": { "label": "Color de Fondo" },
+        "animationLegWin.textColor": { "label": "Color de Texto" },
+        "animationMatchWin": {
+          "label": "Animación Victoria de Partida",
+          "description": "Animación al ganar la partida"
+        },
+        "animationMatchWin.type": {
+          "label": "Tipo",
+          "options": {
+            "none": "Desactivado",
+            "builtin": "Predeterminado",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationMatchWin.mediaUrl": { "label": "URL de Medios" },
+        "animationMatchWin.soundUrl": { "label": "URL de Sonido" },
+        "animationMatchWin.duration": { "label": "Duración" },
+        "animationMatchWin.showPlayerName": { "label": "Mostrar Nombre del Ganador" },
+        "animationMatchWin.showStats": { "label": "Mostrar Estadísticas" },
+        "animationMatchWin.effectType": {
+          "label": "Efecto",
+          "options": {
+            "none": "Ninguno",
+            "confetti": "Confeti",
+            "fireworks": "Fuegos Artificiales",
+            "sparkles": "Destellos"
+          }
+        },
+        "animationMatchWin.backgroundColor": { "label": "Color de Fondo" },
+        "animationMatchWin.textColor": { "label": "Color de Texto" },
+        "animationBust": {
+          "label": "Animación Pasado",
+          "description": "Animación cuando un jugador se pasa"
+        },
+        "animationBust.type": {
+          "label": "Tipo",
+          "options": {
+            "none": "Desactivado",
+            "builtin": "Predeterminado",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationBust.mediaUrl": { "label": "URL de Medios" },
+        "animationBust.soundUrl": { "label": "URL de Sonido" },
+        "animationBust.duration": { "label": "Duración" }
       },
       "strings": {
         "currentPlayer": "Jugador Actual",

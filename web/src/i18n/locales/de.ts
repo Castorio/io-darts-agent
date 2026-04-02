@@ -621,6 +621,14 @@ export default {
       generationFailed: 'Voice Pack Generierung fehlgeschlagen',
       deleted: 'Voice Pack gelöscht',
       lastGenerated: 'Zuletzt generiert',
+      // Upload
+      upload: 'Voice Pack hochladen',
+      uploadDesc: 'Laden Sie ein bestehendes Voice Pack als ZIP-Datei hoch',
+      uploadSuccess: 'Voice Pack erfolgreich hochgeladen',
+      uploadFailed: 'Voice Pack Upload fehlgeschlagen',
+      invalidZipFile: 'Nur ZIP-Dateien sind erlaubt',
+      uploading: 'Wird hochgeladen...',
+      dropZipHere: 'ZIP-Datei hierher ziehen oder klicken zum Auswählen',
     },
     // Event Labels and Descriptions
     events: {

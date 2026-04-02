@@ -60,6 +60,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "@types/archiver": "^7.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.11.0",
     "@types/uuid": "^11.0.0",
@@ -83,6 +84,7 @@
     "@fastify/multipart": "^8.3.1",
     "@fastify/static": "^7.0.1",
     "@fastify/websocket": "^10.0.1",
+    "archiver": "^7.0.1",
     "axios": "^1.13.6",
     "bcryptjs": "^2.4.3",
     "dotenv": "^17.3.1",

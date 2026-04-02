@@ -111,8 +111,14 @@ export class ModuleInstaller extends EventEmitter {
       // Git pull
       await this.execCommand(`git -C "${modulePath}" pull`, modulePath);
 
-      // Run npm install
-      await this.execCommand(`npm install --production`, modulePath);
+      // Run npm install (including devDependencies for build)
+      await this.execCommand(`npm install`, modulePath);
+
+      // Fix SDK symlink if it uses relative path
+      await this.fixSdkLink(modulePath);
+
+      // Rebuild the module
+      await this.buildModule(modulePath);
 
       // Get new version
       const newManifestData = await fs.readFile(manifestPath, 'utf-8');
@@ -214,9 +220,15 @@ export class ModuleInstaller extends EventEmitter {
     this.emit('progress', { step: 'git-clone', message: `Cloning ${source.url}...` });
     await this.execCommand(cloneCmd, this.options.modulesDir);
 
-    // Run npm install
+    // Run npm install (including devDependencies for build)
     this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
-    await this.execCommand('npm install --production', targetPath);
+    await this.execCommand('npm install', targetPath);
+
+    // Fix SDK symlink if it uses relative path
+    await this.fixSdkLink(targetPath);
+
+    // Build the module if it has a build script
+    await this.buildModule(targetPath);
 
     // Read and validate manifest
     const manifest = await this.readManifest(targetPath);
@@ -274,7 +286,13 @@ export class ModuleInstaller extends EventEmitter {
 
       // Run npm install in copied directory
       this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
-      await this.execCommand('npm install --production', targetPath);
+      await this.execCommand('npm install', targetPath);
+
+      // Fix SDK symlink if it uses relative path
+      await this.fixSdkLink(targetPath);
+
+      // Build the module
+      await this.buildModule(targetPath);
     }
 
     return {
@@ -295,6 +313,85 @@ export class ModuleInstaller extends EventEmitter {
 
     // This is a placeholder for future NPM support
     throw new Error('NPM installation not yet implemented');
+  }
+
+  /**
+   * Fix SDK symlink if the module uses a relative path for @autodarts-hub/module-sdk
+   * After git clone, the relative path in package.json may point to wrong location
+   */
+  private async fixSdkLink(modulePath: string): Promise<void> {
+    const sdkLinkPath = path.join(modulePath, 'node_modules', '@autodarts-hub', 'module-sdk');
+
+    try {
+      // Check if the SDK link exists
+      const stats = await fs.lstat(sdkLinkPath);
+
+      if (stats.isSymbolicLink()) {
+        // Check if the symlink target actually exists
+        try {
+          await fs.access(sdkLinkPath);
+          // Link is valid, nothing to do
+          return;
+        } catch {
+          // Broken symlink - need to fix it
+        }
+
+        // Remove broken symlink
+        await fs.unlink(sdkLinkPath);
+
+        // Get the correct SDK path (relative to project root)
+        // modulesDir is typically ./modules_installed, SDK is in ./module-sdk
+        const projectRoot = path.resolve(this.options.modulesDir, '..');
+        const sdkPath = path.join(projectRoot, 'module-sdk');
+
+        // Check if SDK exists at project root
+        try {
+          await fs.access(sdkPath);
+
+          // Create the @autodarts-hub directory if needed
+          await fs.mkdir(path.dirname(sdkLinkPath), { recursive: true });
+
+          // Create new symlink with absolute path
+          await fs.symlink(sdkPath, sdkLinkPath, 'dir');
+
+          this.emit('progress', { step: 'fix-sdk', message: 'Fixed SDK symlink' });
+        } catch {
+          // SDK not found at project root, module may need manual configuration
+          this.emit('progress', {
+            step: 'fix-sdk-warning',
+            message: 'Warning: Could not locate module-sdk, module may not build correctly'
+          });
+        }
+      }
+    } catch (err) {
+      // SDK link doesn't exist (no @autodarts-hub dependency), that's fine
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * Build the module if it has a build script
+   */
+  private async buildModule(modulePath: string): Promise<void> {
+    const packageJsonPath = path.join(modulePath, 'package.json');
+
+    try {
+      const packageData = await fs.readFile(packageJsonPath, 'utf-8');
+      const packageJson = JSON.parse(packageData);
+
+      // Check if the module has a build script
+      if (packageJson.scripts?.build) {
+        this.emit('progress', { step: 'build', message: 'Building module...' });
+        await this.execCommand('npm run build', modulePath);
+      }
+    } catch (err) {
+      // If package.json doesn't exist or has no build script, skip silently
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw err;
+      }
+    }
   }
 
   /**

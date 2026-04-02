@@ -254,6 +254,18 @@
           "label": "Call Busts",
           "description": "Announce when player busts",
           "default": true
+        },
+        "bulls": {
+          "type": "boolean",
+          "label": "Call Bulls",
+          "description": "Announce when player hits single bull (25)",
+          "default": true
+        },
+        "doubleBulls": {
+          "type": "boolean",
+          "label": "Call Double Bulls",
+          "description": "Announce when player hits double bull / bullseye (50)",
+          "default": true
         }
       }
     }

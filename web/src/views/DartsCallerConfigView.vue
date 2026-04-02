@@ -396,8 +396,9 @@ async function saveConfig() {
 // Check if ElevenLabs is configured
 async function checkElevenLabsConfig() {
   try {
-    const settings = await api.getSettings()
-    elevenlabsConfigured.value = settings.aiProviders?.elevenlabs?.configured ?? false
+    const response = await api.getAIProviders()
+    const elevenlabs = response.providers.find(p => p.id === 'elevenlabs')
+    elevenlabsConfigured.value = elevenlabs?.configured ?? false
     if (elevenlabsConfigured.value) {
       loadElevenLabsVoices()
     }
@@ -724,7 +725,7 @@ onMounted(() => {
                     <div>
                       <p class="text-amber-400 font-medium">{{ t('caller.elevenlabsNotConfigured') }}</p>
                       <p class="text-sm text-amber-300/70 mt-1">{{ t('caller.elevenlabsNotConfiguredDesc') }}</p>
-                      <router-link to="/settings" class="inline-flex items-center gap-1 text-sm text-autodarts-400 hover:underline mt-2">
+                      <router-link to="/ai-settings" class="inline-flex items-center gap-1 text-sm text-autodarts-400 hover:underline mt-2">
                         {{ t('caller.goToSettings') }}
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />

@@ -377,8 +377,8 @@ export class GameDisplayHandler {
       }
     }
 
-    // Get player-specific animation config
-    const playerConfig = this.getPlayerAnimationConfig(winnerIndex, winType);
+    // Get player-specific animation config (lookup by name/id first, then by index)
+    const playerConfig = this.getPlayerAnimationConfig(winnerIndex, winType, winnerName, playerId);
 
     return {
       type: winType,
@@ -407,6 +407,10 @@ export class GameDisplayHandler {
     const playerIndex = eventData.playerIndex as number;
     const playerName = eventData.playerName as string;
 
+    // DEBUG: Log segment data for bull detection
+    console.log('🎯 [GameDisplay] checkThrowAnimation - segment:', JSON.stringify(segment));
+    console.log('🎯 [GameDisplay] number:', number, 'multiplier:', multiplier, 'turnPoints:', turnPoints);
+
     // Check for 180
     if (turnPoints === 180) {
       const config = animations.throw180;
@@ -416,7 +420,7 @@ export class GameDisplayHandler {
         return {
           type: '180',
           config: config || { enabled: true },
-          playerConfig: this.getPlayerAnimationConfig(playerIndex, 'throw180'),
+          playerConfig: this.getPlayerAnimationConfig(playerIndex, 'throw180', playerName),
           playerIndex,
           playerName,
         };
@@ -439,8 +443,10 @@ export class GameDisplayHandler {
 
     // Check for double bull
     if (number === 25 && multiplier === 2) {
+      console.log('🎯 [GameDisplay] DOUBLE BULL DETECTED! Config:', JSON.stringify(animations.doubleBull));
       const config = animations.doubleBull;
       if (config?.enabled !== false) {
+        console.log('🎯 [GameDisplay] Triggering doubleBull animation');
         this.stats.animationsTriggered++;
         return {
           type: 'doubleBull',
@@ -448,13 +454,17 @@ export class GameDisplayHandler {
           playerIndex,
           playerName,
         };
+      } else {
+        console.log('🎯 [GameDisplay] doubleBull animation DISABLED');
       }
     }
 
     // Check for single bull
     if (number === 25 && multiplier === 1) {
+      console.log('🎯 [GameDisplay] SINGLE BULL DETECTED! Config:', JSON.stringify(animations.bull));
       const config = animations.bull;
       if (config?.enabled !== false) {
+        console.log('🎯 [GameDisplay] Triggering bull animation');
         this.stats.animationsTriggered++;
         return {
           type: 'bull',
@@ -462,6 +472,8 @@ export class GameDisplayHandler {
           playerIndex,
           playerName,
         };
+      } else {
+        console.log('🎯 [GameDisplay] bull animation DISABLED');
       }
     }
 
@@ -485,23 +497,47 @@ export class GameDisplayHandler {
 
   /**
    * Get player-specific animation config override
+   * Looks up by playerName first (for system players), then falls back to playerIndex
    */
   private getPlayerAnimationConfig(
-    playerIndex: number,
-    animationType: keyof PlayerAnimationConfig
+    playerIndex: number | undefined,
+    animationType: keyof PlayerAnimationConfig,
+    playerName?: string,
+    playerId?: string
   ): AnimationConfig | undefined {
     const playerAnimations = this.config.playerAnimations;
     if (!playerAnimations || playerAnimations.length === 0) {
       return undefined;
     }
 
-    // Find config for this player
-    const playerConfig = playerAnimations[playerIndex];
-    if (!playerConfig) {
-      return undefined;
+    // First try to find by playerId if provided
+    if (playerId) {
+      const byId = playerAnimations.find(p => p.playerId === playerId);
+      if (byId && byId[animationType]) {
+        console.log(`🎮 [GameDisplay] Found player animation by ID: ${playerId} -> ${animationType}`);
+        return byId[animationType] as AnimationConfig | undefined;
+      }
     }
 
-    return playerConfig[animationType] as AnimationConfig | undefined;
+    // Then try to find by playerName
+    if (playerName) {
+      const byName = playerAnimations.find(p => p.playerName === playerName);
+      if (byName && byName[animationType]) {
+        console.log(`🎮 [GameDisplay] Found player animation by name: ${playerName} -> ${animationType}`);
+        return byName[animationType] as AnimationConfig | undefined;
+      }
+    }
+
+    // Finally fall back to playerIndex
+    if (playerIndex !== undefined && playerAnimations[playerIndex]) {
+      const playerConfig = playerAnimations[playerIndex];
+      if (playerConfig[animationType]) {
+        console.log(`🎮 [GameDisplay] Found player animation by index: ${playerIndex} -> ${animationType}`);
+        return playerConfig[animationType] as AnimationConfig | undefined;
+      }
+    }
+
+    return undefined;
   }
 
   /**

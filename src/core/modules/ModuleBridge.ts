@@ -13,6 +13,7 @@ import type {
   RoutesRegisterPayload,
   RouteRequestPayload,
   RouteResponsePayload,
+  IntentEmitPayload,
 } from '../../types/modules.js';
 import type { ParsedEvent } from '../../types/index.js';
 
@@ -328,6 +329,9 @@ export class ModuleBridge extends EventEmitter {
       case 'routes.register':
         this.emit('routesRegister', (message as IPCMessage<RoutesRegisterPayload>).payload);
         break;
+      case 'intent.emit':
+        this.handleIntentEmit(message as IPCMessage<IntentEmitPayload>);
+        break;
       default:
         // Unknown message type, emit for custom handling
         this.emit(`message:${message.type}`, message);
@@ -361,6 +365,14 @@ export class ModuleBridge extends EventEmitter {
     if (fatal) {
       this.emit('fatalError', message.payload);
     }
+  }
+
+  /**
+   * Handle intent emit from module
+   */
+  private handleIntentEmit(message: IPCMessage<IntentEmitPayload>): void {
+    const { intentId, payload } = message.payload;
+    this.emit('intentEmit', { moduleId: this.moduleId, intentId, payload });
   }
 
   /**

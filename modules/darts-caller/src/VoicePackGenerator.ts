@@ -502,6 +502,10 @@ export class VoicePackGenerator {
 
   /**
    * Generate a single player name audio file on-demand
+   * @param packId - Voice pack ID
+   * @param playerName - Player name to generate
+   * @param voiceId - ElevenLabs voice ID
+   * @param options - Generation options including language for proper pronunciation
    */
   async generatePlayerName(
     packId: string,
@@ -511,6 +515,7 @@ export class VoicePackGenerator {
       modelId?: string;
       stability?: number;
       similarityBoost?: number;
+      language?: string;
     }
   ): Promise<{ success: boolean; filePath?: string; error?: string }> {
     const packDir = path.join(this.outputDir, packId);
@@ -529,18 +534,40 @@ export class VoicePackGenerator {
     }
 
     try {
-      console.log(`🎤 Generating player name audio for: "${playerName}"`);
+      // Determine the appropriate model based on language
+      // ElevenLabs multilingual_v2 supports many languages
+      // For German, we can also use the turbo_v2_5 model which has good German support
+      let modelId = options?.modelId;
+      if (!modelId && options?.language) {
+        // Use eleven_multilingual_v2 for non-English languages by default
+        // This model has better pronunciation for names in different languages
+        if (options.language !== 'en') {
+          modelId = 'eleven_multilingual_v2';
+        }
+      }
+
+      // Get language-specific context phrases to help ElevenLabs pronounce the name correctly
+      // The previous_text and next_text parameters provide context WITHOUT being included in the output
+      const contextPhrases = this.getLanguageContextForPlayerName(options?.language);
+
+      console.log(`🎤 Generating player name audio for: "${playerName}" (language: ${options?.language ?? 'default'}, model: ${modelId ?? 'default'}, context: ${contextPhrases.previousText || 'none'})`);
 
       await this.elevenLabsService.generateSpeechToFile(
         playerName,
         outputPath,
         {
           voiceId,
-          modelId: options?.modelId,
+          modelId,
           voiceSettings: {
             stability: options?.stability ?? 0.5,
             similarity_boost: options?.similarityBoost ?? 0.75,
           },
+          // Pass language code for proper pronunciation of names
+          languageCode: options?.language,
+          // Add language context phrases - these help ElevenLabs understand the language
+          // without being included in the actual audio output
+          previousText: contextPhrases.previousText,
+          nextText: contextPhrases.nextText,
         }
       );
 
@@ -555,6 +582,10 @@ export class VoicePackGenerator {
 
   /**
    * Generate multiple player names (batch operation)
+   * @param packId - Voice pack ID
+   * @param playerNames - Array of player names to generate
+   * @param voiceId - ElevenLabs voice ID
+   * @param options - Generation options including language for proper pronunciation
    */
   async generatePlayerNames(
     packId: string,
@@ -564,6 +595,7 @@ export class VoicePackGenerator {
       modelId?: string;
       stability?: number;
       similarityBoost?: number;
+      language?: string;
     }
   ): Promise<{
     success: boolean;
@@ -633,6 +665,57 @@ export class VoicePackGenerator {
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Get language-specific context phrases for player name pronunciation
+   *
+   * ElevenLabs supports previous_text and next_text parameters that provide
+   * context for pronunciation WITHOUT being included in the audio output.
+   * This is the cleanest way to ensure correct language pronunciation for names.
+   *
+   * The context phrases help ElevenLabs:
+   * 1. Understand the target language for proper phonetics
+   * 2. Apply appropriate intonation and accent
+   * 3. Handle language-specific characters correctly (ä, ö, ü, ß, etc.)
+   */
+  private getLanguageContextForPlayerName(language?: string): { previousText?: string; nextText?: string } {
+    // If no language specified or English, no context needed
+    if (!language || language === 'en') {
+      return {};
+    }
+
+    // Language-specific context phrases
+    // These are NOT spoken, they just set the language context
+    const contextPhrases: Record<string, { previousText: string; nextText: string }> = {
+      // German context - typical darts announcer phrases
+      'de': {
+        previousText: 'Und es spielt jetzt am Oche:',
+        nextText: 'ist am Wurf.',
+      },
+      // Spanish context
+      'es': {
+        previousText: 'Y ahora en la línea de tiro:',
+        nextText: 'está tirando.',
+      },
+      // French context
+      'fr': {
+        previousText: 'Et maintenant au pas de tir:',
+        nextText: 'lance ses fléchettes.',
+      },
+      // Dutch context
+      'nl': {
+        previousText: 'En nu aan de oche:',
+        nextText: 'gooit.',
+      },
+      // Italian context
+      'it': {
+        previousText: 'E ora alla linea di tiro:',
+        nextText: 'sta lanciando.',
+      },
+    };
+
+    return contextPhrases[language] || {};
   }
 }
 

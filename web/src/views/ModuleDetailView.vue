@@ -7,35 +7,11 @@ import { api } from '../api/client'
 import AppLayout from '../components/AppLayout.vue'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
-import BaseInput from '../components/BaseInput.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import IntentSubscriptionConfig from '../components/IntentSubscriptionConfig.vue'
+import DynamicConfigForm from '../components/DynamicConfigForm.vue'
 
 const { t } = useI18n()
-
-// Supported comparison operators for showIf
-type ShowIfOperator = '==' | '!=' | '>' | '<' | '>=' | '<=' | 'includes' | 'notIncludes'
-
-// ShowIf condition types
-interface ShowIfCondition {
-  field: string
-  operator?: ShowIfOperator
-  value: unknown
-}
-
-// Config field schema type
-interface ConfigField {
-  type: 'string' | 'number' | 'boolean' | 'select'
-  label: string
-  description?: string
-  required?: boolean
-  min?: number
-  max?: number
-  step?: number
-  options?: Array<{ value: string | number; label: string }>
-  // Conditional display - can be a single condition or array of conditions (AND logic)
-  showIf?: ShowIfCondition | ShowIfCondition[]
-}
 
 const route = useRoute()
 const router = useRouter()
@@ -44,10 +20,10 @@ const modulesStore = useModulesStore()
 const moduleId = computed(() => route.params.id as string)
 const module = computed(() => modulesStore.selectedModule)
 
-// Type-safe schema access
+// Type-safe schema access - cast to any for DynamicConfigForm compatibility
 const configSchema = computed(() => {
-  if (!module.value) return {} as Record<string, ConfigField>
-  return module.value.config.schema as Record<string, ConfigField>
+  if (!module.value) return {}
+  return module.value.config.schema || {}
 })
 
 const configValues = ref<Record<string, unknown>>({})
@@ -74,6 +50,10 @@ const intentSubscriptions = ref<Array<{
 const isSavingIntents = ref(false)
 const intentSaveMessage = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 
+// Autostart setting
+const autostart = ref(false)
+const autostartLoading = ref(false)
+
 // Watch for module changes to update config values
 watch(
   () => module.value?.config.values,
@@ -84,59 +64,6 @@ watch(
   },
   { immediate: true }
 )
-
-// Evaluate a single showIf condition
-function evaluateCondition(condition: ShowIfCondition): boolean {
-  const fieldValue = configValues.value[condition.field]
-  const targetValue = condition.value
-  const operator = condition.operator || '=='
-
-  switch (operator) {
-    case '==':
-      return fieldValue === targetValue
-    case '!=':
-      return fieldValue !== targetValue
-    case '>':
-      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue > targetValue
-    case '<':
-      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue < targetValue
-    case '>=':
-      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue >= targetValue
-    case '<=':
-      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue <= targetValue
-    case 'includes':
-      if (Array.isArray(fieldValue)) {
-        return fieldValue.includes(targetValue)
-      }
-      if (typeof fieldValue === 'string' && typeof targetValue === 'string') {
-        return fieldValue.includes(targetValue)
-      }
-      return false
-    case 'notIncludes':
-      if (Array.isArray(fieldValue)) {
-        return !fieldValue.includes(targetValue)
-      }
-      if (typeof fieldValue === 'string' && typeof targetValue === 'string') {
-        return !fieldValue.includes(targetValue)
-      }
-      return true
-    default:
-      return fieldValue === targetValue
-  }
-}
-
-// Check if a field should be shown based on showIf conditions
-function shouldShowField(field: ConfigField): boolean {
-  if (!field.showIf) return true
-
-  // Handle array of conditions (AND logic - all must be true)
-  if (Array.isArray(field.showIf)) {
-    return field.showIf.every(condition => evaluateCondition(condition))
-  }
-
-  // Handle single condition
-  return evaluateCondition(field.showIf)
-}
 
 async function saveConfig() {
   if (!module.value) return
@@ -224,9 +151,9 @@ async function loadIntentConfig() {
       intentSubscriptions.value = subscriptionsResponse.subscriptions
     }
 
-    // Always show intent config for every module
-    // Even modules without their own actions can subscribe to intents from other modules
-    hasIntentSupport.value = true
+    // Only show intent config if there are actually intents available from other modules
+    // AND this module has actions it can perform in response to intents
+    hasIntentSupport.value = availableIntents.value.length > 0 && availableActions.value.length > 0
   } catch (e) {
     console.error('Failed to load intent config:', e)
     // Even on error, if we know the module supports actions, show the section
@@ -257,9 +184,36 @@ async function saveIntentSubscriptions() {
   }
 }
 
+// Load autostart setting
+async function loadAutostartSetting() {
+  if (!module.value) return
+  try {
+    const response = await api.getModuleAutostart(module.value.id)
+    autostart.value = response.autostart
+  } catch (e) {
+    console.error('Failed to load autostart setting:', e)
+  }
+}
+
+// Toggle autostart setting
+async function toggleAutostart() {
+  if (!module.value) return
+  autostartLoading.value = true
+  try {
+    const newValue = !autostart.value
+    await api.setModuleAutostart(module.value.id, newValue)
+    autostart.value = newValue
+  } catch (e) {
+    console.error('Failed to update autostart setting:', e)
+  } finally {
+    autostartLoading.value = false
+  }
+}
+
 onMounted(async () => {
   await modulesStore.fetchModule(moduleId.value)
   await loadIntentConfig()
+  await loadAutostartSetting()
 })
 </script>
 
@@ -370,30 +324,56 @@ onMounted(async () => {
           </div>
 
           <!-- Actions -->
-          <div class="flex items-center gap-2">
-            <BaseButton
-              v-if="module.status === 'running'"
-              variant="secondary"
-              :loading="actionLoading"
-              @click="stopModule"
-            >
-              {{ t('modules.stop') }}
-            </BaseButton>
-            <BaseButton
-              v-else
-              :loading="actionLoading"
-              @click="startModule"
-            >
-              {{ t('modules.start') }}
-            </BaseButton>
-            <BaseButton
-              variant="ghost"
-              :disabled="module.status !== 'running'"
-              :loading="actionLoading"
-              @click="restartModule"
-            >
-              {{ t('modules.restart') }}
-            </BaseButton>
+          <div class="flex items-center gap-4">
+            <!-- Autostart Toggle -->
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                :disabled="autostartLoading"
+                @click="toggleAutostart"
+                :class="[
+                  'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-autodarts-500 focus:ring-offset-2 focus:ring-offset-dark-800',
+                  autostart ? 'bg-autodarts-500' : 'bg-dark-600',
+                  autostartLoading ? 'opacity-50 cursor-wait' : ''
+                ]"
+              >
+                <span
+                  :class="[
+                    'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                    autostart ? 'translate-x-5' : 'translate-x-0'
+                  ]"
+                />
+              </button>
+              <span class="text-sm text-dark-400">{{ t('modules.autostart') }}</span>
+            </div>
+
+            <div class="h-6 w-px bg-dark-600" />
+
+            <div class="flex items-center gap-2">
+              <BaseButton
+                v-if="module.status === 'running'"
+                variant="secondary"
+                :loading="actionLoading"
+                @click="stopModule"
+              >
+                {{ t('modules.stop') }}
+              </BaseButton>
+              <BaseButton
+                v-else
+                :loading="actionLoading"
+                @click="startModule"
+              >
+                {{ t('modules.start') }}
+              </BaseButton>
+              <BaseButton
+                variant="ghost"
+                :disabled="module.status !== 'running'"
+                :loading="actionLoading"
+                @click="restartModule"
+              >
+                {{ t('modules.restart') }}
+              </BaseButton>
+            </div>
           </div>
         </div>
 
@@ -403,7 +383,7 @@ onMounted(async () => {
             <p class="text-dark-400">
               {{ t('modules.wledEventActionsDesc') }}
             </p>
-            <router-link :to="`/modules/${module.id}/config`">
+            <router-link :to="`/modules/${module.id}/wled-config`">
               <BaseButton>
                 {{ t('modules.wledConfigureEvents') }}
               </BaseButton>
@@ -449,6 +429,26 @@ onMounted(async () => {
           </div>
         </BaseCard>
 
+        <!-- Generic Event Configuration (for modules with eventMeta but no dedicated config page) -->
+        <BaseCard
+          v-if="module.eventMeta && Object.keys(module.eventMeta).length > 0 && !['wled', 'game-display', 'darts-caller'].includes(module.id)"
+          :title="t('modules.genericEventConfig')"
+          :subtitle="t('modules.genericEventConfigSubtitle')"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-dark-400">
+                {{ t('modules.genericEventConfigDesc') }}
+              </p>
+            </div>
+            <router-link :to="`/modules/${module.id}/config`">
+              <BaseButton>
+                {{ t('modules.genericEventConfigButton') }}
+              </BaseButton>
+            </router-link>
+          </div>
+        </BaseCard>
+
         <!-- Configuration (hidden for modules with dedicated config pages) -->
         <BaseCard
           v-if="!['wled', 'game-display'].includes(module.id)"
@@ -459,94 +459,17 @@ onMounted(async () => {
             <p class="text-dark-400">{{ t('modules.noConfigOptions') }}</p>
           </div>
 
-          <form v-else @submit.prevent="saveConfig" class="space-y-6">
-            <div
-              v-for="(field, key) in configSchema"
-              :key="key"
-              v-show="shouldShowField(field)"
-              class="space-y-1"
-            >
-              <!-- String/Password Input -->
-              <template v-if="field.type === 'string'">
-                <BaseInput
-                  v-model="configValues[key] as string"
-                  :label="field.label"
-                  :placeholder="field.description"
-                  :required="field.required"
-                />
-              </template>
-
-              <!-- Number Input -->
-              <template v-else-if="field.type === 'number'">
-                <label class="block text-sm font-medium text-dark-200">
-                  {{ field.label }}
-                  <span v-if="field.required" class="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  v-model.number="configValues[key]"
-                  :min="field.min"
-                  :max="field.max"
-                  :step="field.step ?? ((field.max !== undefined && field.max <= 2) ? 0.01 : 1)"
-                  :required="field.required"
-                  class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500 focus:border-autodarts-500"
-                />
-                <p v-if="field.description" class="text-sm text-dark-400">{{ field.description }}</p>
-              </template>
-
-              <!-- Boolean Toggle -->
-              <template v-else-if="field.type === 'boolean'">
-                <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50">
-                  <div>
-                    <p class="text-white font-medium">{{ field.label }}</p>
-                    <p v-if="field.description" class="text-sm text-dark-400">{{ field.description }}</p>
-                  </div>
-                  <button
-                    type="button"
-                    @click="configValues[key] = !configValues[key]"
-                    :class="[
-                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                      configValues[key] ? 'bg-autodarts-600' : 'bg-dark-600',
-                    ]"
-                  >
-                    <span
-                      :class="[
-                        'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                        configValues[key] ? 'translate-x-6' : 'translate-x-1',
-                      ]"
-                    />
-                  </button>
-                </div>
-              </template>
-
-              <!-- Select -->
-              <template v-else-if="field.type === 'select'">
-                <label class="block text-sm font-medium text-dark-200">
-                  {{ field.label }}
-                  <span v-if="field.required" class="text-red-500">*</span>
-                </label>
-                <select
-                  v-model="configValues[key]"
-                  :required="field.required"
-                  class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500 focus:border-autodarts-500"
-                >
-                  <option
-                    v-for="option in field.options"
-                    :key="String(option.value)"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-                <p v-if="field.description" class="text-sm text-dark-400">{{ field.description }}</p>
-              </template>
-            </div>
+          <template v-else>
+            <DynamicConfigForm
+              :schema="(configSchema as any)"
+              v-model="configValues"
+            />
 
             <!-- Save Message -->
             <div
               v-if="saveMessage"
               :class="[
-                'p-3 rounded-lg',
+                'p-3 rounded-lg mt-4',
                 saveMessage.type === 'success'
                   ? 'bg-green-500/10 text-green-400'
                   : 'bg-red-500/10 text-red-400',
@@ -556,12 +479,12 @@ onMounted(async () => {
             </div>
 
             <!-- Save Button -->
-            <div class="flex justify-end">
-              <BaseButton type="submit" :loading="isSaving">
+            <div class="flex justify-end mt-6">
+              <BaseButton :loading="isSaving" @click="saveConfig">
                 {{ t('common.save') }}
               </BaseButton>
             </div>
-          </form>
+          </template>
         </BaseCard>
 
         <!-- Intent Subscriptions (hidden for modules with dedicated config pages) -->

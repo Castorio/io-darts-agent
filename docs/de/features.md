@@ -165,6 +165,18 @@ Zeigt den aktuellen Spielstand auf einem separaten Display an.
 - Mehrsprachig
 - Konfigurierbare Hintergrundfarben
 
+**Animationen:**
+- Unterstützung für verschiedene Medientypen: Built-in, GIF, Video
+- Optionale Tonwiedergabe bei jeder Animation
+- Events: 180, Bull, Double Bull, High Score, Bust, Checkout, Leg-Win, Set-Win, Match-Win
+
+**Spieler-spezifische Animationen:**
+- Individuelle Animationen pro Spieler im "Spieler"-Konfigurations-Tab
+- Spieler können eigene Animationen haben für: 180, Leg-Win, Set-Win, Match-Win, Checkout
+- Spieler-Animationen überschreiben globale Animationen wenn der Spieler am Zug ist
+- Unterstützt: Built-in Animationen, GIF, Video und eigene Sounds
+- Perfekt für personalisierte Feierlichkeiten und einzigartige Spielererlebnisse
+
 **Match-Start-Handling:**
 - Automatisches Abrufen vollständiger Match-Daten via API beim Match-Start
 - Verhindert Anzeige von Standardwerten (501, "Player") bei Spielbeginn

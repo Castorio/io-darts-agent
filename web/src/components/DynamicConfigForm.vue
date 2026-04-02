@@ -9,13 +9,23 @@ interface SelectOption {
   label: string
 }
 
+// Supported comparison operators for showIf
+type ShowIfOperator = '==' | '!=' | '>' | '<' | '>=' | '<=' | 'includes' | 'notIncludes'
+
+// ShowIf condition types
+interface ShowIfCondition {
+  field: string
+  operator?: ShowIfOperator
+  value: unknown
+}
+
 interface ConfigFieldBase {
   type: string
   label?: string
   description?: string
   default?: unknown
   required?: boolean
-  showIf?: { field: string; value: unknown }
+  showIf?: ShowIfCondition | ShowIfCondition[]
 }
 
 interface StringField extends ConfigFieldBase {
@@ -47,12 +57,17 @@ interface ColorField extends ConfigFieldBase {
   default?: string
 }
 
+interface PasswordField extends ConfigFieldBase {
+  type: 'password'
+  default?: string
+}
+
 interface GroupField extends ConfigFieldBase {
   type: 'group'
   fields: Record<string, ConfigField>
 }
 
-type ConfigField = StringField | NumberField | BooleanField | SelectField | ColorField | GroupField
+type ConfigField = StringField | NumberField | BooleanField | SelectField | ColorField | PasswordField | GroupField
 
 interface ConfigSchema {
   [key: string]: ConfigField
@@ -119,18 +134,57 @@ function getGroupValue(groupKey: string, fieldKey: string, field: ConfigField): 
   return field.default
 }
 
+// Evaluate a single showIf condition
+function evaluateCondition(condition: ShowIfCondition): boolean {
+  const fieldValue = getValue(condition.field, props.schema[condition.field])
+  const targetValue = condition.value
+  const operator = condition.operator || '=='
+
+  switch (operator) {
+    case '==':
+      return fieldValue === targetValue
+    case '!=':
+      return fieldValue !== targetValue
+    case '>':
+      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue > targetValue
+    case '<':
+      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue < targetValue
+    case '>=':
+      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue >= targetValue
+    case '<=':
+      return typeof fieldValue === 'number' && typeof targetValue === 'number' && fieldValue <= targetValue
+    case 'includes':
+      if (Array.isArray(fieldValue)) {
+        return fieldValue.includes(targetValue)
+      }
+      if (typeof fieldValue === 'string' && typeof targetValue === 'string') {
+        return fieldValue.includes(targetValue)
+      }
+      return false
+    case 'notIncludes':
+      if (Array.isArray(fieldValue)) {
+        return !fieldValue.includes(targetValue)
+      }
+      if (typeof fieldValue === 'string' && typeof targetValue === 'string') {
+        return !fieldValue.includes(targetValue)
+      }
+      return true
+    default:
+      return fieldValue === targetValue
+  }
+}
+
 // Check if field should be shown based on showIf condition
 function shouldShowField(field: ConfigField): boolean {
   if (!field.showIf) return true
 
-  const { field: dependentField, value: expectedValue } = field.showIf
-  const actualValue = localValues.value[dependentField]
-
-  if (Array.isArray(expectedValue)) {
-    return expectedValue.includes(actualValue)
+  // Handle array of conditions (AND logic - all must be true)
+  if (Array.isArray(field.showIf)) {
+    return field.showIf.every(condition => evaluateCondition(condition))
   }
 
-  return actualValue === expectedValue
+  // Handle single condition
+  return evaluateCondition(field.showIf)
 }
 
 // Get translated label
@@ -188,6 +242,21 @@ function getMediaType(key: string): 'image' | 'animation' | 'sound' {
           :model-value="(getValue(key, field) as string) || ''"
           @update:model-value="updateValue(key, $event)"
           :label="getLabel(key, field)"
+          :disabled="disabled"
+        />
+        <p v-if="getDescription(key, field)" class="text-sm text-dark-400 mt-1">
+          {{ getDescription(key, field) }}
+        </p>
+      </div>
+
+      <!-- Password Field -->
+      <div v-else-if="field.type === 'password'">
+        <BaseInput
+          :model-value="(getValue(key, field) as string) || ''"
+          @update:model-value="updateValue(key, $event)"
+          :label="getLabel(key, field)"
+          type="password"
+          autocomplete="off"
           :disabled="disabled"
         />
         <p v-if="getDescription(key, field)" class="text-sm text-dark-400 mt-1">
@@ -337,6 +406,21 @@ function getMediaType(key: string): 'image' | 'animation' | 'sound' {
               :model-value="(getGroupValue(key, nestedKey, nestedField) as string) || ''"
               @update:model-value="updateGroupValue(key, nestedKey, $event)"
               :label="nestedField.label || nestedKey"
+              :disabled="disabled"
+            />
+            <p v-if="nestedField.description" class="text-sm text-dark-400 mt-1">
+              {{ nestedField.description }}
+            </p>
+          </div>
+
+          <!-- Nested Password Field -->
+          <div v-else-if="nestedField.type === 'password'">
+            <BaseInput
+              :model-value="(getGroupValue(key, nestedKey, nestedField) as string) || ''"
+              @update:model-value="updateGroupValue(key, nestedKey, $event)"
+              :label="nestedField.label || nestedKey"
+              type="password"
+              autocomplete="off"
               :disabled="disabled"
             />
             <p v-if="nestedField.description" class="text-sm text-dark-400 mt-1">

@@ -346,6 +346,53 @@ Configure the results display:
 - **Display Duration**: How long to show results (0 = until manually dismissed)
 - **Background Color**: Custom background color for the results screen
 
+### Animations
+
+The Game Display supports configurable animations for various events:
+
+| Event | Description |
+|-------|-------------|
+| **180** | Animation when a player scores 180 |
+| **Bull** | Animation for single bull (25 points) |
+| **Double Bull** | Animation for double bull (50 points) |
+| **High Score** | Animation for high scores (configurable threshold, default 140) |
+| **Bust** | Animation when player busts |
+| **Checkout** | Animation for successful checkouts |
+| **Leg Win** | Animation when player wins a leg |
+| **Set Win** | Animation when player wins a set |
+| **Match Win** | Animation when player wins the match |
+
+Each animation supports:
+- **Built-in**: Pre-defined animations
+- **GIF**: Custom animated GIFs (URL)
+- **Video**: Custom videos (URL)
+- **Sound**: Optional sound with each animation
+
+### Player-Specific Animations
+
+You can configure individual animations for each player:
+
+1. Open **Game Display Configuration**
+2. Navigate to the **Players** tab
+3. Select a player or add a new entry
+4. Configure the desired animations:
+   - **180 Animation**: Shown when this player throws 180
+   - **Leg Win**: Shown when this player wins a leg
+   - **Set Win**: Shown when this player wins a set
+   - **Match Win**: Shown when this player wins the match
+   - **Checkout**: Shown when this player checks out
+
+**How it works:**
+- Player-specific animations override the global animations
+- When "Max" throws a 180, his personal 180 animation plays instead of the global one
+- If no player animation is configured, the global animation is used as fallback
+- Each animation can have its own GIF/Video URL and sound
+
+**Example Use Cases:**
+- Player "Max" has a personal victory dance GIF for his 180s
+- Player "Anna" has her favorite song play when she wins a match
+- Each player gets a unique celebration experience
+
 ---
 
 ## Darts Caller Module

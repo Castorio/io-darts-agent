@@ -5,6 +5,10 @@
 export { IntentBus, getIntentBus, createIntentBus } from './IntentBus.js';
 export type { IntentBusConfig, IntentBusLogger } from './IntentBus.js';
 
+// Intent Emitter for modules
+export { IntentEmitter, createIntentEmitter, createEmitterFromManifest } from './IntentEmitter.js';
+export type { IntentEmitterConfig } from './IntentEmitter.js';
+
 // Module Intent Handler
 export {
   ModuleIntentHandler,

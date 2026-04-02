@@ -288,7 +288,7 @@ onUnmounted(() => {
       <h4 class="text-lg font-medium text-white mb-2">KI-Generierung nicht verfügbar</h4>
       <p class="text-dark-400 max-w-md mx-auto">
         Um KI-Animationen zu generieren, muss ein AI-Provider (z.B. Runway) in den
-        <router-link to="/settings" class="text-autodarts-400 hover:underline">Einstellungen</router-link>
+        <router-link to="/ai-settings" class="text-autodarts-400 hover:underline">AI Einstellungen</router-link>
         konfiguriert werden.
       </p>
     </div>

@@ -85,6 +85,7 @@ export class EventParser {
 
     // Board Events (throws, takeouts, etc.)
     if (channel === 'autodarts.boards' && topic === `${this.boardId}.events`) {
+      console.log(`🎯 Board Event received: ${(data as BoardEventData).event}`);
       return this.parseBoardEvent(raw, data as BoardEventData, timestamp);
     }
 
@@ -208,6 +209,8 @@ export class EventParser {
     const event = data.event;
 
     if (event === 'Throw detected') {
+      const segment = data.throw.segment;
+      console.log(`🎯 Throw detected: segment=${segment.name}, number=${segment.number}, multiplier=${segment.multiplier}, throwNumber=${data.throwNumber ?? 0}`);
       return {
         type: 'throw.detected',
         timestamp,
@@ -294,6 +297,7 @@ export class EventParser {
           remaining: this.lastGameScores[playerIndex] ?? data.gameScores[playerIndex] ?? 0, // Score before bust
           busted: true,
           round: data.round,
+          throws: currentTurn?.throws ?? [], // Include throws for bull/double bull detection
         },
       });
     }
@@ -303,7 +307,8 @@ export class EventParser {
     if (isThirdDart && !data.turnBusted && !justBusted) {
       const playerIndex = data.player;
       const remainingScore = data.gameScores[playerIndex] ?? 0;
-      console.log(`✅ EventParser: Third dart - Emitting turn.finished - turnScore=${data.turnScore}, remaining=${remainingScore}`);
+      const throwsInfo = currentTurn?.throws?.map(t => `${t.segment?.name || 'unknown'}(${t.segment?.number}x${t.segment?.multiplier})`).join(', ') || 'none';
+      console.log(`✅ EventParser: Third dart - Emitting turn.finished - turnScore=${data.turnScore}, remaining=${remainingScore}, throws=[${throwsInfo}]`);
       events.push({
         type: 'turn.finished',
         timestamp,
@@ -317,16 +322,20 @@ export class EventParser {
           remaining: remainingScore,
           busted: false,
           round: data.round,
+          throws: currentTurn?.throws ?? [], // Include throws for bull/double bull detection
         },
       });
     }
 
     // Also emit turn.finished on round change if we didn't emit on third dart
     // This handles cases where takeout happens before 3 darts (e.g., checkout)
-    // Skip if we already emitted a bust event (justBusted)
-    if (isRoundChanged && this.lastTurnScore !== null && this.lastDartsInTurn !== 3 && !justBusted) {
+    // Skip if we already emitted a bust event (justBusted or lastTurnBusted - the latter handles
+    // the case where bust was detected in a previous update and round changes in this update)
+    if (isRoundChanged && this.lastTurnScore !== null && this.lastDartsInTurn !== 3 && !justBusted && !this.lastTurnBusted) {
       const previousPlayerIndex = this.lastPlayerIndex ?? data.player;
       const remainingScore = this.lastGameScores[previousPlayerIndex] ?? data.gameScores[previousPlayerIndex] ?? 0;
+      // Get throws from the previous turn (the one that just ended)
+      const previousTurn = data.turns && data.turns.length > 1 ? data.turns[data.turns.length - 2] : currentTurn;
       console.log(`✅ EventParser: Round change - Emitting turn.finished - turnScore=${this.lastTurnScore}, remaining=${remainingScore}`);
       events.push({
         type: 'turn.finished',
@@ -341,6 +350,7 @@ export class EventParser {
           remaining: remainingScore,
           busted: this.lastTurnBusted,
           round: this.lastRound!,
+          throws: previousTurn?.throws ?? [], // Include throws for bull/double bull detection
         },
       });
     }

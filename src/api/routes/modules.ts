@@ -26,6 +26,13 @@ export interface WledTestActionRequest {
   intensity?: number;
 }
 
+export interface ModuleUpdateResponse {
+  success: boolean;
+  previousVersion?: string;
+  newVersion?: string;
+  error?: string;
+}
+
 export interface ModuleDependencies {
   listModules: () => ModuleListItem[];
   getModule: (id: string) => ModuleDetailResponse | null;
@@ -37,8 +44,48 @@ export interface ModuleDependencies {
   restartModule: (id: string) => Promise<void>;
   installModule: (source: 'git' | 'local', url?: string, path?: string, branch?: string) => Promise<string>;
   uninstallModule: (id: string) => Promise<void>;
+  updateModule: (id: string) => Promise<ModuleUpdateResponse>;
   isModuleInstalled: (id: string) => boolean;
   testWledAction?: (host: string, port: number, action: WledTestActionRequest) => Promise<void>;
+  getAllModuleIntents?: () => ModuleIntentsResponse;
+  // Autostart management
+  getModuleAutostart?: (id: string) => boolean | undefined;
+  setModuleAutostart?: (id: string, autostart: boolean) => void;
+  getAllAutostartSettings?: () => Record<string, boolean>;
+}
+
+/**
+ * Response type for /api/modules/intents endpoint
+ * Maps module ID to its intent definitions
+ */
+export interface ModuleIntentsResponse {
+  [moduleId: string]: {
+    [intentId: string]: {
+      description: string;
+      category?: string;
+      payload?: Record<string, {
+        type: string;
+        description?: string;
+        optional?: boolean;
+      }>;
+    };
+  };
+}
+
+/**
+ * Response type for autostart settings
+ */
+export interface ModuleAutostartResponse {
+  moduleId: string;
+  autostart: boolean;
+  isDefault?: boolean;
+}
+
+/**
+ * Request type for setting autostart
+ */
+export interface SetModuleAutostartRequest {
+  autostart: boolean;
 }
 
 /**
@@ -73,6 +120,119 @@ export function registerModuleRoutes(
   server: APIServer,
   deps: ModuleDependencies
 ): void {
+  /**
+   * GET /api/modules/intents - Get all available intents from all modules
+   */
+  fastify.get<{
+    Reply: ModuleIntentsResponse | { error: string };
+  }>('/api/modules/intents', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { error: 'Authentication required' };
+    }
+
+    if (!deps.getAllModuleIntents) {
+      reply.code(501);
+      return { error: 'Intent discovery not implemented' };
+    }
+
+    return deps.getAllModuleIntents();
+  });
+
+  /**
+   * GET /api/modules/autostart - Get all autostart settings
+   */
+  fastify.get<{
+    Reply: Record<string, boolean> | { error: string };
+  }>('/api/modules/autostart', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { error: 'Authentication required' };
+    }
+
+    if (!deps.getAllAutostartSettings) {
+      reply.code(501);
+      return { error: 'Autostart settings not implemented' };
+    }
+
+    return deps.getAllAutostartSettings();
+  });
+
+  /**
+   * GET /api/modules/:id/autostart - Get autostart setting for a module
+   */
+  fastify.get<{
+    Params: { id: string };
+    Reply: ModuleAutostartResponse | { error: string };
+  }>('/api/modules/:id/autostart', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { error: 'Authentication required' };
+    }
+
+    const { id } = request.params;
+
+    if (!deps.isModuleInstalled(id)) {
+      reply.code(404);
+      return { error: 'Module not found' };
+    }
+
+    if (!deps.getModuleAutostart) {
+      reply.code(501);
+      return { error: 'Autostart settings not implemented' };
+    }
+
+    const setting = deps.getModuleAutostart(id);
+    return {
+      moduleId: id,
+      autostart: setting ?? false,
+      isDefault: setting === undefined,
+    };
+  });
+
+  /**
+   * PUT /api/modules/:id/autostart - Set autostart setting for a module
+   */
+  fastify.put<{
+    Params: { id: string };
+    Body: SetModuleAutostartRequest;
+    Reply: ModuleAutostartResponse | { error: string };
+  }>('/api/modules/:id/autostart', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { error: 'Authentication required' };
+    }
+
+    const { id } = request.params;
+    const { autostart } = request.body;
+
+    if (!deps.isModuleInstalled(id)) {
+      reply.code(404);
+      return { error: 'Module not found' };
+    }
+
+    if (typeof autostart !== 'boolean') {
+      reply.code(400);
+      return { error: 'autostart must be a boolean' };
+    }
+
+    if (!deps.setModuleAutostart) {
+      reply.code(501);
+      return { error: 'Autostart settings not implemented' };
+    }
+
+    deps.setModuleAutostart(id, autostart);
+    return {
+      moduleId: id,
+      autostart,
+      isDefault: false,
+    };
+  });
+
   /**
    * GET /api/modules - List all modules
    */
@@ -328,6 +488,42 @@ export function registerModuleRoutes(
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to uninstall module',
+      };
+    }
+  });
+
+  /**
+   * POST /api/modules/:id/update - Update a module from git
+   * Pulls latest changes and runs npm install
+   */
+  fastify.post<{
+    Params: { id: string };
+    Reply: ModuleUpdateResponse;
+  }>('/api/modules/:id/update', async (request, reply) => {
+    // Require authentication (if enabled)
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { success: false, error: 'Authentication required' };
+    }
+
+    const { id } = request.params;
+
+    if (!deps.isModuleInstalled(id)) {
+      reply.code(404);
+      return { success: false, error: 'Module not found' };
+    }
+
+    try {
+      const result = await deps.updateModule(id);
+      if (!result.success) {
+        reply.code(500);
+      }
+      return result;
+    } catch (error) {
+      reply.code(500);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update module',
       };
     }
   });
@@ -792,14 +988,17 @@ export function registerModuleRoutes(
     }> = [];
 
     // Get intents from all module manifests
+    // Only include explicit intents.emits - these are the inter-module communication intents
+    // events/eventMeta are for UI configuration, not inter-module communication
     for (const module of deps.listModules()) {
       const manifest = deps.getModuleManifest(module.id);
+
       if (manifest?.intents?.emits) {
         for (const emit of manifest.intents.emits) {
           allIntents.push({
-            id: emit.id,
-            description: emit.description,
-            category: emit.category,
+            id: `${module.id}:${emit.id}`,
+            description: emit.description || emit.id,
+            category: emit.category || module.id,
             sourceModule: module.id,
           });
         }
@@ -807,8 +1006,6 @@ export function registerModuleRoutes(
     }
 
     // Sort by category and then by id
-    // NOTE: Only module-defined intents are returned. System events (180s, checkouts, etc.)
-    // come from the Autodarts event stream and are NOT intents.
     allIntents.sort((a, b) => {
       const catA = a.category || 'Other';
       const catB = b.category || 'Other';
@@ -857,14 +1054,17 @@ export function registerModuleRoutes(
     }> = [];
 
     // Get intents from all module manifests
+    // Only include explicit intents.emits - these are the inter-module communication intents
+    // events/eventMeta are for UI configuration, not inter-module communication
     for (const module of deps.listModules()) {
       const manifest = deps.getModuleManifest(module.id);
+
       if (manifest?.intents?.emits) {
         for (const emit of manifest.intents.emits) {
           allIntents.push({
-            id: emit.id,
-            description: emit.description,
-            category: emit.category,
+            id: `${module.id}:${emit.id}`,
+            description: emit.description || emit.id,
+            category: emit.category || module.id,
             sourceModule: module.id,
             sourceModuleName: manifest.name || module.id,
             payload: emit.payload,

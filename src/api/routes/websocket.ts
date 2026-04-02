@@ -42,11 +42,13 @@ export interface CallRequest {
   audioFile?: string;
   priority: number;
   timestamp: number;
+  callerType?: 'tts' | 'voicepack' | 'elevenlabs' | 'audio';
 }
 
 export interface WSCallerMessage {
   type: 'caller';
   request: CallRequest;
+  callerType?: 'tts' | 'voicepack' | 'elevenlabs' | 'audio';
 }
 
 export interface VoicePackProgress {
@@ -346,6 +348,7 @@ export class WebSocketManager {
     const message: WSCallerMessage = {
       type: 'caller',
       request,
+      callerType: request.callerType,
     };
 
     for (const client of this.clients) {

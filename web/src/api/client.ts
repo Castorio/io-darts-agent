@@ -40,6 +40,19 @@ async function request<T>(
 }
 
 export const api = {
+  // Generic POST request helper
+  async post<T = { success: boolean; error?: string }>(
+    endpoint: string,
+    data: Record<string, unknown>
+  ): Promise<T> {
+    // Remove /api prefix if included (endpoint already relative to API_BASE)
+    const cleanEndpoint = endpoint.startsWith('/api') ? endpoint.slice(4) : endpoint
+    return request<T>(cleanEndpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
   // Setup
   async getSetupStatus() {
     return request<{ setupRequired: boolean; version: string }>(
@@ -214,6 +227,26 @@ export const api = {
       `/modules/${id}`,
       { method: 'DELETE' }
     )
+  },
+
+  // Module Autostart
+  async getModuleAutostart(moduleId: string) {
+    return request<{
+      moduleId: string
+      autostart: boolean
+      isDefault?: boolean
+    }>(`/modules/${moduleId}/autostart`)
+  },
+
+  async setModuleAutostart(moduleId: string, autostart: boolean) {
+    return request<{
+      moduleId: string
+      autostart: boolean
+      isDefault?: boolean
+    }>(`/modules/${moduleId}/autostart`, {
+      method: 'PUT',
+      body: JSON.stringify({ autostart }),
+    })
   },
 
   // Module Intent Configuration
@@ -452,6 +485,19 @@ export const api = {
         body: JSON.stringify(settings),
       }
     )
+  },
+
+  // AI Providers
+  async getAIProviders() {
+    return request<{
+      providers: Array<{
+        id: string
+        name: string
+        configured: boolean
+        capabilities: string[]
+        config?: Record<string, unknown>
+      }>
+    }>('/ai/providers')
   },
 
   // ElevenLabs

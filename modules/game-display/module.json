@@ -558,6 +558,13 @@
           "max": 3000
         }
       }
+    },
+    "playerAnimations": {
+      "type": "array",
+      "label": "Player Animations",
+      "description": "Player-specific animation overrides",
+      "default": [],
+      "hidden": true
     }
   },
   "i18n": {

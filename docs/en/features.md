@@ -172,6 +172,18 @@ Shows the current game score on a separate display in real-time.
 - Multi-language support
 - Configurable background colors
 
+**Animations:**
+- Support for multiple media types: Built-in, GIF, Video
+- Optional sound playback with each animation
+- Events: 180, Bull, Double Bull, High Score, Bust, Checkout, Leg Win, Set Win, Match Win
+
+**Player-Specific Animations:**
+- Individual animations per player in the "Players" configuration tab
+- Players can have unique animations for: 180, Leg Win, Set Win, Match Win, Checkout
+- Player animations override global animations when that player is on throw
+- Supports: Built-in animations, GIF, Video, and custom sounds
+- Perfect for personalized celebrations and unique player experiences
+
 **Match Start Handling:**
 - Automatically fetches full match data via API when match starts
 - Prevents showing default values (501, "Player") at game start

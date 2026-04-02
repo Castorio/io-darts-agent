@@ -126,11 +126,44 @@ Für bestimmte Events können Animationen konfiguriert werden:
 | Event | Beispiel-Animation |
 |-------|-------------------|
 | **180** | "180!" Animation mit Konfetti |
+| **Bull** | Bullauge-Animation |
+| **Double Bull** | Doppel-Bull-Animation |
+| **High Score** | Animation ab konfigurierbarem Schwellenwert (Standard: 140) |
 | **Bust** | Rote "BUST" Animation |
-| **Game Shot** | Gewinner-Animation |
-| **Match Shot** | Große Feier-Animation |
+| **Checkout** | Checkout-Animation |
+| **Leg Win** | Gewinner-Animation für Leg |
+| **Set Win** | Gewinner-Animation für Set |
+| **Match Win** | Große Feier-Animation |
 
-Animationen können pro Event und pro Spieler individuell konfiguriert werden (z.B. GIF, Video, Text).
+Animationen unterstützen verschiedene Medientypen:
+- **Built-in**: Vordefinierte Animationen
+- **GIF**: Eigene GIF-Animationen (URL)
+- **Video**: Eigene Videos (URL)
+- **Sound**: Optionaler Ton zu jeder Animation (MP3, WAV, etc.)
+
+### Spieler-spezifische Animationen
+
+Im **Spieler-Tab** der Konfiguration können individuelle Animationen pro Spieler festgelegt werden:
+
+| Event | Beschreibung |
+|-------|-------------|
+| **180** | Eigene Animation wenn dieser Spieler eine 180 wirft |
+| **Leg Win** | Eigene Animation wenn dieser Spieler ein Leg gewinnt |
+| **Set Win** | Eigene Animation wenn dieser Spieler ein Set gewinnt |
+| **Match Win** | Eigene Animation wenn dieser Spieler das Match gewinnt |
+| **Checkout** | Eigene Animation wenn dieser Spieler auscheckt |
+
+**So funktioniert es:**
+1. Gehe zur Game Display Konfiguration
+2. Wechsle zum Tab "Spieler"
+3. Wähle einen Spieler aus der Liste oder erstelle einen neuen Eintrag
+4. Konfiguriere die gewünschten Animationen (GIF, Video, Sound)
+5. Die Spieler-Animation überschreibt die globale Animation wenn der jeweilige Spieler am Zug ist
+
+**Beispiel-Anwendung:**
+- Spieler "Max" hat ein persönliches 180-GIF mit Jubel-Sound
+- Spieler "Anna" hat eine Match-Win-Animation mit ihrem Lieblingssong
+- Die globalen Animationen werden als Fallback verwendet
 
 ### Spielerfarben
 

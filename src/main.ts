@@ -17,10 +17,9 @@ import {
   registerTtsRoutes,
   registerCallerRoutes,
   registerDeveloperRoutes,
+  registerAIRoutes,
 } from './api/routes/index.js';
 import { createAuthMiddleware } from './api/middleware/auth.js';
-// Analytics routes are loaded from the module itself
-import { registerAnalyticsRoutes } from '../modules/player-analytics/src/routes.js';
 import { ElevenLabsService, VoicePackGenerator } from './core/modules/handlers/index.js';
 import { MediaService } from './core/media/MediaService.js';
 import { AnimationGeneratorService } from './core/media/AnimationGeneratorService.js';
@@ -28,21 +27,32 @@ import { createRunwayProvider } from './core/media/providers/RunwayProvider.js';
 import { APIConfigService } from './core/config/ConfigService.js';
 import { AuthService } from './core/auth/AuthService.js';
 import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
+import { ModuleBridge } from './core/modules/ModuleBridge.js';
+import { spawn, ChildProcess } from 'child_process';
 import {
   WledHandler,
   GameDisplayHandler,
   DartsCallerHandler,
-  PlayerAnalyticsHandler,
   createWledHandler,
   createGameDisplayHandler,
   createDartsCallerHandler,
-  createPlayerAnalyticsHandler,
 } from './core/modules/handlers/index.js';
 import { PlayerService } from './core/players/PlayerService.js';
 import { PlayerRepository } from './core/players/PlayerRepository.js';
 import { AutodartsHub } from './index.js';
-import { getIntentBus } from './core/intents/index.js';
+import { getIntentBus, createEmitterFromManifest, IntentEmitter } from './core/intents/index.js';
 import { getMatchStatusService } from './core/match/index.js';
+import { getAIProviderService } from './core/ai/AIProviderService.js';
+import {
+  OpenAIProvider,
+  AnthropicProvider,
+  ElevenLabsProvider,
+  StabilityAIProvider,
+  RunwayProvider,
+  ReplicateProvider,
+  OllamaProvider,
+} from './core/ai/providers/index.js';
+import type { AIProviderConfig } from './core/ai/types.js';
 import type { HubConfiguration } from './types/api.js';
 import type { ModuleListItem, ModuleDetailResponse } from './types/api.js';
 import type { ParsedEvent, ModuleStatus, ModuleManifest, Intent } from './types/index.js';
@@ -143,11 +153,16 @@ interface InstalledModule {
   status: ModuleStatus;
   configValues: Record<string, unknown>;
   eventHandler?: (event: ParsedEvent) => Promise<void>;
-  // Handler instances for specific module types
+  // Handler instances for specific module types (internal/builtin modules)
   wledHandler?: WledHandler;
   gameDisplayHandler?: GameDisplayHandler;
   dartsCallerHandler?: DartsCallerHandler;
-  playerAnalyticsHandler?: PlayerAnalyticsHandler;
+  // Intent emitter for modules that emit intents
+  intentEmitter?: IntentEmitter;
+  // External process module fields (SDK-based modules)
+  process?: ChildProcess;
+  bridge?: ModuleBridge;
+  isExternalProcess?: boolean;
 }
 const installedModules = new Map<string, InstalledModule>();
 
@@ -166,22 +181,22 @@ function createModuleLogger(moduleId: string) {
  * Create an intent emitter for a module
  * Used by modules to emit semantic intents that other modules can react to
  */
-function createIntentEmitter(moduleId: string) {
-  return {
-    emit: async (intentId: string, payload: Record<string, unknown> = {}) => {
-      await intentBus.emit(moduleId, intentId, payload);
-    },
-  };
-}
-
 /**
  * Register module intents when starting
  */
 function registerModuleIntents(mod: InstalledModule): void {
-  // Register intents this module can emit
+  // Register intents this module can emit and create an emitter
   if (mod.manifest.intents?.emits) {
     intentBus.registerIntents(mod.id, mod.manifest.intents.emits);
-    console.log(`📡 Registered ${mod.manifest.intents.emits.length} emittable intents for ${mod.id}`);
+
+    // Create IntentEmitter for this module
+    const emitter = createEmitterFromManifest(mod.id, mod.manifest, intentBus);
+    if (emitter) {
+      mod.intentEmitter = emitter;
+      console.log(`📡 Registered ${mod.manifest.intents.emits.length} emittable intents for ${mod.id} (emitter created)`);
+    }
+  } else {
+    mod.intentEmitter = undefined;
   }
 
   // Register intent subscriptions from module config
@@ -260,6 +275,204 @@ async function executeModuleIntentAction(
 function unregisterModuleIntents(mod: InstalledModule): void {
   intentBus.unregisterIntents(mod.id);
   intentBus.unsubscribeAll(mod.id);
+  mod.intentEmitter = undefined;
+}
+
+// ============================================================================
+// External Module Process Management (SDK-based modules)
+// ============================================================================
+
+/**
+ * Start an external SDK-based module as a separate Node.js process
+ */
+async function startExternalModule(mod: InstalledModule): Promise<void> {
+  const entryPoint = path.join(mod.path, mod.manifest.entry!);
+
+  // Check if entry point exists
+  if (!fs.existsSync(entryPoint)) {
+    throw new Error(`Module entry point not found: ${entryPoint}`);
+  }
+
+  // Create IPC bridge for communication
+  const socketPath = path.join(process.env.TMPDIR || '/tmp', `autodarts-hub-${mod.id}.sock`);
+  const bridge = new ModuleBridge(mod.id, { socketPath });
+
+  // Setup bridge event handlers
+  setupExternalModuleBridgeHandlers(mod, bridge);
+
+  // Start the bridge (creates socket server)
+  await bridge.start();
+  console.log(`🔌 Started IPC bridge for ${mod.id} at ${socketPath}`);
+
+  // Spawn the module process
+  const proc = spawn('node', [entryPoint], {
+    cwd: mod.path,
+    env: {
+      ...process.env,
+      AUTODARTS_MODULE_ID: mod.id,
+      AUTODARTS_SOCKET_PATH: socketPath,
+      NODE_ENV: process.env.NODE_ENV || 'production',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  mod.process = proc;
+  mod.bridge = bridge;
+  mod.isExternalProcess = true;
+
+  // Handle stdout/stderr
+  proc.stdout?.on('data', (data: Buffer) => {
+    const lines = data.toString().trim().split('\n');
+    for (const line of lines) {
+      console.log(`[${mod.id}] ${line}`);
+      addLog('module', mod.id, line);
+    }
+  });
+
+  proc.stderr?.on('data', (data: Buffer) => {
+    const lines = data.toString().trim().split('\n');
+    for (const line of lines) {
+      console.error(`[${mod.id}] ERROR: ${line}`);
+      addLog('module', mod.id, `ERROR: ${line}`);
+    }
+  });
+
+  // Handle process exit
+  proc.on('exit', (code, signal) => {
+    console.log(`[${mod.id}] Process exited with code ${code}, signal ${signal}`);
+    if (mod.status === 'running') {
+      mod.status = 'crashed';
+      addLog('module', mod.id, `Process crashed: code=${code}, signal=${signal}`);
+    }
+    // Cleanup
+    mod.process = undefined;
+    mod.bridge?.stop().catch(() => {});
+    mod.bridge = undefined;
+    mod.isExternalProcess = false;
+  });
+
+  // Wait for module to send ready signal
+  await waitForModuleReady(bridge, mod.id);
+
+  // Send init message with config
+  bridge.sendInit(mod.configValues, mod.manifest.events);
+  console.log(`▶️  Started external module: ${mod.manifest.name} (PID: ${proc.pid})`);
+
+  // Setup event forwarding to the external module
+  mod.eventHandler = async (event: ParsedEvent) => {
+    if (bridge.isConnected()) {
+      bridge.sendEvent(event);
+    }
+  };
+}
+
+/**
+ * Stop an external module gracefully
+ */
+async function stopExternalModule(mod: InstalledModule): Promise<void> {
+  if (!mod.process || !mod.bridge) {
+    return;
+  }
+
+  console.log(`⏹️  Stopping external module: ${mod.manifest.name}`);
+
+  try {
+    // Send shutdown signal
+    mod.bridge.sendShutdown('user', 5000);
+
+    // Wait for process to exit gracefully
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Shutdown timeout'));
+      }, 6000);
+
+      mod.process!.once('exit', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+  } catch {
+    // Force kill if graceful shutdown fails
+    console.log(`⚠️  Force killing module: ${mod.manifest.name}`);
+    mod.process?.kill('SIGKILL');
+  }
+
+  // Cleanup
+  await mod.bridge.stop();
+  mod.process = undefined;
+  mod.bridge = undefined;
+  mod.isExternalProcess = false;
+}
+
+/**
+ * Wait for external module to send ready signal
+ */
+function waitForModuleReady(bridge: ModuleBridge, moduleId: string, timeout = 10000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Module ${moduleId} startup timeout`));
+    }, timeout);
+
+    bridge.once('ready', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+
+    bridge.once('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Setup event handlers for external module bridge
+ */
+function setupExternalModuleBridgeHandlers(mod: InstalledModule, bridge: ModuleBridge): void {
+  bridge.on('log', (data: { level: string; message: string; context?: unknown }) => {
+    const prefix = data.level === 'error' ? '❌' : data.level === 'warn' ? '⚠️' : 'ℹ️';
+    console.log(`${prefix} [${mod.id}] ${data.message}`);
+    addLog('module', mod.id, data.message);
+  });
+
+  bridge.on('moduleError', (data: { code: string; message: string; fatal: boolean }) => {
+    console.error(`❌ [${mod.id}] Error: ${data.message} (${data.code})`);
+    addLog('module', mod.id, `Error: ${data.message}`);
+    if (data.fatal) {
+      mod.status = 'error';
+    }
+  });
+
+  bridge.on('status', (data: { status: ModuleStatus; message?: string }) => {
+    console.log(`📊 [${mod.id}] Status: ${data.status}${data.message ? ` - ${data.message}` : ''}`);
+  });
+
+  bridge.on('disconnected', () => {
+    console.log(`🔌 [${mod.id}] Disconnected from IPC bridge`);
+    if (mod.status === 'running') {
+      mod.status = 'error';
+    }
+  });
+
+  // Handle routes registration from external module
+  bridge.on('routesRegister', async (payload: { routes: unknown[] }) => {
+    console.log(`🛣️  [${mod.id}] Registered ${payload.routes.length} API routes`);
+    // Route registration is handled by ModuleRouteRegistry
+  });
+
+  // Handle intent emission from external module
+  bridge.on('intentEmit', async (data: { moduleId: string; intentId: string; payload: Record<string, unknown> }) => {
+    console.log(`📡 [${mod.id}] Emitting intent: ${data.intentId}`);
+    addLog('module', `intent:${mod.id}`, data.intentId, data.payload);
+
+    // Emit intent through the IntentBus
+    try {
+      await intentBus.emit(data.moduleId, data.intentId, data.payload);
+    } catch (err) {
+      console.error(`❌ [${mod.id}] Failed to emit intent ${data.intentId}:`, err);
+      addLog('module', mod.id, `Intent emit error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
 }
 
 // Module config storage directory
@@ -314,6 +527,113 @@ function saveModuleConfig(moduleId: string, config: Record<string, unknown>): vo
   } catch (e) {
     console.error(`❌ Failed to save config for module ${moduleId}:`, e);
     throw e;
+  }
+}
+
+// ============================================================================
+// Module Autostart Settings
+// ============================================================================
+
+interface ModuleAutostartSettings {
+  [moduleId: string]: boolean;
+}
+
+/**
+ * Get autostart settings file path
+ */
+function getAutostartSettingsPath(): string {
+  return path.join(getConfigDir(), '_autostart.json');
+}
+
+/**
+ * Load autostart settings from disk
+ */
+function loadAutostartSettings(): ModuleAutostartSettings {
+  try {
+    const settingsPath = getAutostartSettingsPath();
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.warn('⚠️  Failed to load autostart settings:', e);
+  }
+  return {};
+}
+
+/**
+ * Save autostart settings to disk
+ */
+function saveAutostartSettings(settings: ModuleAutostartSettings): void {
+  try {
+    const configDir = getConfigDir();
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+    const settingsPath = getAutostartSettingsPath();
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+  } catch (e) {
+    console.error('❌ Failed to save autostart settings:', e);
+    throw e;
+  }
+}
+
+/**
+ * Get autostart setting for a module
+ * Returns true if module should autostart, false if not, or undefined if not set
+ */
+function getModuleAutostart(moduleId: string): boolean | undefined {
+  const settings = loadAutostartSettings();
+  return settings[moduleId];
+}
+
+/**
+ * Set autostart setting for a module
+ */
+function setModuleAutostart(moduleId: string, autostart: boolean): void {
+  const settings = loadAutostartSettings();
+  settings[moduleId] = autostart;
+  saveAutostartSettings(settings);
+}
+
+/**
+ * Determine if a module should autostart based on settings and defaults
+ */
+function shouldModuleAutostart(mod: InstalledModule): boolean {
+  // First check explicit autostart setting
+  const explicitSetting = getModuleAutostart(mod.id);
+  if (explicitSetting !== undefined) {
+    return explicitSetting;
+  }
+
+  // Legacy check: autoStart in config values
+  if (mod.configValues.autoStart === true) {
+    return true;
+  }
+  if (mod.configValues.autoStart === false) {
+    return false;
+  }
+
+  // Default behavior based on module type
+  switch (mod.id) {
+    case 'wled':
+      // WLED auto-starts if host is configured
+      return !!mod.configValues.wledHost;
+    case 'game-display':
+      // Game display always auto-starts by default
+      return true;
+    case 'darts-caller':
+      // Darts caller auto-starts if enabled
+      return mod.configValues.enabled !== false;
+    case 'player-analytics':
+      // Player analytics auto-starts by default
+      return true;
+    default:
+      // External modules: check if entry exists (SDK modules), default to false
+      if (mod.manifest.entry && mod.manifest.entry !== 'internal') {
+        return false; // External modules don't autostart by default
+      }
+      return false;
   }
 }
 
@@ -486,15 +806,9 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
     addLog('system', 'hub', 'IO-Darts-Agent connected successfully');
     console.log('🎯 IO-Darts-Agent started successfully');
 
-    // Auto-start modules that have autoStart enabled or have a host configured
+    // Auto-start modules based on autostart settings
     for (const mod of installedModules.values()) {
-      const shouldAutoStart = mod.configValues.autoStart === true ||
-        (mod.id === 'wled' && mod.configValues.wledHost) ||
-        mod.id === 'game-display' || // Game display always auto-starts
-        (mod.id === 'darts-caller' && mod.configValues.enabled !== false) || // Darts caller auto-starts if enabled
-        mod.id === 'player-analytics'; // Player analytics always auto-starts
-
-      if (shouldAutoStart && mod.status === 'stopped') {
+      if (shouldModuleAutostart(mod) && mod.status === 'stopped') {
         try {
           // Setup handler based on module type
           if (mod.id === 'wled') {
@@ -526,31 +840,40 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
             };
           } else if (mod.id === 'darts-caller') {
             // Create Darts Caller handler with voice packs directory
+            const callerVoicePacksDir = path.join(__dirname, '..', 'data', 'voicepacks');
             mod.dartsCallerHandler = createDartsCallerHandler({
               ...mod.configValues,
-              voicePacksDir: path.join(__dirname, '..', 'data', 'voicepacks'),
+              voicePacksDir: callerVoicePacksDir,
             });
             // Register callback to forward call requests to WebSocket
             mod.dartsCallerHandler.onCallRequest((request) => {
               console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
               emitCallerRequest(request);
             });
+            // Initialize ElevenLabs service and VoicePackGenerator if API key is configured
+            const elevenLabsApiKey = (config as unknown as { aiProviders?: { elevenlabs?: { apiKey?: string } } })?.aiProviders?.elevenlabs?.apiKey;
+            if (elevenLabsApiKey) {
+              const service = new ElevenLabsService({
+                apiKey: elevenLabsApiKey,
+                cacheDir: path.join(__dirname, '..', 'data', 'tts-cache'),
+                enableCache: true,
+              });
+              service.init().catch((err) => {
+                console.error('Failed to initialize ElevenLabs service:', err);
+              });
+              const generator = new VoicePackGenerator(service, callerVoicePacksDir);
+              mod.dartsCallerHandler.setElevenLabsService(service);
+              mod.dartsCallerHandler.setVoicePackGenerator(generator);
+              console.log('🎙️  Darts Caller configured with ElevenLabs for player name generation');
+            }
             mod.eventHandler = async (event: ParsedEvent) => {
               if (mod.dartsCallerHandler) {
                 await mod.dartsCallerHandler.handleEvent(event);
               }
             };
-          } else if (mod.id === 'player-analytics') {
-            // Create Player Analytics handler
-            const analyticsDataDir = path.join(__dirname, '..', 'data', 'analytics');
-            mod.playerAnalyticsHandler = createPlayerAnalyticsHandler(mod.configValues, analyticsDataDir);
-            mod.playerAnalyticsHandler.setLogger(createModuleLogger('player-analytics'));
-            mod.playerAnalyticsHandler.setIntentEmitter(createIntentEmitter('player-analytics'));
-            mod.eventHandler = async (event: ParsedEvent) => {
-              if (mod.playerAnalyticsHandler) {
-                await mod.playerAnalyticsHandler.handleEvent(event);
-              }
-            };
+          } else if (mod.manifest.entry && mod.manifest.entry !== 'internal') {
+            // External SDK-based module - spawn as separate process
+            await startExternalModule(mod);
           }
 
           // Register module intents
@@ -816,34 +1139,42 @@ async function main(): Promise<void> {
         };
         console.log(`▶️  Started module: ${mod.manifest.name}`);
       } else if (id === 'darts-caller') {
+        const callerVoicePacksDir = path.join(__dirname, '..', 'data', 'voicepacks');
         mod.dartsCallerHandler = createDartsCallerHandler({
           ...mod.configValues,
-          voicePacksDir: path.join(__dirname, '..', 'data', 'voicepacks'),
+          voicePacksDir: callerVoicePacksDir,
         });
         // Register callback to forward call requests to WebSocket
         mod.dartsCallerHandler.onCallRequest((request) => {
           console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
           emitCallerRequest(request);
         });
-        // Note: ElevenLabs service and VoicePackGenerator will be set later
-        // when getOrCreateElevenLabsService() is called
+        // Initialize ElevenLabs service and VoicePackGenerator if API key is configured
+        const config = server.getConfig();
+        const elevenLabsApiKey = config?.aiProviders?.elevenlabs?.apiKey;
+        if (elevenLabsApiKey) {
+          const service = new ElevenLabsService({
+            apiKey: elevenLabsApiKey,
+            cacheDir: path.join(__dirname, '..', 'data', 'tts-cache'),
+            enableCache: true,
+          });
+          service.init().catch((err) => {
+            console.error('Failed to initialize ElevenLabs service:', err);
+          });
+          const generator = new VoicePackGenerator(service, callerVoicePacksDir);
+          mod.dartsCallerHandler.setElevenLabsService(service);
+          mod.dartsCallerHandler.setVoicePackGenerator(generator);
+          console.log('🎙️  Darts Caller configured with ElevenLabs for player name generation');
+        }
         mod.eventHandler = async (event: ParsedEvent) => {
           if (mod.dartsCallerHandler) {
             await mod.dartsCallerHandler.handleEvent(event);
           }
         };
         console.log(`▶️  Started module: ${mod.manifest.name}`);
-      } else if (id === 'player-analytics') {
-        const analyticsDataDir = path.join(__dirname, '..', 'data', 'analytics');
-        mod.playerAnalyticsHandler = createPlayerAnalyticsHandler(mod.configValues, analyticsDataDir);
-        mod.playerAnalyticsHandler.setLogger(createModuleLogger('player-analytics'));
-        mod.playerAnalyticsHandler.setIntentEmitter(createIntentEmitter('player-analytics'));
-        mod.eventHandler = async (event: ParsedEvent) => {
-          if (mod.playerAnalyticsHandler) {
-            await mod.playerAnalyticsHandler.handleEvent(event);
-          }
-        };
-        console.log(`▶️  Started module: ${mod.manifest.name}`);
+      } else if (mod.manifest.entry && mod.manifest.entry !== 'internal') {
+        // External SDK-based module - spawn as separate process
+        await startExternalModule(mod);
       } else {
         console.log(`▶️  Started module: ${mod.manifest.name}`);
       }
@@ -860,12 +1191,16 @@ async function main(): Promise<void> {
       // Unregister intents
       unregisterModuleIntents(mod);
 
+      // Stop external process if running
+      if (mod.isExternalProcess) {
+        await stopExternalModule(mod);
+      }
+
       // Remove event handler and handlers
       mod.eventHandler = undefined;
       mod.wledHandler = undefined;
       mod.gameDisplayHandler = undefined;
       mod.dartsCallerHandler = undefined;
-      mod.playerAnalyticsHandler = undefined;
       mod.status = 'stopped';
       console.log(`⏹️  Stopped module: ${mod.manifest.name}`);
     },
@@ -922,21 +1257,6 @@ async function main(): Promise<void> {
             await mod.dartsCallerHandler.handleEvent(event);
           }
         };
-      } else if (id === 'player-analytics') {
-        const analyticsDataDir = path.join(__dirname, '..', 'data', 'analytics');
-        if (mod.playerAnalyticsHandler) {
-          mod.playerAnalyticsHandler.updateConfig(mod.configValues);
-        } else {
-          mod.playerAnalyticsHandler = createPlayerAnalyticsHandler(mod.configValues, analyticsDataDir);
-          mod.playerAnalyticsHandler.setLogger(createModuleLogger('player-analytics'));
-          mod.playerAnalyticsHandler.setIntentEmitter(createIntentEmitter('player-analytics'));
-        }
-
-        mod.eventHandler = async (event: ParsedEvent) => {
-          if (mod.playerAnalyticsHandler) {
-            await mod.playerAnalyticsHandler.handleEvent(event);
-          }
-        };
       }
 
       mod.status = 'running';
@@ -978,11 +1298,135 @@ async function main(): Promise<void> {
         mod.status = 'stopped';
       }
 
-      await moduleInstaller.uninstall(id);
+      // Use the stored path directly instead of relying on moduleId matching directory name
+      // This fixes the issue where git-installed modules have directory names different from their module ID
+      // e.g., directory "autodarts-mqtt-module" but module ID "mqtt"
+      console.log(`🗑️  Uninstalling module ${id} from path: ${mod.path}`);
+      await fs.promises.rm(mod.path, { recursive: true, force: true });
+
+      // Also remove the module config file
+      const configPath = path.join(getConfigDir(), `${id}.json`);
+      try {
+        await fs.promises.rm(configPath, { force: true });
+      } catch {
+        // Config file may not exist, that's fine
+      }
+
       installedModules.delete(id);
       console.log(`🗑️  Uninstalled module: ${id}`);
     },
+    updateModule: async (id: string): Promise<{ success: boolean; previousVersion?: string; newVersion?: string; error?: string }> => {
+      const mod = installedModules.get(id);
+      if (!mod) {
+        return { success: false, error: `Module ${id} not found` };
+      }
+
+      // Check if it's a git repo
+      const gitPath = path.join(mod.path, '.git');
+      if (!fs.existsSync(gitPath)) {
+        return { success: false, error: 'Module is not a git repository, cannot update' };
+      }
+
+      const previousVersion = mod.manifest.version;
+
+      // Stop module if running
+      const wasRunning = mod.status === 'running';
+      if (wasRunning) {
+        mod.status = 'stopped';
+        mod.eventHandler = undefined;
+        console.log(`⏸️  Stopped module ${id} for update`);
+      }
+
+      try {
+        // Git pull
+        console.log(`🔄 Updating module ${id} from git...`);
+        const { execSync } = await import('child_process');
+        execSync('git pull', { cwd: mod.path, stdio: 'pipe' });
+
+        // Run npm install
+        console.log(`📦 Installing dependencies for ${id}...`);
+        execSync('npm install --production', { cwd: mod.path, stdio: 'pipe' });
+
+        // Reload manifest
+        const manifestPath = path.join(mod.path, 'module.json');
+        const newManifestData = fs.readFileSync(manifestPath, 'utf-8');
+        const newManifest = JSON.parse(newManifestData) as ModuleManifest;
+
+        // Update the stored module info
+        mod.manifest = newManifest;
+
+        console.log(`✅ Updated module ${id}: ${previousVersion} → ${newManifest.version}`);
+
+        // Restart if it was running before
+        if (wasRunning) {
+          // The module will be auto-started on next hub connect or can be manually started
+          console.log(`ℹ️  Module ${id} was stopped for update. Please restart it manually.`);
+        }
+
+        return {
+          success: true,
+          previousVersion,
+          newVersion: newManifest.version,
+        };
+      } catch (error) {
+        console.error(`❌ Failed to update module ${id}:`, error);
+        return {
+          success: false,
+          previousVersion,
+          error: error instanceof Error ? error.message : 'Update failed',
+        };
+      }
+    },
     isModuleInstalled: (id: string): boolean => installedModules.has(id),
+    getAllModuleIntents: () => {
+      const result: Record<string, Record<string, {
+        description: string;
+        category?: string;
+        payload?: Record<string, { type: string; description?: string; optional?: boolean }>;
+      }>> = {};
+
+      for (const mod of installedModules.values()) {
+        const intentsConfig = mod.manifest.intents as {
+          emits?: Array<{
+            id: string;
+            description: string;
+            category?: string;
+            payload?: Record<string, { type: string; description?: string; optional?: boolean }>;
+          }>;
+        } | undefined;
+
+        if (intentsConfig?.emits && intentsConfig.emits.length > 0) {
+          result[mod.id] = {};
+          for (const intent of intentsConfig.emits) {
+            result[mod.id][intent.id] = {
+              description: intent.description,
+              category: intent.category,
+              payload: intent.payload,
+            };
+          }
+        }
+      }
+
+      return result;
+    },
+    // Autostart management
+    getModuleAutostart: (id: string): boolean | undefined => {
+      return getModuleAutostart(id);
+    },
+    setModuleAutostart: (id: string, autostart: boolean): void => {
+      setModuleAutostart(id, autostart);
+      console.log(`⚙️  Set autostart for ${id}: ${autostart}`);
+    },
+    getAllAutostartSettings: (): Record<string, boolean> => {
+      const settings = loadAutostartSettings();
+      // Add computed autostart values for modules without explicit settings
+      for (const mod of installedModules.values()) {
+        if (settings[mod.id] === undefined) {
+          settings[mod.id] = shouldModuleAutostart(mod);
+        }
+      }
+      return settings;
+    },
   });
 
   // Register Settings Routes
@@ -1125,6 +1569,18 @@ async function main(): Promise<void> {
   });
   console.log('🎙️  TTS services initialized');
 
+  // Initialize ElevenLabs service and VoicePackGenerator for darts-caller if already running
+  // This ensures player names can be generated when a match starts
+  const dartsCallerModInit = installedModules.get('darts-caller');
+  if (dartsCallerModInit?.dartsCallerHandler && dartsCallerModInit.status === 'running') {
+    const service = getOrCreateElevenLabsService();
+    if (service && voicePackGenerator) {
+      dartsCallerModInit.dartsCallerHandler.setElevenLabsService(service);
+      dartsCallerModInit.dartsCallerHandler.setVoicePackGenerator(voicePackGenerator);
+      console.log('🎙️  Darts Caller initialized with ElevenLabs service and Voice Pack Generator');
+    }
+  }
+
   // Helper function to get the darts caller handler
   function getDartsCallerHandler(): DartsCallerHandler | null {
     const mod = installedModules.get('darts-caller');
@@ -1160,17 +1616,138 @@ async function main(): Promise<void> {
   });
   console.log('🔧 Developer routes initialized');
 
-  // Helper function to get the player analytics handler
-  function getPlayerAnalyticsHandler(): PlayerAnalyticsHandler | null {
-    const mod = installedModules.get('player-analytics');
-    return mod?.playerAnalyticsHandler ?? null;
+  // Initialize AI Provider Service
+  const aiService = getAIProviderService();
+
+  // Register provider factories
+  // Each factory receives an AIProviderConfig and returns the appropriate provider instance
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  aiService.registerProviderFactory('openai', (config) => new OpenAIProvider(config as any));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  aiService.registerProviderFactory('anthropic', (config) => new AnthropicProvider(config as any));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  aiService.registerProviderFactory('elevenlabs', (config) => new ElevenLabsProvider(config as any));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  aiService.registerProviderFactory('stability', (config) => new StabilityAIProvider(config as any));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  aiService.registerProviderFactory('runway', (config) => new RunwayProvider(config as any));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  aiService.registerProviderFactory('replicate', (config) => new ReplicateProvider(config as any));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  aiService.registerProviderFactory('ollama', (config) => new OllamaProvider(config as any));
+
+  // Load AI provider configurations from config file
+  const aiConfigDir = path.join(__dirname, '..', 'config');
+  const aiConfigPath = path.join(aiConfigDir, 'ai-providers.json');
+
+  // Ensure config directory exists
+  if (!fs.existsSync(aiConfigDir)) {
+    fs.mkdirSync(aiConfigDir, { recursive: true });
   }
 
-  // Register Analytics Routes (loaded from the player-analytics module)
-  registerAnalyticsRoutes(fastify, {
-    getAnalyticsHandler: getPlayerAnalyticsHandler,
+  if (fs.existsSync(aiConfigPath)) {
+    try {
+      const aiConfigs = JSON.parse(fs.readFileSync(aiConfigPath, 'utf-8')) as AIProviderConfig[];
+      for (const config of aiConfigs) {
+        try {
+          aiService.addProvider(config);
+          console.log(`🤖 AI Provider loaded: ${config.name}`);
+        } catch (err) {
+          console.warn(`⚠️  Failed to load AI provider ${config.id}:`, err);
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️  Failed to parse AI providers config:', err);
+    }
+  } else {
+    // Create default configs for all provider types (empty API keys - users configure them in UI)
+    const defaultConfigs: AIProviderConfig[] = [
+      {
+        id: 'openai',
+        type: 'openai',
+        name: 'OpenAI',
+        apiKey: '',
+        enabled: false,
+      },
+      {
+        id: 'anthropic',
+        type: 'anthropic',
+        name: 'Anthropic',
+        apiKey: '',
+        enabled: false,
+      },
+      {
+        id: 'ollama',
+        type: 'ollama',
+        name: 'Ollama (Lokal)',
+        apiKey: '',
+        baseUrl: 'http://localhost:11434',
+        enabled: true,
+      },
+      {
+        id: 'elevenlabs',
+        type: 'elevenlabs',
+        name: 'ElevenLabs',
+        apiKey: '',
+        enabled: false,
+      },
+      {
+        id: 'stability',
+        type: 'stability',
+        name: 'Stability AI',
+        apiKey: '',
+        enabled: false,
+      },
+      {
+        id: 'runway',
+        type: 'runway',
+        name: 'Runway ML',
+        apiKey: '',
+        enabled: false,
+      },
+      {
+        id: 'replicate',
+        type: 'replicate',
+        name: 'Replicate',
+        apiKey: '',
+        enabled: false,
+      },
+    ];
+    fs.writeFileSync(aiConfigPath, JSON.stringify(defaultConfigs, null, 2));
+
+    // Add all default providers
+    for (const config of defaultConfigs) {
+      try {
+        aiService.addProvider(config);
+        console.log(`🤖 AI Provider initialized: ${config.name}`);
+      } catch {
+        // Provider might not be available, that's ok
+      }
+    }
+  }
+
+  // Helper function to save AI provider configs to disk
+  function saveAIProviderConfigs(): void {
+    const providers = aiService.getProviders();
+    const configs: AIProviderConfig[] = providers.map((p) => ({
+      id: p.config.id,
+      type: p.config.type,
+      name: p.config.name,
+      apiKey: p.config.apiKey,
+      baseUrl: p.config.baseUrl,
+      enabled: p.config.enabled,
+      options: p.config.options,
+    }));
+    fs.writeFileSync(aiConfigPath, JSON.stringify(configs, null, 2));
+    console.log('💾 AI Provider config saved');
+  }
+
+  // Register AI Routes
+  registerAIRoutes(fastify, server, {
+    getService: () => aiService,
+    saveConfig: saveAIProviderConfigs,
   });
-  console.log('📊 Analytics routes initialized (from module)');
+  console.log('🤖 AI routes initialized');
 
   // Register Match Routes (for current match state)
   registerMatchRoutes(fastify, server, {

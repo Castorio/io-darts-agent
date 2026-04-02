@@ -148,7 +148,7 @@ export interface ModuleConfigResponse {
     values: Record<string, unknown>;
 }
 export interface ModuleConfigFieldSchema {
-    type: 'string' | 'number' | 'boolean' | 'select';
+    type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'group';
     label: string;
     description?: string;
     default?: string | number | boolean;
@@ -159,6 +159,12 @@ export interface ModuleConfigFieldSchema {
     }[];
     min?: number;
     max?: number;
+    showIf?: {
+        field: string;
+        value: unknown;
+    };
+    fields?: Record<string, ModuleConfigFieldSchema>;
+    placeholder?: string;
 }
 export interface UpdateModuleConfigRequest {
     config: Record<string, unknown>;

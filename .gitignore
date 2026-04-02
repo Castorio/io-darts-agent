@@ -28,6 +28,7 @@ coverage/
 .nyc_output/
 test-results/
 playwright-report/
+playwright-user-data/
 
 # Logs
 logs/

@@ -229,6 +229,25 @@ export abstract class AutodartsModule extends EventEmitter {
     });
   }
 
+  /**
+   * Emit an intent to the hub
+   *
+   * Intents are semantic messages that other modules can react to.
+   * The intentId must be declared in the module's module.json under intents.emits
+   *
+   * @param intentId - The intent identifier (e.g., "mqtt.message.published")
+   * @param payload - Optional payload data for the intent
+   */
+  protected emitIntent(intentId: string, payload: Record<string, unknown> = {}): void {
+    this.send({
+      id: this.generateId(),
+      type: 'intent.emit',
+      timestamp: Date.now(),
+      payload: { intentId, payload },
+    });
+    this.log('debug', `Emitted intent: ${intentId}`, payload);
+  }
+
   // ============================================
   // Abstract methods - implement in your module
   // ============================================

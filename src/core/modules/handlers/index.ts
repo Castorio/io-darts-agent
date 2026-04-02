@@ -50,24 +50,3 @@ export type {
   LocalAudioPlayerConfig,
 } from '../../../../modules/darts-caller/src/index.js';
 
-// Player Analytics Module
-export { PlayerAnalyticsHandler, createPlayerAnalyticsHandler } from '../../../../modules/player-analytics/src/index.js';
-export { PlayerStore } from '../../../../modules/player-analytics/src/index.js';
-export type {
-  PlayerAnalyticsConfig,
-  Player as AnalyticsPlayer,
-  MatchData,
-  GameData,
-  LegData,
-  TurnData,
-  ThrowData,
-  DartSegment,
-  PlayerStatistics,
-  SegmentStats,
-  PlayerTrend,
-  TrendDataPoint,
-  TrainingTip,
-  TipCategory,
-  TrainingTipsRequest,
-  TrainingTipsResponse,
-} from '../../../../modules/player-analytics/src/index.js';

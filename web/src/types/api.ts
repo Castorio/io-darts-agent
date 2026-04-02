@@ -201,6 +201,7 @@ export interface CallRequest {
 export interface WSCallerMessage {
   type: 'caller'
   request: CallRequest
+  callerType?: 'tts' | 'voicepack' | 'elevenlabs' | 'audio'
 }
 
 export type WSMessage = WSEventMessage | WSStatusMessage | WSModuleMessage | WSCallerMessage

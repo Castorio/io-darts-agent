@@ -71,7 +71,11 @@ Lade das passende Paket für dein System herunter:
 - Dart-Visualisierung mit Animationen
 - Multi-Spieler-Übersicht
 - Demo-Modus zum Testen
-- Eigene Animationen pro Event und Spieler
+- Konfigurierbare Animationen pro Event (180, Bull, High Score, Checkout, Bust, Leg/Set/Match-Win)
+- **Spieler-spezifische Animationen**: Individuelle Animationen pro Spieler im "Spieler"-Tab
+  - Eigene Animationen für 180, Leg-Win, Set-Win, Match-Win und Checkout pro Spieler
+  - Unterstützt Built-in Animationen, GIF, Video und eigene Sounds
+  - Spieler-Animationen überschreiben globale Animationen wenn der Spieler am Zug ist
 - Match-Start-Bildschirm (konfigurierbar: Standard oder eigenes Bild/GIF)
 - Match-Ergebnistabelle mit Chalkboard und Statistiken
 - Konfigurierbare Anzeigedauer der Ergebnisse (automatisch ausblenden oder manuell)

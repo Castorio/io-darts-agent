@@ -37,6 +37,12 @@ const router = createRouter({
     {
       path: '/modules/:id/config',
       name: 'module-config',
+      component: () => import('../views/DefaultModuleConfigView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/modules/:id/wled-config',
+      name: 'wled-config',
       component: () => import('../views/WledConfigView.vue'),
       meta: { requiresAuth: true },
     },
@@ -92,6 +98,12 @@ const router = createRouter({
       path: '/settings',
       name: 'settings',
       component: () => import('../views/SettingsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/ai-settings',
+      name: 'ai-settings',
+      component: () => import('../views/AISettingsView.vue'),
       meta: { requiresAuth: true },
     },
     {

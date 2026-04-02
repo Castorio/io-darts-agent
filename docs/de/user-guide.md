@@ -345,6 +345,53 @@ Konfiguriere die Ergebnisanzeige:
 - **Anzeigedauer**: Wie lange die Ergebnisse angezeigt werden (0 = bis manuell geschlossen)
 - **Hintergrundfarbe**: Eigene Hintergrundfarbe für den Ergebnisbildschirm
 
+### Animationen
+
+Das Game Display unterstützt konfigurierbare Animationen für verschiedene Events:
+
+| Event | Beschreibung |
+|-------|-------------|
+| **180** | Animation wenn ein Spieler 180 wirft |
+| **Bull** | Animation für Single-Bull (25 Punkte) |
+| **Double Bull** | Animation für Double-Bull (50 Punkte) |
+| **High Score** | Animation für hohe Scores (konfigurierbarer Schwellenwert, Standard 140) |
+| **Bust** | Animation wenn ein Spieler überworfen hat |
+| **Checkout** | Animation für erfolgreiche Checkouts |
+| **Leg Win** | Animation wenn ein Spieler ein Leg gewinnt |
+| **Set Win** | Animation wenn ein Spieler ein Set gewinnt |
+| **Match Win** | Animation wenn ein Spieler das Match gewinnt |
+
+Jede Animation unterstützt:
+- **Built-in**: Vordefinierte Animationen
+- **GIF**: Eigene animierte GIFs (URL)
+- **Video**: Eigene Videos (URL)
+- **Sound**: Optionaler Ton bei jeder Animation
+
+### Spieler-spezifische Animationen
+
+Du kannst individuelle Animationen für jeden Spieler konfigurieren:
+
+1. Öffne die **Game Display Konfiguration**
+2. Wechsle zum **Spieler**-Tab
+3. Wähle einen Spieler aus oder füge einen neuen Eintrag hinzu
+4. Konfiguriere die gewünschten Animationen:
+   - **180 Animation**: Wird angezeigt wenn dieser Spieler eine 180 wirft
+   - **Leg Win**: Wird angezeigt wenn dieser Spieler ein Leg gewinnt
+   - **Set Win**: Wird angezeigt wenn dieser Spieler ein Set gewinnt
+   - **Match Win**: Wird angezeigt wenn dieser Spieler das Match gewinnt
+   - **Checkout**: Wird angezeigt wenn dieser Spieler auscheckt
+
+**So funktioniert es:**
+- Spieler-spezifische Animationen überschreiben die globalen Animationen
+- Wenn "Max" eine 180 wirft, wird seine persönliche 180-Animation abgespielt statt der globalen
+- Ist keine Spieler-Animation konfiguriert, wird die globale Animation als Fallback verwendet
+- Jede Animation kann eine eigene GIF/Video-URL und einen Sound haben
+
+**Beispiel-Anwendungen:**
+- Spieler "Max" hat ein persönliches Siegestanz-GIF für seine 180er
+- Spieler "Anna" hat ihren Lieblingssong, der abgespielt wird wenn sie ein Match gewinnt
+- Jeder Spieler bekommt ein einzigartiges Feier-Erlebnis
+
 ---
 
 ## Darts Caller Modul

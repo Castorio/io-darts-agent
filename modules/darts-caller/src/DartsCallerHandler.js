@@ -317,25 +317,74 @@ export class DartsCallerHandler {
         const turnPoints = eventData.turnPoints ?? eventData.turnScore ?? 0;
         const remaining = eventData.remaining || 0;
         const busted = eventData.busted;
-        console.log(`🎯 Turn finished: ${turnPoints} points, ${remaining} remaining, busted: ${busted}`);
+
+        // Check for bulls in the throws array
+        // Autodarts format: throws is an array of { segment: { bed, multiplier, number, name }, coords, throw }
+        const throws = eventData.throws;
+        let hasBull = false;
+        let hasDoubleBull = false;
+
+        if (throws && Array.isArray(throws)) {
+            for (const throwData of throws) {
+                const segment = throwData.segment;
+                if (!segment) continue;
+
+                // Autodarts uses segment.bed to indicate the type:
+                // - "Bull" = Single Bull (25 points)
+                // - "DoubleBull" = Double Bull / Bullseye (50 points)
+                const bed = (segment.bed || '').toLowerCase();
+                const number = segment.number ?? 0;
+
+                if (bed === 'doublebull' || (number === 25 && segment.multiplier === 2)) {
+                    hasDoubleBull = true;
+                } else if (bed === 'bull' || (number === 25 && segment.multiplier === 1)) {
+                    hasBull = true;
+                }
+            }
+        }
+
+        console.log(`🎯 Turn finished: ${turnPoints} points, ${remaining} remaining, busted: ${busted}, bull: ${hasBull}, doubleBull: ${hasDoubleBull}`);
+        console.log(`🎯 Turn throws:`, JSON.stringify(throws?.map(t => t.segment) ?? []));
+
         // Handle busted turn
         if (busted) {
-            if (this.config.callBusts) {
+            const callBusts = this.config.callSettings?.busts ?? this.config.callBusts ?? true;
+            if (callBusts) {
                 this.generateCall('special', 'Bust!', 'bust', 8);
                 this.stats.specialCalls++;
             }
             return;
         }
+
+        // Handle double bull (bullseye) - highest priority after 180
+        const callDoubleBulls = this.config.callSettings?.doubleBulls ?? this.config.callDoubleBulls ?? true;
+        if (hasDoubleBull && callDoubleBulls) {
+            this.generateCall('special', 'Bullseye!', 'double_bull', 9);
+            this.stats.specialCalls++;
+            // Continue to also call the score
+        }
+
+        // Handle single bull
+        const callBulls = this.config.callSettings?.bulls ?? this.config.callBulls ?? true;
+        if (hasBull && !hasDoubleBull && callBulls) {
+            this.generateCall('special', 'Bull!', 'bull', 7);
+            this.stats.specialCalls++;
+            // Continue to also call the score
+        }
+
         // Check for 180
-        if (turnPoints === 180 && this.config.call180) {
+        const call180 = this.config.callSettings?.special180 ?? this.config.call180 ?? true;
+        if (turnPoints === 180 && call180) {
             this.generateCall('special', 'One hundred and eighty!', '180', 10);
             this.stats.specialCalls++;
             return;
         }
         // Call score
-        if (this.config.callScores) {
+        const callScores = this.config.callSettings?.scores ?? this.config.callScores ?? true;
+        if (callScores) {
             // Check if we should only call high scores
-            if (this.config.callHighScoresOnly && turnPoints < 100) {
+            const highScoresOnly = this.config.callSettings?.highScoresOnly ?? this.config.callHighScoresOnly ?? false;
+            if (highScoresOnly && turnPoints < 100) {
                 return;
             }
             const scoreText = this.scoreToText(turnPoints);

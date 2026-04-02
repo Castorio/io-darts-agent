@@ -142,9 +142,11 @@ export class SocketService {
    * Subscribe to match events
    */
   subscribeToMatch(matchId: string): void {
+    console.log(`🔔 SocketService.subscribeToMatch: matchId=${matchId}, boardId=${this.boardId}`);
     this.eventParser.setMatchId(matchId);
     this.subscribe('autodarts.matches', `${matchId}.state`);
     this.subscribe('autodarts.boards', `${this.boardId}.events`);
+    console.log(`🔔 SocketService.subscribeToMatch: Subscribed to autodarts.boards/${this.boardId}.events`);
   }
 
   /**
@@ -233,6 +235,11 @@ export class SocketService {
   private handleMessage(data: WebSocket.RawData): void {
     try {
       const message = JSON.parse(data.toString()) as AutodartsMessage;
+      const isBoardEvent = message.channel === 'autodarts.boards' && message.topic?.endsWith('.events');
+      console.log(`📨 WS Message: channel=${message.channel}, topic=${message.topic}${isBoardEvent ? ' [BOARD EVENT]' : ''}`);
+      if (isBoardEvent) {
+        console.log(`🎯 Board Event RAW data:`, JSON.stringify(message.data));
+      }
       const events = this.eventParser.parse(message);
 
       if (!events) return;

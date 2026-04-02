@@ -86,10 +86,15 @@ The manifest defines all metadata and configuration for your module:
 | `version` | string | Yes | Semantic Version (x.y.z) |
 | `description` | string | No | Short description (English) |
 | `author` | string | No | Author/Developer |
-| `entry` | string | Yes | "internal" for hub modules |
+| `repository` | string | No | URL to Git repository |
+| `entry` | string | Yes | Path to main JS file (e.g., "dist/index.js") or "internal" for hub modules |
 | `events` | string[] | No | Events to react to |
 | `config` | object | No | Configuration schema |
 | `i18n` | object | No | Multi-language translations |
+| `intents` | object | No | Intent system configuration |
+| `eventMeta` | object | No | Metadata for events (labels, descriptions) |
+| `eventGroups` | array | No | Grouping of events for UI |
+| `effects` | array | No | List of available effects (e.g., for WLED) |
 
 ### Configuration Field Types
 
@@ -100,9 +105,12 @@ The manifest defines all metadata and configuration for your module:
   "label": "Name",
   "description": "Help text",
   "required": true,
-  "default": "Default value"
+  "default": "Default value",
+  "placeholder": "Enter value..."
 }
 ```
+
+The `placeholder` attribute is optional and shows hint text in the empty input field.
 
 #### number
 ```json
@@ -111,9 +119,12 @@ The manifest defines all metadata and configuration for your module:
   "label": "Port",
   "default": 80,
   "min": 1,
-  "max": 65535
+  "max": 65535,
+  "step": 1
 }
 ```
+
+The `step` attribute is optional and defines the increment for slider inputs.
 
 #### boolean
 ```json
@@ -220,11 +231,65 @@ Events can be organized into logical groups for better UI presentation:
 }
 ```
 
+## Effects List (effects)
+
+Modules can define a list of available effects. This is especially useful for hardware modules like WLED:
+
+```json
+{
+  "effects": [
+    { "id": 0, "name": "Solid" },
+    { "id": 1, "name": "Blink" },
+    { "id": 2, "name": "Breathe" },
+    { "id": 9, "name": "Rainbow" },
+    { "id": 52, "name": "Fire 2012" },
+    { "id": 82, "name": "Fireworks" }
+  ]
+}
+```
+
+This list is displayed in the UI and can be used for effect selection in intent actions.
+
 ## Intent System
 
-The Intent System enables module-to-module communication and allows other modules to trigger actions in your module.
+The Intent System enables **module-to-module communication**. A module can expose actions that other modules can call. This is NOT about replicating events - events already exist for that purpose. Intents are for triggering specific functionality that a module provides.
 
-### Defining Actions
+### Purpose of Intents
+
+Intents allow modules to:
+1. **Expose capabilities** - A module declares what actions it can perform
+2. **Be triggered by other modules** - Other modules can call these actions
+3. **Provide services** - One module can act as a service provider for others
+
+### Real-World Example: MQTT Module
+
+The MQTT module exposes a `publish` action that other modules can use to send MQTT messages:
+
+```json
+{
+  "intents": {
+    "actions": [
+      {
+        "type": "publish",
+        "label": "Publish Message",
+        "description": "Publish a custom message to a topic",
+        "configSchema": {
+          "topic": { "type": "string", "label": "Topic", "default": "custom/event" },
+          "message": { "type": "string", "label": "Message", "default": "{}" },
+          "retain": { "type": "boolean", "label": "Retain Message", "default": false }
+        }
+      }
+    ],
+    "defaultSubscriptions": []
+  }
+}
+```
+
+**Use Case:** A WLED module could use `mqtt.publish` to send a message to Home Assistant when a specific effect is triggered.
+
+### Real-World Example: WLED Module
+
+The WLED module exposes actions for LED control:
 
 ```json
 {
@@ -260,21 +325,34 @@ The Intent System enables module-to-module communication and allows other module
 }
 ```
 
-### Action Types
+**Use Case:** A Caller module could trigger `wled.effect` when announcing a 180.
+
+### Action Definition Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `type` | string | Yes | Unique action identifier |
-| `label` | string | Yes | Human-readable name |
+| `type` | string | Yes | Unique action identifier (used when calling) |
+| `label` | string | Yes | Human-readable name for UI display |
 | `description` | string | No | Description of what the action does |
-| `configSchema` | object | No | Configuration options for the action |
+| `configSchema` | object | No | Configuration options the caller must/can provide |
 
-### Using Intents
+### Calling Intent Actions
 
 Other modules can trigger your module's actions through the intent system:
 
 ```typescript
-// Another module can send an intent
+// Another module can send an intent to MQTT module
+await sendIntent({
+  targetModule: 'mqtt',
+  action: 'publish',
+  payload: {
+    topic: 'autodarts/180',
+    message: '{"event": "180", "player": "John"}',
+    retain: false
+  }
+});
+
+// Or trigger WLED module
 await sendIntent({
   targetModule: 'wled',
   action: 'solidColor',
@@ -288,13 +366,13 @@ await sendIntent({
 
 ### Default Subscriptions
 
-You can define default event-to-action mappings:
+Modules can define default event-to-action mappings. These are pre-configured reactions that the module will execute when certain events occur:
 
 ```json
 {
   "defaultSubscriptions": [
     {
-      "event": "player.change",
+      "event": "player.changed",
       "action": "solidColor",
       "config": { "usePlayerColor": true }
     },
@@ -307,6 +385,21 @@ You can define default event-to-action mappings:
 }
 ```
 
+### When to Use Intents vs Events
+
+| Use Case | Solution |
+|----------|----------|
+| React to game happenings (throws, player changes, etc.) | Subscribe to **Events** |
+| Trigger another module's functionality | Call an **Intent Action** |
+| Let other modules use your functionality | Expose **Intent Actions** |
+| Broadcast that something happened | Emit an **Event** |
+
+**Example Flow:**
+1. User throws 180 → `throw.180` **event** fires
+2. Caller module receives event → plays "ONE HUNDRED AND EIGHTY" audio
+3. Caller module also calls `wled.effect` **intent** → LEDs flash rainbow
+4. WLED module also calls `mqtt.publish` **intent** → Home Assistant receives notification
+
 ## Internationalization (i18n)
 
 Modules can provide translations for multiple languages. The default language is English, which should be used for all labels in the `config` section. Translations are provided in the `i18n` section.
@@ -318,6 +411,13 @@ Modules can provide translations for multiple languages. The default language is
 | `en` | English (Default) |
 | `de` | German |
 | `es` | Spanish |
+| `fr` | French |
+| `it` | Italian |
+| `nl` | Dutch |
+| `ja` | Japanese |
+| `zh` | Chinese |
+| `ru` | Russian |
+| `uk` | Ukrainian |
 
 ### i18n Structure
 
@@ -483,7 +583,8 @@ These events are generated by IO-Darts-Agent from `match.state` updates:
 
 | Event | Description | Important Data |
 |-------|-------------|----------------|
-| `player.change` | Player changed | `playerIndex`, `playerName`, `remaining`, `players[]` with colors |
+| `player.changed` | Player changed | `playerIndex`, `playerName`, `remaining`, `players[]` with colors |
+| `turn.started` | Turn started | `playerIndex`, `playerName`, `remaining` |
 | `turn.finished` | Turn finished | `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining` |
 
 > **Note:** Synthetic events provide convenient hooks for modules. The `turn.finished` event is triggered when:
@@ -503,7 +604,107 @@ These are derived from `throw.detected` data:
 | `throw.bull` | `number === 25 && multiplier === 1` | - |
 | `throw.miss` | `points === 0` | - |
 | `throw.180` | `turnPoints === 180` | - |
+| `throw.highfinish` | Checkout over 100 points | `checkoutScore` |
 | `throw.bust` | Match state shows bust | - |
+
+## Custom API Routes (Module Routes)
+
+Modules can register custom API endpoints that are available at `/api/modules/<module-id>/routes/`.
+
+### Registering Routes
+
+```typescript
+// In the module - register routes with the Hub
+const routes: ModuleRouteDefinition[] = [
+  {
+    method: 'GET',
+    path: '/status',
+    handlerId: 'getStatus',
+    description: 'Get module status'
+  },
+  {
+    method: 'POST',
+    path: '/test',
+    handlerId: 'runTest',
+    description: 'Run a test action'
+  },
+  {
+    method: 'GET',
+    path: '/effects/:id',
+    handlerId: 'getEffect',
+    description: 'Get effect by ID'
+  }
+];
+
+// Send via IPC to Hub
+sendMessage({
+  type: 'routes.register',
+  payload: { routes }
+});
+```
+
+### Implementing Route Handlers
+
+```typescript
+// React to route.request from Hub
+onMessage('route.request', async (payload: RouteRequestPayload) => {
+  const { handlerId, method, params, query, body } = payload;
+
+  switch (handlerId) {
+    case 'getStatus':
+      return {
+        statusCode: 200,
+        body: { status: 'ok', connected: true }
+      };
+
+    case 'runTest':
+      await runTestAction(body);
+      return {
+        statusCode: 200,
+        body: { success: true }
+      };
+
+    case 'getEffect':
+      const effect = getEffectById(params.id);
+      return {
+        statusCode: effect ? 200 : 404,
+        body: effect || { error: 'Not found' }
+      };
+
+    default:
+      return {
+        statusCode: 404,
+        body: { error: 'Handler not found' }
+      };
+  }
+});
+```
+
+### Route Definition Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `method` | string | Yes | HTTP method (GET, POST, PUT, PATCH, DELETE) |
+| `path` | string | Yes | Path relative to `/api/modules/:moduleId/routes/` |
+| `handlerId` | string | Yes | Unique identifier for the handler |
+| `description` | string | No | Description of the endpoint |
+| `requireAuth` | boolean | No | Authentication required (default: true) |
+| `schema` | object | No | JSON schema for validation |
+
+### Calling from Frontend
+
+```typescript
+// Call module route
+const response = await fetch('/api/modules/my-module/routes/status');
+const status = await response.json();
+
+// With body
+await fetch('/api/modules/my-module/routes/test', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ action: 'flash' })
+});
+```
 
 ## Frontend Development
 

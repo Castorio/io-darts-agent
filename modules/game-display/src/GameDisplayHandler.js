@@ -143,6 +143,9 @@ export class GameDisplayHandler {
         const number = segment?.number || 0;
         const playerIndex = eventData.playerIndex;
         const playerName = eventData.playerName;
+        // DEBUG: Log segment data for bull detection
+        console.log('🎯 [GameDisplay] checkThrowAnimation - segment:', JSON.stringify(segment));
+        console.log('🎯 [GameDisplay] number:', number, 'multiplier:', multiplier, 'turnPoints:', turnPoints);
         // Check for 180
         if (turnPoints === 180) {
             const config = animations.throw180;
@@ -173,8 +176,10 @@ export class GameDisplayHandler {
         }
         // Check for double bull
         if (number === 25 && multiplier === 2) {
+            console.log('🎯 [GameDisplay] DOUBLE BULL DETECTED! Config:', JSON.stringify(animations.doubleBull));
             const config = animations.doubleBull;
             if (config?.enabled !== false) {
+                console.log('🎯 [GameDisplay] Triggering doubleBull animation');
                 this.stats.animationsTriggered++;
                 return {
                     type: 'doubleBull',
@@ -182,12 +187,16 @@ export class GameDisplayHandler {
                     playerIndex,
                     playerName,
                 };
+            } else {
+                console.log('🎯 [GameDisplay] doubleBull animation DISABLED');
             }
         }
         // Check for single bull
         if (number === 25 && multiplier === 1) {
+            console.log('🎯 [GameDisplay] SINGLE BULL DETECTED! Config:', JSON.stringify(animations.bull));
             const config = animations.bull;
             if (config?.enabled !== false) {
+                console.log('🎯 [GameDisplay] Triggering bull animation');
                 this.stats.animationsTriggered++;
                 return {
                     type: 'bull',
@@ -195,6 +204,8 @@ export class GameDisplayHandler {
                     playerIndex,
                     playerName,
                 };
+            } else {
+                console.log('🎯 [GameDisplay] bull animation DISABLED');
             }
         }
         // Check for high score

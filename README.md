@@ -71,7 +71,11 @@ Download the appropriate package for your system:
 - Dart visualization with animations
 - Multi-player overview
 - Demo mode for testing
-- Custom animations per event and player
+- Configurable animations per event (180, Bull, High Score, Checkout, Bust, Leg/Set/Match Win)
+- **Player-specific animations**: Configure individual animations per player in the "Players" tab
+  - Unique animations for 180, Leg Win, Set Win, Match Win, and Checkout per player
+  - Supports Built-in animations, GIF, Video, and custom sounds
+  - Player animations override global animations when that player is on throw
 - Match started screen (configurable: default or custom image/GIF)
 - Match results table with chalkboard and statistics
 - Configurable results display duration (auto-hide or manual dismiss)

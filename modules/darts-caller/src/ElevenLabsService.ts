@@ -50,6 +50,12 @@ export interface GenerationOptions {
   modelId?: string;
   voiceSettings?: VoiceSettings;
   outputFormat?: 'mp3_44100_128' | 'mp3_22050_32' | 'pcm_16000' | 'pcm_22050' | 'pcm_44100';
+  /** Language code for pronunciation (e.g., 'de' for German, 'en' for English) */
+  languageCode?: string;
+  /** Previous text for context (not included in output, helps with pronunciation) */
+  previousText?: string;
+  /** Next text for context (not included in output, helps with pronunciation) */
+  nextText?: string;
 }
 
 /**
@@ -213,6 +219,32 @@ export class ElevenLabsService {
       }
     }
 
+    // Build request body
+    const requestBody: Record<string, unknown> = {
+      text,
+      model_id: modelId,
+      voice_settings: voiceSettings,
+    };
+
+    // Add language_code for multilingual models to ensure correct pronunciation
+    // This is especially important for names which can be pronounced differently in different languages
+    if (options?.languageCode) {
+      requestBody.language_code = options.languageCode;
+      console.log(`🌐 Using language code: ${options.languageCode} for TTS`);
+    }
+
+    // Add previous_text and next_text for contextual pronunciation
+    // These are NOT included in the output but help ElevenLabs understand the language context
+    // This is particularly useful for names that might otherwise be mispronounced
+    if (options?.previousText) {
+      requestBody.previous_text = options.previousText;
+      console.log(`🌐 Using previous_text context: "${options.previousText}"`);
+    }
+    if (options?.nextText) {
+      requestBody.next_text = options.nextText;
+      console.log(`🌐 Using next_text context: "${options.nextText}"`);
+    }
+
     // Generate speech
     const response = await fetch(
       `${API_BASE_URL}/text-to-speech/${voiceId}`,
@@ -223,11 +255,7 @@ export class ElevenLabsService {
           'Content-Type': 'application/json',
           'Accept': 'audio/mpeg',
         },
-        body: JSON.stringify({
-          text,
-          model_id: modelId,
-          voice_settings: voiceSettings,
-        }),
+        body: JSON.stringify(requestBody),
       }
     );
 

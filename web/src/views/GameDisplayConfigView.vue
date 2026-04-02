@@ -11,6 +11,36 @@ import MediaUpload from '../components/MediaUpload.vue'
 import AnimationGenerator from '../components/AnimationGenerator.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 
+// Player animation override interface
+interface PlayerAnimationOverride {
+  playerId?: string
+  playerName: string
+  throw180?: {
+    enabled?: boolean
+    type?: 'builtin' | 'gif' | 'video' | 'none'
+    mediaUrl?: string
+    soundUrl?: string
+  }
+  legWin?: {
+    enabled?: boolean
+    type?: 'builtin' | 'gif' | 'video' | 'none'
+    mediaUrl?: string
+    soundUrl?: string
+  }
+  matchWin?: {
+    enabled?: boolean
+    type?: 'builtin' | 'gif' | 'video' | 'none'
+    mediaUrl?: string
+    soundUrl?: string
+  }
+  checkout?: {
+    enabled?: boolean
+    type?: 'builtin' | 'gif' | 'video' | 'none'
+    mediaUrl?: string
+    soundUrl?: string
+  }
+}
+
 const route = useRoute()
 const modulesStore = useModulesStore()
 const playersStore = usePlayersStore()
@@ -25,6 +55,14 @@ const config = ref<Record<string, unknown>>({})
 const isSaving = ref(false)
 const saveMessage = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 const actionLoading = ref(false)
+
+// Tab state
+const activeTab = ref<'display' | 'animations' | 'players'>('display')
+
+// Player override modal state
+const selectedPlayerOverride = ref<string | null>(null)
+const showPlayerOverrideModal = ref(false)
+const selectedAnimationType = ref<'throw180' | 'legWin' | 'matchWin' | 'checkout'>('throw180')
 
 // Current language for i18n
 const currentLang = computed(() => {
@@ -75,6 +113,30 @@ const i18n = computed(() => {
       step3Title: lang === 'de' ? 'Spielen!' : lang === 'es' ? '¡Jugar!' : 'Play!',
       step3Desc: lang === 'de' ? 'Der aktuelle Punktestand, Checkout-Vorschläge und alle Würfe werden live angezeigt.' : lang === 'es' ? 'La puntuación actual, sugerencias de checkout y todos los lanzamientos se muestran en vivo.' : 'The current score, checkout suggestions and all throws are displayed live.',
       clickPreview: lang === 'de' ? 'Klicken Sie auf die Vorschau oder nutzen Sie den Button oben, um das Display in einem neuen Fenster zu öffnen. Sie können die URL auch auf einem anderen Gerät im selben Netzwerk öffnen.' : lang === 'es' ? 'Haga clic en la vista previa o use el botón de arriba para abrir la pantalla en una nueva ventana. También puede abrir la URL en otro dispositivo de la misma red.' : 'Click on the preview or use the button above to open the display in a new window. You can also open the URL on another device on the same network.',
+      // Tab labels
+      tabDisplay: lang === 'de' ? 'Display' : lang === 'es' ? 'Pantalla' : 'Display',
+      tabAnimations: lang === 'de' ? 'Animationen' : lang === 'es' ? 'Animaciones' : 'Animations',
+      tabPlayers: lang === 'de' ? 'Spieler' : lang === 'es' ? 'Jugadores' : 'Players',
+      // Player overrides
+      playerAnimations: lang === 'de' ? 'Spieler-Animationen' : lang === 'es' ? 'Animaciones de Jugadores' : 'Player Animations',
+      playerAnimationsDesc: lang === 'de' ? 'Individuelle Animationen pro Spieler - werden angezeigt wenn der Spieler am Zug ist' : lang === 'es' ? 'Animaciones individuales por jugador - se muestran cuando es el turno del jugador' : 'Individual animations per player - shown when player is active',
+      customAnimationsActive: lang === 'de' ? 'Individuelle Animationen aktiv' : lang === 'es' ? 'Animaciones personalizadas activas' : 'Custom animations active',
+      usingDefaultAnimations: lang === 'de' ? 'Verwendet Standard-Animationen' : lang === 'es' ? 'Usando animaciones predeterminadas' : 'Using default animations',
+      configure: lang === 'de' ? 'Konfigurieren' : lang === 'es' ? 'Configurar' : 'Configure',
+      playerSettings: lang === 'de' ? 'Spieler-Einstellungen' : lang === 'es' ? 'Configuración del Jugador' : 'Player Settings',
+      noPlayers: lang === 'de' ? 'Keine Spieler vorhanden.' : lang === 'es' ? 'No hay jugadores.' : 'No players found.',
+      createPlayers: lang === 'de' ? 'Spieler erstellen' : lang === 'es' ? 'Crear jugadores' : 'Create players',
+      animationType: lang === 'de' ? 'Animationstyp' : lang === 'es' ? 'Tipo de animación' : 'Animation type',
+      animation180: lang === 'de' ? '180 Animation' : lang === 'es' ? 'Animación 180' : '180 Animation',
+      animationLegWin: lang === 'de' ? 'Leg Gewonnen' : lang === 'es' ? 'Leg Ganado' : 'Leg Won',
+      animationMatchWin: lang === 'de' ? 'Match Gewonnen' : lang === 'es' ? 'Match Ganado' : 'Match Won',
+      animationCheckout: lang === 'de' ? 'Checkout' : lang === 'es' ? 'Checkout' : 'Checkout',
+      mediaUrl: lang === 'de' ? 'GIF/Video URL' : lang === 'es' ? 'URL de GIF/Video' : 'GIF/Video URL',
+      soundUrl: lang === 'de' ? 'Sound URL' : lang === 'es' ? 'URL de Sonido' : 'Sound URL',
+      useBuiltin: lang === 'de' ? 'Standard' : lang === 'es' ? 'Predeterminado' : 'Built-in',
+      useGif: lang === 'de' ? 'GIF' : lang === 'es' ? 'GIF' : 'GIF',
+      useVideo: lang === 'de' ? 'Video' : lang === 'es' ? 'Video' : 'Video',
+      useNone: lang === 'de' ? 'Keine' : lang === 'es' ? 'Ninguna' : 'None',
       ...t.strings
     }
   }
@@ -246,6 +308,69 @@ function onAnimationReady(eventType: string, url: string) {
   }, 3000)
 }
 
+// Player animation override helpers
+function getPlayerAnimations(): PlayerAnimationOverride[] {
+  return (config.value.playerAnimations as PlayerAnimationOverride[]) || []
+}
+
+function hasPlayerOverride(playerName: string): boolean {
+  const overrides = getPlayerAnimations()
+  const override = overrides.find(p => p.playerName === playerName)
+  if (!override) return false
+  // Check if any animation is configured
+  return !!(
+    (override.throw180?.type && override.throw180.type !== 'none') ||
+    (override.legWin?.type && override.legWin.type !== 'none') ||
+    (override.matchWin?.type && override.matchWin.type !== 'none') ||
+    (override.checkout?.type && override.checkout.type !== 'none')
+  )
+}
+
+function openPlayerOverrideEditor(playerName: string) {
+  selectedPlayerOverride.value = playerName
+  selectedAnimationType.value = 'throw180'
+  showPlayerOverrideModal.value = true
+}
+
+function closePlayerOverrideModal() {
+  showPlayerOverrideModal.value = false
+  selectedPlayerOverride.value = null
+}
+
+function updatePlayerAnimationField(
+  playerName: string,
+  animType: 'throw180' | 'legWin' | 'matchWin' | 'checkout',
+  field: string,
+  value: unknown
+) {
+  const overrides = [...getPlayerAnimations()]
+  let override = overrides.find(p => p.playerName === playerName)
+  if (!override) {
+    override = { playerName }
+    overrides.push(override)
+  }
+  if (!override[animType]) {
+    override[animType] = {}
+  }
+  (override[animType] as Record<string, unknown>)[field] = value
+  config.value = { ...config.value, playerAnimations: overrides }
+}
+
+function getPlayerAnimationField(
+  playerName: string,
+  animType: 'throw180' | 'legWin' | 'matchWin' | 'checkout',
+  field: string
+): unknown {
+  const override = getPlayerAnimations().find(p => p.playerName === playerName)
+  if (!override || !override[animType]) return undefined
+  return (override[animType] as Record<string, unknown>)[field]
+}
+
+function removePlayerOverride(playerName: string) {
+  const overrides = getPlayerAnimations().filter(p => p.playerName !== playerName)
+  config.value = { ...config.value, playerAnimations: overrides }
+}
+
 // Open display in new window
 function openDisplay() {
   const displayUrl = `${window.location.origin}/module-ui/game-display/`
@@ -377,7 +502,33 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Display Preview -->
+        <!-- Tabs -->
+        <div class="flex gap-2 border-b border-dark-700 pb-1">
+          <button
+            v-for="tab in [
+              { id: 'display', label: i18n.strings.tabDisplay, icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+              { id: 'animations', label: i18n.strings.tabAnimations, icon: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+              { id: 'players', label: i18n.strings.tabPlayers, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' }
+            ]"
+            :key="tab.id"
+            @click="activeTab = tab.id as 'display' | 'animations' | 'players'"
+            :class="[
+              'flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium transition-colors',
+              activeTab === tab.id
+                ? 'bg-dark-700 text-white border-b-2 border-autodarts-500'
+                : 'text-dark-400 hover:text-white hover:bg-dark-700/50'
+            ]"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="tab.icon" />
+            </svg>
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <!-- Display Tab -->
+        <template v-if="activeTab === 'display'">
+          <!-- Display Preview -->
         <BaseCard :title="i18n.strings.displayPreview" :subtitle="i18n.strings.displayPreviewDesc">
           <div class="relative rounded-xl overflow-hidden border border-dark-600 bg-dark-900">
             <!-- Preview Frame -->
@@ -583,6 +734,50 @@ onMounted(() => {
           </form>
         </BaseCard>
 
+        <!-- Usage Info -->
+        <BaseCard :title="i18n.strings.usage">
+          <div class="space-y-4">
+            <div class="flex items-start gap-4">
+              <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
+                <span class="text-autodarts-400 font-bold">1</span>
+              </div>
+              <div>
+                <p class="text-white font-medium">{{ i18n.strings.step1Title }}</p>
+                <p class="text-dark-400 text-sm mt-1">
+                  {{ i18n.strings.step1Desc }}
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-4">
+              <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
+                <span class="text-autodarts-400 font-bold">2</span>
+              </div>
+              <div>
+                <p class="text-white font-medium">{{ i18n.strings.step2Title }}</p>
+                <p class="text-dark-400 text-sm mt-1">
+                  {{ i18n.strings.step2Desc }}
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-4">
+              <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
+                <span class="text-autodarts-400 font-bold">3</span>
+              </div>
+              <div>
+                <p class="text-white font-medium">{{ i18n.strings.step3Title }}</p>
+                <p class="text-dark-400 text-sm mt-1">
+                  {{ i18n.strings.step3Desc }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </BaseCard>
+        </template>
+
+        <!-- Animations Tab -->
+        <template v-if="activeTab === 'animations'">
         <!-- Animations Configuration -->
         <BaseCard :title="i18n.strings.animations" :subtitle="i18n.strings.animationsDesc">
           <!-- Enable Animations Toggle -->
@@ -819,47 +1014,166 @@ onMounted(() => {
           v-if="getValue('animationsEnabled')"
           @animation-ready="onAnimationReady"
         />
+        </template>
 
-        <!-- Usage Info -->
-        <BaseCard :title="i18n.strings.usage">
-          <div class="space-y-4">
-            <div class="flex items-start gap-4">
-              <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
-                <span class="text-autodarts-400 font-bold">1</span>
+        <!-- Players Tab -->
+        <template v-if="activeTab === 'players'">
+        <BaseCard :title="i18n.strings.playerAnimations" :subtitle="i18n.strings.playerAnimationsDesc">
+          <div v-if="playersStore.players.length > 0" class="space-y-3">
+            <div
+              v-for="player in playersStore.players"
+              :key="player.id"
+              class="flex items-center justify-between p-4 rounded-lg border transition-all"
+              :class="hasPlayerOverride(player.name)
+                ? 'border-autodarts-500/50 bg-autodarts-500/5'
+                : 'border-dark-600 bg-dark-700/30'"
+            >
+              <div class="flex items-center gap-3">
+                <div
+                  class="w-4 h-4 rounded-full flex-shrink-0"
+                  :style="{ backgroundColor: player.color || '#3b82f6' }"
+                />
+                <div>
+                  <p class="text-white font-medium">{{ player.name }}</p>
+                  <p v-if="hasPlayerOverride(player.name)" class="text-xs text-autodarts-400 mt-0.5">
+                    {{ i18n.strings.customAnimationsActive }}
+                  </p>
+                  <p v-else class="text-xs text-dark-500 mt-0.5">
+                    {{ i18n.strings.usingDefaultAnimations }}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p class="text-white font-medium">{{ i18n.strings.step1Title }}</p>
-                <p class="text-dark-400 text-sm mt-1">
-                  {{ i18n.strings.step1Desc }}
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-4">
-              <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
-                <span class="text-autodarts-400 font-bold">2</span>
-              </div>
-              <div>
-                <p class="text-white font-medium">{{ i18n.strings.step2Title }}</p>
-                <p class="text-dark-400 text-sm mt-1">
-                  {{ i18n.strings.step2Desc }}
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-4">
-              <div class="w-10 h-10 rounded-lg bg-autodarts-500/20 flex items-center justify-center flex-shrink-0">
-                <span class="text-autodarts-400 font-bold">3</span>
-              </div>
-              <div>
-                <p class="text-white font-medium">{{ i18n.strings.step3Title }}</p>
-                <p class="text-dark-400 text-sm mt-1">
-                  {{ i18n.strings.step3Desc }}
-                </p>
+              <div class="flex items-center gap-2">
+                <BaseButton
+                  variant="ghost"
+                  size="sm"
+                  @click="openPlayerOverrideEditor(player.name)"
+                >
+                  {{ hasPlayerOverride(player.name) ? 'Bearbeiten' : i18n.strings.configure }}
+                </BaseButton>
+                <BaseButton
+                  v-if="hasPlayerOverride(player.name)"
+                  variant="ghost"
+                  size="sm"
+                  @click="removePlayerOverride(player.name)"
+                >
+                  <svg class="w-4 h-4 text-dark-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </BaseButton>
               </div>
             </div>
           </div>
+
+          <!-- No Players -->
+          <div v-else class="text-center py-8">
+            <svg class="w-12 h-12 mx-auto text-dark-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <p class="text-dark-400 mt-3">
+              {{ i18n.strings.noPlayers }}
+              <router-link to="/players" class="text-autodarts-400 hover:underline">
+                {{ i18n.strings.createPlayers }}
+              </router-link>
+            </p>
+          </div>
         </BaseCard>
+        </template>
+
+        <!-- Player Override Modal -->
+        <Teleport to="body">
+          <div
+            v-if="showPlayerOverrideModal && selectedPlayerOverride"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
+            <div
+              class="absolute inset-0 bg-black/70"
+              @click="closePlayerOverrideModal"
+            />
+            <div class="relative bg-dark-800 rounded-2xl border border-dark-700 p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <h3 class="text-lg font-semibold text-white mb-4">
+                {{ i18n.strings.playerSettings }}: {{ selectedPlayerOverride }}
+              </h3>
+
+              <!-- Animation Type Tabs -->
+              <div class="flex gap-2 mb-6 border-b border-dark-700 pb-2">
+                <button
+                  v-for="animType in [
+                    { id: 'throw180', label: i18n.strings.animation180 },
+                    { id: 'legWin', label: i18n.strings.animationLegWin },
+                    { id: 'matchWin', label: i18n.strings.animationMatchWin },
+                    { id: 'checkout', label: i18n.strings.animationCheckout }
+                  ]"
+                  :key="animType.id"
+                  @click="selectedAnimationType = animType.id as 'throw180' | 'legWin' | 'matchWin' | 'checkout'"
+                  :class="[
+                    'px-3 py-2 rounded-lg text-sm transition-colors',
+                    selectedAnimationType === animType.id
+                      ? 'bg-autodarts-500/20 text-autodarts-400'
+                      : 'text-dark-400 hover:text-white hover:bg-dark-700'
+                  ]"
+                >
+                  {{ animType.label }}
+                </button>
+              </div>
+
+              <div class="space-y-4">
+                <!-- Animation Type Select -->
+                <div>
+                  <label class="block text-sm font-medium text-dark-200 mb-2">{{ i18n.strings.animationType }}</label>
+                  <div class="grid grid-cols-4 gap-2">
+                    <button
+                      v-for="type in [
+                        { value: 'builtin', label: i18n.strings.useBuiltin },
+                        { value: 'gif', label: i18n.strings.useGif },
+                        { value: 'video', label: i18n.strings.useVideo },
+                        { value: 'none', label: i18n.strings.useNone }
+                      ]"
+                      :key="type.value"
+                      type="button"
+                      @click="updatePlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'type', type.value)"
+                      :class="[
+                        'px-3 py-2 rounded-lg border text-sm transition-all',
+                        getPlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'type') === type.value
+                          ? 'border-autodarts-500 bg-autodarts-500/20 text-white'
+                          : 'border-dark-600 text-dark-400 hover:border-dark-500'
+                      ]"
+                    >
+                      {{ type.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Media URL (for gif/video) -->
+                <template v-if="getPlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'type') === 'gif' || getPlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'type') === 'video'">
+                  <MediaUpload
+                    :model-value="(getPlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'mediaUrl') as string) || ''"
+                    @update:model-value="updatePlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'mediaUrl', $event)"
+                    :label="i18n.strings.mediaUrl"
+                    media-type="animation"
+                  />
+                </template>
+
+                <!-- Sound URL -->
+                <MediaUpload
+                  :model-value="(getPlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'soundUrl') as string) || ''"
+                  @update:model-value="updatePlayerAnimationField(selectedPlayerOverride!, selectedAnimationType, 'soundUrl', $event)"
+                  :label="i18n.strings.soundUrl"
+                  media-type="sound"
+                />
+              </div>
+
+              <div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-dark-700">
+                <BaseButton variant="ghost" @click="closePlayerOverrideModal">
+                  Abbrechen
+                </BaseButton>
+                <BaseButton @click="closePlayerOverrideModal(); saveConfig()">
+                  {{ i18n.strings.save }}
+                </BaseButton>
+              </div>
+            </div>
+          </div>
+        </Teleport>
       </template>
     </div>
   </AppLayout>

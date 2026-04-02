@@ -323,6 +323,70 @@ describe('EventParser', () => {
       });
       expect(parser.getMatchId()).toBeNull();
     });
+
+    it('should NOT emit duplicate turn.finished on round change after bust (bug fix)', () => {
+      // This test verifies the fix for the bug where bust was announced twice
+      // when the last player busted and then the round changed.
+      //
+      // Scenario: 2 players, player 1 (index 1) busts, round changes to next round
+      // Expected: Only ONE turn.finished event with busted=true
+
+      // Initial state: player 0 finishes, player 1 is up
+      const state1 = createMatchState({
+        player: 1,
+        round: 1,
+        turnScore: 0,
+        turnBusted: false,
+        gameScores: [441, 501],
+      });
+      parser.parse({
+        channel: 'autodarts.matches',
+        topic: `${MATCH_ID}.state`,
+        data: state1,
+      });
+
+      // Player 1 busts - turnBusted becomes true
+      const state2 = createMatchState({
+        player: 1,
+        round: 1,
+        turnScore: 0,
+        turnBusted: true,
+        gameScores: [441, 501], // Score unchanged due to bust
+        turns: [{ playerId: 'player-2', throws: [{ segment: { name: 'T19', multiplier: 3, number: 19, bed: 'Triple' }, throw: 1 }] }],
+      });
+      const bustEvent = parser.parse({
+        channel: 'autodarts.matches',
+        topic: `${MATCH_ID}.state`,
+        data: state2,
+      });
+
+      const bustEvents = Array.isArray(bustEvent) ? bustEvent : [bustEvent];
+      const bustTurnFinished = bustEvents.filter((e) => e?.type === 'turn.finished');
+
+      // Should have exactly ONE turn.finished event for the bust
+      expect(bustTurnFinished.length).toBe(1);
+      expect(bustTurnFinished[0]!.data.busted).toBe(true);
+
+      // Now the round changes (takeout finished, player 0 is up again)
+      const state3 = createMatchState({
+        player: 0,
+        round: 2, // Round changed!
+        turnScore: 0,
+        turnBusted: false, // New player, not busted
+        gameScores: [441, 501],
+      });
+      const roundChangeEvent = parser.parse({
+        channel: 'autodarts.matches',
+        topic: `${MATCH_ID}.state`,
+        data: state3,
+      });
+
+      const roundChangeEvents = Array.isArray(roundChangeEvent) ? roundChangeEvent : [roundChangeEvent];
+      const roundChangeTurnFinished = roundChangeEvents.filter((e) => e?.type === 'turn.finished');
+
+      // Should NOT have another turn.finished event - the bust was already announced!
+      expect(roundChangeTurnFinished.length).toBe(0);
+    });
   });
 
   describe('Unknown Events', () => {

@@ -145,6 +145,7 @@ export type IPCMessageType =
   | 'request' // Generic request from module
   | 'routes.register' // Module registers API routes
   | 'route.response' // Response to route request
+  | 'intent.emit' // Module emits an intent to the hub
   // Bidirectional
   | 'ping' // Health check
   | 'pong'; // Health check response
@@ -207,6 +208,11 @@ export interface ErrorPayload {
 export interface RequestPayload {
   action: string;
   data?: Record<string, unknown>;
+}
+
+export interface IntentEmitPayload {
+  intentId: string;
+  payload: Record<string, unknown>;
 }
 
 // ============================================

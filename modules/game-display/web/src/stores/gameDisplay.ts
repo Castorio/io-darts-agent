@@ -73,10 +73,23 @@ export interface WinEventData {
   setsWon?: number
 }
 
+// Player animation override (new format from UI)
+export interface PlayerAnimationOverride {
+  type?: 'builtin' | 'gif' | 'video' | 'none'
+  mediaUrl?: string
+  soundUrl?: string
+}
+
 export interface PlayerAnimations {
   playerId?: string // Autodarts user ID or local player ID
   playerName?: string // Match by name if no ID
-  animations: Partial<Record<AnimationEventType, AnimationConfig>>
+  // Old format (backward compatibility)
+  animations?: Partial<Record<AnimationEventType, AnimationConfig>>
+  // New format (from UI config)
+  throw180?: PlayerAnimationOverride
+  legWin?: PlayerAnimationOverride
+  matchWin?: PlayerAnimationOverride
+  checkout?: PlayerAnimationOverride
 }
 
 // Types
@@ -251,6 +264,10 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   const showMatchResults = ref(false)
   let matchResultsTimer: ReturnType<typeof setTimeout> | null = null
 
+  // Track processed darts to detect new throws from match.state events
+  // This allows bull/bullseye animations even when throw.detected events don't arrive
+  let lastProcessedDartsCount = 0
+
   // Computed
   const activePlayer = computed(() => {
     return gameState.value.players[gameState.value.activePlayerIndex] || null
@@ -293,7 +310,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     defaultDuration: number = 3000
   ): AnimationConfig | WinAnimationConfig | null {
     if (!groupConfig) return null
-    const type = groupConfig.type as string
+    // Default to 'builtin' if type is not set (e.g., when config hasn't been saved yet)
+    const type = (groupConfig.type as string) || 'builtin'
     if (type === 'none') return null
 
     // Base animation config
@@ -348,12 +366,24 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
           'animationBust': 'bust',
         }
 
-        // Parse each animation group
+        // Parse each animation group (new format from module.json)
         for (const [groupName, eventType] of Object.entries(animationGroupMap)) {
           const groupConfig = data[groupName] as Record<string, unknown> | undefined
           const animConfig = parseAnimationGroup(groupConfig)
           if (animConfig) {
             defaultAnimations[eventType] = animConfig
+          }
+        }
+
+        // Fallback: Also check for old format in data.defaultAnimations
+        // This ensures backward compatibility with existing configurations
+        const legacyAnimations = data.defaultAnimations as Partial<Record<AnimationEventType, AnimationConfig>> | undefined
+        if (legacyAnimations) {
+          for (const [eventType, animConfig] of Object.entries(legacyAnimations)) {
+            // Only use legacy config if we didn't already load from new format
+            if (!defaultAnimations[eventType as AnimationEventType] && animConfig?.enabled) {
+              defaultAnimations[eventType as AnimationEventType] = animConfig
+            }
           }
         }
 
@@ -376,6 +406,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
           defaultAnimations: defaultAnimations,
           playerAnimations: data.playerAnimations || [],
         }
+        console.log('🎮 [GameDisplay] Parsed player animations:', config.value.playerAnimations)
       }
     } catch (e) {
       console.error('Failed to fetch config:', e)
@@ -513,6 +544,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
     showMatchResults.value = false
 
+    // Reset dart tracking for new match
+    lastProcessedDartsCount = 0
+
     // Set match started state
     isMatchStarted.value = true
     matchStartedMatchId.value = (data.matchId as string) || null
@@ -607,6 +641,42 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // This is already the score AFTER the current turn's throws are subtracted
     // (Autodarts updates gameScores in real-time with each throw)
     const playerRemainingScore = gameScores?.[gameState.value.activePlayerIndex] ?? gameState.value.startScore
+
+    // Check for NEW darts and trigger bull animations if needed
+    // This handles the case where throw.detected events don't arrive
+    // but we still get the throws via match.state
+    const newDartsCount = currentTurnDarts.length
+    if (newDartsCount > lastProcessedDartsCount) {
+      // Process only the NEW darts (ones we haven't seen before)
+      for (let i = lastProcessedDartsCount; i < newDartsCount; i++) {
+        const dart = currentTurnDarts[i]
+        if (dart && dart.segment) {
+          const number = dart.segment.number
+          const multiplier = dart.segment.multiplier
+          const player = gameState.value.players[gameState.value.activePlayerIndex]
+
+          // Trigger bull animations
+          if (number === 25 && multiplier === 1) {
+            console.log('🎯 Bull detected from match.state - triggering animation')
+            triggerAnimation('bull', player || undefined)
+          } else if (number === 25 && multiplier === 2) {
+            console.log('🎯 Double Bull detected from match.state - triggering animation')
+            triggerAnimation('doubleBull', player || undefined)
+          }
+
+          // Check for 180 (after 3 darts, all T20)
+          if (i === 2 && turnScore === 180) {
+            triggerAnimation('180', player || undefined)
+          }
+
+          // Check for high score (140+) after third dart
+          if (i === 2 && turnScore >= 140 && turnScore < 180) {
+            triggerAnimation('highScore', player || undefined)
+          }
+        }
+      }
+    }
+    lastProcessedDartsCount = newDartsCount
 
     gameState.value.currentTurn = {
       darts: currentTurnDarts,
@@ -715,7 +785,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       })
     }
 
-    // Reset current turn
+    // Reset current turn and dart tracking
+    lastProcessedDartsCount = 0
     gameState.value.currentTurn = {
       darts: [],
       turnScore: 0,
@@ -958,6 +1029,33 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   }
 
   // Animation functions
+
+  // Default durations for builtin animations (in ms)
+  const BUILTIN_ANIMATION_DURATIONS: Record<AnimationEventType, number> = {
+    '180': 4000,
+    'bull': 2000,
+    'doubleBull': 2500,
+    'highScore': 2000,
+    'checkout': 2500,
+    'legWin': 3000,
+    'setWin': 3000,
+    'matchWin': 5000,
+    'bust': 1500,
+  }
+
+  // Map event type to UI key
+  const EVENT_TO_UI_KEY_MAP: Record<AnimationEventType, string> = {
+    '180': 'throw180',
+    'legWin': 'legWin',
+    'matchWin': 'matchWin',
+    'checkout': 'checkout',
+    'bull': 'bull',
+    'doubleBull': 'doubleBull',
+    'highScore': 'highScore',
+    'setWin': 'setWin',
+    'bust': 'bust',
+  }
+
   function getAnimationForEvent(
     eventType: AnimationEventType,
     player?: Player
@@ -966,27 +1064,73 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     // First check player-specific animations
     if (player) {
+      console.log(`🔍 [GameDisplay] Looking for player animation:`, {
+        playerName: player.name,
+        playerOdId: player.odId,
+        availableOverrides: config.value.playerAnimations.map((pa: Record<string, unknown>) => ({
+          playerName: pa.playerName,
+          playerId: pa.playerId
+        }))
+      })
+
+      // Support both old format (with animations sub-object) and new format (direct keys)
       const playerAnim = config.value.playerAnimations.find(
-        (pa) =>
+        (pa: Record<string, unknown>) =>
           (pa.playerId && pa.playerId === player.odId) ||
-          (pa.playerName && pa.playerName.toLowerCase() === player.name.toLowerCase())
-      )
-      if (playerAnim?.animations[eventType]?.enabled) {
-        return playerAnim.animations[eventType]!
+          (pa.playerName && (pa.playerName as string).toLowerCase() === player.name.toLowerCase())
+      ) as Record<string, unknown> | undefined
+
+      if (playerAnim) {
+        // Get the UI key for this event type
+        const uiKey = EVENT_TO_UI_KEY_MAP[eventType]
+
+        // Check new format: direct keys like throw180, legWin, etc.
+        const newFormatAnim = playerAnim[uiKey] as Record<string, unknown> | undefined
+        if (newFormatAnim) {
+          const animType = newFormatAnim.type as string
+          // Check if animation is configured (type is not 'none' and not undefined)
+          if (animType && animType !== 'none') {
+            const mediaUrl = (newFormatAnim.mediaUrl as string) || ''
+            const soundUrl = (newFormatAnim.soundUrl as string) || undefined
+            console.log(`🎮 [GameDisplay] Found player animation for ${player.name}:`, {
+              uiKey,
+              animType,
+              mediaUrl,
+              soundUrl,
+              fullConfig: newFormatAnim
+            })
+            return {
+              enabled: true,
+              url: animType === 'builtin' ? '' : mediaUrl,
+              duration: BUILTIN_ANIMATION_DURATIONS[eventType] || 3000,
+              sound: soundUrl,
+            }
+          }
+        }
+
+        // Check old format: animations sub-object
+        const oldAnimations = playerAnim.animations as Record<string, AnimationConfig> | undefined
+        if (oldAnimations?.[eventType]?.enabled) {
+          return oldAnimations[eventType]
+        }
       }
     }
 
-    // Fall back to default animations
+    // Fall back to default animations if explicitly configured
     const defaultAnim = config.value.defaultAnimations[eventType]
     if (defaultAnim?.enabled) {
       return defaultAnim
     }
 
-    // If no custom animation found, check if builtin is enabled
-    // The parseAnimationGroup already handles this - if type is 'builtin',
-    // it returns enabled: true with empty URL, which triggers builtin animation display
-
-    return null
+    // If no explicit config exists but animations are enabled globally,
+    // return a default builtin animation config
+    // This ensures builtin animations play even without explicit configuration
+    return {
+      enabled: true,
+      url: '', // empty URL triggers builtin animation in AnimationOverlay.vue
+      duration: BUILTIN_ANIMATION_DURATIONS[eventType] || 3000,
+      sound: undefined,
+    }
   }
 
   function triggerAnimation(eventType: AnimationEventType, player?: Player, winData?: WinEventData) {
@@ -1006,6 +1150,13 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       winData: winData,
       winConfig: isWinConfig ? (animConfig as WinAnimationConfig) : undefined,
     }
+
+    console.log(`🎬 [GameDisplay] Triggering animation:`, {
+      eventType,
+      playerName: player?.name,
+      animConfig,
+      resultAnimation: animation
+    })
 
     // Add to queue
     animationQueue.value.push(animation)
@@ -1072,6 +1223,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       lastGameState.value = JSON.parse(JSON.stringify(gameState.value))
       hasLastGame.value = true
     }
+
+    // Reset dart tracking
+    lastProcessedDartsCount = 0
 
     // Reset match started state
     isMatchStarted.value = false

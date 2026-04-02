@@ -547,6 +547,7 @@ export class ModuleManager extends EventEmitter {
 
   /**
    * Merge config with defaults from manifest
+   * Supports nested 'group' type fields with their own 'fields' definitions
    */
   private mergeWithDefaults(
     schema: ModuleManifest['config'],
@@ -556,7 +557,20 @@ export class ModuleManager extends EventEmitter {
 
     if (schema) {
       for (const [key, field] of Object.entries(schema)) {
-        result[key] = config[key] ?? field.default;
+        // Handle group type with nested fields
+        if (field.type === 'group' && field.fields) {
+          const groupConfig = (config[key] as Record<string, unknown>) || {};
+          const groupResult: Record<string, unknown> = {};
+
+          // Merge each field in the group with its default
+          for (const [fieldKey, fieldDef] of Object.entries(field.fields as Record<string, { default?: unknown }>)) {
+            groupResult[fieldKey] = groupConfig[fieldKey] ?? fieldDef.default;
+          }
+
+          result[key] = groupResult;
+        } else {
+          result[key] = config[key] ?? field.default;
+        }
       }
     }
 

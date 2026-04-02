@@ -27,6 +27,7 @@ export interface CallRequest {
   audioFile?: string;
   priority: number;
   timestamp: number;
+  callerType?: CallerType;
 }
 
 /**
@@ -85,6 +86,8 @@ export interface CallSettings {
   gameOver?: boolean;
   special180?: boolean;
   busts?: boolean;
+  bulls?: boolean;
+  doubleBulls?: boolean;
 }
 
 /**
@@ -122,6 +125,8 @@ export interface DartsCallerConfig {
   callGameOver?: boolean;
   call180?: boolean;
   callBusts?: boolean;
+  callBulls?: boolean;
+  callDoubleBulls?: boolean;
   elevenlabs?: ElevenLabsCallerConfig;
 }
 
@@ -275,6 +280,8 @@ export class DartsCallerHandler {
       gameOver: true,
       special180: true,
       busts: true,
+      bulls: true,
+      doubleBulls: true,
     };
     return defaults[key];
   }
@@ -476,14 +483,15 @@ export class DartsCallerHandler {
 
     const voicePackId = this.getVoicepackId();
     if (!voicePackId || !this.voicePackGenerator) {
-      console.log('⚠️ Cannot process player names: no voice pack or generator configured');
+      // Silently return - voice pack generator is optional (requires ElevenLabs API key)
+      // Player names will still work if audio files already exist in the voice pack
       return;
     }
 
     // Get pack info to get voiceId
     const packInfo = this.voicePackGenerator.getPackInfo(voicePackId);
     if (!packInfo) {
-      console.log(`⚠️ Voice pack "${voicePackId}" not found`);
+      console.log(`⚠️ Voice pack "${voicePackId}" not found - packInfo is null`);
       return;
     }
 
@@ -525,7 +533,8 @@ export class DartsCallerHandler {
     }
 
     try {
-      // Generate all missing names
+      // Generate all missing names with the pack's language for proper pronunciation
+      console.log(`🎤 Generating with language: ${packInfo.language}`);
       const result = await this.voicePackGenerator.generatePlayerNames(
         voicePackId,
         missingNames,
@@ -534,6 +543,8 @@ export class DartsCallerHandler {
           // Use the same settings as the pack was generated with (if available)
           stability: 0.5,
           similarityBoost: 0.75,
+          // Pass the voicepack's language for proper pronunciation model selection
+          language: packInfo.language,
         }
       );
 
@@ -787,7 +798,38 @@ export class DartsCallerHandler {
     const remaining = (eventData.remaining as number) || 0;
     const busted = eventData.busted as boolean;
 
-    console.log(`🎯 Turn finished: ${turnPoints} points, ${remaining} remaining, busted: ${busted}`);
+    // Check for bulls in the throws array
+    // Autodarts format: throws is an array of { segment: { bed, multiplier, number, name }, coords, throw }
+    const throws = eventData.throws as Array<{
+      segment?: { bed?: string; multiplier?: number; number?: number; name?: string };
+      coords?: unknown;
+      throw?: number;
+    }> | undefined;
+    let hasBull = false;
+    let hasDoubleBull = false;
+
+    if (throws && Array.isArray(throws)) {
+      for (const throwData of throws) {
+        const segment = throwData.segment;
+        if (!segment) continue;
+
+        // Autodarts uses segment.bed to indicate the type:
+        // - "Bull" = Single Bull (25 points)
+        // - "DoubleBull" = Double Bull / Bullseye (50 points)
+        const bed = segment.bed?.toLowerCase() || '';
+        const number = segment.number ?? 0;
+
+        if (bed === 'doublebull' || (number === 25 && segment.multiplier === 2)) {
+          hasDoubleBull = true;
+        } else if (bed === 'bull' || (number === 25 && segment.multiplier === 1)) {
+          hasBull = true;
+        }
+      }
+    }
+
+    console.log(`🎯 Turn throws:`, JSON.stringify(throws?.map(t => t.segment) ?? []));
+
+    console.log(`🎯 Turn finished: ${turnPoints} points, ${remaining} remaining, busted: ${busted}, bull: ${hasBull}, doubleBull: ${hasDoubleBull}`);
 
     // Handle busted turn
     if (busted) {
@@ -796,6 +838,20 @@ export class DartsCallerHandler {
         this.stats.specialCalls++;
       }
       return;
+    }
+
+    // Handle double bull (bullseye) - highest priority after 180
+    if (hasDoubleBull && this.getCallSetting('doubleBulls', 'callDoubleBulls')) {
+      this.generateCall('special', 'Bullseye!', 'double_bull', 9);
+      this.stats.specialCalls++;
+      // Continue to also call the score
+    }
+
+    // Handle single bull
+    if (hasBull && !hasDoubleBull && this.getCallSetting('bulls', 'callBulls')) {
+      this.generateCall('special', 'Bull!', 'bull', 7);
+      this.stats.specialCalls++;
+      // Continue to also call the score
     }
 
     // Check for 180
@@ -901,6 +957,7 @@ export class DartsCallerHandler {
       audioFile,
       priority,
       timestamp: Date.now(),
+      callerType: this.config.callerType || 'tts',
     };
 
     this.stats.callsGenerated++;

@@ -205,7 +205,14 @@ export const useEventsStore = defineStore('events', () => {
 
   function handleCallerMessage(message: WSCallerMessage) {
     console.log('🎙️ Caller request received:', message.request)
-    callerAudioPlayer.enqueue(message.request)
+    // Only play in browser if callerType is 'tts' (browser TTS)
+    // Voice packs and ElevenLabs are played locally on the server
+    const callerType = message.callerType || (message.request as { callerType?: string }).callerType || 'tts'
+    if (callerType === 'tts') {
+      callerAudioPlayer.enqueue(message.request)
+    } else {
+      console.log('🔇 Skipping browser playback - audio played on server (callerType:', callerType, ')')
+    }
   }
 
   function setCallerVolume(volume: number) {

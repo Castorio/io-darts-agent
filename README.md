@@ -13,6 +13,7 @@ A modular hub for [Autodarts](https://autodarts.io) that processes real-time eve
 - **Voice Pack Generator** - Create custom caller voice packs using ElevenLabs TTS
 - **Real-time Logs** - Live view of all events and module activities
 - **Multi-language** - Interface available in English, German, and Spanish
+- **AI Integration** - Built-in support for AI providers (ElevenLabs, Runway ML, OpenAI, Anthropic, and more)
 
 ---
 
@@ -86,11 +87,64 @@ Download the appropriate package for your system:
 - Checkout calls ("You require...")
 - Special calls: 180, bust, game shot, match shot
 - Player change announcements with player names
-- **Dynamic player name generation**: New players are automatically detected at game start and their names are generated via ElevenLabs TTS
+- **Dynamic player name generation**: New players are automatically detected at game start and their names are generated via ElevenLabs TTS in real-time
 - Browser TTS or custom audio packs
 - Voice Pack Generator with ElevenLabs TTS
 - Multi-voice-pack support (different voices/languages)
 - Local audio playback (server-side)
+
+---
+
+## AI Features
+
+IO-Darts-Agent includes a powerful AI integration system that enables advanced features across modules.
+
+### Supported AI Providers
+
+| Provider | Type | Features |
+|----------|------|----------|
+| **ElevenLabs** | Text-to-Speech | Voice Pack generation, dynamic player name synthesis |
+| **Runway ML** | Video Generation | Custom animations from text/images (Gen-2/Gen-3) |
+| **OpenAI** | LLM / Images | Text generation, image generation (optional) |
+| **Anthropic** | LLM | Text generation (optional) |
+| **Stability AI** | Image Generation | Image generation (optional) |
+| **Ollama** | Local LLM | Local AI models (optional) |
+| **Replicate** | Multi-Model | Various AI models (optional) |
+
+### ElevenLabs Integration
+
+The ElevenLabs integration powers the voice features:
+
+- **Voice Pack Generator**: Generate complete caller voice packs with any ElevenLabs voice
+  - All scores (0-180)
+  - Checkout suggestions ("You require X")
+  - Special calls (180, Game Shot, Match Shot, Bust)
+  - Player-specific phrases
+
+- **Dynamic Player Names**: When a new player joins a game, their name is automatically synthesized using ElevenLabs TTS and cached for future use. This happens in real-time at game start.
+
+### Runway ML Animation Generation
+
+Create custom animations for game events:
+
+- **Text-to-Video**: Generate animations from text prompts (e.g., "Fireworks celebration")
+- **Image-to-Video**: Animate static images for personalized player celebrations
+- **Use Cases**:
+  - 180 celebration animations
+  - Leg/Set/Match win animations
+  - Player-specific victory animations
+  - Custom checkout celebrations
+
+### AI Configuration
+
+Configure AI providers in the web interface under **Settings > AI Providers**:
+
+1. Select a provider (e.g., ElevenLabs)
+2. Enter your API key
+3. Enable the provider
+4. Test the connection
+
+Provider settings are stored in `config/ai-providers.json`.
 
 ### Installing Modules from Git
 

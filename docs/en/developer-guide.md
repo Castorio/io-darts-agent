@@ -447,6 +447,168 @@ npm outdated
 
 ---
 
+## AI Provider System
+
+IO-Darts-Agent includes a flexible AI provider system that modules can use for various AI-powered features.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AI Provider Manager                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │  ElevenLabs  │  │   Runway ML  │  │   Other Providers │  │
+│  │  (TTS)       │  │  (Video)     │  │   (LLM, Images)   │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        Modules                                │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐   │
+│  │DartsCaller  │ │Game Display │ │  Custom Modules     │   │
+│  │(TTS)        │ │(Animations) │ │  (Any AI Features)  │   │
+│  └─────────────┘ └─────────────┘ └─────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Provider Configuration
+
+Providers are configured in `config/ai-providers.json`:
+
+```json
+[
+  {
+    "id": "elevenlabs",
+    "type": "elevenlabs",
+    "name": "ElevenLabs",
+    "apiKey": "your-api-key",
+    "enabled": true,
+    "options": {
+      "defaultModel": "eleven_multilingual_v2"
+    }
+  },
+  {
+    "id": "runway",
+    "type": "runway",
+    "name": "Runway ML",
+    "apiKey": "your-api-key",
+    "enabled": true
+  }
+]
+```
+
+### Supported Providers
+
+| Provider | Type | Capabilities | Use Cases |
+|----------|------|--------------|-----------|
+| **ElevenLabs** | `elevenlabs` | `audio-tts` | Voice packs, player names |
+| **Runway ML** | `runway` | `video-generation` | Animations, celebrations |
+| **OpenAI** | `openai` | `text`, `image-generation` | Chat, image generation |
+| **Anthropic** | `anthropic` | `text` | Chat, analysis |
+| **Stability AI** | `stability` | `image-generation` | Image generation |
+| **Ollama** | `ollama` | `text` | Local LLM inference |
+| **Replicate** | `replicate` | Various | Custom models |
+
+### Using AI Providers in Code
+
+```typescript
+import { getAIProvider, getEnabledProviders } from '../core/ai/index.js';
+
+// Get a specific provider
+const elevenlabs = getAIProvider('elevenlabs');
+if (elevenlabs?.isAvailable()) {
+  // Generate speech
+  const response = await elevenlabs.generateSpeech({
+    text: 'One hundred and eighty!',
+    voice: 'voice-id-or-name',
+  });
+}
+
+// Get all enabled providers with a capability
+const ttsProviders = getEnabledProviders('audio-tts');
+```
+
+### ElevenLabs Provider
+
+```typescript
+import { ElevenLabsProvider } from '../core/ai/providers/ElevenLabsProvider.js';
+
+// Get voices
+const voices = await elevenlabs.getVoices();
+
+// Generate speech
+const result = await elevenlabs.generateSpeech({
+  text: 'Player one, you require 40!',
+  voice: 'Rachel',  // Name or ID
+  model: 'eleven_multilingual_v2',
+  stability: 0.5,
+  similarityBoost: 0.75,
+});
+
+// Save to file
+await elevenlabs.generateSpeechToFile(
+  { text: '180!', voice: 'voice-id' },
+  '/path/to/output.mp3'
+);
+```
+
+### Runway ML Provider
+
+```typescript
+import { RunwayProvider } from '../core/ai/providers/RunwayProvider.js';
+
+// Text-to-video
+const result = await runway.generateVideo({
+  prompt: 'Fireworks celebration, darts theme',
+  duration: 5,
+  aspectRatio: '16:9',
+});
+
+// Image-to-video
+const result = await runway.generateVideo({
+  imageUrl: 'https://example.com/player-photo.jpg',
+  prompt: 'Celebrating, arms raised',
+  duration: 5,
+});
+
+// Wait for completion (async job)
+const job = await runway.waitForCompletion(result.jobId);
+console.log('Video URL:', job.resultUrl);
+```
+
+### Creating a Custom Provider
+
+```typescript
+// src/core/ai/providers/MyProvider.ts
+import { BaseAIProvider } from '../AIProvider.js';
+import type { AIProviderConfig, AICapability } from '../types.js';
+
+export class MyProvider extends BaseAIProvider {
+  readonly capabilities: AICapability[] = ['text'];
+
+  constructor(config: AIProviderConfig) {
+    super(config);
+  }
+
+  protected override getAuthHeaders(): Record<string, string> {
+    return {
+      Authorization: `Bearer ${this.config.apiKey}`,
+    };
+  }
+
+  async generateText(prompt: string): Promise<string> {
+    const response = await this.fetchJson('/v1/completions', {
+      method: 'POST',
+      body: { prompt },
+    });
+    return response.text;
+  }
+}
+```
+
+---
+
 ## Help & Support
 
 - **Issues**: GitHub Issues for bugs and features

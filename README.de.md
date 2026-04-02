@@ -13,6 +13,7 @@ Ein modularer Hub für [Autodarts](https://autodarts.io), der Echtzeit-Events ve
 - **Voice Pack Generator** - Erstelle eigene Caller-Voice-Packs mit ElevenLabs TTS
 - **Echtzeit-Logs** - Live-Ansicht aller Events und Modul-Aktivitäten
 - **Mehrsprachig** - Interface verfügbar auf Deutsch, Englisch und Spanisch
+- **KI-Integration** - Integrierte Unterstützung für KI-Anbieter (ElevenLabs, Runway ML, OpenAI, Anthropic und mehr)
 
 ---
 
@@ -86,11 +87,64 @@ Lade das passende Paket für dein System herunter:
 - Checkout-Ansagen ("You require...")
 - Spezial-Ansagen: 180, Bust, Game Shot, Match Shot
 - Spielerwechsel-Ansagen mit Spielernamen
-- **Dynamische Spielernamen-Generierung**: Neue Spieler werden automatisch beim Spielstart erkannt und deren Namen via ElevenLabs TTS generiert
+- **Dynamische Spielernamen-Generierung**: Neue Spieler werden automatisch beim Spielstart erkannt und deren Namen via ElevenLabs TTS in Echtzeit generiert
 - Browser-TTS oder eigene Audio-Packs
 - Voice Pack Generator mit ElevenLabs TTS
 - Multi-Voice-Pack-Unterstützung (verschiedene Stimmen/Sprachen)
 - Lokale Audio-Wiedergabe (Server-seitig)
+
+---
+
+## KI-Features
+
+IO-Darts-Agent enthält ein leistungsstarkes KI-Integrationssystem, das erweiterte Funktionen für alle Module ermöglicht.
+
+### Unterstützte KI-Anbieter
+
+| Anbieter | Typ | Funktionen |
+|----------|-----|------------|
+| **ElevenLabs** | Text-to-Speech | Voice Pack Generierung, dynamische Spielernamen-Synthese |
+| **Runway ML** | Video-Generierung | Eigene Animationen aus Text/Bildern (Gen-2/Gen-3) |
+| **OpenAI** | LLM / Bilder | Textgenerierung, Bildgenerierung (optional) |
+| **Anthropic** | LLM | Textgenerierung (optional) |
+| **Stability AI** | Bildgenerierung | Bildgenerierung (optional) |
+| **Ollama** | Lokales LLM | Lokale KI-Modelle (optional) |
+| **Replicate** | Multi-Modell | Verschiedene KI-Modelle (optional) |
+
+### ElevenLabs-Integration
+
+Die ElevenLabs-Integration ermöglicht die Sprachfunktionen:
+
+- **Voice Pack Generator**: Generiere komplette Caller-Voice-Packs mit jeder ElevenLabs-Stimme
+  - Alle Scores (0-180)
+  - Checkout-Vorschläge ("You require X")
+  - Spezial-Ansagen (180, Game Shot, Match Shot, Bust)
+  - Spieler-spezifische Phrasen
+
+- **Dynamische Spielernamen**: Wenn ein neuer Spieler einem Spiel beitritt, wird sein Name automatisch mit ElevenLabs TTS synthetisiert und für zukünftige Verwendung gecacht. Dies geschieht in Echtzeit beim Spielstart.
+
+### Runway ML Animations-Generierung
+
+Erstelle eigene Animationen für Spielereignisse:
+
+- **Text-zu-Video**: Generiere Animationen aus Textbeschreibungen (z.B. "Feuerwerk-Celebration")
+- **Bild-zu-Video**: Animiere statische Bilder für personalisierte Spieler-Celebrations
+- **Anwendungsfälle**:
+  - 180 Celebrations
+  - Leg/Set/Match-Gewinn Animationen
+  - Spieler-spezifische Sieges-Animationen
+  - Eigene Checkout-Celebrations
+
+### KI-Konfiguration
+
+Konfiguriere KI-Anbieter im Web-Interface unter **Einstellungen > KI-Anbieter**:
+
+1. Wähle einen Anbieter (z.B. ElevenLabs)
+2. Gib deinen API-Key ein
+3. Aktiviere den Anbieter
+4. Teste die Verbindung
+
+Anbieter-Einstellungen werden in `config/ai-providers.json` gespeichert.
 
 ### Module aus Git installieren
 

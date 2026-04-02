@@ -202,16 +202,127 @@ Professioneller Darts-Caller mit TTS oder eigenen Audio-Packs.
 - Multi-Voice-Pack-Unterstützung (verschiedene Stimmen/Sprachen)
 - Lokale Audio-Wiedergabe (Server-seitig)
 
+## KI-Features
+
+IO-Darts-Agent enthält ein umfassendes KI-Integrationssystem, das leistungsstarke Funktionen für alle Module ermöglicht.
+
+### KI-Provider-System
+
+Der Hub verwaltet Verbindungen zu mehreren KI-Anbietern über eine einheitliche Schnittstelle:
+
+| Anbieter | Typ | Fähigkeiten | Status |
+|----------|-----|-------------|--------|
+| **ElevenLabs** | TTS | Sprachsynthese, Voice Packs | Produktion |
+| **Runway ML** | Video | Animations-Generierung (Gen-2/Gen-3) | Produktion |
+| **OpenAI** | Multi | Text, Bilder, Embeddings | Verfügbar |
+| **Anthropic** | LLM | Textgenerierung | Verfügbar |
+| **Stability AI** | Bild | Bildgenerierung | Verfügbar |
+| **Ollama** | Lokales LLM | Lokale Textgenerierung | Verfügbar |
+| **Replicate** | Multi | Verschiedene Modelle | Verfügbar |
+
+### ElevenLabs-Integration
+
+**Voice Pack-Generierung:**
+- Generiere komplette Caller-Voice-Packs mit jeder ElevenLabs-Stimme
+- Alle Scores (0-180), Checkouts, Spezial-Ansagen automatisch generiert
+- Stimmenvorschau und Auswahl-UI
+- Zeichenverbrauchs-Tracking und Kontingent-Anzeige
+
+**Dynamische Spielernamen-Synthese:**
+- Automatische Erkennung neuer Spieler beim Spielstart
+- Spielernamen-Audio in Echtzeit via ElevenLabs TTS generieren
+- Generierte Namen für zukünftige Spiele cachen
+- Nahtlose Integration mit bestehenden Voice Packs
+
+**Konfiguration:**
+- Stimmenauswahl aus verfügbaren ElevenLabs-Stimmen
+- Stability und Similarity-Boost Einstellungen
+- Modellauswahl (eleven_multilingual_v2, etc.)
+- Audio-Format-Optionen (MP3, WAV, OGG, FLAC)
+
+### Runway ML Animations-Generierung
+
+**Text-zu-Video:**
+- Generiere eigene Animationen aus Textbeschreibungen
+- Ideal für Celebration-Animationen (180, Checkouts, Siege)
+- 5-10 Sekunden Video-Clips
+- Mehrere Seitenverhältnisse (16:9, 9:16, 1:1)
+
+**Bild-zu-Video:**
+- Statische Bilder animieren (Spielerfotos, Logos)
+- Personalisierte Spieler-Eingangs-Animationen erstellen
+- Bewegungseffekte aus Standbildern
+
+**Anwendungsfälle:**
+- 180 Celebration-Videos
+- Leg/Set/Match-Gewinn Animationen
+- Spieler-spezifische Sieges-Animationen
+- Eigene Checkout-Celebrations
+- Turnier-Intro-Videos
+
+**Job-Verwaltung:**
+- Asynchrone Generierung (Videos benötigen 30-90 Sekunden)
+- Fortschritts-Tracking und Status-Updates
+- Job-Abbruch-Unterstützung
+- Automatischer Retry bei Fehlern
+
+### KI-Konfiguration
+
+Konfiguriere Provider unter **Einstellungen > KI-Anbieter**:
+
+1. **API-Key hinzufügen**: Gib deinen Provider API-Key ein
+2. **Provider aktivieren**: Umschalten zum Aktivieren
+3. **Verbindung testen**: Verifizieren dass der API-Key funktioniert
+4. **Optionen konfigurieren**: Provider-spezifische Einstellungen setzen
+
+Provider-Konfiguration wird in `config/ai-providers.json` gespeichert:
+
+```json
+[
+  {
+    "id": "elevenlabs",
+    "type": "elevenlabs",
+    "name": "ElevenLabs",
+    "apiKey": "dein-api-key",
+    "enabled": true,
+    "options": {
+      "defaultModel": "eleven_multilingual_v2"
+    }
+  },
+  {
+    "id": "runway",
+    "type": "runway",
+    "name": "Runway ML",
+    "apiKey": "dein-api-key",
+    "enabled": true
+  }
+]
+```
+
+### Modul-KI-Zugriff
+
+Module können über die einheitliche Schnittstelle des Hubs auf KI-Provider zugreifen:
+
+- **Darts Caller**: Nutzt ElevenLabs für Voice Packs und Spielernamen
+- **Game Display**: Kann Runway für eigene Animationen nutzen
+- **Eigene Module**: Voller Zugriff auf alle konfigurierten Provider
+
+Siehe [Module SDK](module-sdk.md) für Integrations-Details.
+
+---
+
 ## Technische Details
 
 ### Performance
 - Minimale Latenz bei Event-Verarbeitung (<10ms)
 - Effiziente WebSocket-Kommunikation
 - Lazy-Loading für Module-UIs
+- KI-Anfragen sind asynchron und nicht-blockierend
 
 ### Sicherheit
 - Credentials werden nur lokal gespeichert
-- Keine externe Datenübertragung außer zu Autodarts
+- Keine externe Datenübertragung außer zu Autodarts und konfigurierten KI-Providern
+- API-Keys werden sicher in lokaler Konfiguration gespeichert
 - Lokaler Zugriff auf Web-Interface empfohlen
 
 ### Kompatibilität

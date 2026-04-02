@@ -218,16 +218,127 @@ Professional darts caller with TTS or custom audio packs.
 - Uses synthetic events (`turn.finished`, `player.change`) for correct timing
 - Score announced after turn, checkout announced after player change
 
+## AI Features
+
+IO-Darts-Agent includes a comprehensive AI integration system that enables powerful features across all modules.
+
+### AI Provider System
+
+The hub manages connections to multiple AI providers through a unified interface:
+
+| Provider | Type | Capabilities | Status |
+|----------|------|--------------|--------|
+| **ElevenLabs** | TTS | Voice synthesis, voice packs | Production |
+| **Runway ML** | Video | Animation generation (Gen-2/Gen-3) | Production |
+| **OpenAI** | Multi | Text, images, embeddings | Available |
+| **Anthropic** | LLM | Text generation | Available |
+| **Stability AI** | Image | Image generation | Available |
+| **Ollama** | Local LLM | Local text generation | Available |
+| **Replicate** | Multi | Various models | Available |
+
+### ElevenLabs Integration
+
+**Voice Pack Generation:**
+- Generate complete caller voice packs using any ElevenLabs voice
+- All scores (0-180), checkouts, special calls automatically generated
+- Voice preview and selection UI
+- Character usage tracking and quota display
+
+**Dynamic Player Name Synthesis:**
+- Automatically detect new players at game start
+- Generate player name audio in real-time via ElevenLabs TTS
+- Cache generated names for future games
+- Seamless integration with existing voice packs
+
+**Configuration:**
+- Voice selection from available ElevenLabs voices
+- Stability and similarity boost settings
+- Model selection (eleven_multilingual_v2, etc.)
+- Audio format options (MP3, WAV, OGG, FLAC)
+
+### Runway ML Animation Generation
+
+**Text-to-Video:**
+- Generate custom animations from text prompts
+- Ideal for celebration animations (180, checkouts, wins)
+- 5-10 second video clips
+- Multiple aspect ratio support (16:9, 9:16, 1:1)
+
+**Image-to-Video:**
+- Animate static images (player photos, logos)
+- Create personalized player entrance animations
+- Motion effects from still images
+
+**Use Cases:**
+- 180 celebration videos
+- Leg/Set/Match win animations
+- Player-specific victory animations
+- Custom checkout celebrations
+- Tournament intro videos
+
+**Job Management:**
+- Asynchronous generation (videos take 30-90 seconds)
+- Progress tracking and status updates
+- Job cancellation support
+- Automatic retry on failure
+
+### AI Configuration
+
+Configure providers in **Settings > AI Providers**:
+
+1. **Add API Key**: Enter your provider API key
+2. **Enable Provider**: Toggle to activate
+3. **Test Connection**: Verify API key works
+4. **Configure Options**: Set provider-specific settings
+
+Provider configuration is stored in `config/ai-providers.json`:
+
+```json
+[
+  {
+    "id": "elevenlabs",
+    "type": "elevenlabs",
+    "name": "ElevenLabs",
+    "apiKey": "your-api-key",
+    "enabled": true,
+    "options": {
+      "defaultModel": "eleven_multilingual_v2"
+    }
+  },
+  {
+    "id": "runway",
+    "type": "runway",
+    "name": "Runway ML",
+    "apiKey": "your-api-key",
+    "enabled": true
+  }
+]
+```
+
+### Module AI Access
+
+Modules can access AI providers through the hub's unified interface:
+
+- **Darts Caller**: Uses ElevenLabs for voice packs and player names
+- **Game Display**: Can use Runway for custom animations
+- **Custom Modules**: Full access to all configured providers
+
+See [Module SDK](module-sdk.md) for integration details.
+
+---
+
 ## Technical Details
 
 ### Performance
 - Minimal latency in event processing (<10ms)
 - Efficient WebSocket communication
 - Lazy-loading for module UIs
+- AI requests are asynchronous and non-blocking
 
 ### Security
 - Credentials are stored locally only
-- No external data transfer except to Autodarts
+- No external data transfer except to Autodarts and configured AI providers
+- API keys are stored securely in local config
 - Local access to web interface recommended
 
 ### Compatibility
@@ -239,5 +350,6 @@ Professional darts caller with TTS or custom audio packs.
 - REST API for configuration and control
 - WebSocket API for real-time events
 - Module UI routing (`/module-ui/:moduleId/`)
+- AI provider endpoints (`/api/ai/*`)
 
 See [API Documentation](api.md) for details.

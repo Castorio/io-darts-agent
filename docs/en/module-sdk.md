@@ -1106,6 +1106,123 @@ Notifies about module status changes:
 
 ---
 
+## AI Provider Integration
+
+Modules can leverage the hub's AI provider system for advanced features like TTS, video generation, and more.
+
+### Available AI Providers
+
+| Provider | Capabilities | Module Use Cases |
+|----------|--------------|------------------|
+| **ElevenLabs** | Text-to-Speech | Voice packs, player name synthesis, custom announcements |
+| **Runway ML** | Video Generation | Custom animations, player celebrations, event videos |
+| **OpenAI** | Text/Images | Dynamic content, image generation |
+| **Anthropic** | Text | Content generation, analysis |
+| **Stability AI** | Images | Custom graphics |
+| **Ollama** | Text (Local) | Local AI inference |
+
+### Accessing AI Providers
+
+Modules can access AI providers through the hub's AI service:
+
+```typescript
+// Request AI service from hub via IPC
+sendMessage({
+  type: 'ai.request',
+  payload: {
+    provider: 'elevenlabs',
+    action: 'generateSpeech',
+    params: {
+      text: 'One hundred and eighty!',
+      voice: 'Rachel',
+    }
+  }
+});
+
+// Handle response
+onMessage('ai.response', (response) => {
+  if (response.success) {
+    const audioBase64 = response.data.audioBase64;
+    // Use the generated audio
+  }
+});
+```
+
+### ElevenLabs TTS Integration
+
+Generate speech for custom announcements:
+
+```typescript
+// Generate player name audio at runtime
+async function generatePlayerNameAudio(playerName: string): Promise<string> {
+  const response = await requestAI({
+    provider: 'elevenlabs',
+    action: 'generateSpeechToFile',
+    params: {
+      text: playerName,
+      voice: config.selectedVoice,
+      outputPath: `media/caller/players/${playerName.toLowerCase()}.mp3`
+    }
+  });
+  return response.audioPath;
+}
+```
+
+### Runway ML Animation Generation
+
+Create custom animations for events:
+
+```typescript
+// Generate a 180 celebration animation
+async function generate180Animation(playerName: string): Promise<void> {
+  const response = await requestAI({
+    provider: 'runway',
+    action: 'generateVideo',
+    params: {
+      prompt: `Darts player ${playerName} celebrating a perfect 180 score, fireworks, dramatic lighting`,
+      duration: 5,
+      aspectRatio: '16:9'
+    }
+  });
+
+  // Poll for completion
+  const job = await pollJobUntilComplete(response.jobId);
+  if (job.resultUrl) {
+    // Download and use the animation
+    await downloadAnimation(job.resultUrl, `media/animations/${playerName}-180.mp4`);
+  }
+}
+```
+
+### Checking Provider Availability
+
+```typescript
+// Check if a provider is available before using it
+async function checkAIAvailability(): Promise<void> {
+  const response = await requestAI({
+    provider: 'elevenlabs',
+    action: 'getStatus'
+  });
+
+  if (response.available) {
+    console.log('ElevenLabs is available');
+    console.log(`Characters remaining: ${response.rateLimit?.remaining}`);
+  } else {
+    console.log('ElevenLabs is not available:', response.error);
+  }
+}
+```
+
+### AI-Powered Module Example
+
+See the [Darts Caller Module](/modules/darts-caller/) for a complete example of AI integration:
+- Voice Pack Generator using ElevenLabs
+- Dynamic player name synthesis at runtime
+- Voice selection and preview
+- Character usage tracking
+
+---
+
 ## Support
 
 For questions or problems:

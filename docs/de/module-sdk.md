@@ -1106,6 +1106,123 @@ Für Frontend-Module:
 2. Öffne die Browser-Entwicklertools (F12)
 3. Prüfe Console und Network-Tab
 
+## KI-Provider-Integration
+
+Module können das KI-Provider-System des Hubs für erweiterte Funktionen wie TTS, Video-Generierung und mehr nutzen.
+
+### Verfügbare KI-Provider
+
+| Provider | Fähigkeiten | Modul-Anwendungsfälle |
+|----------|-------------|------------------------|
+| **ElevenLabs** | Text-to-Speech | Voice Packs, Spielernamen-Synthese, eigene Ansagen |
+| **Runway ML** | Video-Generierung | Eigene Animationen, Spieler-Celebrations, Event-Videos |
+| **OpenAI** | Text/Bilder | Dynamische Inhalte, Bildgenerierung |
+| **Anthropic** | Text | Inhaltsgenerierung, Analyse |
+| **Stability AI** | Bilder | Eigene Grafiken |
+| **Ollama** | Text (Lokal) | Lokale KI-Inferenz |
+
+### Auf KI-Provider zugreifen
+
+Module können über den Hub-KI-Service auf Provider zugreifen:
+
+```typescript
+// KI-Service vom Hub über IPC anfordern
+sendMessage({
+  type: 'ai.request',
+  payload: {
+    provider: 'elevenlabs',
+    action: 'generateSpeech',
+    params: {
+      text: 'One hundred and eighty!',
+      voice: 'Rachel',
+    }
+  }
+});
+
+// Antwort verarbeiten
+onMessage('ai.response', (response) => {
+  if (response.success) {
+    const audioBase64 = response.data.audioBase64;
+    // Das generierte Audio verwenden
+  }
+});
+```
+
+### ElevenLabs TTS-Integration
+
+Sprache für eigene Ansagen generieren:
+
+```typescript
+// Spielernamen-Audio zur Laufzeit generieren
+async function generatePlayerNameAudio(playerName: string): Promise<string> {
+  const response = await requestAI({
+    provider: 'elevenlabs',
+    action: 'generateSpeechToFile',
+    params: {
+      text: playerName,
+      voice: config.selectedVoice,
+      outputPath: `media/caller/players/${playerName.toLowerCase()}.mp3`
+    }
+  });
+  return response.audioPath;
+}
+```
+
+### Runway ML Animations-Generierung
+
+Eigene Animationen für Events erstellen:
+
+```typescript
+// Eine 180 Celebration-Animation generieren
+async function generate180Animation(playerName: string): Promise<void> {
+  const response = await requestAI({
+    provider: 'runway',
+    action: 'generateVideo',
+    params: {
+      prompt: `Darts-Spieler ${playerName} feiert eine perfekte 180, Feuerwerk, dramatische Beleuchtung`,
+      duration: 5,
+      aspectRatio: '16:9'
+    }
+  });
+
+  // Auf Fertigstellung warten
+  const job = await pollJobUntilComplete(response.jobId);
+  if (job.resultUrl) {
+    // Animation herunterladen und verwenden
+    await downloadAnimation(job.resultUrl, `media/animations/${playerName}-180.mp4`);
+  }
+}
+```
+
+### Provider-Verfügbarkeit prüfen
+
+```typescript
+// Prüfen ob ein Provider verfügbar ist, bevor er genutzt wird
+async function checkAIAvailability(): Promise<void> {
+  const response = await requestAI({
+    provider: 'elevenlabs',
+    action: 'getStatus'
+  });
+
+  if (response.available) {
+    console.log('ElevenLabs ist verfügbar');
+    console.log(`Verbleibende Zeichen: ${response.rateLimit?.remaining}`);
+  } else {
+    console.log('ElevenLabs ist nicht verfügbar:', response.error);
+  }
+}
+```
+
+### Beispiel-Modul mit KI-Integration
+
+Siehe das [Darts Caller Modul](/modules/darts-caller/) für ein vollständiges Beispiel der KI-Integration:
+- Voice Pack Generator mit ElevenLabs
+- Dynamische Spielernamen-Synthese zur Laufzeit
+- Stimmenauswahl und Vorschau
+- Zeichenverbrauchs-Tracking
+
+---
+
 ## Support
 
 Bei Fragen oder Problemen:

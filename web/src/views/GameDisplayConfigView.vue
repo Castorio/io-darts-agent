@@ -117,6 +117,8 @@ const i18n = computed(() => {
       tabDisplay: lang === 'de' ? 'Display' : lang === 'es' ? 'Pantalla' : 'Display',
       tabAnimations: lang === 'de' ? 'Animationen' : lang === 'es' ? 'Animaciones' : 'Animations',
       tabPlayers: lang === 'de' ? 'Spieler' : lang === 'es' ? 'Jugadores' : 'Players',
+      cancel: lang === 'de' ? 'Abbrechen' : lang === 'es' ? 'Cancelar' : 'Cancel',
+      edit: lang === 'de' ? 'Bearbeiten' : lang === 'es' ? 'Editar' : 'Edit',
       // Player overrides
       playerAnimations: lang === 'de' ? 'Spieler-Animationen' : lang === 'es' ? 'Animaciones de Jugadores' : 'Player Animations',
       playerAnimationsDesc: lang === 'de' ? 'Individuelle Animationen pro Spieler - werden angezeigt wenn der Spieler am Zug ist' : lang === 'es' ? 'Animaciones individuales por jugador - se muestran cuando es el turno del jugador' : 'Individual animations per player - shown when player is active',
@@ -1049,7 +1051,7 @@ onMounted(() => {
                   size="sm"
                   @click="openPlayerOverrideEditor(player.name)"
                 >
-                  {{ hasPlayerOverride(player.name) ? 'Bearbeiten' : i18n.strings.configure }}
+                  {{ hasPlayerOverride(player.name) ? i18n.strings.edit : i18n.strings.configure }}
                 </BaseButton>
                 <BaseButton
                   v-if="hasPlayerOverride(player.name)"
@@ -1165,7 +1167,7 @@ onMounted(() => {
 
               <div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-dark-700">
                 <BaseButton variant="ghost" @click="closePlayerOverrideModal">
-                  Abbrechen
+                  {{ i18n.strings.cancel || 'Cancel' }}
                 </BaseButton>
                 <BaseButton @click="closePlayerOverrideModal(); saveConfig()">
                   {{ i18n.strings.save }}

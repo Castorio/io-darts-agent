@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { api } from '../api/client'
 import { useAppStore } from '../stores/app'
 import BaseButton from '../components/BaseButton.vue'
 import BaseInput from '../components/BaseInput.vue'
 
+const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
 
@@ -79,10 +81,10 @@ async function testConnection() {
         boardName: result.boardName,
       }
     } else {
-      error.value = result.error || 'Verbindung fehlgeschlagen'
+      error.value = result.error || t('setup.connectionFailed')
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Verbindungstest fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('setup.connectionTestFailed')
   } finally {
     isLoading.value = false
   }
@@ -119,7 +121,7 @@ async function completeSetup() {
       error.value = result.message
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Setup fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('setup.setupFailed')
   } finally {
     isLoading.value = false
   }
@@ -155,7 +157,7 @@ function prevStep() {
           </svg>
         </div>
         <h1 class="text-2xl font-bold text-white">IO-Darts-Agent</h1>
-        <p class="text-dark-400 mt-1">Ersteinrichtung</p>
+        <p class="text-dark-400 mt-1">{{ t('setup.initialSetup') }}</p>
       </div>
 
       <!-- Progress Steps -->
@@ -201,18 +203,18 @@ function prevStep() {
       <div class="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
         <!-- Step 1: Security -->
         <div v-if="currentStep === 1" class="p-6">
-          <h2 class="text-lg font-semibold text-white mb-1">Sicherheit</h2>
+          <h2 class="text-lg font-semibold text-white mb-1">{{ t('setup.security') }}</h2>
           <p class="text-sm text-dark-400 mb-6">
-            Schützen Sie das Web-Interface mit einem Passwort
+            {{ t('setup.securityDesc') }}
           </p>
 
           <div class="space-y-6">
             <!-- Toggle -->
             <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50">
               <div>
-                <p class="text-white font-medium">Web-Interface absichern?</p>
+                <p class="text-white font-medium">{{ t('setup.enableWebAuth') }}</p>
                 <p class="text-sm text-dark-400">
-                  {{ webAuthEnabled ? 'Login mit Benutzername und Passwort erforderlich' : 'Kein Login erforderlich (nur lokales Netzwerk empfohlen)' }}
+                  {{ webAuthEnabled ? t('setup.loginRequired') : t('setup.noLoginRequired') }}
                 </p>
               </div>
               <button
@@ -235,7 +237,7 @@ function prevStep() {
             <div v-if="webAuthEnabled" class="space-y-4">
               <BaseInput
                 v-model="webUsername"
-                label="Benutzername"
+                :label="t('auth.username')"
                 placeholder="admin"
                 autocomplete="username"
                 :required="webAuthEnabled"
@@ -243,19 +245,19 @@ function prevStep() {
               <BaseInput
                 v-model="webPassword"
                 type="password"
-                label="Passwort"
-                placeholder="Mindestens 6 Zeichen"
+                :label="t('auth.password')"
+                :placeholder="t('setup.minChars')"
                 autocomplete="new-password"
                 :required="webAuthEnabled"
               />
               <BaseInput
                 v-model="webPasswordConfirm"
                 type="password"
-                label="Passwort bestätigen"
-                placeholder="Passwort wiederholen"
+                :label="t('setup.confirmPassword')"
+                :placeholder="t('setup.repeatPassword')"
                 autocomplete="new-password"
                 :required="webAuthEnabled"
-                :error="passwordMismatch ? 'Passwörter stimmen nicht überein' : undefined"
+                :error="passwordMismatch ? t('setup.passwordMismatch') : undefined"
               />
             </div>
           </div>
@@ -263,31 +265,31 @@ function prevStep() {
 
         <!-- Step 2: Autodarts Connection -->
         <div v-else-if="currentStep === 2" class="p-6">
-          <h2 class="text-lg font-semibold text-white mb-1">Autodarts Verbindung</h2>
+          <h2 class="text-lg font-semibold text-white mb-1">{{ t('setup.autodartsConnection') }}</h2>
           <p class="text-sm text-dark-400 mb-6">
-            Geben Sie Ihre Autodarts-Zugangsdaten ein
+            {{ t('setup.enterCredentials') }}
           </p>
 
           <div class="space-y-4">
             <BaseInput
               v-model="autodartsEmail"
               type="email"
-              label="E-Mail"
-              placeholder="ihre@email.de"
+              :label="t('setup.email')"
+              :placeholder="t('setup.emailPlaceholder')"
               autocomplete="email"
               required
             />
             <BaseInput
               v-model="autodartsPassword"
               type="password"
-              label="Passwort"
-              placeholder="Ihr Autodarts-Passwort"
+              :label="t('auth.password')"
+              :placeholder="t('setup.passwordPlaceholder')"
               autocomplete="current-password"
               required
             />
             <BaseInput
               v-model="boardId"
-              label="Board-ID"
+              :label="t('setup.boardId')"
               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
               required
             />
@@ -307,7 +309,7 @@ function prevStep() {
                       d="M5 13l4 4L19 7"
                     />
                   </svg>
-                  <span class="font-medium">Verbindung erfolgreich!</span>
+                  <span class="font-medium">{{ t('setup.connectionSuccess') }}</span>
                 </div>
                 <p v-if="connectionInfo?.boardName" class="text-sm text-dark-300 mt-1">
                   Board: {{ connectionInfo.boardName }}
@@ -326,7 +328,7 @@ function prevStep() {
                       d="M6 18L18 6M6 6l12 12"
                     />
                   </svg>
-                  <span class="font-medium">Verbindung fehlgeschlagen</span>
+                  <span class="font-medium">{{ t('setup.connectionFailed') }}</span>
                 </div>
                 <p v-if="error" class="text-sm text-red-300 mt-1">{{ error }}</p>
               </div>
@@ -340,7 +342,7 @@ function prevStep() {
               class="w-full mt-2"
               @click="testConnection"
             >
-              Verbindung testen
+              {{ t('setup.testConnection') }}
             </BaseButton>
           </div>
         </div>
@@ -364,23 +366,23 @@ function prevStep() {
               />
             </svg>
           </div>
-          <h2 class="text-lg font-semibold text-white mb-2">Alles bereit!</h2>
+          <h2 class="text-lg font-semibold text-white mb-2">{{ t('setup.allReady') }}</h2>
           <p class="text-dark-400 mb-6">
-            Klicken Sie auf "Setup abschließen" um den Hub zu starten.
+            {{ t('setup.clickFinish') }}
           </p>
 
           <!-- Summary -->
           <div class="text-left space-y-3 p-4 rounded-lg bg-dark-700/50">
             <div class="flex items-center justify-between">
-              <span class="text-dark-400">Web-Authentifizierung</span>
-              <span class="text-white">{{ webAuthEnabled ? 'Aktiviert' : 'Deaktiviert' }}</span>
+              <span class="text-dark-400">{{ t('setup.webAuth') }}</span>
+              <span class="text-white">{{ webAuthEnabled ? t('common.enabled') : t('common.disabled') }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-dark-400">Autodarts E-Mail</span>
+              <span class="text-dark-400">{{ t('setup.autodartsEmail') }}</span>
               <span class="text-white">{{ autodartsEmail }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-dark-400">Board-ID</span>
+              <span class="text-dark-400">{{ t('setup.boardId') }}</span>
               <span class="text-white font-mono text-sm">{{ boardId.slice(0, 8) }}...</span>
             </div>
           </div>
@@ -401,7 +403,7 @@ function prevStep() {
             variant="ghost"
             @click="prevStep"
           >
-            Zurück
+            {{ t('common.back') }}
           </BaseButton>
           <div v-else />
 
@@ -410,14 +412,14 @@ function prevStep() {
             :disabled="(currentStep === 1 && !step1Valid) || (currentStep === 2 && !step2Valid)"
             @click="nextStep"
           >
-            Weiter
+            {{ t('common.next') }}
           </BaseButton>
           <BaseButton
             v-else
             :loading="isLoading"
             @click="completeSetup"
           >
-            Setup abschließen
+            {{ t('setup.finishSetup') }}
           </BaseButton>
         </div>
       </div>

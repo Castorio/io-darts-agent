@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '../stores/app'
 import BaseButton from '../components/BaseButton.vue'
 import BaseInput from '../components/BaseInput.vue'
 
+const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const appStore = useAppStore()
@@ -16,7 +18,7 @@ const error = ref<string | null>(null)
 
 async function handleLogin() {
   if (!username.value || !password.value) {
-    error.value = 'Bitte Benutzername und Passwort eingeben'
+    error.value = t('auth.credentialsRequired')
     return
   }
 
@@ -30,10 +32,10 @@ async function handleLogin() {
       const redirect = route.query.redirect as string | undefined
       router.push(redirect || '/')
     } else {
-      error.value = result.message || 'Anmeldung fehlgeschlagen'
+      error.value = result.message || t('auth.loginError')
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Anmeldung fehlgeschlagen'
+    error.value = e instanceof Error ? e.message : t('auth.loginError')
   } finally {
     isLoading.value = false
   }
@@ -55,7 +57,7 @@ async function handleLogin() {
           </svg>
         </div>
         <h1 class="text-2xl font-bold text-white">IO-Darts-Agent</h1>
-        <p class="text-dark-400 mt-1">Bitte melden Sie sich an</p>
+        <p class="text-dark-400 mt-1">{{ t('auth.loginSubtitle') }}</p>
       </div>
 
       <!-- Login Card -->
@@ -63,16 +65,16 @@ async function handleLogin() {
         <form @submit.prevent="handleLogin" class="p-6 space-y-4">
           <BaseInput
             v-model="username"
-            label="Benutzername"
-            placeholder="Ihr Benutzername"
+            :label="t('auth.username')"
+            :placeholder="t('auth.usernamePlaceholder')"
             autocomplete="username"
             required
           />
           <BaseInput
             v-model="password"
             type="password"
-            label="Passwort"
-            placeholder="Ihr Passwort"
+            :label="t('auth.password')"
+            :placeholder="t('auth.passwordPlaceholder')"
             autocomplete="current-password"
             required
           />
@@ -90,7 +92,7 @@ async function handleLogin() {
             :loading="isLoading"
             class="w-full"
           >
-            Anmelden
+            {{ t('auth.loginButton') }}
           </BaseButton>
         </form>
       </div>

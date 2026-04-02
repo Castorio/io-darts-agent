@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AppLayout from '../components/AppLayout.vue'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import BaseInput from '../components/BaseInput.vue'
+
+const { t } = useI18n()
 
 // Provider type definitions
 interface AIProvider {
@@ -196,7 +199,7 @@ async function fetchProviders() {
   } catch (error) {
     message.value = {
       type: 'error',
-      text: error instanceof Error ? error.message : 'Fehler beim Laden der Provider',
+      text: error instanceof Error ? error.message : t('ai.loadError'),
     }
   } finally {
     isLoading.value = false
@@ -235,13 +238,13 @@ async function updateProvider(providerId: string) {
 
     if (!response.ok) throw new Error('Failed to update provider')
 
-    message.value = { type: 'success', text: 'Provider aktualisiert' }
+    message.value = { type: 'success', text: t('ai.updated') }
     form.apiKey = '' // Clear API key field
     await fetchProviders() // Reload
   } catch (error) {
     message.value = {
       type: 'error',
-      text: error instanceof Error ? error.message : 'Fehler beim Speichern',
+      text: error instanceof Error ? error.message : t('ai.saveError'),
     }
   } finally {
     isSaving.value = false
@@ -260,7 +263,7 @@ async function toggleProvider(providerId: string, enabled: boolean) {
   } catch (error) {
     message.value = {
       type: 'error',
-      text: error instanceof Error ? error.message : 'Fehler beim Umschalten',
+      text: error instanceof Error ? error.message : t('ai.toggleError'),
     }
   }
 }
@@ -269,18 +272,18 @@ async function testProvider(providerId: string) {
   testingProvider.value = providerId
   try {
     const response = await fetch(`/api/ai/providers/${providerId}/status`)
-    if (!response.ok) throw new Error('Provider nicht erreichbar')
+    if (!response.ok) throw new Error(t('ai.unreachable'))
 
     const data = await response.json()
     if (data.available) {
-      message.value = { type: 'success', text: 'Verbindung erfolgreich!' }
+      message.value = { type: 'success', text: t('ai.connectionSuccess') }
     } else {
-      message.value = { type: 'error', text: data.error || 'Provider nicht verfügbar' }
+      message.value = { type: 'error', text: data.error || t('ai.unreachable') }
     }
   } catch (error) {
     message.value = {
       type: 'error',
-      text: error instanceof Error ? error.message : 'Verbindungstest fehlgeschlagen',
+      text: error instanceof Error ? error.message : t('ai.testFailed'),
     }
   } finally {
     testingProvider.value = null
@@ -310,8 +313,8 @@ onMounted(fetchProviders)
     <div class="space-y-6 max-w-3xl">
       <!-- Header -->
       <div>
-        <h1 class="text-2xl font-bold text-white">AI Provider</h1>
-        <p class="text-dark-400">Konfiguriere AI-Dienste für Text, Bild, Video und Audio-Generierung</p>
+        <h1 class="text-2xl font-bold text-white">{{ t('ai.title') }}</h1>
+        <p class="text-dark-400">{{ t('ai.subtitle') }}</p>
       </div>
 
       <!-- Loading State -->
@@ -372,7 +375,7 @@ onMounted(fetchProviders)
                           : 'bg-dark-600 text-dark-400',
                       ]"
                     >
-                      {{ provider.configured ? 'Konfiguriert' : 'Nicht konfiguriert' }}
+                      {{ provider.configured ? t('ai.configured') : t('ai.notConfigured') }}
                     </span>
                   </div>
                   <p class="text-sm text-dark-400">{{ getProviderConfig(provider.type).description }}</p>
@@ -445,8 +448,8 @@ onMounted(fetchProviders)
                 <BaseInput
                   v-model="providerForms[provider.id].apiKey"
                   type="password"
-                  label="API Key"
-                  :placeholder="provider.hasApiKey ? 'Bereits konfiguriert - leer lassen zum Behalten' : 'API Key eingeben'"
+                  :label="t('settings.apiKey')"
+                  :placeholder="provider.hasApiKey ? t('ai.alreadyConfigured') : t('settings.enterApiKey')"
                 />
               </div>
 
@@ -458,14 +461,14 @@ onMounted(fetchProviders)
                   :placeholder="getProviderConfig(provider.type).defaultBaseUrl || 'https://...'"
                 />
                 <p v-if="provider.type === 'ollama'" class="text-xs text-dark-400 mt-1">
-                  Standard: http://localhost:11434 - Ollama muss lokal laufen
+                  {{ t('ai.ollamaHint') }}
                 </p>
               </div>
 
               <!-- Model Selection -->
               <div v-if="getProviderConfig(provider.type).models?.length">
                 <label class="block text-sm font-medium text-dark-200 mb-1.5">
-                  Standard-Modell
+                  {{ t('ai.defaultModel') }}
                 </label>
                 <select
                   v-model="providerForms[provider.id].defaultModel"
@@ -480,14 +483,14 @@ onMounted(fetchProviders)
                   </option>
                 </select>
                 <p class="text-xs text-dark-400 mt-1">
-                  Wird für neue Generierungen verwendet
+                  {{ t('ai.usedForGeneration') }}
                 </p>
               </div>
 
               <!-- Action Buttons -->
               <div class="flex items-center gap-3 pt-2">
                 <BaseButton type="submit" :loading="isSaving" size="sm">
-                  Speichern
+                  {{ t('common.save') }}
                 </BaseButton>
                 <BaseButton
                   type="button"
@@ -496,7 +499,7 @@ onMounted(fetchProviders)
                   :loading="testingProvider === provider.id"
                   @click="testProvider(provider.id)"
                 >
-                  Verbindung testen
+                  {{ t('ai.testConnection') }}
                 </BaseButton>
               </div>
 

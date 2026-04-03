@@ -141,6 +141,17 @@ export interface MatchResults {
   }>
 }
 
+export interface GameInfo {
+  variant: string       // e.g. "X01"
+  baseScore: number     // e.g. 501, 301
+  inMode: string        // e.g. "straight", "double"
+  outMode: string       // e.g. "straight", "double"
+  bullMode: string      // e.g. "25/50"
+  maxRounds: number     // e.g. 0 = unlimited
+  setsToWin: number
+  legsToWin: number
+}
+
 export interface GameState {
   matchId: string | null
   isActive: boolean
@@ -161,6 +172,7 @@ export interface GameState {
   lastTurnScore: number
   isCheckoutPossible: boolean
   winner: Player | null
+  gameInfo: GameInfo | null
 }
 
 export interface DisplayConfig {
@@ -178,6 +190,9 @@ export interface DisplayConfig {
   checkoutThreshold: number
   animationSpeed: 'slow' | 'normal' | 'fast'
   showOtherPlayers: boolean
+  // Game info display
+  showGameInfo: boolean
+  gameInfoPosition: 'top-left' | 'top-right'
   // Animation settings
   animationsEnabled: boolean
   defaultAnimations: Partial<Record<AnimationEventType, AnimationConfig>>
@@ -220,6 +235,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     lastTurnScore: 0,
     isCheckoutPossible: false,
     winner: null,
+    gameInfo: null,
   })
 
   const wsConnection = ref<WebSocket | null>(null)
@@ -241,6 +257,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     checkoutThreshold: 170,
     animationSpeed: 'normal',
     showOtherPlayers: true,
+    // Game info display
+    showGameInfo: true,
+    gameInfoPosition: 'top-left',
     // Animation defaults
     animationsEnabled: true,
     defaultAnimations: {},
@@ -402,6 +421,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
           checkoutThreshold: data.checkoutThreshold || 170,
           animationSpeed: data.animationSpeed || 'normal',
           showOtherPlayers: data.showOtherPlayers !== false,
+          // Game info display
+          showGameInfo: data.showGameInfo !== false,
+          gameInfoPosition: data.gameInfoPosition || 'top-left',
           animationsEnabled: data.animationsEnabled !== false,
           defaultAnimations: defaultAnimations,
           playerAnimations: data.playerAnimations || [],
@@ -568,10 +590,30 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     // Parse game settings
     const settings = data.settings as Record<string, unknown> | undefined
+    const variant = (data.variant as string) || 'X01'
+    const setsToWin = (data.sets as number) || (settings?.sets as number) || 1
+    const legsToWin = (data.legs as number) || (settings?.legs as number) || 3
+
     if (settings) {
       gameState.value.startScore = (settings.baseScore as number) || (settings.startScore as number) || 501
-      gameState.value.setsToWin = (settings.sets as number) || 1
-      gameState.value.legsToWin = (settings.legs as number) || 3
+      gameState.value.setsToWin = setsToWin
+      gameState.value.legsToWin = legsToWin
+
+      // Store detailed game info
+      gameState.value.gameInfo = {
+        variant: variant,
+        baseScore: (settings.baseScore as number) || 501,
+        inMode: (settings.inMode as string) || 'straight',
+        outMode: (settings.outMode as string) || 'double',
+        bullMode: (settings.bullMode as string) || '25/50',
+        maxRounds: (settings.maxRounds as number) || 0,
+        setsToWin: setsToWin,
+        legsToWin: legsToWin,
+      }
+    } else {
+      // Fallback if no settings available
+      gameState.value.setsToWin = setsToWin
+      gameState.value.legsToWin = legsToWin
     }
 
     // Parse players - the hub sends players with basic info and gameScores separately
@@ -824,16 +866,27 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     console.log('handleGameFinished data:', data)
     // The hub sends winner, not winnerIndex
     const winnerIndex = (data.winner as number) ?? (data.winnerIndex as number) ?? 0
+
+    // IMPORTANT: Use winnerName from event data (from Autodarts array at the moment of leg win)
+    // This ensures we always have the correct player name, not potentially stale local state
+    const winnerNameFromEvent = (data.winnerName as string) || null
+
     const winner = gameState.value.players[winnerIndex]
 
     if (winner) {
+      // Update the local player name from event data if available
+      if (winnerNameFromEvent) {
+        winner.name = winnerNameFromEvent
+      }
+
       winner.legsWon++
       gameState.value.winner = winner
 
       // Create win event data for enhanced animation
+      // Use winnerName from event data (authoritative) or fall back to local state
       const winData: WinEventData = {
         winnerIndex,
-        winnerName: winner.name,
+        winnerName: winnerNameFromEvent || winner.name,
         playerId: winner.odId,
         legsWon: winner.legsWon,
         setsWon: winner.setsWon,
@@ -861,15 +914,26 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     console.log('handleMatchFinished data:', data)
     // The hub sends winner, not winnerIndex
     const winnerIndex = (data.winner as number) ?? (data.winnerIndex as number) ?? 0
+
+    // IMPORTANT: Use winnerName from event data (from Autodarts array at the moment of match win)
+    // This ensures we always have the correct player name, not potentially stale local state
+    const winnerNameFromEvent = (data.winnerName as string) || null
+
     const winner = gameState.value.players[winnerIndex]
 
     if (winner) {
+      // Update the local player name from event data if available
+      if (winnerNameFromEvent) {
+        winner.name = winnerNameFromEvent
+      }
+
       gameState.value.winner = winner
 
       // Create win event data for enhanced animation
+      // Use winnerName from event data (authoritative) or fall back to local state
       const winData: WinEventData = {
         winnerIndex,
-        winnerName: winner.name,
+        winnerName: winnerNameFromEvent || winner.name,
         playerId: winner.odId,
         legsWon: winner.legsWon,
         setsWon: winner.setsWon,
@@ -1260,6 +1324,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       lastTurnScore: 0,
       isCheckoutPossible: false,
       winner: null,
+      gameInfo: null,
     }
   }
 
@@ -1311,6 +1376,16 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       lastTurnScore: 81,
       isCheckoutPossible: true,
       winner: null,
+      gameInfo: {
+        variant: 'X01',
+        baseScore: 501,
+        inMode: 'straight',
+        outMode: 'double',
+        bullMode: '25/50',
+        maxRounds: 0,
+        setsToWin: 1,
+        legsToWin: 3,
+      },
     }
   }
 

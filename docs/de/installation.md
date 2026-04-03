@@ -205,6 +205,16 @@ Nach dem Start:
    - Wähle dein Board
    - Konfiguriere die Module
 
+### Integrierte Module
+
+IO-Darts-Agent enthält drei integrierte Module:
+
+| Modul | Beschreibung |
+|-------|--------------|
+| **WLED Lichtsteuerung** | Steuert LED-Strips basierend auf Spielereignissen |
+| **Game Display** | Zeigt Spielstand auf einem separaten Bildschirm |
+| **Darts Caller** | Professionelle Sprachansagen |
+
 Siehe [Benutzerhandbuch](user-guide.md) für detaillierte Anleitungen.
 
 ---
@@ -272,4 +282,7 @@ Die App zeigt eine Benachrichtigung wenn Updates verfügbar sind.
 
 - [Benutzerhandbuch](user-guide.md) - Ausführliche Anleitung
 - [FAQ](user-guide.md#faq) - Häufige Fragen
-- [Module](user-guide.md#module-verwalten) - WLED, Game Display, etc.
+- [WLED-Modul](user-guide.md#wled-modul) - LED-Lichtsteuerung einrichten
+- [Game Display](user-guide.md#game-display-modul) - Spielstandsanzeige einrichten
+- [Darts Caller](user-guide.md#darts-caller-modul) - Sprachansagen einrichten
+- [Features](features.md) - Vollständige Feature-Liste

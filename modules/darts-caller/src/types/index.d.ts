@@ -169,6 +169,8 @@ export interface MatchStateData {
     hasReferee: boolean;
     leg: number;
     set: number;
+    legs: number;
+    sets: number;
     round: number;
     type: string;
     variant: string;

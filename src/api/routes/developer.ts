@@ -218,6 +218,7 @@ export function registerDeveloperRoutes(
           matchId,
           winner,
           winnerName: currentSimState.players[winner]?.name || 'Unknown',
+          players: currentSimState.players,
         },
       };
       deps.emitEvent(event);
@@ -685,6 +686,7 @@ async function runCheckoutScenario(deps: DeveloperDependencies): Promise<void> {
       winnerName: currentSimState.players[currentSimState.currentPlayerIndex]?.name || 'Unknown',
       leg: currentSimState.leg,
       set: currentSimState.set,
+      players: currentSimState.players,
     },
   };
   deps.emitEvent(gameFinishedEvent);

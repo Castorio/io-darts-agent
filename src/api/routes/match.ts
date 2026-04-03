@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { APIServer } from '../Server.js';
-import type { MatchStateData, MatchPlayer, MatchStats } from '../../types/index.js';
+import type { MatchStateData, MatchPlayer, MatchStats, MatchSettings } from '../../types/index.js';
 import { getMatchStatusService, type MatchStatus } from '../../core/match/index.js';
 
 /**
@@ -28,6 +28,7 @@ export interface CurrentMatchResponse {
     legStats: MatchStats[];
     matchStats: MatchStats[];
   };
+  settings: MatchSettings | null;
   lastUpdated: string | null;
 }
 
@@ -106,6 +107,7 @@ export function registerMatchRoutes(
         winner: null,
         gameWinner: null,
         stats: { legStats: [], matchStats: [] },
+        settings: null,
         lastUpdated: null,
       };
     }
@@ -133,15 +135,17 @@ export function registerMatchRoutes(
         winner: null,
         gameWinner: null,
         stats: { legStats: [], matchStats: [] },
+        settings: null,
         lastUpdated: null,
       };
     }
 
     // Build player info with scores and averages
+    // match.stats may be undefined at the start of a match
     const playerInfo = buildPlayerInfo(
       match.players,
       match.scores,
-      match.stats.legStats
+      match.stats?.legStats ?? []
     );
 
     return {
@@ -163,9 +167,10 @@ export function registerMatchRoutes(
       winner: match.winner,
       gameWinner: match.gameWinner,
       stats: {
-        legStats: match.stats.legStats,
-        matchStats: match.stats.matchStats,
+        legStats: match.stats?.legStats ?? [],
+        matchStats: match.stats?.matchStats ?? [],
       },
+      settings: match.settings,
       lastUpdated: lastUpdated?.toISOString() ?? null,
     };
   });
@@ -191,7 +196,7 @@ export function registerMatchRoutes(
     const playerInfo = buildPlayerInfo(
       match.players,
       match.scores,
-      match.stats.legStats
+      match.stats?.legStats ?? []
     );
 
     return { active: true, players: playerInfo };

@@ -381,6 +381,8 @@ export class EventParser {
 
     // Check for game finished
     if (data.gameFinished && data.gameWinner !== null) {
+      // Find winner by index field, not array position (Autodarts uses index field as winner identifier)
+      const gameWinnerPlayer = data.players.find(p => p.index === data.gameWinner);
       events.push({
         type: 'game.finished',
         timestamp,
@@ -388,15 +390,26 @@ export class EventParser {
         data: {
           matchId: data.id,
           winner: data.gameWinner,
-          winnerName: data.players[data.gameWinner]?.name ?? 'Unknown',
+          winnerName: gameWinnerPlayer?.name ?? 'Unknown',
           leg: data.leg,
           set: data.set,
+          players: data.players,
         },
       });
     }
 
     // Check for match finished
     if (data.finished && data.winner !== null) {
+      // Find winner by index field, not array position (Autodarts uses index field as winner identifier)
+      const matchWinnerPlayer = data.players.find(p => p.index === data.winner);
+
+      // DEBUG: Log raw data from Autodarts
+      console.log('🏆 DEBUG EventParser - MATCH FINISHED RAW DATA:');
+      console.log('  data.winner:', data.winner, typeof data.winner);
+      console.log('  data.players:', JSON.stringify(data.players, null, 2));
+      console.log('  matchWinnerPlayer (found by index):', matchWinnerPlayer);
+      console.log('  winnerName:', matchWinnerPlayer?.name);
+
       events.push({
         type: 'match.finished',
         timestamp,
@@ -404,7 +417,8 @@ export class EventParser {
         data: {
           matchId: data.id,
           winner: data.winner,
-          winnerName: data.players[data.winner]?.name ?? 'Unknown',
+          winnerName: matchWinnerPlayer?.name ?? 'Unknown',
+          players: data.players,
         },
       });
 
@@ -412,7 +426,7 @@ export class EventParser {
       const matchResultData: MatchResultData = {
         matchId: data.id,
         winner: data.winner,
-        winnerName: data.players[data.winner]?.name ?? 'Unknown',
+        winnerName: matchWinnerPlayer?.name ?? 'Unknown',
         variant: data.variant,
         type: data.type,
         leg: data.leg,

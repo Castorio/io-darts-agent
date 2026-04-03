@@ -1,6 +1,7 @@
 # Ignore all config files with credentials
 *.config.json
 players.json
+ai-providers.json
 modules/
 
 # But keep example files

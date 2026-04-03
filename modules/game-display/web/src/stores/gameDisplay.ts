@@ -192,7 +192,10 @@ export interface DisplayConfig {
   showOtherPlayers: boolean
   // Game info display
   showGameInfo: boolean
-  gameInfoPosition: 'top-left' | 'top-right'
+  gameInfoPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  gameInfoSize: 'small' | 'medium' | 'large'
+  gameInfoOffsetX: number
+  gameInfoOffsetY: number
   // Animation settings
   animationsEnabled: boolean
   defaultAnimations: Partial<Record<AnimationEventType, AnimationConfig>>
@@ -260,6 +263,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // Game info display
     showGameInfo: true,
     gameInfoPosition: 'top-left',
+    gameInfoSize: 'medium',
+    gameInfoOffsetX: 0,
+    gameInfoOffsetY: 0,
     // Animation defaults
     animationsEnabled: true,
     defaultAnimations: {},
@@ -424,6 +430,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
           // Game info display
           showGameInfo: data.showGameInfo !== false,
           gameInfoPosition: data.gameInfoPosition || 'top-left',
+          gameInfoSize: data.gameInfoSize || 'medium',
+          gameInfoOffsetX: data.gameInfoOffsetX ?? 0,
+          gameInfoOffsetY: data.gameInfoOffsetY ?? 0,
           animationsEnabled: data.animationsEnabled !== false,
           defaultAnimations: defaultAnimations,
           playerAnimations: data.playerAnimations || [],
@@ -589,6 +598,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     gameState.value.isActive = true
 
     // Parse game settings
+    // Note: legs and sets are on the top level of data, not inside settings
     const settings = data.settings as Record<string, unknown> | undefined
     const variant = (data.variant as string) || 'X01'
     const setsToWin = (data.sets as number) || (settings?.sets as number) || 1
@@ -636,7 +646,24 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
 
     // Active player
-    gameState.value.activePlayerIndex = (data.player as number) ?? 0
+    // IMPORTANT: If match OR game (leg) is finished, keep showing the winner instead
+    // of switching to the next player's turn index.
+    // This prevents late-arriving match.state events from changing the displayed player
+    // after handleMatchFinished/handleGameFinished has already set the correct winner.
+    //
+    // We check for:
+    // 1. isGameFinished - leg just ended, gameWinner is set
+    // 2. isMatchFinished - match ended, winner is set
+    // 3. matchAlreadyEnded - match was already marked as ended in a previous event
+    const isGameFinished = (data.gameFinished as boolean) && (data.gameWinner as number) !== undefined
+    const isMatchFinished = (data.finished as boolean) && (data.winner as number) !== undefined
+    const matchAlreadyEnded = !gameState.value.isActive && gameState.value.winner !== null
+    if (isMatchFinished || matchAlreadyEnded || isGameFinished) {
+      // Don't update activePlayerIndex when game/match is finished - keep showing winner
+      console.log('🔒 [GameDisplay] Keeping winner displayed, not switching player. isGameFinished:', isGameFinished, 'isMatchFinished:', isMatchFinished)
+    } else {
+      gameState.value.activePlayerIndex = (data.player as number) ?? 0
+    }
 
     // Current leg/set
     gameState.value.currentSet = (data.set as number) || 1
@@ -881,6 +908,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
       winner.legsWon++
       gameState.value.winner = winner
+      // Set activePlayerIndex to winner's index
+      gameState.value.activePlayerIndex = winnerIndex
 
       // Create win event data for enhanced animation
       // Use winnerName from event data (authoritative) or fall back to local state
@@ -928,6 +957,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       }
 
       gameState.value.winner = winner
+      // Set activePlayerIndex to winner's index
+      gameState.value.activePlayerIndex = winnerIndex
 
       // Create win event data for enhanced animation
       // Use winnerName from event data (authoritative) or fall back to local state
@@ -964,7 +995,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     const winnerIndex = data.winner as number | undefined
     const players = data.players as Array<Record<string, unknown>> | undefined
 
-    if (chalkboards) {
+    // Show results even if chalkboards are empty - we can still show winner and stats
+    if (chalkboards || winnerIndex !== undefined) {
       // Update player names from result data if available
       if (players) {
         players.forEach((p, idx) => {
@@ -975,7 +1007,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       }
 
       const results: MatchResults = {
-        chalkboards: chalkboards.map((cb, index) => {
+        chalkboards: (chalkboards || []).map((cb, index) => {
           const rows = cb.rows as Array<Record<string, unknown>> | undefined
           return {
             playerIndex: index,

@@ -231,6 +231,8 @@ export interface MatchStateData {
   hasReferee: boolean;
   leg: number;
   set: number;
+  legs: number; // Number of legs to win (match configuration)
+  sets: number; // Number of sets to win (match configuration)
   round: number;
   type: string;
   variant: string;

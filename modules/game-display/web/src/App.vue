@@ -14,6 +14,7 @@ const isDemo = ref(false)
 const config = computed(() => store.config)
 const hasLastGame = computed(() => store.hasLastGame)
 const lastGameState = computed(() => store.lastGameState)
+const gameInfo = computed(() => store.gameState.gameInfo)
 
 // Animation states
 const scoreAnimating = ref(false)
@@ -35,6 +36,22 @@ const isMatchStarted = computed(() => store.isMatchStarted)
 // Match results state
 const showMatchResults = computed(() => store.showMatchResults)
 const matchResults = computed(() => store.matchResults)
+
+// Match winner player - lookup by player.index field, not array position
+// Autodarts sends winner as player.index value, not array position
+const matchWinnerPlayer = computed(() => {
+  if (matchResults.value?.winner === null || matchResults.value?.winner === undefined) return null
+  // Find player by index field, not array position
+  return gameState.value.players.find(p => p.index === matchResults.value!.winner)
+    || gameState.value.players[matchResults.value!.winner] // fallback to array position
+})
+
+// Check if a player at boardIndex is the winner (by index field comparison)
+function isWinnerByBoardIndex(boardIndex: number): boolean {
+  if (matchResults.value?.winner === null || matchResults.value?.winner === undefined) return false
+  const player = gameState.value.players[boardIndex]
+  return player?.index === matchResults.value.winner
+}
 
 // Player color with fallback
 const playerColor = computed(() => {
@@ -74,6 +91,129 @@ const statusText = computed(() => {
   const set = gameState.value.setsToWin > 1 ? `${t('score.set')} ${gameState.value.currentSet}` : ''
 
   return [set, leg].filter(Boolean).join(' • ')
+})
+
+// Format in/out mode for display
+function formatInOutMode(mode: string, isIn: boolean): string {
+  const modeMap: Record<string, string> = {
+    'straight': isIn ? t('strings.straightIn') : t('strings.straightOut'),
+    'double': isIn ? t('strings.doubleIn') : t('strings.doubleOut'),
+    'master': t('strings.masterOut'),
+  }
+  return modeMap[mode] || mode
+}
+
+// Game info position classes based on config
+const gameInfoPositionClasses = computed(() => {
+  const position = config.value.gameInfoPosition || 'top-left'
+  const baseSpacing = 'top-6 left-6 lg:top-10 lg:left-10'
+
+  switch (position) {
+    case 'top-right':
+      return 'top-6 right-6 lg:top-10 lg:right-10'
+    case 'bottom-left':
+      return 'bottom-6 left-6 lg:bottom-10 lg:left-10'
+    case 'bottom-right':
+      return 'bottom-6 right-6 lg:bottom-10 lg:right-10'
+    case 'top-left':
+    default:
+      return baseSpacing
+  }
+})
+
+// Game info size classes based on config
+const gameInfoSizeClasses = computed(() => {
+  const size = config.value.gameInfoSize || 'medium'
+
+  switch (size) {
+    case 'small':
+      return {
+        container: 'px-2 py-1.5',
+        primaryText: 'text-sm lg:text-base',
+        secondaryText: 'text-xs lg:text-sm text-white/60'
+      }
+    case 'large':
+      return {
+        container: 'px-6 py-4',
+        primaryText: 'text-xl lg:text-2xl',
+        secondaryText: 'text-base lg:text-lg text-white/60'
+      }
+    case 'medium':
+    default:
+      return {
+        container: 'px-4 py-3',
+        primaryText: 'text-lg lg:text-xl',
+        secondaryText: 'text-sm lg:text-base text-white/60'
+      }
+  }
+})
+
+// Game info offset styles for additional positioning
+const gameInfoOffsetStyles = computed(() => {
+  const offsetX = config.value.gameInfoOffsetX || 0
+  const offsetY = config.value.gameInfoOffsetY || 0
+  const position = config.value.gameInfoPosition || 'top-left'
+
+  // Determine which direction to apply offsets based on position
+  const isRight = position.includes('right')
+  const isBottom = position.includes('bottom')
+
+  return {
+    // Add margin in the appropriate direction
+    marginLeft: !isRight && offsetX > 0 ? `${offsetX}px` : undefined,
+    marginRight: isRight && offsetX > 0 ? `${offsetX}px` : undefined,
+    marginTop: !isBottom && offsetY > 0 ? `${offsetY}px` : undefined,
+    marginBottom: isBottom && offsetY > 0 ? `${offsetY}px` : undefined,
+  }
+})
+
+// Game info display items with labels
+interface GameInfoItem {
+  label: string
+  value: string
+}
+
+const gameInfoText = computed((): GameInfoItem[] | null => {
+  if (!gameInfo.value) return null
+
+  const items: GameInfoItem[] = []
+
+  // Item 1: Game type and start score (e.g., "501 Double Out")
+  const gameTypeLine = gameInfo.value.startScore > 0
+    ? `${gameInfo.value.startScore}`
+    : gameInfo.value.gameType
+  const outModeText = formatInOutMode(gameInfo.value.outMode, false)
+  items.push({
+    label: t('gameInfo.game'),
+    value: `${gameTypeLine} ${outModeText}`
+  })
+
+  // Item 2: Legs/Sets info (e.g., "Best of 3 Legs")
+  const legsText = gameInfo.value.legsToWin > 1
+    ? `${t('strings.bestOf')} ${gameInfo.value.legsToWin} ${t('score.legs')}`
+    : `1 ${t('score.leg')}`
+
+  if (gameInfo.value.setsToWin > 1) {
+    items.push({
+      label: t('gameInfo.format'),
+      value: `${t('strings.bestOf')} ${gameInfo.value.setsToWin} ${t('score.sets')}, ${legsText}`
+    })
+  } else {
+    items.push({
+      label: t('gameInfo.legs'),
+      value: legsText
+    })
+  }
+
+  // Item 3: In mode if not straight (e.g., "Double In")
+  if (gameInfo.value.inMode !== 'straight') {
+    items.push({
+      label: t('gameInfo.inMode'),
+      value: formatInOutMode(gameInfo.value.inMode, true)
+    })
+  }
+
+  return items
 })
 
 // Watch for score changes to animate
@@ -230,26 +370,36 @@ onUnmounted(() => {
             {{ t('game.matchResults') }}
           </h1>
           <div
-            v-if="matchResults.winner !== null && gameState.players[matchResults.winner]"
+            v-if="matchWinnerPlayer"
             class="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"
           >
             <svg class="w-6 h-6 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
             </svg>
             <span class="text-2xl font-bold text-yellow-400">
-              {{ gameState.players[matchResults.winner].name }}
+              {{ matchWinnerPlayer.name }}
             </span>
             <span class="text-lg text-yellow-400/70">{{ t('game.winner') }}</span>
           </div>
         </div>
 
         <!-- Results Table Grid -->
-        <div class="w-full max-w-6xl grid gap-8" :class="matchResults.chalkboards.length === 2 ? 'grid-cols-2' : 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-3'">
+        <!-- Use gameState.players.length to determine grid layout, not chalkboards.length
+             This ensures proper layout even when chalkboards are empty but players exist -->
+        <div
+          v-if="matchResults.chalkboards.length > 0"
+          class="w-full max-w-6xl grid gap-8"
+          :class="{
+            'grid-cols-1': matchResults.chalkboards.length === 1,
+            'grid-cols-2': matchResults.chalkboards.length === 2,
+            'grid-cols-1 md:grid-cols-2 lg:grid-cols-3': matchResults.chalkboards.length >= 3
+          }"
+        >
           <div
             v-for="(board, boardIndex) in matchResults.chalkboards"
             :key="boardIndex"
             class="bg-white/5 border rounded-2xl overflow-hidden transition-all"
-            :class="matchResults.winner === boardIndex ? 'border-yellow-500/50 ring-2 ring-yellow-500/30' : 'border-white/10'"
+            :class="isWinnerByBoardIndex(boardIndex) ? 'border-yellow-500/50 ring-2 ring-yellow-500/30' : 'border-white/10'"
           >
             <!-- Player Header -->
             <div
@@ -265,7 +415,7 @@ onUnmounted(() => {
                   {{ gameState.players[boardIndex]?.name || `Player ${boardIndex + 1}` }}
                 </span>
                 <span
-                  v-if="matchResults.winner === boardIndex"
+                  v-if="isWinnerByBoardIndex(boardIndex)"
                   class="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-xs font-bold uppercase"
                 >
                   {{ t('game.winner') }}
@@ -338,6 +488,91 @@ onUnmounted(() => {
                 <p class="text-lg font-bold text-white">
                   {{ (matchResults.stats[boardIndex]?.checkoutPercent ?? 0) > 0 ? matchResults.stats[boardIndex]?.checkoutPercent?.toFixed(0) + '%' : '-' }}
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fallback: Show player summary when chalkboards are empty but players exist -->
+        <div
+          v-else-if="gameState.players.length > 0"
+          class="w-full max-w-6xl grid gap-8"
+          :class="{
+            'grid-cols-1': gameState.players.length === 1,
+            'grid-cols-2': gameState.players.length === 2,
+            'grid-cols-1 md:grid-cols-2 lg:grid-cols-3': gameState.players.length >= 3
+          }"
+        >
+          <div
+            v-for="(player, playerIndex) in gameState.players"
+            :key="playerIndex"
+            class="bg-white/5 border rounded-2xl overflow-hidden transition-all"
+            :class="isWinnerByBoardIndex(playerIndex) ? 'border-yellow-500/50 ring-2 ring-yellow-500/30' : 'border-white/10'"
+          >
+            <!-- Player Header -->
+            <div
+              class="px-6 py-4 border-b border-white/10 flex items-center justify-between"
+              :style="{ backgroundColor: player.color + '20' }"
+            >
+              <div class="flex items-center gap-3">
+                <div
+                  class="w-4 h-4 rounded-full"
+                  :style="{ backgroundColor: player.color || '#3b82f6' }"
+                />
+                <span class="text-xl font-bold text-white uppercase">
+                  {{ player.name || `Player ${playerIndex + 1}` }}
+                </span>
+                <span
+                  v-if="isWinnerByBoardIndex(playerIndex)"
+                  class="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-xs font-bold uppercase"
+                >
+                  {{ t('game.winner') }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Player Stats Summary -->
+            <div class="px-6 py-6 flex flex-col items-center gap-4">
+              <!-- Final Score -->
+              <div class="text-center">
+                <p class="text-xs text-white/40 uppercase mb-1">{{ t('game.remaining') }}</p>
+                <p class="text-4xl font-bold" :class="player.score === 0 ? 'text-green-400' : 'text-white'">
+                  {{ player.score }}
+                </p>
+              </div>
+
+              <!-- Legs/Sets Won -->
+              <div class="flex items-center gap-6 text-center">
+                <div>
+                  <p class="text-xs text-white/40 uppercase">{{ t('score.legs') }}</p>
+                  <p class="text-2xl font-bold text-white">{{ player.legsWon }}</p>
+                </div>
+                <div v-if="gameState.setsToWin > 1">
+                  <p class="text-xs text-white/40 uppercase">{{ t('score.sets') }}</p>
+                  <p class="text-2xl font-bold text-white">{{ player.setsWon }}</p>
+                </div>
+              </div>
+
+              <!-- Stats from matchResults if available -->
+              <div v-if="matchResults.stats[playerIndex]" class="grid grid-cols-3 gap-4 w-full mt-2 pt-4 border-t border-white/10">
+                <div class="text-center">
+                  <p class="text-xs text-white/40 uppercase">{{ t('game.average') }}</p>
+                  <p class="text-lg font-bold text-white">
+                    {{ matchResults.stats[playerIndex]?.average?.toFixed(1) || '-' }}
+                  </p>
+                </div>
+                <div class="text-center">
+                  <p class="text-xs text-white/40 uppercase">{{ t('game.darts') }}</p>
+                  <p class="text-lg font-bold text-white">
+                    {{ matchResults.stats[playerIndex]?.dartsThrown || '-' }}
+                  </p>
+                </div>
+                <div class="text-center">
+                  <p class="text-xs text-white/40 uppercase">{{ t('game.checkout') }}</p>
+                  <p class="text-lg font-bold text-white">
+                    {{ (matchResults.stats[playerIndex]?.checkoutPercent ?? 0) > 0 ? matchResults.stats[playerIndex]?.checkoutPercent?.toFixed(0) + '%' : '-' }}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -420,6 +655,51 @@ onUnmounted(() => {
 
       <!-- Active Game -->
       <template v-else>
+        <!-- Game Info Overlay (configurable position) -->
+        <div
+          v-if="config.showGameInfo && gameInfoText"
+          class="absolute z-20"
+          :class="gameInfoPositionClasses"
+          :style="gameInfoOffsetStyles"
+        >
+          <div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+            <!-- Header with player color -->
+            <div
+              class="px-4 py-3 border-b border-white/10 flex items-center gap-3"
+              :style="{ backgroundColor: playerColor + '20' }"
+            >
+              <div
+                class="w-3 h-3 rounded-full"
+                :style="{ backgroundColor: playerColor }"
+              />
+              <span class="text-white font-semibold uppercase tracking-wide" :class="gameInfoSizeClasses.primaryText">
+                {{ t('gameInfo.title') }}
+              </span>
+            </div>
+            <!-- Content -->
+            <div :class="gameInfoSizeClasses.container" class="flex flex-col gap-2">
+              <div
+                v-for="(item, idx) in gameInfoText"
+                :key="idx"
+                class="flex items-baseline justify-between gap-4"
+              >
+                <span
+                  class="text-white/50 font-normal"
+                  :class="gameInfoSizeClasses.secondaryText"
+                >
+                  {{ item.label }}
+                </span>
+                <span
+                  class="text-white font-semibold"
+                  :class="gameInfoSizeClasses.secondaryText"
+                >
+                  {{ item.value }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Header: Player Name + Status -->
         <header class="text-center mb-6 lg:mb-10">
           <!-- Player Name -->

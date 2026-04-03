@@ -186,6 +186,55 @@
       "description": "Shows other players at the bottom",
       "default": true
     },
+    "showGameInfo": {
+      "type": "boolean",
+      "label": "Show Game Info",
+      "description": "Shows game information (game type, legs, double in/out) in the top left corner",
+      "default": false
+    },
+    "gameInfoPosition": {
+      "type": "select",
+      "label": "Game Info Position",
+      "description": "Position of the game info overlay on the screen",
+      "default": "top-left",
+      "showIf": { "field": "showGameInfo", "value": true },
+      "options": [
+        { "value": "top-left", "label": "Top Left" },
+        { "value": "top-right", "label": "Top Right" },
+        { "value": "bottom-left", "label": "Bottom Left" },
+        { "value": "bottom-right", "label": "Bottom Right" }
+      ]
+    },
+    "gameInfoSize": {
+      "type": "select",
+      "label": "Game Info Size",
+      "description": "Size of the game info text",
+      "default": "medium",
+      "showIf": { "field": "showGameInfo", "value": true },
+      "options": [
+        { "value": "small", "label": "Small" },
+        { "value": "medium", "label": "Medium" },
+        { "value": "large", "label": "Large" }
+      ]
+    },
+    "gameInfoOffsetX": {
+      "type": "number",
+      "label": "Game Info Horizontal Offset",
+      "description": "Additional horizontal offset in pixels",
+      "default": 0,
+      "min": 0,
+      "max": 200,
+      "showIf": { "field": "showGameInfo", "value": true }
+    },
+    "gameInfoOffsetY": {
+      "type": "number",
+      "label": "Game Info Vertical Offset",
+      "description": "Additional vertical offset in pixels",
+      "default": 0,
+      "min": 0,
+      "max": 200,
+      "showIf": { "field": "showGameInfo", "value": true }
+    },
     "animationsEnabled": {
       "type": "boolean",
       "label": "Enable Animations",
@@ -629,6 +678,37 @@
           "label": "Show Other Players",
           "description": "Shows other players at the bottom"
         },
+        "showGameInfo": {
+          "label": "Show Game Info",
+          "description": "Shows game information (game type, legs, double in/out) in the top left corner"
+        },
+        "gameInfoPosition": {
+          "label": "Game Info Position",
+          "description": "Position of the game info overlay on the screen",
+          "options": {
+            "top-left": "Top Left",
+            "top-right": "Top Right",
+            "bottom-left": "Bottom Left",
+            "bottom-right": "Bottom Right"
+          }
+        },
+        "gameInfoSize": {
+          "label": "Game Info Size",
+          "description": "Size of the game info text",
+          "options": {
+            "small": "Small",
+            "medium": "Medium",
+            "large": "Large"
+          }
+        },
+        "gameInfoOffsetX": {
+          "label": "Horizontal Offset",
+          "description": "Additional horizontal offset in pixels"
+        },
+        "gameInfoOffsetY": {
+          "label": "Vertical Offset",
+          "description": "Additional vertical offset in pixels"
+        },
         "animationsEnabled": {
           "label": "Enable Animations",
           "description": "Show animations for special events"
@@ -805,7 +885,13 @@
         "dartsRemaining": "darts remaining",
         "average": "Average",
         "legs": "Legs",
-        "sets": "Sets"
+        "sets": "Sets",
+        "bestOf": "Best of",
+        "straightIn": "Straight In",
+        "doubleIn": "Double In",
+        "straightOut": "Straight Out",
+        "doubleOut": "Double Out",
+        "masterOut": "Master Out"
       }
     },
     "de": {
@@ -868,6 +954,37 @@
         "showOtherPlayers": {
           "label": "Andere Spieler anzeigen",
           "description": "Zeigt die anderen Spieler am unteren Rand"
+        },
+        "showGameInfo": {
+          "label": "Spielinfo anzeigen",
+          "description": "Zeigt Spielinformationen (Spieltyp, Legs, Double In/Out) oben links an"
+        },
+        "gameInfoPosition": {
+          "label": "Spielinfo Position",
+          "description": "Position der Spielinfo-Anzeige auf dem Bildschirm",
+          "options": {
+            "top-left": "Oben links",
+            "top-right": "Oben rechts",
+            "bottom-left": "Unten links",
+            "bottom-right": "Unten rechts"
+          }
+        },
+        "gameInfoSize": {
+          "label": "Spielinfo Größe",
+          "description": "Größe des Spielinfo-Textes",
+          "options": {
+            "small": "Klein",
+            "medium": "Mittel",
+            "large": "Groß"
+          }
+        },
+        "gameInfoOffsetX": {
+          "label": "Horizontaler Versatz",
+          "description": "Zusätzlicher horizontaler Versatz in Pixeln"
+        },
+        "gameInfoOffsetY": {
+          "label": "Vertikaler Versatz",
+          "description": "Zusätzlicher vertikaler Versatz in Pixeln"
         },
         "animationsEnabled": {
           "label": "Animationen aktivieren",
@@ -1045,7 +1162,13 @@
         "dartsRemaining": "Darts übrig",
         "average": "Durchschnitt",
         "legs": "Legs",
-        "sets": "Sätze"
+        "sets": "Sätze",
+        "bestOf": "Best of",
+        "straightIn": "Straight In",
+        "doubleIn": "Double In",
+        "straightOut": "Straight Out",
+        "doubleOut": "Double Out",
+        "masterOut": "Master Out"
       }
     },
     "es": {
@@ -1108,6 +1231,37 @@
         "showOtherPlayers": {
           "label": "Mostrar Otros Jugadores",
           "description": "Muestra otros jugadores en la parte inferior"
+        },
+        "showGameInfo": {
+          "label": "Mostrar Info del Juego",
+          "description": "Muestra información del juego (tipo de juego, legs, double in/out) en la esquina superior izquierda"
+        },
+        "gameInfoPosition": {
+          "label": "Posición de Info del Juego",
+          "description": "Posición de la información del juego en la pantalla",
+          "options": {
+            "top-left": "Arriba Izquierda",
+            "top-right": "Arriba Derecha",
+            "bottom-left": "Abajo Izquierda",
+            "bottom-right": "Abajo Derecha"
+          }
+        },
+        "gameInfoSize": {
+          "label": "Tamaño de Info del Juego",
+          "description": "Tamaño del texto de información del juego",
+          "options": {
+            "small": "Pequeño",
+            "medium": "Mediano",
+            "large": "Grande"
+          }
+        },
+        "gameInfoOffsetX": {
+          "label": "Desplazamiento Horizontal",
+          "description": "Desplazamiento horizontal adicional en píxeles"
+        },
+        "gameInfoOffsetY": {
+          "label": "Desplazamiento Vertical",
+          "description": "Desplazamiento vertical adicional en píxeles"
         },
         "animationsEnabled": {
           "label": "Habilitar Animaciones",
@@ -1285,7 +1439,13 @@
         "dartsRemaining": "dardos restantes",
         "average": "Promedio",
         "legs": "Legs",
-        "sets": "Sets"
+        "sets": "Sets",
+        "bestOf": "Mejor de",
+        "straightIn": "Straight In",
+        "doubleIn": "Double In",
+        "straightOut": "Straight Out",
+        "doubleOut": "Double Out",
+        "masterOut": "Master Out"
       }
     }
   }

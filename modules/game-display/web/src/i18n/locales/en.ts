@@ -31,6 +31,25 @@ export default {
     sets: 'Sets',
   },
 
+  // Game info strings
+  strings: {
+    bestOf: 'Best of',
+    straightIn: 'Straight In',
+    doubleIn: 'Double In',
+    straightOut: 'Straight Out',
+    doubleOut: 'Double Out',
+    masterOut: 'Master Out',
+  },
+
+  // Game info overlay labels
+  gameInfo: {
+    title: 'Game Info',
+    game: 'Game:',
+    legs: 'Legs:',
+    format: 'Format:',
+    inMode: 'In:',
+  },
+
   // Demo mode
   demo: {
     start: 'Start Demo',

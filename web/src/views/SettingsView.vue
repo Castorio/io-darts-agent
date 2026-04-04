@@ -172,6 +172,34 @@ onMounted(loadSettings)
       </div>
 
       <form v-else @submit.prevent="saveSettings" class="space-y-6">
+        <!-- Support / Donation -->
+        <BaseCard :title="t('settings.support')" :subtitle="t('settings.supportDescription')">
+          <div class="flex items-center justify-between p-4 rounded-lg bg-dark-700/50">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
+                <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.641.641 0 0 1 .632-.54h6.012c2.656 0 4.526.84 5.137 2.997.168.632.22 1.2.168 1.74-.32 2.98-2.38 4.42-5.137 4.42H9.412l-.84 5.28c-.084.42-.42.72-.84.72H5.984l.168-1.08h.756c.168 0 .336-.12.336-.3l.672-4.2h2.436c2.016 0 3.612-.78 4.032-2.88.336-1.68-.336-2.76-2.016-2.76H7.16l-2.1 13.26h2.016v-.04zm13.944-14.4c0 .12 0 .24-.024.36-.588 3.72-3.276 5.16-6.54 5.16h-1.26l-.84 5.28a.641.641 0 0 1-.632.54H8.788a.321.321 0 0 1-.312-.36l.024-.156.756-4.764.024-.132a.641.641 0 0 1 .632-.54h1.68c3.444 0 6.144-1.404 6.936-5.46.336-1.68.168-3.084-.756-4.068.276.696.42 1.5.42 2.4l-.172-.26z"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-white font-medium">{{ t('settings.donatePaypal') }}</p>
+                <p class="text-sm text-dark-400">{{ t('settings.donateDescription') }}</p>
+              </div>
+            </div>
+            <a
+              href="https://www.paypal.com/donate?business=info@castorlighting.de&currency_code=EUR"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors flex items-center gap-2"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.641.641 0 0 1 .632-.54h6.012c2.656 0 4.526.84 5.137 2.997.168.632.22 1.2.168 1.74-.32 2.98-2.38 4.42-5.137 4.42H9.412l-.84 5.28c-.084.42-.42.72-.84.72H5.984l.168-1.08h.756c.168 0 .336-.12.336-.3l.672-4.2h2.436c2.016 0 3.612-.78 4.032-2.88.336-1.68-.336-2.76-2.016-2.76H7.16l-2.1 13.26h2.016v-.04zm13.944-14.4c0 .12 0 .24-.024.36-.588 3.72-3.276 5.16-6.54 5.16h-1.26l-.84 5.28a.641.641 0 0 1-.632.54H8.788a.321.321 0 0 1-.312-.36l.024-.156.756-4.764.024-.132a.641.641 0 0 1 .632-.54h1.68c3.444 0 6.144-1.404 6.936-5.46.336-1.68.168-3.084-.756-4.068.276.696.42 1.5.42 2.4l-.172-.26z"/>
+              </svg>
+              PayPal
+            </a>
+          </div>
+        </BaseCard>
+
         <!-- Language Settings -->
         <BaseCard :title="t('settings.appearance')" :subtitle="t('settings.languageDescription')">
           <div class="space-y-4">

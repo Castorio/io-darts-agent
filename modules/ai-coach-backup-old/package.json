@@ -1,0 +1,11 @@
+{
+  "name": "@io-darts-agent/ai-coach",
+  "version": "1.0.0",
+  "description": "AI-powered coaching module for darts training",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo 'No build required for JS module'"
+  },
+  "dependencies": {}
+}

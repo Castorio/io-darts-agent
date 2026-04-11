@@ -10,6 +10,7 @@ import StatusBadge from '../components/StatusBadge.vue'
 const { t } = useI18n()
 const modulesStore = useModulesStore()
 const actionLoading = ref<string | null>(null)
+const installingBuiltinId = ref<string | null>(null)
 
 async function startModule(id: string) {
   actionLoading.value = id
@@ -33,8 +34,20 @@ async function stopModule(id: string) {
   }
 }
 
+async function installBuiltinModule(id: string) {
+  installingBuiltinId.value = id
+  try {
+    await modulesStore.installBuiltinModule(id)
+  } catch (e) {
+    console.error('Failed to install builtin module:', e)
+  } finally {
+    installingBuiltinId.value = null
+  }
+}
+
 onMounted(() => {
   modulesStore.fetchModules()
+  modulesStore.fetchAvailableModules()
 })
 </script>
 
@@ -227,6 +240,74 @@ onMounted(() => {
                   />
                 </svg>
                 {{ t('modules.start') }}
+              </BaseButton>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Available Modules Section -->
+      <div v-if="modulesStore.availableModules.length > 0" class="mt-8">
+        <div class="mb-4">
+          <h2 class="text-xl font-semibold text-white">{{ t('modules.availableModules') }}</h2>
+          <p class="text-dark-400 text-sm">{{ t('modules.availableModulesDesc') }}</p>
+        </div>
+
+        <div class="grid gap-4">
+          <div
+            v-for="module in modulesStore.availableModules"
+            :key="module.id"
+            class="bg-dark-800 rounded-xl border border-dark-700 border-dashed p-6"
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex items-start gap-4">
+                <!-- Module Icon -->
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-autodarts-500/10">
+                  <svg
+                    class="w-6 h-6 text-autodarts-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                    />
+                  </svg>
+                </div>
+
+                <!-- Module Info -->
+                <div>
+                  <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-semibold text-white">{{ module.name }}</h3>
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-autodarts-500/20 text-autodarts-400">
+                      Built-in
+                    </span>
+                  </div>
+                  <p class="text-dark-400 text-sm mt-1">{{ module.description }}</p>
+                  <div class="flex items-center gap-4 mt-3 text-sm text-dark-500">
+                    <span>v{{ module.version }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Install Button -->
+              <BaseButton
+                size="sm"
+                :loading="installingBuiltinId === module.id"
+                @click="installBuiltinModule(module.id)"
+              >
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+                {{ t('modules.installBuiltin') }}
               </BaseButton>
             </div>
           </div>

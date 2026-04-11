@@ -171,6 +171,11 @@ export default {
     autostart: 'Autostart',
     autostartHint: 'Modul wird automatisch gestartet wenn der Hub startet',
     eventActions: 'Event-Aktionen',
+    // Available modules
+    availableModules: 'Verfügbare Module',
+    availableModulesDesc: 'Eingebaute Module, die mit einem Klick installiert werden können',
+    installBuiltin: 'Installieren',
+    noAvailableModules: 'Alle eingebauten Module sind installiert',
     configuration: 'Konfiguration',
     configurationSubtitle: 'Passen Sie die Modul-Einstellungen an',
     noConfigOptions: 'Dieses Modul hat keine konfigurierbaren Einstellungen.',
@@ -203,6 +208,11 @@ export default {
     dartsCallerConfigDesc: 'Konfigurieren Sie die Sprachansagen, Event-Sounds und spielerspezifische Einstellungen.',
     dartsCallerConfigHint: 'Unterstützt System-TTS, ElevenLabs und eigene Sounds.',
     dartsCallerConfigure: 'Caller konfigurieren',
+    // Autodarts Trainer
+    trainerAnalysisDashboard: 'Analyse Dashboard',
+    trainerAnalysisDashboardSubtitle: 'Detaillierte Statistiken und Trainingsanalysen',
+    trainerAnalysisDashboardDesc: 'Öffnen Sie das Analyse Dashboard, um Ihre Trainingsfortschritte und detaillierte Statistiken einzusehen.',
+    openAnalysisDashboard: 'Analyse Dashboard öffnen',
     // Intent reactions
     intentReactions: 'Intent-Reaktionen',
     intentReactionsSubtitle: 'Konfigurieren Sie, wie dieses Modul auf Spielereignisse reagiert',
@@ -368,6 +378,11 @@ export default {
     developerModeHint: 'Simuliere Autodarts-Events zum Testen der Module',
     developerModeWarning: 'Der Entwickler-Modus ist aktiviert. Du kannst jetzt Autodarts-Events ohne echte Board-Verbindung simulieren.',
     openDevTools: 'Entwickler-Tools öffnen',
+    // Support
+    support: 'Unterstützung',
+    supportDescription: 'Hilf uns, IO-Darts-Agent zu verbessern',
+    donatePaypal: 'Über PayPal spenden',
+    donateDescription: 'Wenn dir IO-Darts-Agent gefällt, kannst du das Projekt mit einer kleinen Spende unterstützen.',
   },
 
   // Media Library

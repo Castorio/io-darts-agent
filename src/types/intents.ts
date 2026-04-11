@@ -97,13 +97,15 @@ export interface ModuleIntentAction {
  * Configuration field for an intent action
  */
 export interface IntentActionConfigField {
-  type: 'string' | 'number' | 'boolean' | 'select' | 'color';
+  type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'template';
   label: string;
   description?: string;
   default?: unknown;
   options?: Array<{ value: string; label: string }>; // For select type
   min?: number; // For number type
   max?: number; // For number type
+  /** For template type: available variables that can be inserted, e.g. ['playerName', 'score'] */
+  availableVariables?: string[];
 }
 
 /**

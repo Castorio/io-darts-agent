@@ -448,12 +448,19 @@ export class ModuleManager extends EventEmitter {
     this.eventSubscriptions.get(managed.manifest.id)?.unsubscribe();
 
     const subscription = this.eventBus.on('*', (event: ParsedEvent) => {
+      // DEBUG: Log all events for module routing
+      console.log(`[ModuleManager] Event received for routing: ${event.type}`);
+
       // Check if module is interested in this event
       if (
         managed.manifest.events.includes(event.type) ||
         managed.manifest.events.includes('*' as AutodartsEventType)
       ) {
-        managed.bridge.sendEvent(event);
+        console.log(`[ModuleManager] ✅ Sending event "${event.type}" to module "${managed.manifest.id}"`);
+        const sent = managed.bridge.sendEvent(event);
+        console.log(`[ModuleManager] Event sent result: ${sent}`);
+      } else {
+        console.log(`[ModuleManager] ⏭️ Module "${managed.manifest.id}" not subscribed to "${event.type}"`);
       }
     });
 

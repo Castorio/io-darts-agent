@@ -171,6 +171,11 @@ export default {
     autostart: 'Autostart',
     autostartHint: 'Module will start automatically when Hub starts',
     eventActions: 'Event Actions',
+    // Available modules
+    availableModules: 'Available Modules',
+    availableModulesDesc: 'Built-in modules that can be installed with one click',
+    installBuiltin: 'Install',
+    noAvailableModules: 'All built-in modules are installed',
     configuration: 'Configuration',
     configurationSubtitle: 'Customize the module settings',
     noConfigOptions: 'This module has no configurable settings.',
@@ -203,6 +208,11 @@ export default {
     dartsCallerConfigDesc: 'Configure voice announcements, event sounds and player-specific settings.',
     dartsCallerConfigHint: 'Supports system TTS, ElevenLabs and custom sounds.',
     dartsCallerConfigure: 'Configure caller',
+    // Autodarts Trainer
+    trainerAnalysisDashboard: 'Analysis Dashboard',
+    trainerAnalysisDashboardSubtitle: 'Detailed statistics and training analysis',
+    trainerAnalysisDashboardDesc: 'Open the Analysis Dashboard to view your training progress and detailed statistics.',
+    openAnalysisDashboard: 'Open Analysis Dashboard',
     // Intent reactions
     intentReactions: 'Intent Reactions',
     intentReactionsSubtitle: 'Configure how this module reacts to game events',
@@ -368,6 +378,11 @@ export default {
     developerModeHint: 'Simulate Autodarts events for testing modules',
     developerModeWarning: 'Developer mode is enabled. You can now simulate Autodarts events without a real board connection.',
     openDevTools: 'Open Developer Tools',
+    // Support
+    support: 'Support',
+    supportDescription: 'Help us improve IO-Darts-Agent',
+    donatePaypal: 'Donate via PayPal',
+    donateDescription: 'If you enjoy using IO-Darts-Agent, consider supporting the project with a small donation.',
   },
 
   // Media Library

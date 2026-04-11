@@ -44,12 +44,21 @@ interface ModuleDetailLocal {
   i18n?: Record<string, unknown>
 }
 
+interface AvailableModule {
+  id: string
+  name: string
+  version: string
+  description: string
+}
+
 export const useModulesStore = defineStore('modules', () => {
   // State
   const modules = ref<ModuleListItemLocal[]>([])
+  const availableModules = ref<AvailableModule[]>([])
   const selectedModule = ref<ModuleDetailLocal | null>(null)
   const isLoading = ref(false)
   const isInstalling = ref(false)
+  const isInstallingBuiltin = ref(false)
   const error = ref<string | null>(null)
 
   // Computed
@@ -79,6 +88,36 @@ export const useModulesStore = defineStore('modules', () => {
       error.value = e instanceof Error ? e.message : 'Failed to fetch modules'
     } finally {
       isLoading.value = false
+    }
+  }
+
+  async function fetchAvailableModules() {
+    try {
+      const result = await api.getAvailableModules()
+      availableModules.value = result.modules || []
+    } catch (e) {
+      console.error('Failed to fetch available modules:', e)
+      availableModules.value = []
+    }
+  }
+
+  async function installBuiltinModule(id: string) {
+    isInstallingBuiltin.value = true
+    error.value = null
+
+    try {
+      const result = await api.installBuiltinModule(id)
+      if (result.success) {
+        // Refresh both lists
+        await fetchModules()
+        await fetchAvailableModules()
+      }
+      return result
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to install module'
+      throw e
+    } finally {
+      isInstallingBuiltin.value = false
     }
   }
 
@@ -212,9 +251,11 @@ export const useModulesStore = defineStore('modules', () => {
   return {
     // State
     modules,
+    availableModules,
     selectedModule,
     isLoading,
     isInstalling,
+    isInstallingBuiltin,
     error,
     // Computed
     runningModules,
@@ -223,12 +264,14 @@ export const useModulesStore = defineStore('modules', () => {
     runningCount,
     // Actions
     fetchModules,
+    fetchAvailableModules,
     fetchModule,
     startModule,
     stopModule,
     restartModule,
     updateConfig,
     installModule,
+    installBuiltinModule,
     uninstallModule,
     updateModuleStatus,
     clearSelectedModule,

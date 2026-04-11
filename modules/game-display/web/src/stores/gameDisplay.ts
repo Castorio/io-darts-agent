@@ -1,6 +1,236 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+// ============================================================================
+// PLAYER RESOLVER - Robuste Spieler-Erkennung trotz Array-Rotation
+// ============================================================================
+// Autodarts rotiert das Spieler-Array nach jedem Leg. Das führt zu Problemen:
+// - Array-Position (data.player) ändert sich
+// - Der "winner" Index bezieht sich auf die AKTUELLE (rotierte) Array-Position
+// - Scores-Array ist nach player.index indiziert (stabil)
+//
+// Lösung: PlayerResolver nutzt eine stabile interne Map (by player.index)
+// und bietet einheitliche Lookup-Methoden.
+// ============================================================================
+
+interface ResolvedPlayer {
+  index: number           // Stabiler player.index von Autodarts
+  arrayPosition: number   // Aktuelle Position in gameState.players
+  name: string
+  score: number
+  setsWon: number
+  legsWon: number
+  isActive: boolean
+  color: string
+  average?: number
+  dartsThrown?: number
+  odId?: string
+}
+
+interface PlayerLookupResult {
+  player: ResolvedPlayer | null
+  arrayPosition: number
+  confidence: 'high' | 'medium' | 'low'
+  method: 'name' | 'index' | 'arrayPosition' | 'none'
+}
+
+class PlayerResolver {
+  // Interne Map: player.index -> Player-Daten
+  private playersByIndex: Map<number, ResolvedPlayer> = new Map()
+  // Name -> player.index für schnelles Lookup
+  private indexByName: Map<string, number> = new Map()
+  // odId -> player.index für Animation-Lookup
+  private indexByOdId: Map<string, number> = new Map()
+
+  /**
+   * Initialisiert/Aktualisiert den Resolver mit frischen Spielerdaten
+   */
+  updatePlayers(
+    autodartsPlayers: Array<Record<string, unknown>>,
+    gameScores?: number[],
+    playerScores?: Array<{ legs: number; sets: number }>,
+    defaultColors: string[] = []
+  ): ResolvedPlayer[] {
+    this.playersByIndex.clear()
+    this.indexByName.clear()
+    this.indexByOdId.clear()
+
+    const resolvedPlayers: ResolvedPlayer[] = []
+
+    autodartsPlayers.forEach((p, arrayPos) => {
+      const playerIndex = (p.index as number) ?? arrayPos
+      const name = (p.name as string) || `Player ${playerIndex + 1}`
+      const odId = (p.odId as string) || (p.id as string) || undefined
+
+      const resolved: ResolvedPlayer = {
+        index: playerIndex,
+        arrayPosition: arrayPos,
+        name,
+        score: gameScores?.[arrayPos] ?? 501,
+        setsWon: playerScores?.[playerIndex]?.sets ?? 0,
+        legsWon: playerScores?.[playerIndex]?.legs ?? 0,
+        isActive: false,
+        color: (p.color as string) || defaultColors[playerIndex % defaultColors.length] || '#3b82f6',
+        average: p.average as number | undefined,
+        dartsThrown: p.dartsThrown as number | undefined,
+        odId,
+      }
+
+      this.playersByIndex.set(playerIndex, resolved)
+      this.indexByName.set(name.toLowerCase(), playerIndex)
+      if (odId) {
+        this.indexByOdId.set(odId, playerIndex)
+      }
+
+      resolvedPlayers.push(resolved)
+    })
+
+    // Sortiert nach player.index für stabile UI-Reihenfolge
+    return resolvedPlayers.sort((a, b) => a.index - b.index)
+  }
+
+  /**
+   * Findet einen Spieler mit Fallback-Strategie
+   * Priorität: Name > player.index > Array-Position
+   */
+  findPlayer(params: {
+    name?: string
+    playerIndex?: number
+    arrayPosition?: number
+    players: ResolvedPlayer[]
+  }): PlayerLookupResult {
+    const { name, playerIndex, arrayPosition, players } = params
+
+    // 1. Versuch: Nach Name (höchste Zuverlässigkeit)
+    if (name) {
+      const idx = this.indexByName.get(name.toLowerCase())
+      if (idx !== undefined) {
+        const player = players.find(p => p.index === idx) || null
+        if (player) {
+          return {
+            player,
+            arrayPosition: players.indexOf(player),
+            confidence: 'high',
+            method: 'name'
+          }
+        }
+      }
+    }
+
+    // 2. Versuch: Nach player.index (stabil über Rotationen)
+    if (playerIndex !== undefined) {
+      const player = players.find(p => p.index === playerIndex) || null
+      if (player) {
+        return {
+          player,
+          arrayPosition: players.indexOf(player),
+          confidence: 'high',
+          method: 'index'
+        }
+      }
+    }
+
+    // 3. Fallback: Array-Position (kann nach Rotation falsch sein)
+    if (arrayPosition !== undefined && arrayPosition < players.length) {
+      const player = players[arrayPosition] || null
+      return {
+        player,
+        arrayPosition: arrayPosition,
+        confidence: 'low',
+        method: 'arrayPosition'
+      }
+    }
+
+    return { player: null, arrayPosition: -1, confidence: 'low', method: 'none' }
+  }
+
+  /**
+   * Findet Spieler für Animation-Konfiguration
+   */
+  findForAnimation(player: ResolvedPlayer, animationConfigs: Array<Record<string, unknown>>): Record<string, unknown> | null {
+    // 1. Nach odId/playerId
+    if (player.odId) {
+      const byId = animationConfigs.find(c => c.playerId === player.odId)
+      if (byId) return byId
+    }
+
+    // 2. Nach Name (case-insensitive)
+    const byName = animationConfigs.find(c =>
+      (c.playerName as string)?.toLowerCase() === player.name.toLowerCase()
+    )
+    if (byName) return byName
+
+    return null
+  }
+
+  /**
+   * Konvertiert Autodarts winner-Index (Array-Position) zu unserem player.index
+   */
+  resolveWinnerFromArrayPosition(
+    arrayPosition: number,
+    autodartsPlayers: Array<Record<string, unknown>>,
+    winnerName?: string
+  ): { playerIndex: number; name: string } | null {
+    // Bevorzugt: Name aus Event-Daten
+    if (winnerName) {
+      const idx = this.indexByName.get(winnerName.toLowerCase())
+      if (idx !== undefined) {
+        return { playerIndex: idx, name: winnerName }
+      }
+    }
+
+    // Fallback: Aus Autodarts-Array auslesen
+    const winner = autodartsPlayers[arrayPosition]
+    if (winner) {
+      const playerIndex = (winner.index as number) ?? arrayPosition
+      const name = (winner.name as string) || `Player ${playerIndex + 1}`
+      return { playerIndex, name }
+    }
+
+    return null
+  }
+
+  /**
+   * Aktualisiert einen einzelnen Spieler in-place
+   */
+  updatePlayerData(
+    players: ResolvedPlayer[],
+    playerIndex: number,
+    updates: Partial<Omit<ResolvedPlayer, 'index'>>
+  ): void {
+    const player = players.find(p => p.index === playerIndex)
+    if (player) {
+      Object.assign(player, updates)
+    }
+  }
+
+  /**
+   * Setzt den aktiven Spieler nach player.index
+   */
+  setActivePlayer(players: ResolvedPlayer[], activePlayerIndex: number): number {
+    players.forEach(p => {
+      p.isActive = p.index === activePlayerIndex
+    })
+    // Gibt die Array-Position des aktiven Spielers zurück
+    return players.findIndex(p => p.isActive)
+  }
+
+  /**
+   * Debug-Ausgabe des aktuellen Resolver-Zustands
+   */
+  debug(players: ResolvedPlayer[]): void {
+    console.log('🔍 [PlayerResolver] State:', {
+      byIndex: Object.fromEntries(this.playersByIndex),
+      byName: Object.fromEntries(this.indexByName),
+      byOdId: Object.fromEntries(this.indexByOdId),
+      sortedPlayers: players.map(p => ({ idx: p.index, pos: p.arrayPosition, name: p.name }))
+    })
+  }
+}
+
+// Globale Resolver-Instanz für den Store
+const playerResolver = new PlayerResolver()
+
 // Animation event types
 export type AnimationEventType =
   | '180'
@@ -597,8 +827,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     gameState.value.matchId = data.matchId as string
     gameState.value.isActive = true
 
-    // Parse game settings
-    // Note: legs and sets are on the top level of data, not inside settings
+    // ========================================================================
+    // GAME SETTINGS
+    // ========================================================================
     const settings = data.settings as Record<string, unknown> | undefined
     const variant = (data.variant as string) || 'X01'
     const setsToWin = (data.sets as number) || (settings?.sets as number) || 1
@@ -608,61 +839,133 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       gameState.value.startScore = (settings.baseScore as number) || (settings.startScore as number) || 501
       gameState.value.setsToWin = setsToWin
       gameState.value.legsToWin = legsToWin
-
-      // Store detailed game info
       gameState.value.gameInfo = {
-        variant: variant,
+        variant,
         baseScore: (settings.baseScore as number) || 501,
         inMode: (settings.inMode as string) || 'straight',
         outMode: (settings.outMode as string) || 'double',
         bullMode: (settings.bullMode as string) || '25/50',
         maxRounds: (settings.maxRounds as number) || 0,
-        setsToWin: setsToWin,
-        legsToWin: legsToWin,
+        setsToWin,
+        legsToWin,
       }
     } else {
-      // Fallback if no settings available
       gameState.value.setsToWin = setsToWin
       gameState.value.legsToWin = legsToWin
     }
 
-    // Parse players - the hub sends players with basic info and gameScores separately
-    const players = data.players as Array<Record<string, unknown>> | undefined
+    // ========================================================================
+    // PLAYER HANDLING MIT PLAYERRESOLVER
+    // ========================================================================
+    const autodartsPlayers = data.players as Array<Record<string, unknown>> | undefined
     const gameScores = data.gameScores as number[] | undefined
+    const playerScores = data.scores as Array<{ legs: number; sets: number }> | undefined
 
-    if (players) {
-      gameState.value.players = players.map((p, index) => ({
-        index: (p.index as number) ?? index,
-        name: (p.name as string) || `Player ${index + 1}`,
-        // Score comes from gameScores array, not from player object
-        score: gameScores?.[index] ?? gameState.value.startScore,
-        setsWon: (p.setsWon as number) || 0,
-        legsWon: (p.legsWon as number) || 0,
-        isActive: index === (data.player as number ?? 0),
-        color: (p.color as string) || defaultColors[index % defaultColors.length],
-        average: p.average as number | undefined,
-        dartsThrown: p.dartsThrown as number | undefined,
-      }))
-    }
-
-    // Active player
-    // IMPORTANT: If match OR game (leg) is finished, keep showing the winner instead
-    // of switching to the next player's turn index.
-    // This prevents late-arriving match.state events from changing the displayed player
-    // after handleMatchFinished/handleGameFinished has already set the correct winner.
-    //
-    // We check for:
-    // 1. isGameFinished - leg just ended, gameWinner is set
-    // 2. isMatchFinished - match ended, winner is set
-    // 3. matchAlreadyEnded - match was already marked as ended in a previous event
+    // Prüfe ob Spiel/Match beendet ist
     const isGameFinished = (data.gameFinished as boolean) && (data.gameWinner as number) !== undefined
     const isMatchFinished = (data.finished as boolean) && (data.winner as number) !== undefined
-    const matchAlreadyEnded = !gameState.value.isActive && gameState.value.winner !== null
-    if (isMatchFinished || matchAlreadyEnded || isGameFinished) {
-      // Don't update activePlayerIndex when game/match is finished - keep showing winner
-      console.log('🔒 [GameDisplay] Keeping winner displayed, not switching player. isGameFinished:', isGameFinished, 'isMatchFinished:', isMatchFinished)
+    const hasExistingWinner = gameState.value.winner !== null
+
+    if (autodartsPlayers) {
+      // DEBUG: Log all incoming player data to diagnose the issue
+      console.log('🎯 [GameDisplay] Incoming players from match.state:', autodartsPlayers.map((p, i) => ({
+        arrayPos: i,
+        index: p.index,
+        name: p.name,
+        color: p.color,
+        odId: p.odId || p.id
+      })))
+
+      // Aktiver Spieler: data.player ist die Array-Position in Autodarts' rotiertem Array
+      const activeArrayPos = (data.player as number) ?? 0
+      const activePlayerIndex = (autodartsPlayers[activeArrayPos]?.index as number) ?? activeArrayPos
+
+      if (isGameFinished || isMatchFinished || hasExistingWinner) {
+        // ====================================================================
+        // FINISHED STATE: In-Place Update um Winner-Referenz zu erhalten
+        // ====================================================================
+        console.log('🔒 [PlayerResolver] In-place update (finished state)')
+
+        // Erstelle Score-Mapping: playerIndex -> score
+        const scoreByPlayerIndex = new Map<number, number>()
+        autodartsPlayers.forEach((p, arrayPos) => {
+          const idx = (p.index as number) ?? arrayPos
+          scoreByPlayerIndex.set(idx, gameScores?.[arrayPos] ?? gameState.value.startScore)
+        })
+
+        // Update bestehende Spieler in-place
+        gameState.value.players.forEach(player => {
+          const incoming = autodartsPlayers.find(p => (p.index as number) === player.index)
+          if (incoming) {
+            player.name = (incoming.name as string) || player.name
+            player.score = scoreByPlayerIndex.get(player.index) ?? player.score
+            player.setsWon = playerScores?.[player.index]?.sets ?? player.setsWon
+            player.legsWon = playerScores?.[player.index]?.legs ?? player.legsWon
+            player.average = incoming.average as number | undefined
+            player.dartsThrown = incoming.dartsThrown as number | undefined
+            player.odId = (incoming.odId as string) || (incoming.id as string) || player.odId
+          }
+        })
+      } else {
+        // ====================================================================
+        // NORMAL STATE: Nutze PlayerResolver für saubere Spieler-Erstellung
+        // ====================================================================
+        console.log('🎯 [PlayerResolver] Building player list, activePlayerIndex:', activePlayerIndex)
+
+        // PlayerResolver erstellt sortierte Spielerliste
+        const resolvedPlayers = playerResolver.updatePlayers(
+          autodartsPlayers,
+          gameScores,
+          playerScores,
+          defaultColors
+        )
+
+        // DEBUG: Log resolved players to see if all are processed correctly
+        console.log('🎯 [GameDisplay] Resolved players after PlayerResolver:', resolvedPlayers.map(p => ({
+          index: p.index,
+          arrayPosition: p.arrayPosition,
+          name: p.name,
+          color: p.color
+        })))
+
+        // Setze aktiven Spieler
+        const activeArrayIndex = playerResolver.setActivePlayer(resolvedPlayers, activePlayerIndex)
+
+        // Konvertiere zu Player-Interface
+        gameState.value.players = resolvedPlayers.map(rp => ({
+          index: rp.index,
+          name: rp.name,
+          score: rp.score,
+          setsWon: rp.setsWon,
+          legsWon: rp.legsWon,
+          isActive: rp.isActive,
+          color: rp.color,
+          average: rp.average,
+          dartsThrown: rp.dartsThrown,
+          odId: rp.odId,
+        }))
+
+        gameState.value.activePlayerIndex = activeArrayIndex !== -1 ? activeArrayIndex : 0
+
+        console.log(`🎯 [PlayerResolver] Active: ${gameState.value.players[gameState.value.activePlayerIndex]?.name}`)
+        console.log('🎯 [GameDisplay] Final gameState.players:', gameState.value.players.map(p => ({
+          index: p.index,
+          name: p.name,
+          color: p.color
+        })))
+      }
+    }
+
+    // ========================================================================
+    // ACTIVE PLAYER INDEX (nur wenn nicht finished)
+    // ========================================================================
+    if (!isMatchFinished && !isGameFinished && !hasExistingWinner) {
+      const activeIdx = gameState.value.players.findIndex(p => p.isActive)
+      if (activeIdx !== -1) {
+        gameState.value.activePlayerIndex = activeIdx
+      }
     } else {
-      gameState.value.activePlayerIndex = (data.player as number) ?? 0
+      console.log('🔒 [PlayerResolver] Keeping winner displayed')
     }
 
     // Current leg/set
@@ -709,7 +1012,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // gameScores contains the current remaining score for each player
     // This is already the score AFTER the current turn's throws are subtracted
     // (Autodarts updates gameScores in real-time with each throw)
-    const playerRemainingScore = gameScores?.[gameState.value.activePlayerIndex] ?? gameState.value.startScore
+    // FIXED: Use the active player's score from our sorted players array (already mapped correctly above)
+    const activePlayer = gameState.value.players[gameState.value.activePlayerIndex]
+    const playerRemainingScore = activePlayer?.score ?? gameState.value.startScore
 
     // Check for NEW darts and trigger bull animations if needed
     // This handles the case where throw.detected events don't arrive
@@ -757,18 +1062,23 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // Check checkout possibility
     updateCheckoutStatus()
 
-    // Check if this leg/game is finished
-    const finished = data.finished as boolean | undefined
-    const winnerIndex = data.winner as number | undefined
+    // NOTE: We do NOT set the winner here from match.state data.
+    // The winner is set authoritatively by handleGameFinished (leg winner) and
+    // handleMatchFinished (match winner) which receive the correct winnerName
+    // from the backend EventParser at the moment of the win.
+    //
+    // Previously, this code would incorrectly overwrite the leg winner with the
+    // match winner when a late match.state event arrived with finished=true and
+    // winner set (which is the MATCH winner index, not the LEG winner index).
+    //
+    // The winner is only cleared when a new leg starts (detected by gameFinished being false
+    // and no existing winner context from handleGameFinished/handleMatchFinished).
+    const gameFinished = data.gameFinished as boolean | undefined
+    const matchFinished = data.finished as boolean | undefined
 
-    if (finished && winnerIndex !== undefined) {
-      // Leg/Game finished - set winner
-      const winner = gameState.value.players[winnerIndex]
-      if (winner) {
-        gameState.value.winner = winner
-      }
-    } else {
-      // Game continues or new leg started - clear winner
+    // Only clear winner if game is actively continuing (not finished)
+    // AND we're not in a "just finished" state that handleGameFinished/handleMatchFinished will handle
+    if (!gameFinished && !matchFinished && !hasExistingWinner) {
       gameState.value.winner = null
     }
   }
@@ -832,24 +1142,37 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
   function handlePlayerChange(data: Record<string, unknown>) {
     console.log('handlePlayerChange data:', data)
-    // The hub sends currentPlayer, not playerIndex
-    const newPlayerIndex = (data.currentPlayer as number) ?? (data.playerIndex as number) ?? 0
+
+    // ========================================================================
+    // PLAYER LOOKUP MIT PLAYERRESOLVER
+    // Priorität: Name > playerIndex > arrayPosition (Fallback)
+    // ========================================================================
+    const result = playerResolver.findPlayer({
+      name: data.playerName as string | undefined,
+      playerIndex: data.playerIndex as number | undefined,
+      arrayPosition: data.currentPlayer as number | undefined,
+      players: gameState.value.players as unknown as ResolvedPlayer[]
+    })
+
+    const newArrayIndex = result.arrayPosition !== -1 ? result.arrayPosition : 0
+    console.log(`🔄 [PlayerResolver] Player change: ${result.player?.name} (method: ${result.method}, confidence: ${result.confidence})`)
 
     // Save last turn score before switching
     gameState.value.lastTurnScore = gameState.value.currentTurn.turnScore
 
     // Update active player
-    gameState.value.activePlayerIndex = newPlayerIndex
+    gameState.value.activePlayerIndex = newArrayIndex
     gameState.value.players.forEach((p, i) => {
-      p.isActive = i === newPlayerIndex
+      p.isActive = i === newArrayIndex
     })
 
     // Update scores from event data if available
     const scores = data.scores as number[] | undefined
     if (scores) {
-      scores.forEach((score, i) => {
-        if (gameState.value.players[i]) {
-          gameState.value.players[i].score = score
+      // scores Array ist nach player.index indiziert, nicht nach Array-Position
+      gameState.value.players.forEach(player => {
+        if (scores[player.index] !== undefined) {
+          player.score = scores[player.index]
         }
       })
     }
@@ -859,7 +1182,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     gameState.value.currentTurn = {
       darts: [],
       turnScore: 0,
-      remaining: gameState.value.players[newPlayerIndex]?.score || gameState.value.startScore,
+      remaining: gameState.value.players[newArrayIndex]?.score || gameState.value.startScore,
       isBusted: false,
     }
 
@@ -867,55 +1190,85 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   }
 
   function handleTurnFinished(data: Record<string, unknown>) {
-    // Update player score
-    const playerIndex = (data.playerIndex as number) || gameState.value.activePlayerIndex
+    // ========================================================================
+    // PLAYER LOOKUP MIT PLAYERRESOLVER
+    // ========================================================================
+    const result = playerResolver.findPlayer({
+      name: data.playerName as string | undefined,
+      playerIndex: data.playerIndex as number | undefined,
+      arrayPosition: gameState.value.activePlayerIndex, // Fallback auf aktuellen Spieler
+      players: gameState.value.players as unknown as ResolvedPlayer[]
+    })
+
+    const playerArrayIndex = result.arrayPosition !== -1 ? result.arrayPosition : gameState.value.activePlayerIndex
     const newScore = data.remaining as number | undefined
 
     // Check for bust
     const busted = data.busted as boolean | undefined
     if (busted) {
-      const player = gameState.value.players[playerIndex]
+      const player = gameState.value.players[playerArrayIndex]
       triggerAnimation('bust', player || undefined)
     }
 
     // Check for checkout (remaining = 0 and finished with double)
     if (newScore === 0) {
-      const player = gameState.value.players[playerIndex]
+      const player = gameState.value.players[playerArrayIndex]
       triggerAnimation('checkout', player || undefined)
     }
 
-    if (newScore !== undefined && gameState.value.players[playerIndex]) {
-      gameState.value.players[playerIndex].score = newScore
+    if (newScore !== undefined && gameState.value.players[playerArrayIndex]) {
+      gameState.value.players[playerArrayIndex].score = newScore
     }
   }
 
   function handleGameFinished(data: Record<string, unknown>) {
     console.log('handleGameFinished data:', data)
-    // The hub sends winner, not winnerIndex
-    const winnerIndex = (data.winner as number) ?? (data.winnerIndex as number) ?? 0
 
-    // IMPORTANT: Use winnerName from event data (from Autodarts array at the moment of leg win)
-    // This ensures we always have the correct player name, not potentially stale local state
-    const winnerNameFromEvent = (data.winnerName as string) || null
+    // ========================================================================
+    // WINNER LOOKUP MIT PLAYERRESOLVER
+    // ========================================================================
+    const winnerArrayPos = (data.winner as number) ?? (data.winnerIndex as number) ?? 0
+    const winnerName = data.winnerName as string | undefined
+    const winnerPlayerIndex = data.winnerPlayerIndex as number | undefined
 
-    const winner = gameState.value.players[winnerIndex]
+    // Nutze PlayerResolver für konsistentes Winner-Lookup
+    const result = playerResolver.findPlayer({
+      name: winnerName,
+      playerIndex: winnerPlayerIndex,
+      arrayPosition: winnerArrayPos,
+      players: gameState.value.players as unknown as ResolvedPlayer[]
+    })
 
-    if (winner) {
-      // Update the local player name from event data if available
-      if (winnerNameFromEvent) {
-        winner.name = winnerNameFromEvent
+    console.log(`🏆 [PlayerResolver] Game finished - Winner: ${result.player?.name} (method: ${result.method}, confidence: ${result.confidence})`)
+
+    // Extract legs/sets from scores array (indexed by player.index)
+    const scores = data.scores as Array<{ legs: number; sets: number }> | undefined
+
+    if (result.player) {
+      const winner = gameState.value.players[result.arrayPosition]
+
+      // Update Name wenn aus Event verfügbar
+      if (winnerName) {
+        winner.name = winnerName
       }
 
-      winner.legsWon++
-      gameState.value.winner = winner
-      // Set activePlayerIndex to winner's index
-      gameState.value.activePlayerIndex = winnerIndex
+      // Update alle Spieler-Scores
+      if (scores) {
+        gameState.value.players.forEach(player => {
+          if (scores[player.index]) {
+            player.legsWon = scores[player.index].legs
+            player.setsWon = scores[player.index].sets
+          }
+        })
+      }
 
-      // Create win event data for enhanced animation
-      // Use winnerName from event data (authoritative) or fall back to local state
+      gameState.value.winner = winner
+      gameState.value.activePlayerIndex = result.arrayPosition
+
+      // Win animation data
       const winData: WinEventData = {
-        winnerIndex,
-        winnerName: winnerNameFromEvent || winner.name,
+        winnerIndex: winner.index,
+        winnerName: winner.name,
         playerId: winner.odId,
         legsWon: winner.legsWon,
         setsWon: winner.setsWon,
@@ -927,11 +1280,10 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         },
       }
 
-      // Trigger leg win animation with win data
       triggerAnimation('legWin', winner, winData)
     }
 
-    // Update leg count from data if available
+    // Update leg count
     if (data.leg !== undefined) {
       gameState.value.currentLeg = (data.leg as number) + 1
     } else {
@@ -941,30 +1293,52 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
   function handleMatchFinished(data: Record<string, unknown>) {
     console.log('handleMatchFinished data:', data)
-    // The hub sends winner, not winnerIndex
-    const winnerIndex = (data.winner as number) ?? (data.winnerIndex as number) ?? 0
 
-    // IMPORTANT: Use winnerName from event data (from Autodarts array at the moment of match win)
-    // This ensures we always have the correct player name, not potentially stale local state
-    const winnerNameFromEvent = (data.winnerName as string) || null
+    // ========================================================================
+    // WINNER LOOKUP MIT PLAYERRESOLVER
+    // ========================================================================
+    const winnerArrayPos = (data.winner as number) ?? (data.winnerIndex as number) ?? 0
+    const winnerName = data.winnerName as string | undefined
+    const winnerPlayerIndex = data.winnerPlayerIndex as number | undefined
 
-    const winner = gameState.value.players[winnerIndex]
+    // Nutze PlayerResolver für konsistentes Winner-Lookup
+    const result = playerResolver.findPlayer({
+      name: winnerName,
+      playerIndex: winnerPlayerIndex,
+      arrayPosition: winnerArrayPos,
+      players: gameState.value.players as unknown as ResolvedPlayer[]
+    })
 
-    if (winner) {
-      // Update the local player name from event data if available
-      if (winnerNameFromEvent) {
-        winner.name = winnerNameFromEvent
+    console.log(`🏆 [PlayerResolver] Match finished - Winner: ${result.player?.name} (method: ${result.method}, confidence: ${result.confidence})`)
+
+    // Extract legs/sets from scores array (indexed by player.index)
+    const scores = data.scores as Array<{ legs: number; sets: number }> | undefined
+
+    if (result.player) {
+      const winner = gameState.value.players[result.arrayPosition]
+
+      // Update Name wenn aus Event verfügbar
+      if (winnerName) {
+        winner.name = winnerName
+      }
+
+      // Update alle Spieler-Scores
+      if (scores) {
+        gameState.value.players.forEach(player => {
+          if (scores[player.index]) {
+            player.legsWon = scores[player.index].legs
+            player.setsWon = scores[player.index].sets
+          }
+        })
       }
 
       gameState.value.winner = winner
-      // Set activePlayerIndex to winner's index
-      gameState.value.activePlayerIndex = winnerIndex
+      gameState.value.activePlayerIndex = result.arrayPosition
 
-      // Create win event data for enhanced animation
-      // Use winnerName from event data (authoritative) or fall back to local state
+      // Win animation data
       const winData: WinEventData = {
-        winnerIndex,
-        winnerName: winnerNameFromEvent || winner.name,
+        winnerIndex: winner.index,
+        winnerName: winner.name,
         playerId: winner.odId,
         legsWon: winner.legsWon,
         setsWon: winner.setsWon,
@@ -976,7 +1350,6 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         },
       }
 
-      // Trigger match win animation with win data
       triggerAnimation('matchWin', winner, winData)
     }
 
@@ -1158,43 +1531,41 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   ): AnimationConfig | null {
     if (!config.value.animationsEnabled) return null
 
-    // First check player-specific animations
+    // ========================================================================
+    // PLAYER-SPECIFIC ANIMATION MIT PLAYERRESOLVER
+    // ========================================================================
     if (player) {
-      console.log(`🔍 [GameDisplay] Looking for player animation:`, {
-        playerName: player.name,
-        playerOdId: player.odId,
-        availableOverrides: config.value.playerAnimations.map((pa: Record<string, unknown>) => ({
-          playerName: pa.playerName,
-          playerId: pa.playerId
-        }))
-      })
+      // Konvertiere Player zu ResolvedPlayer-ähnlichem Objekt für Resolver
+      const resolvedPlayer: ResolvedPlayer = {
+        index: player.index,
+        arrayPosition: gameState.value.players.indexOf(player),
+        name: player.name,
+        score: player.score,
+        setsWon: player.setsWon,
+        legsWon: player.legsWon,
+        isActive: player.isActive,
+        color: player.color,
+        average: player.average,
+        dartsThrown: player.dartsThrown,
+        odId: player.odId,
+      }
 
-      // Support both old format (with animations sub-object) and new format (direct keys)
-      const playerAnim = config.value.playerAnimations.find(
-        (pa: Record<string, unknown>) =>
-          (pa.playerId && pa.playerId === player.odId) ||
-          (pa.playerName && (pa.playerName as string).toLowerCase() === player.name.toLowerCase())
-      ) as Record<string, unknown> | undefined
+      // Nutze PlayerResolver für Animation-Lookup
+      const playerAnim = playerResolver.findForAnimation(
+        resolvedPlayer,
+        config.value.playerAnimations as Array<Record<string, unknown>>
+      )
 
       if (playerAnim) {
-        // Get the UI key for this event type
         const uiKey = EVENT_TO_UI_KEY_MAP[eventType]
-
-        // Check new format: direct keys like throw180, legWin, etc.
         const newFormatAnim = playerAnim[uiKey] as Record<string, unknown> | undefined
+
         if (newFormatAnim) {
           const animType = newFormatAnim.type as string
-          // Check if animation is configured (type is not 'none' and not undefined)
           if (animType && animType !== 'none') {
             const mediaUrl = (newFormatAnim.mediaUrl as string) || ''
             const soundUrl = (newFormatAnim.soundUrl as string) || undefined
-            console.log(`🎮 [GameDisplay] Found player animation for ${player.name}:`, {
-              uiKey,
-              animType,
-              mediaUrl,
-              soundUrl,
-              fullConfig: newFormatAnim
-            })
+            console.log(`🎮 [PlayerResolver] Animation found for ${player.name}: ${eventType}`)
             return {
               enabled: true,
               url: animType === 'builtin' ? '' : mediaUrl,
@@ -1204,7 +1575,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
           }
         }
 
-        // Check old format: animations sub-object
+        // Legacy-Format Support
         const oldAnimations = playerAnim.animations as Record<string, AnimationConfig> | undefined
         if (oldAnimations?.[eventType]?.enabled) {
           return oldAnimations[eventType]
@@ -1212,18 +1583,16 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       }
     }
 
-    // Fall back to default animations if explicitly configured
+    // Fall back to default animations
     const defaultAnim = config.value.defaultAnimations[eventType]
     if (defaultAnim?.enabled) {
       return defaultAnim
     }
 
-    // If no explicit config exists but animations are enabled globally,
-    // return a default builtin animation config
-    // This ensures builtin animations play even without explicit configuration
+    // Default builtin animation
     return {
       enabled: true,
-      url: '', // empty URL triggers builtin animation in AnimationOverlay.vue
+      url: '',
       duration: BUILTIN_ANIMATION_DURATIONS[eventType] || 3000,
       sound: undefined,
     }

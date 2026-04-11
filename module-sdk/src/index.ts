@@ -67,6 +67,39 @@ interface IPCMessage<T = unknown> {
   payload: T;
 }
 
+// Route Types
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+export interface ModuleRouteDefinition {
+  method: HttpMethod;
+  path: string;
+  handlerId: string;
+  description?: string;
+  requireAuth?: boolean;
+  schema?: {
+    body?: Record<string, unknown>;
+    querystring?: Record<string, unknown>;
+    params?: Record<string, unknown>;
+    response?: Record<string, unknown>;
+  };
+}
+
+export interface RouteRequest {
+  handlerId: string;
+  method: HttpMethod;
+  path: string;
+  params: Record<string, string>;
+  query: Record<string, unknown>;
+  body: unknown;
+  headers: Record<string, string>;
+}
+
+export interface RouteResponse {
+  statusCode?: number;
+  headers?: Record<string, string>;
+  body: unknown;
+}
+
 interface InitPayload {
   moduleId: string;
   config: Record<string, unknown>;
@@ -88,7 +121,198 @@ interface ShutdownPayload {
   gracePeriodMs: number;
 }
 
+// Core Player Types (for requesting player data from hub)
+export interface CorePlayer {
+  id: string;
+  name: string;
+  nickname?: string;
+  color: string;
+  avatar?: string;
+  autodartsUserId?: string;
+  createdAt: string;
+  updatedAt: string;
+  stats: {
+    gamesPlayed: number;
+    gamesWon: number;
+    legsPlayed: number;
+    legsWon: number;
+    averageScore: number;
+    highestScore: number;
+    total180s: number;
+    totalCheckouts: number;
+    bestCheckout: number;
+    lastPlayed?: string;
+  };
+}
+
+interface RequestResponsePayload {
+  requestId: string;
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
+
+interface RouteRequestPayload {
+  handlerId: string;
+  method: HttpMethod;
+  path: string;
+  params: Record<string, string>;
+  query: Record<string, unknown>;
+  body: unknown;
+  headers: Record<string, string>;
+}
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export type RouteHandler = (request: RouteRequest) => Promise<RouteResponse> | RouteResponse;
+
+// ============================================
+// Intent Template System
+// ============================================
+
+export type Locale = 'de' | 'en';
+
+export interface IntentTemplateParams {
+  [key: string]: string | number | boolean | string[] | undefined;
+}
+
+export interface IntentTemplate {
+  id: string;
+  category: string;
+  priority: number;
+  duration: number;
+  templates: Record<Locale, string>;
+  requiredParams: string[];
+  optionalParams?: string[];
+}
+
+export interface RenderedIntent {
+  message: string;
+  category: string;
+  priority: number;
+  duration: number;
+  templateId: string;
+  params: IntentTemplateParams;
+  locale: Locale;
+}
+
+// Global template registry
+const intentTemplates: Map<string, IntentTemplate> = new Map();
+
+/**
+ * Register an intent template
+ */
+export function registerIntentTemplate(template: IntentTemplate): void {
+  intentTemplates.set(template.id, template);
+}
+
+/**
+ * Get a registered template by ID
+ */
+export function getIntentTemplate(templateId: string): IntentTemplate | undefined {
+  return intentTemplates.get(templateId);
+}
+
+/**
+ * Get all templates for a category
+ */
+export function getIntentTemplatesByCategory(category: string): IntentTemplate[] {
+  return Array.from(intentTemplates.values()).filter(t => t.category === category);
+}
+
+/**
+ * Render a template with parameters
+ */
+export function renderIntentTemplate(
+  templateId: string,
+  params: IntentTemplateParams,
+  locale: Locale = 'de'
+): RenderedIntent | null {
+  const template = intentTemplates.get(templateId);
+  if (!template) {
+    return null;
+  }
+
+  // Check required params
+  for (const param of template.requiredParams) {
+    if (params[param] === undefined) {
+      console.warn(`[IntentTemplate] Missing required param "${param}" for template "${templateId}"`);
+      return null;
+    }
+  }
+
+  // Get localized template string
+  let message = template.templates[locale] || template.templates['de'];
+
+  // Replace placeholders {{param}}
+  message = message.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    const value = params[key];
+    if (value === undefined) return `{{${key}}}`;
+    if (typeof value === 'number') {
+      return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+    }
+    if (Array.isArray(value)) {
+      return value.join(', ');
+    }
+    return String(value);
+  });
+
+  return {
+    message,
+    category: template.category,
+    priority: template.priority,
+    duration: template.duration,
+    templateId,
+    params,
+    locale
+  };
+}
+
+/**
+ * Create intent payload from a template
+ */
+export function createIntentPayload(
+  templateId: string,
+  params: IntentTemplateParams,
+  locale: Locale = 'de',
+  overrides?: Partial<{ priority: number; duration: number; category: string }>
+): Record<string, unknown> | null {
+  const rendered = renderIntentTemplate(templateId, params, locale);
+  if (!rendered) return null;
+
+  return {
+    message: rendered.message,
+    category: overrides?.category ?? rendered.category,
+    priority: overrides?.priority ?? rendered.priority,
+    duration: overrides?.duration ?? rendered.duration,
+    templateId,
+    params,
+    locale
+  };
+}
+
+/**
+ * Bulk register multiple templates
+ */
+export function registerIntentTemplates(templates: IntentTemplate[]): void {
+  for (const template of templates) {
+    intentTemplates.set(template.id, template);
+  }
+}
+
+/**
+ * Clear all registered templates
+ */
+export function clearIntentTemplates(): void {
+  intentTemplates.clear();
+}
+
+/**
+ * Get all registered template IDs
+ */
+export function getIntentTemplateIds(): string[] {
+  return Array.from(intentTemplates.keys());
+}
 
 // ============================================
 // Module Base Class
@@ -136,6 +360,8 @@ export abstract class AutodartsModule extends EventEmitter {
   private connected = false;
   private reconnectAttempts = 0;
   private shutdownRequested = false;
+  private routeHandlers = new Map<string, RouteHandler>();
+  private pendingRequests = new Map<string, { resolve: (data: unknown) => void; reject: (error: Error) => void }>();
 
   constructor(options: ModuleOptions = {}) {
     super();
@@ -218,15 +444,76 @@ export abstract class AutodartsModule extends EventEmitter {
   }
 
   /**
-   * Send a request to hub
+   * Send a request to hub and wait for response
    */
-  protected async request(action: string, data?: Record<string, unknown>): Promise<void> {
-    this.send({
-      id: this.generateId(),
-      type: 'request',
-      timestamp: Date.now(),
-      payload: { action, data },
+  protected async request<T = unknown>(action: string, data?: Record<string, unknown>, timeoutMs = 5000): Promise<T> {
+    const requestId = this.generateId();
+
+    return new Promise((resolve, reject) => {
+      // Set up timeout
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(requestId);
+        reject(new Error(`Request ${action} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      // Store the pending request
+      this.pendingRequests.set(requestId, {
+        resolve: (result) => {
+          clearTimeout(timer);
+          this.pendingRequests.delete(requestId);
+          resolve(result as T);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          this.pendingRequests.delete(requestId);
+          reject(error);
+        },
+      });
+
+      // Send the request
+      this.send({
+        id: requestId,
+        type: 'request',
+        timestamp: Date.now(),
+        payload: { action, data, requestId },
+      });
     });
+  }
+
+  // ============================================
+  // Core Data Access API
+  // ============================================
+
+  /**
+   * Get all registered players from the hub
+   */
+  protected async getCorePlayers(): Promise<CorePlayer[]> {
+    const result = await this.request<{ players: CorePlayer[] }>('getPlayers');
+    return result.players || [];
+  }
+
+  /**
+   * Get a specific player by ID from the hub
+   */
+  protected async getCorePlayerById(playerId: string): Promise<CorePlayer | undefined> {
+    const result = await this.request<{ player?: CorePlayer }>('getPlayer', { playerId });
+    return result.player;
+  }
+
+  /**
+   * Get a specific player by name from the hub
+   */
+  protected async getCorePlayerByName(playerName: string): Promise<CorePlayer | undefined> {
+    const result = await this.request<{ player?: CorePlayer }>('getPlayerByName', { playerName });
+    return result.player;
+  }
+
+  /**
+   * Check if a player is registered in the core
+   */
+  protected async isCorePlayer(playerNameOrId: string): Promise<boolean> {
+    const result = await this.request<{ exists: boolean }>('isPlayerRegistered', { identifier: playerNameOrId });
+    return result.exists || false;
   }
 
   /**
@@ -246,6 +533,126 @@ export abstract class AutodartsModule extends EventEmitter {
       payload: { intentId, payload },
     });
     this.log('debug', `Emitted intent: ${intentId}`, payload);
+  }
+
+  /**
+   * Emit an intent using a template
+   *
+   * Renders a registered template with the provided parameters and emits it.
+   *
+   * @param intentId - The intent identifier
+   * @param templateId - The template ID to render
+   * @param params - Template parameters
+   * @param locale - Locale for message (default: 'de')
+   * @param overrides - Optional overrides for priority, duration, category
+   * @returns true if intent was emitted, false if template not found or params invalid
+   */
+  protected emitTemplatedIntent(
+    intentId: string,
+    templateId: string,
+    params: IntentTemplateParams,
+    locale: Locale = 'de',
+    overrides?: Partial<{ priority: number; duration: number; category: string }>
+  ): boolean {
+    const payload = createIntentPayload(templateId, params, locale, overrides);
+    if (!payload) {
+      this.log('warn', `Failed to render template "${templateId}" for intent "${intentId}"`);
+      return false;
+    }
+
+    this.emitIntent(intentId, payload);
+    return true;
+  }
+
+  /**
+   * Register intent templates for this module
+   *
+   * @param templates - Array of templates to register
+   */
+  protected registerTemplates(templates: IntentTemplate[]): void {
+    registerIntentTemplates(templates);
+    this.log('debug', `Registered ${templates.length} intent templates`);
+  }
+
+  // ============================================
+  // Route Registration API
+  // ============================================
+
+  /**
+   * Register API routes with the hub
+   *
+   * Routes are mounted under /api/modules/:moduleId/routes/*
+   * After registering routes, set up handlers using setRouteHandler()
+   *
+   * @param routes - Array of route definitions
+   */
+  protected registerRoutes(routes: ModuleRouteDefinition[]): void {
+    this.send({
+      id: this.generateId(),
+      type: 'routes.register',
+      timestamp: Date.now(),
+      payload: { routes },
+    });
+    this.log('info', `Registered ${routes.length} API routes with hub`);
+  }
+
+  /**
+   * Set a handler for a specific route
+   *
+   * @param handlerId - The handler ID matching the route definition
+   * @param handler - The handler function
+   */
+  protected setRouteHandler(handlerId: string, handler: RouteHandler): void {
+    this.routeHandlers.set(handlerId, handler);
+  }
+
+  /**
+   * Remove a route handler
+   *
+   * @param handlerId - The handler ID to remove
+   */
+  protected removeRouteHandler(handlerId: string): void {
+    this.routeHandlers.delete(handlerId);
+  }
+
+  /**
+   * Handle incoming route request from hub
+   */
+  private async handleRouteRequest(message: IPCMessage<RouteRequestPayload>): Promise<void> {
+    const { handlerId, method, path, params, query, body, headers } = message.payload;
+
+    const handler = this.routeHandlers.get(handlerId);
+    if (!handler) {
+      this.sendRouteResponse(message.id, {
+        statusCode: 404,
+        body: { error: `No handler registered for "${handlerId}"` },
+      });
+      return;
+    }
+
+    try {
+      const response = await handler({ handlerId, method, path, params, query, body, headers });
+      this.sendRouteResponse(message.id, response);
+    } catch (err) {
+      const error = err as Error;
+      this.log('error', `Route handler error: ${error.message}`, { handlerId, path });
+      this.sendRouteResponse(message.id, {
+        statusCode: 500,
+        body: { error: error.message },
+      });
+    }
+  }
+
+  /**
+   * Send route response back to hub
+   */
+  private sendRouteResponse(requestId: string, response: RouteResponse): void {
+    this.send({
+      id: requestId, // Use the same ID for correlation
+      type: 'route.response',
+      timestamp: Date.now(),
+      payload: response,
+    });
   }
 
   // ============================================
@@ -380,6 +787,26 @@ export abstract class AutodartsModule extends EventEmitter {
       case 'ping':
         this.sendPong();
         break;
+      case 'route.request':
+        await this.handleRouteRequest(message as IPCMessage<RouteRequestPayload>);
+        break;
+      case 'request.response':
+        this.handleRequestResponse(message.payload as RequestResponsePayload);
+        break;
+    }
+  }
+
+  private handleRequestResponse(payload: RequestResponsePayload): void {
+    const pending = this.pendingRequests.get(payload.requestId);
+    if (!pending) {
+      this.log('warn', `Received response for unknown request: ${payload.requestId}`);
+      return;
+    }
+
+    if (payload.success) {
+      pending.resolve(payload.data);
+    } else {
+      pending.reject(new Error(payload.error || 'Request failed'));
     }
   }
 

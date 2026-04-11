@@ -49,3 +49,11 @@ export type {
 } from '../../types/intents.js';
 
 export { IntentCategories, StandardIntents } from '../../types/intents.js';
+
+// Template resolver utilities
+export {
+  resolveTemplate,
+  extractVariables,
+  validateTemplate,
+  resolveActionConfigTemplates,
+} from './templateResolver.js';

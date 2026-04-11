@@ -173,7 +173,7 @@ export interface ModuleConfigResponse {
 }
 
 export interface ModuleConfigFieldSchema {
-  type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'group';
+  type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'group' | 'provider-select';
   label: string;
   description?: string;
   default?: string | number | boolean;
@@ -190,6 +190,8 @@ export interface ModuleConfigFieldSchema {
   fields?: Record<string, ModuleConfigFieldSchema>;
   // Placeholder text for input fields
   placeholder?: string;
+  // For provider-select type - filter by capability
+  providerCapability?: import('../core/ai/types.js').AICapability;
 }
 
 export interface UpdateModuleConfigRequest {

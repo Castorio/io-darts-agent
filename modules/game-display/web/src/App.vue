@@ -179,9 +179,9 @@ const gameInfoText = computed((): GameInfoItem[] | null => {
   const items: GameInfoItem[] = []
 
   // Item 1: Game type and start score (e.g., "501 Double Out")
-  const gameTypeLine = gameInfo.value.startScore > 0
-    ? `${gameInfo.value.startScore}`
-    : gameInfo.value.gameType
+  const gameTypeLine = gameInfo.value.baseScore > 0
+    ? `${gameInfo.value.baseScore}`
+    : gameInfo.value.variant
   const outModeText = formatInOutMode(gameInfo.value.outMode, false)
   items.push({
     label: t('gameInfo.game'),

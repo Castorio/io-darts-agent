@@ -245,6 +245,7 @@ export class GameDisplayHandler {
    * Handle an event
    */
   async handleEvent(event: ParsedEvent): Promise<void> {
+    console.log('🎯 [GameDisplay] Handling event:', event.type, 'Data:', event.data);
     this.stats.eventsProcessed++;
 
     // Check for animation triggers

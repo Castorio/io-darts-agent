@@ -35,7 +35,12 @@ const saveMessage = ref<{ type: 'success' | 'error'; text: string } | null>(null
 
 // Intent configuration
 const hasIntentSupport = ref(false)
-const availableIntents = ref<Array<{ id: string; description: string; category?: string }>>([])
+const availableIntents = ref<Array<{
+  id: string
+  description: string
+  category?: string
+  payload?: Record<string, { type: string; description?: string }>
+}>>([])
 const availableActions = ref<Array<{
   type: string
   label: string
@@ -426,6 +431,22 @@ onMounted(async () => {
                 {{ t('modules.dartsCallerConfigure') }}
               </BaseButton>
             </router-link>
+          </div>
+        </BaseCard>
+
+        <!-- Autodarts Trainer-specific: Link to Analysis Dashboard -->
+        <BaseCard v-if="module.id === 'autodarts-trainer'" :title="t('modules.trainerAnalysisDashboard')" :subtitle="t('modules.trainerAnalysisDashboardSubtitle')">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-dark-400">
+                {{ t('modules.trainerAnalysisDashboardDesc') }}
+              </p>
+            </div>
+            <a :href="`/module-ui/autodarts-trainer/`" target="_blank">
+              <BaseButton>
+                {{ t('modules.openAnalysisDashboard') }}
+              </BaseButton>
+            </a>
           </div>
         </BaseCard>
 

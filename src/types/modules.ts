@@ -75,7 +75,7 @@ export interface ModuleConfigSchema {
 }
 
 export interface ModuleConfigField {
-  type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'group';
+  type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'group' | 'provider-select';
   label: string;
   description?: string;
   default?: string | number | boolean;
@@ -92,6 +92,8 @@ export interface ModuleConfigField {
   fields?: Record<string, ModuleConfigField>;
   // Placeholder text for input fields
   placeholder?: string;
+  // For provider-select type - filter by capability
+  providerCapability?: import('../core/ai/types.js').AICapability;
 }
 
 // ============================================
@@ -137,6 +139,7 @@ export type IPCMessageType =
   | 'config.update' // Config change
   | 'shutdown' // Graceful shutdown request
   | 'route.request' // HTTP route request forwarded to module
+  | 'request.response' // Response to module request
   // Module → Hub
   | 'ready' // Module is ready to receive events
   | 'status' // Status update from module
@@ -208,6 +211,13 @@ export interface ErrorPayload {
 export interface RequestPayload {
   action: string;
   data?: Record<string, unknown>;
+}
+
+/** Module request with requestId for response correlation */
+export interface ModuleRequestPayload {
+  action: string;
+  data?: Record<string, unknown>;
+  requestId: string;
 }
 
 export interface IntentEmitPayload {

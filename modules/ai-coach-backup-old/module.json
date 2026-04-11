@@ -1,0 +1,298 @@
+{
+  "id": "ai-coach",
+  "name": "AI Coach",
+  "version": "1.0.0",
+  "description": "AI-powered coaching module that provides intelligent tips, encouragement, and performance analysis during darts matches.",
+  "author": "IO-Darts-Agent Team",
+  "entry": "index.js",
+  "events": [
+    "match.start",
+    "match.finished",
+    "match.result",
+    "match.state",
+    "throw.detected",
+    "turn.finished",
+    "game.finished",
+    "throw.180",
+    "throw.highfinish",
+    "throw.bust"
+  ],
+  "intents": {
+    "emits": [
+      {
+        "id": "ai-coach.tip.generated",
+        "description": "Emitted when a coaching tip is generated",
+        "category": "coaching",
+        "payload": {
+          "tipId": { "type": "string", "description": "Unique tip identifier" },
+          "type": { "type": "string", "description": "Tip type (general, checkout, consistency, mental, encouragement, improvement)" },
+          "text": { "type": "string", "description": "The coaching tip text" },
+          "priority": { "type": "number", "description": "Tip priority (1-10)" },
+          "voiceOutput": { "type": "boolean", "description": "Whether to speak the tip", "optional": true }
+        }
+      },
+      {
+        "id": "ai-coach.streak.detected",
+        "description": "Emitted when a scoring streak is detected",
+        "category": "analysis",
+        "payload": {
+          "type": { "type": "string", "description": "Streak type (good or bad)" },
+          "count": { "type": "number", "description": "Number of consecutive scores" },
+          "playerName": { "type": "string", "description": "Player name", "optional": true }
+        }
+      },
+      {
+        "id": "ai-coach.summary.ready",
+        "description": "Emitted when a match summary is ready",
+        "category": "analysis",
+        "payload": {
+          "matchId": { "type": "string", "description": "Match identifier" },
+          "playerName": { "type": "string", "description": "Player name" },
+          "summary": { "type": "string", "description": "Summary text" }
+        }
+      }
+    ],
+    "actions": [
+      {
+        "type": "getTip",
+        "label": "Get Tip",
+        "description": "Generate a coaching tip for a specific context",
+        "configSchema": {
+          "context": {
+            "type": "select",
+            "label": "Context",
+            "options": [
+              { "value": "general", "label": "General" },
+              { "value": "checkout", "label": "Checkout" },
+              { "value": "consistency", "label": "Consistency" },
+              { "value": "mental", "label": "Mental Game" },
+              { "value": "encouragement", "label": "Encouragement" },
+              { "value": "improvement", "label": "Improvement" }
+            ],
+            "default": "general"
+          }
+        }
+      },
+      {
+        "type": "speakTip",
+        "label": "Speak Tip",
+        "description": "Speak a coaching tip using voice output",
+        "configSchema": {
+          "tipType": {
+            "type": "select",
+            "label": "Tip Type",
+            "options": [
+              { "value": "encouragement", "label": "Encouragement" },
+              { "value": "improvement", "label": "Improvement Suggestion" },
+              { "value": "comparison", "label": "Performance Comparison" }
+            ],
+            "default": "encouragement"
+          }
+        }
+      }
+    ],
+    "defaultSubscriptions": []
+  },
+  "config": {
+    "enabled": {
+      "type": "boolean",
+      "label": "Enable AI Coach",
+      "description": "Enable or disable the AI coach",
+      "default": true
+    },
+    "coachingMode": {
+      "type": "select",
+      "label": "Coaching Mode",
+      "description": "How actively the coach provides tips",
+      "default": "balanced",
+      "options": [
+        { "value": "minimal", "label": "Minimal (only key moments)" },
+        { "value": "balanced", "label": "Balanced" },
+        { "value": "intensive", "label": "Intensive (frequent tips)" }
+      ]
+    },
+    "tipFrequency": {
+      "type": "number",
+      "label": "Tip Frequency",
+      "description": "Number of turns between periodic tips (0 = disabled)",
+      "default": 6,
+      "min": 0,
+      "max": 20
+    },
+    "voiceOutput": {
+      "type": "boolean",
+      "label": "Voice Output",
+      "description": "Enable voice output for coaching tips",
+      "default": true
+    },
+    "aiSettings": {
+      "type": "group",
+      "label": "AI Personality",
+      "description": "Configure the coaching personality",
+      "fields": {
+        "personality": {
+          "type": "select",
+          "label": "Personality",
+          "description": "The coaching personality style",
+          "default": "supportive",
+          "options": [
+            { "value": "supportive", "label": "Supportive (encouraging and positive)" },
+            { "value": "analytical", "label": "Analytical (data-driven and precise)" },
+            { "value": "competitive", "label": "Competitive (intense and motivating)" },
+            { "value": "humorous", "label": "Humorous (fun and light-hearted)" }
+          ]
+        },
+        "tipLength": {
+          "type": "select",
+          "label": "Tip Length",
+          "description": "How detailed the tips should be",
+          "default": "medium",
+          "options": [
+            { "value": "short", "label": "Short (quick tips)" },
+            { "value": "medium", "label": "Medium" },
+            { "value": "detailed", "label": "Detailed (in-depth advice)" }
+          ]
+        }
+      }
+    },
+    "triggerSettings": {
+      "type": "group",
+      "label": "Trigger Settings",
+      "description": "When to provide coaching tips",
+      "fields": {
+        "onMatchStart": {
+          "type": "boolean",
+          "label": "On Match Start",
+          "description": "Tip when a match starts",
+          "default": true
+        },
+        "onHighScore": {
+          "type": "boolean",
+          "label": "On High Score",
+          "description": "React to high scoring throws (100+)",
+          "default": true
+        },
+        "on180": {
+          "type": "boolean",
+          "label": "On 180",
+          "description": "Special reaction for 180s",
+          "default": true
+        },
+        "onBust": {
+          "type": "boolean",
+          "label": "On Bust",
+          "description": "Encouragement when player busts",
+          "default": true
+        },
+        "onMissedDouble": {
+          "type": "boolean",
+          "label": "On Missed Double",
+          "description": "Tips when player misses a checkout",
+          "default": true
+        },
+        "onCheckout": {
+          "type": "boolean",
+          "label": "On Checkout",
+          "description": "Celebrate successful checkouts",
+          "default": true
+        },
+        "onMatchEnd": {
+          "type": "boolean",
+          "label": "On Match End",
+          "description": "Summary and feedback at match end",
+          "default": true
+        },
+        "onStreakDetected": {
+          "type": "boolean",
+          "label": "On Streak Detected",
+          "description": "React to scoring streaks (good or bad)",
+          "default": true
+        }
+      }
+    },
+    "tipCategories": {
+      "type": "group",
+      "label": "Tip Categories",
+      "description": "Types of tips to provide",
+      "fields": {
+        "checkoutTips": {
+          "type": "boolean",
+          "label": "Checkout Tips",
+          "description": "Tips about finishing and checkout paths",
+          "default": true
+        },
+        "consistencyTips": {
+          "type": "boolean",
+          "label": "Consistency Tips",
+          "description": "Tips about throwing consistency",
+          "default": true
+        },
+        "mentalTips": {
+          "type": "boolean",
+          "label": "Mental Game Tips",
+          "description": "Tips about focus and mental game",
+          "default": true
+        },
+        "encouragement": {
+          "type": "boolean",
+          "label": "Encouragement",
+          "description": "Positive encouragement and praise",
+          "default": true
+        },
+        "improvementSuggestions": {
+          "type": "boolean",
+          "label": "Improvement Suggestions",
+          "description": "Suggestions for improving your game",
+          "default": true
+        }
+      }
+    },
+    "comparisonSettings": {
+      "type": "group",
+      "label": "Performance Comparison",
+      "description": "Compare your performance to past sessions",
+      "fields": {
+        "enableComparison": {
+          "type": "boolean",
+          "label": "Enable Comparison",
+          "description": "Compare current performance to history",
+          "default": true
+        },
+        "comparisonPeriod": {
+          "type": "select",
+          "label": "Comparison Period",
+          "description": "What period to compare against",
+          "default": "lastSession",
+          "options": [
+            { "value": "lastSession", "label": "Last Session" },
+            { "value": "last7Days", "label": "Last 7 Days" },
+            { "value": "last30Days", "label": "Last 30 Days" },
+            { "value": "allTime", "label": "All Time" }
+          ]
+        },
+        "showWhenBetter": {
+          "type": "boolean",
+          "label": "Show When Better",
+          "description": "Notify when performing better than comparison",
+          "default": true
+        },
+        "showWhenWorse": {
+          "type": "boolean",
+          "label": "Show When Worse",
+          "description": "Notify when performing worse than comparison",
+          "default": true
+        }
+      }
+    }
+  },
+  "i18n": {
+    "en": {
+      "name": "AI Coach",
+      "description": "AI-powered coaching module that provides intelligent tips, encouragement, and performance analysis during darts matches."
+    },
+    "de": {
+      "name": "KI Coach",
+      "description": "KI-gesteuertes Coaching-Modul, das intelligente Tipps, Ermutigung und Leistungsanalysen während der Darts-Spiele bietet."
+    }
+  }
+}

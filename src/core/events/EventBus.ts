@@ -53,6 +53,9 @@ export class EventBus {
    * Emit an event to all subscribed handlers
    */
   async emit<T = unknown>(event: ParsedEvent<T>): Promise<void> {
+    // DEBUG: Log all events
+    console.log(`[EventBus] 📣 EMITTING EVENT: ${event.type}`);
+
     const handlers: EventHandler[] = [];
 
     // Get specific event type handlers

@@ -7,7 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { ParsedEvent } from '../../../src/types/index.js';
+import type { ParsedEvent } from './types/hub-types.js';
 import type { ElevenLabsService } from './ElevenLabsService.js';
 import type { VoicePackGenerator } from './VoicePackGenerator.js';
 import { LocalAudioPlayer } from './LocalAudioPlayer.js';

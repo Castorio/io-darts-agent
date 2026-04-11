@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import BaseInput from './BaseInput.vue'
 import MediaUpload from './MediaUpload.vue'
+import { api } from '../api/client'
 
 // Config field schema types from module.json
 interface SelectOption {
@@ -67,7 +68,14 @@ interface GroupField extends ConfigFieldBase {
   fields: Record<string, ConfigField>
 }
 
-type ConfigField = StringField | NumberField | BooleanField | SelectField | ColorField | PasswordField | GroupField
+interface ProviderSelectField extends ConfigFieldBase {
+  type: 'provider-select'
+  capability?: 'text' | 'image' | 'video' | 'audio' | 'tts' | 'text-generation' | 'image-generation' | 'video-generation' | 'audio-tts'
+  providerCapability?: string // Alternative property name used in module.json
+  default?: string
+}
+
+type ConfigField = StringField | NumberField | BooleanField | SelectField | ColorField | PasswordField | GroupField | ProviderSelectField
 
 interface ConfigSchema {
   [key: string]: ConfigField
@@ -231,6 +239,84 @@ function getMediaType(key: string): 'image' | 'animation' | 'sound' {
   if (lowerKey.includes('animation') || lowerKey.includes('gif') || lowerKey.includes('video')) return 'animation'
   return 'image'
 }
+
+// AI Providers for provider-select field type
+interface AIProvider {
+  id: string
+  name: string
+  configured: boolean
+  capabilities: string[]
+}
+
+const aiProviders = ref<AIProvider[]>([])
+const providersLoading = ref(false)
+const providersLoaded = ref(false)
+
+// Check if schema has any provider-select fields (including nested in groups)
+const hasProviderSelectFields = computed(() => {
+  for (const field of Object.values(props.schema)) {
+    if (field.type === 'provider-select') return true
+    if (field.type === 'group') {
+      const groupField = field as GroupField
+      if (Object.values(groupField.fields).some(f => f.type === 'provider-select')) {
+        return true
+      }
+    }
+  }
+  return false
+})
+
+// Load AI providers if needed
+async function loadAIProviders() {
+  if (providersLoaded.value || providersLoading.value) return
+  providersLoading.value = true
+  try {
+    const response = await api.getAIProviders()
+    aiProviders.value = response.providers
+    providersLoaded.value = true
+  } catch (e) {
+    console.error('Failed to load AI providers:', e)
+  } finally {
+    providersLoading.value = false
+  }
+}
+
+// Map short capability names to full API capability names
+function mapCapabilityToApi(capability: string): string {
+  const capabilityMap: Record<string, string> = {
+    'text': 'text-generation',
+    'image': 'image-generation',
+    'video': 'video-generation',
+    'audio': 'audio-tts',
+    'tts': 'audio-tts',
+  }
+  return capabilityMap[capability] || capability
+}
+
+// Get the capability from a provider-select field (supports both property names)
+function getFieldCapability(field: ProviderSelectField): string {
+  return field.providerCapability || field.capability || ''
+}
+
+// Get providers filtered by capability
+function getProvidersForCapability(capability: string): AIProvider[] {
+  const mappedCapability = mapCapabilityToApi(capability)
+  return aiProviders.value.filter(p => p.configured && p.capabilities.includes(mappedCapability))
+}
+
+// Load providers on mount if needed
+onMounted(() => {
+  if (hasProviderSelectFields.value) {
+    loadAIProviders()
+  }
+})
+
+// Watch for schema changes
+watch(hasProviderSelectFields, (hasFields) => {
+  if (hasFields && !providersLoaded.value) {
+    loadAIProviders()
+  }
+})
 </script>
 
 <template>
@@ -362,6 +448,43 @@ function getMediaType(key: string): 'image' | 'animation' | 'sound' {
         </p>
       </div>
 
+      <!-- Provider Select Field -->
+      <div v-else-if="field.type === 'provider-select'">
+        <label class="block text-sm font-medium text-dark-200 mb-2">
+          {{ getLabel(key, field) }}
+        </label>
+        <div v-if="providersLoading" class="flex items-center gap-2 text-dark-400 text-sm py-2">
+          <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          Loading providers...
+        </div>
+        <template v-else>
+          <select
+            :value="getValue(key, field)"
+            @change="updateValue(key, ($event.target as HTMLSelectElement).value)"
+            :disabled="disabled || getProvidersForCapability(getFieldCapability(field as ProviderSelectField)).length === 0"
+            class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500 disabled:opacity-50"
+          >
+            <option value="">-- Select Provider --</option>
+            <option
+              v-for="provider in getProvidersForCapability(getFieldCapability(field as ProviderSelectField))"
+              :key="provider.id"
+              :value="provider.id"
+            >
+              {{ provider.name }}
+            </option>
+          </select>
+          <p v-if="getProvidersForCapability(getFieldCapability(field as ProviderSelectField)).length === 0" class="text-sm text-amber-400 mt-1">
+            No providers configured for {{ getFieldCapability(field as ProviderSelectField) }}. Configure one in AI Settings.
+          </p>
+          <p v-else-if="getDescription(key, field)" class="text-sm text-dark-400 mt-1">
+            {{ getDescription(key, field) }}
+          </p>
+        </template>
+      </div>
+
       <!-- Color Field -->
       <div v-else-if="field.type === 'color'">
         <label class="block text-sm font-medium text-dark-200 mb-2">
@@ -489,6 +612,40 @@ function getMediaType(key: string): 'image' | 'animation' | 'sound' {
                 {{ option.label }}
               </option>
             </select>
+          </div>
+
+          <!-- Nested Provider Select Field -->
+          <div v-else-if="nestedField.type === 'provider-select'">
+            <label class="block text-sm font-medium text-dark-200 mb-2">
+              {{ nestedField.label || nestedKey }}
+            </label>
+            <div v-if="providersLoading" class="flex items-center gap-2 text-dark-400 text-sm py-2">
+              <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Loading providers...
+            </div>
+            <template v-else>
+              <select
+                :value="getGroupValue(key, nestedKey, nestedField)"
+                @change="updateGroupValue(key, nestedKey, ($event.target as HTMLSelectElement).value)"
+                :disabled="disabled || getProvidersForCapability(getFieldCapability(nestedField as ProviderSelectField)).length === 0"
+                class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500 disabled:opacity-50"
+              >
+                <option value="">-- Select Provider --</option>
+                <option
+                  v-for="provider in getProvidersForCapability(getFieldCapability(nestedField as ProviderSelectField))"
+                  :key="provider.id"
+                  :value="provider.id"
+                >
+                  {{ provider.name }}
+                </option>
+              </select>
+              <p v-if="getProvidersForCapability(getFieldCapability(nestedField as ProviderSelectField)).length === 0" class="text-sm text-amber-400 mt-1">
+                No providers configured for {{ getFieldCapability(nestedField as ProviderSelectField) }}.
+              </p>
+            </template>
           </div>
 
           <!-- Nested Boolean Field -->

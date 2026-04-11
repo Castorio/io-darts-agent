@@ -13,6 +13,18 @@ dist/
 releases/
 *.tsbuildinfo
 
+# Compiled TypeScript output (should only be in dist/)
+modules/*/src/*.js
+modules/*/src/*.js.map
+modules/*/src/*.d.ts
+modules/*/src/*.d.ts.map
+modules/*/src/types/*.js
+modules/*/src/types/*.d.ts
+src/types/*.js
+src/types/*.js.map
+src/types/*.d.ts
+src/types/*.d.ts.map
+
 # Electron builds
 *.dmg
 *.exe

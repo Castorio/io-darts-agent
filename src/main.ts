@@ -18,6 +18,7 @@ import {
   registerCallerRoutes,
   registerDeveloperRoutes,
   registerAIRoutes,
+  registerTrainerRoutes,
 } from './api/routes/index.js';
 import { createAuthMiddleware } from './api/middleware/auth.js';
 import { ElevenLabsService, VoicePackGenerator } from './core/modules/handlers/index.js';
@@ -28,6 +29,8 @@ import { APIConfigService } from './core/config/ConfigService.js';
 import { AuthService } from './core/auth/AuthService.js';
 import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
 import { ModuleBridge } from './core/modules/ModuleBridge.js';
+import { getModuleRouteRegistry, type ModuleRouteRequest, type ModuleRouteResponse } from './core/modules/ModuleRouteRegistry.js';
+import type { RoutesRegisterPayload } from './types/modules.js';
 import { spawn, ChildProcess } from 'child_process';
 import {
   WledHandler,
@@ -376,6 +379,11 @@ async function stopExternalModule(mod: InstalledModule): Promise<void> {
 
   console.log(`⏹️  Stopping external module: ${mod.manifest.name}`);
 
+  // Unregister routes for this module
+  const registry = getModuleRouteRegistry();
+  await registry.unregisterRoutes(mod.id);
+  console.log(`🛣️  [${mod.id}] Routes unregistered`);
+
   try {
     // Send shutdown signal
     mod.bridge.sendShutdown('user', 5000);
@@ -455,9 +463,49 @@ function setupExternalModuleBridgeHandlers(mod: InstalledModule, bridge: ModuleB
   });
 
   // Handle routes registration from external module
-  bridge.on('routesRegister', async (payload: { routes: unknown[] }) => {
-    console.log(`🛣️  [${mod.id}] Registered ${payload.routes.length} API routes`);
-    // Route registration is handled by ModuleRouteRegistry
+  bridge.on('routesRegister', async (payload: RoutesRegisterPayload) => {
+    console.log(`🛣️  [${mod.id}] Registering ${payload.routes.length} API routes`);
+
+    const registry = getModuleRouteRegistry();
+
+    // Set up route handler that forwards requests to the module via bridge
+    registry.setRouteHandler(mod.id, async (request: ModuleRouteRequest): Promise<ModuleRouteResponse> => {
+      if (!mod.bridge || !mod.bridge.isConnected()) {
+        return { statusCode: 503, body: { error: 'Module not connected' } };
+      }
+
+      try {
+        const response = await mod.bridge.sendRouteRequest({
+          handlerId: request.handlerId,
+          method: request.method,
+          path: request.path,
+          params: request.params,
+          query: request.query,
+          body: request.body,
+          headers: request.headers,
+        });
+
+        return {
+          statusCode: response.statusCode,
+          headers: response.headers,
+          body: response.body,
+        };
+      } catch (err) {
+        console.error(`[${mod.id}] Route request failed:`, err);
+        return { statusCode: 500, body: { error: 'Route request failed' } };
+      }
+    });
+
+    // Register the routes with Fastify
+    try {
+      await registry.registerRoutes({
+        moduleId: mod.id,
+        routes: payload.routes,
+      });
+      console.log(`✅ [${mod.id}] API routes registered successfully`);
+    } catch (err) {
+      console.error(`❌ [${mod.id}] Failed to register routes:`, err);
+    }
   });
 
   // Handle intent emission from external module
@@ -471,6 +519,115 @@ function setupExternalModuleBridgeHandlers(mod: InstalledModule, bridge: ModuleB
     } catch (err) {
       console.error(`❌ [${mod.id}] Failed to emit intent ${data.intentId}:`, err);
       addLog('module', mod.id, `Intent emit error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
+
+  // Handle data requests from external module (e.g., getPlayers, getPlayer)
+  bridge.on('request', async (payload: { action: string; data?: Record<string, unknown>; requestId: string }, _messageId: string) => {
+    console.log(`📥 [${mod.id}] Request: ${payload.action}`);
+
+    try {
+      let responseData: unknown;
+
+      switch (payload.action) {
+        case 'getPlayers': {
+          // Return all registered core players
+          if (!playerService) {
+            throw new Error('PlayerService not initialized');
+          }
+          const players = await playerService.getAllPlayers();
+          responseData = { players };
+          break;
+        }
+
+        case 'getPlayer': {
+          // Return a specific player by ID
+          if (!playerService) {
+            throw new Error('PlayerService not initialized');
+          }
+          const playerId = payload.data?.playerId as string;
+          if (!playerId) {
+            throw new Error('playerId is required');
+          }
+          const player = await playerService.getPlayer(playerId);
+          responseData = { player };
+          break;
+        }
+
+        case 'getPlayerByName': {
+          // Return a player by name
+          if (!playerService) {
+            throw new Error('PlayerService not initialized');
+          }
+          const playerName = payload.data?.playerName as string;
+          if (!playerName) {
+            throw new Error('playerName is required');
+          }
+          const player = await playerService.getPlayerByName(playerName);
+          responseData = { player };
+          break;
+        }
+
+        case 'isPlayerRegistered': {
+          // Check if a player is registered (by name or ID)
+          if (!playerService) {
+            throw new Error('PlayerService not initialized');
+          }
+          const identifier = payload.data?.identifier as string;
+          if (!identifier) {
+            throw new Error('identifier is required');
+          }
+          // Try by ID first, then by name
+          let player = await playerService.getPlayer(identifier);
+          if (!player) {
+            player = await playerService.getPlayerByName(identifier);
+          }
+          responseData = { exists: !!player };
+          break;
+        }
+
+        case 'generateText': {
+          // Generate text using the AI service
+          const aiService = getAIProviderService();
+          const prompt = payload.data?.prompt as string;
+          if (!prompt) {
+            throw new Error('prompt is required');
+          }
+          const providerId = payload.data?.providerId as string | undefined;
+          const temperature = payload.data?.temperature as number | undefined;
+          const maxTokens = payload.data?.maxTokens as number | undefined;
+          const model = payload.data?.model as string | undefined;
+
+          // Get the configured provider from module config if available
+          const configProviderId = mod.configValues?.aiProvider as string | undefined;
+          const effectiveProviderId = providerId || configProviderId;
+
+          console.log(`🤖 [${mod.id}] AI generateText request, provider: ${effectiveProviderId || '(default)'}`);
+
+          const result = await aiService.generateText({
+            prompt,
+            temperature,
+            maxTokens,
+            model
+          }, effectiveProviderId);
+
+          responseData = {
+            text: result.text,
+            provider: effectiveProviderId || 'default',
+            model: result.model,
+            usage: result.usage
+          };
+          break;
+        }
+
+        default:
+          throw new Error(`Unknown action: ${payload.action}`);
+      }
+
+      bridge.sendRequestResponse(payload.requestId, true, responseData);
+    } catch (err) {
+      console.error(`❌ [${mod.id}] Request failed:`, err);
+      bridge.sendRequestResponse(payload.requestId, false, undefined, (err as Error).message);
     }
   });
 }
@@ -914,7 +1071,7 @@ async function main(): Promise<void> {
 
   // Paths
   const configPath = path.join(__dirname, '..', 'config', 'hub.config.json');
-  const webDistPath = path.join(__dirname, '..', 'web', 'dist');
+  const webDistPath = path.join(__dirname, '..', '..', 'web', 'dist');
 
   // Load config
   const configService = new APIConfigService(configPath);
@@ -942,6 +1099,14 @@ async function main(): Promise<void> {
 
   await server.initialize(config);
   const fastify = server.getInstance();
+
+  // Initialize ModuleRouteRegistry for external module API routes
+  const moduleRouteRegistry = getModuleRouteRegistry();
+  moduleRouteRegistry.initialize(fastify, {
+    isAuthEnabled: () => server.isAuthEnabled(),
+    getSession: (sessionId: string) => server.getSession(sessionId),
+  });
+  console.log('🛣️  Module route registry initialized');
 
   // Register authentication middleware (must be before routes)
   const authMiddleware = createAuthMiddleware(server);
@@ -982,7 +1147,93 @@ async function main(): Promise<void> {
 
   // Module Installer
   const modulesDir = path.join(__dirname, '..', 'modules_installed');
+  const builtinModulesDir = path.join(__dirname, '..', 'modules');
   const moduleInstaller = new ModuleInstaller({ modulesDir });
+
+  // Built-in modules that should be auto-installed on first run
+  const BUILTIN_MODULES = ['wled', 'darts-caller', 'game-display'];
+
+  /**
+   * Install built-in modules on first run (when modules_installed is empty)
+   * Creates symlinks to the /modules/ directory for built-in modules
+   */
+  async function installBuiltinModules(): Promise<void> {
+    try {
+      // Create modules_installed directory if it doesn't exist
+      if (!fs.existsSync(modulesDir)) {
+        fs.mkdirSync(modulesDir, { recursive: true });
+      }
+
+      // Check if any modules are already installed
+      const entries = fs.readdirSync(modulesDir, { withFileTypes: true });
+      const existingModules = entries.filter(e => e.isDirectory() || e.isSymbolicLink());
+
+      if (existingModules.length > 0) {
+        console.log(`📦 Found ${existingModules.length} existing module(s), skipping built-in installation`);
+        return;
+      }
+
+      console.log('🚀 First run detected - installing built-in modules...');
+
+      for (const moduleId of BUILTIN_MODULES) {
+        const sourcePath = path.join(builtinModulesDir, moduleId);
+        const targetPath = path.join(modulesDir, moduleId);
+
+        // Check if source module exists
+        if (!fs.existsSync(sourcePath)) {
+          console.warn(`⚠️  Built-in module not found: ${moduleId}`);
+          continue;
+        }
+
+        // Check if module.json exists in source
+        const manifestPath = path.join(sourcePath, 'module.json');
+        if (!fs.existsSync(manifestPath)) {
+          console.warn(`⚠️  No module.json found for built-in module: ${moduleId}`);
+          continue;
+        }
+
+        try {
+          // Create symlink to built-in module (allows updates without reinstall)
+          fs.symlinkSync(sourcePath, targetPath, 'dir');
+          console.log(`✅ Installed built-in module: ${moduleId} (symlink)`);
+        } catch (symlinkError) {
+          // Fallback: copy the module if symlink fails (e.g., on Windows without admin)
+          console.log(`📋 Symlink failed, copying module: ${moduleId}`);
+          copyDirectoryRecursive(sourcePath, targetPath);
+          console.log(`✅ Installed built-in module: ${moduleId} (copy)`);
+        }
+      }
+
+      console.log('✨ Built-in modules installation complete');
+    } catch (e) {
+      console.error('❌ Failed to install built-in modules:', e);
+    }
+  }
+
+  /**
+   * Recursively copy a directory
+   */
+  function copyDirectoryRecursive(source: string, target: string): void {
+    if (!fs.existsSync(target)) {
+      fs.mkdirSync(target, { recursive: true });
+    }
+
+    const entries = fs.readdirSync(source, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const sourcePath = path.join(source, entry.name);
+      const targetPath = path.join(target, entry.name);
+
+      if (entry.isDirectory()) {
+        copyDirectoryRecursive(sourcePath, targetPath);
+      } else {
+        fs.copyFileSync(sourcePath, targetPath);
+      }
+    }
+  }
+
+  // Install built-in modules on first run
+  await installBuiltinModules();
 
   // Scan for already installed modules on startup
   async function scanInstalledModules(): Promise<void> {
@@ -1043,7 +1294,7 @@ async function main(): Promise<void> {
       if (mod.manifest.config) {
         const convertField = (field: import('./types/modules.js').ModuleConfigField): import('./types/api.js').ModuleConfigFieldSchema => {
           const result: import('./types/api.js').ModuleConfigFieldSchema = {
-            type: field.type as 'string' | 'number' | 'boolean' | 'select' | 'color' | 'group',
+            type: field.type as 'string' | 'number' | 'boolean' | 'select' | 'color' | 'group' | 'provider-select',
             label: field.label,
             description: field.description,
             default: field.default,
@@ -1053,6 +1304,7 @@ async function main(): Promise<void> {
             options: field.options,
             showIf: field.showIf,
             placeholder: field.placeholder,
+            providerCapability: field.providerCapability,
           };
           // Recursively convert nested fields for group type
           if (field.type === 'group' && field.fields) {
@@ -1749,6 +2001,17 @@ async function main(): Promise<void> {
   });
   console.log('🤖 AI routes initialized');
 
+  // Register Trainer Routes
+  registerTrainerRoutes(fastify, server, {
+    emitEvent: (event: unknown) => {
+      // Emit training events to subscribers
+      for (const handler of eventSubscribers) {
+        handler(event as ParsedEvent);
+      }
+    },
+  });
+  console.log('🏋️ Trainer routes initialized');
+
   // Register Match Routes (for current match state)
   registerMatchRoutes(fastify, server, {
     getCurrentMatch: () => hub?.getCurrentMatchState() ?? null,
@@ -1789,14 +2052,45 @@ async function main(): Promise<void> {
 
   // Serve module UIs from their own folders
   // Each module can have a /web/dist folder with its built frontend
+  // Check both /modules/ (builtin) and /modules_installed/ (external)
   const modulesSourceDir = path.join(__dirname, '..', 'modules');
+  const modulesInstalledDir = path.join(__dirname, '..', 'modules_installed');
   fastify.register(async (instance) => {
     instance.get('/module-ui/:moduleId/*', async (request, reply) => {
       const { moduleId } = request.params as { moduleId: string };
       const splat = (request.params as Record<string, string>)['*'] || 'index.html';
 
-      // Check in modules source directory first
-      const moduleDistPath = path.join(modulesSourceDir, moduleId, 'web', 'dist');
+      // Helper to find module UI path - check multiple locations
+      const findModuleUiPath = (): string | null => {
+        // First check modules_installed using the stored module path (handles directory name != module id)
+        const installedModule = installedModules.get(moduleId);
+        if (installedModule) {
+          const installedDistPath = path.join(installedModule.path, 'web', 'dist');
+          if (fs.existsSync(installedDistPath)) {
+            return installedDistPath;
+          }
+        }
+
+        // Check in modules_installed by moduleId
+        const installedByIdPath = path.join(modulesInstalledDir, moduleId, 'web', 'dist');
+        if (fs.existsSync(installedByIdPath)) {
+          return installedByIdPath;
+        }
+
+        // Check in builtin modules directory
+        const builtinPath = path.join(modulesSourceDir, moduleId, 'web', 'dist');
+        if (fs.existsSync(builtinPath)) {
+          return builtinPath;
+        }
+
+        return null;
+      };
+
+      const moduleDistPath = findModuleUiPath();
+      if (!moduleDistPath) {
+        return reply.status(404).send({ error: 'Module UI not found' });
+      }
+
       const filePath = path.join(moduleDistPath, splat);
 
       if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {

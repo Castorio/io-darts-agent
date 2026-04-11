@@ -49,4 +49,3 @@ export type {
   VoicePackConfig,
   LocalAudioPlayerConfig,
 } from '../../../../modules/darts-caller/src/index.js';
-

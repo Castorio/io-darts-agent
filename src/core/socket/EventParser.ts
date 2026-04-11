@@ -279,22 +279,47 @@ export class EventParser {
 
     console.log(`🔍 EventParser: round=${data.round}, lastRound=${this.lastRound}, darts=${dartsInCurrentTurn}, lastDarts=${this.lastDartsInTurn}, turnScore=${data.turnScore}`);
 
+    // Generate throw.detected events from match state (since Autodarts no longer sends board events for throws)
+    // This must happen BEFORE other events so modules can react to individual throws
+    if (dartsInCurrentTurn > this.lastDartsInTurn && currentTurn?.throws?.length) {
+      for (let i = this.lastDartsInTurn; i < dartsInCurrentTurn; i++) {
+        const throwData = currentTurn.throws[i];
+        if (throwData?.segment) {
+          const segment = throwData.segment;
+          console.log(`🎯 Throw detected (from match.state): segment=${segment.name}, number=${segment.number}, multiplier=${segment.multiplier}, throwNumber=${throwData.throw ?? (i + 1)}`);
+          events.push({
+            type: 'throw.detected',
+            timestamp,
+            raw,
+            data: {
+              segment: throwData.segment,
+              coords: throwData.coords,
+              throwNumber: throwData.throw ?? (i + 1),
+              boardId: this.boardId,
+            },
+          });
+        }
+      }
+    }
+
     // Check for bust (turnBusted changed from false to true)
+    // FIXED: data.player IS the ARRAY POSITION (0-based), not the index field value!
     const justBusted = data.turnBusted && !this.lastTurnBusted;
     if (justBusted) {
-      const playerIndex = data.player;
-      console.log(`💥 EventParser: BUST detected for player ${data.players[playerIndex]?.name}`);
+      const playerArrayPosition = data.player;
+      const player = data.players[playerArrayPosition];
+      console.log(`💥 EventParser: BUST detected for player ${player?.name} (arrayPosition=${playerArrayPosition}, index=${player?.index})`);
       events.push({
         type: 'turn.finished',
         timestamp,
         raw,
         data: {
           matchId: data.id,
-          playerIndex: playerIndex,
-          playerName: data.players[playerIndex]?.name ?? 'Unknown',
+          playerIndex: player?.index, // The player's stable index field
+          playerName: player?.name ?? 'Unknown',
           turnScore: 0, // Bust means 0 points
           turnPoints: 0,
-          remaining: this.lastGameScores[playerIndex] ?? data.gameScores[playerIndex] ?? 0, // Score before bust
+          remaining: this.lastGameScores[playerArrayPosition] ?? data.gameScores[playerArrayPosition] ?? 0, // Score before bust
           busted: true,
           round: data.round,
           throws: currentTurn?.throws ?? [], // Include throws for bull/double bull detection
@@ -304,9 +329,11 @@ export class EventParser {
 
     // Emit turn.finished when third dart is thrown (score announcement)
     // Skip if we just busted (already handled above)
+    // FIXED: data.player IS the ARRAY POSITION (0-based), not the index field value!
     if (isThirdDart && !data.turnBusted && !justBusted) {
-      const playerIndex = data.player;
-      const remainingScore = data.gameScores[playerIndex] ?? 0;
+      const playerArrayPosition = data.player;
+      const player = data.players[playerArrayPosition];
+      const remainingScore = data.gameScores[playerArrayPosition] ?? 0;
       const throwsInfo = currentTurn?.throws?.map(t => `${t.segment?.name || 'unknown'}(${t.segment?.number}x${t.segment?.multiplier})`).join(', ') || 'none';
       console.log(`✅ EventParser: Third dart - Emitting turn.finished - turnScore=${data.turnScore}, remaining=${remainingScore}, throws=[${throwsInfo}]`);
       events.push({
@@ -315,8 +342,8 @@ export class EventParser {
         raw,
         data: {
           matchId: data.id,
-          playerIndex: playerIndex,
-          playerName: data.players[playerIndex]?.name ?? 'Unknown',
+          playerIndex: player?.index, // The player's stable index field
+          playerName: player?.name ?? 'Unknown',
           turnScore: data.turnScore,
           turnPoints: data.turnScore,
           remaining: remainingScore,
@@ -331,9 +358,11 @@ export class EventParser {
     // This handles cases where takeout happens before 3 darts (e.g., checkout)
     // Skip if we already emitted a bust event (justBusted or lastTurnBusted - the latter handles
     // the case where bust was detected in a previous update and round changes in this update)
+    // FIXED: lastPlayerIndex IS the ARRAY POSITION (0-based), not the index field value!
     if (isRoundChanged && this.lastTurnScore !== null && this.lastDartsInTurn !== 3 && !justBusted && !this.lastTurnBusted) {
-      const previousPlayerIndex = this.lastPlayerIndex ?? data.player;
-      const remainingScore = this.lastGameScores[previousPlayerIndex] ?? data.gameScores[previousPlayerIndex] ?? 0;
+      const previousPlayerArrayPosition = this.lastPlayerIndex ?? data.player;
+      const previousPlayer = data.players[previousPlayerArrayPosition];
+      const remainingScore = this.lastGameScores[previousPlayerArrayPosition] ?? data.gameScores[previousPlayerArrayPosition] ?? 0;
       // Get throws from the previous turn (the one that just ended)
       const previousTurn = data.turns && data.turns.length > 1 ? data.turns[data.turns.length - 2] : currentTurn;
       console.log(`✅ EventParser: Round change - Emitting turn.finished - turnScore=${this.lastTurnScore}, remaining=${remainingScore}`);
@@ -343,8 +372,8 @@ export class EventParser {
         raw,
         data: {
           matchId: data.id,
-          playerIndex: previousPlayerIndex,
-          playerName: data.players[previousPlayerIndex]?.name ?? 'Unknown',
+          playerIndex: previousPlayer?.index, // The player's stable index field
+          playerName: previousPlayer?.name ?? 'Unknown',
           turnScore: this.lastTurnScore,
           turnPoints: this.lastTurnScore,
           remaining: remainingScore,
@@ -363,16 +392,22 @@ export class EventParser {
 
     // Check for player change
     if (this.lastPlayerIndex !== null && this.lastPlayerIndex !== data.player) {
-      // Get the remaining score for the NEW player (the one who is now up)
-      const newPlayerRemaining = data.gameScores[data.player] ?? 0;
+      // FIXED: data.player IS the ARRAY POSITION (0-based), not the index field value!
+      // After each leg, Autodarts rotates the players array, so array positions change.
+      // This matches how GameDisplay handles it - using the position directly.
+      const newPlayerArrayPosition = data.player;
+      const newPlayer = data.players[newPlayerArrayPosition];
+      const newPlayerRemaining = data.gameScores[newPlayerArrayPosition] ?? 0;
+      const newPlayerName = newPlayer?.name ?? 'Unknown';
       events.push({
         type: 'player.change',
         timestamp,
         raw,
         data: {
           previousPlayer: this.lastPlayerIndex,
-          currentPlayer: data.player,
-          playerName: data.players[data.player]?.name ?? 'Unknown',
+          currentPlayer: data.player, // This is the array position (used by frontend)
+          playerIndex: newPlayer?.index, // The player's index field (stable across rotations)
+          playerName: newPlayerName,
           remaining: newPlayerRemaining, // Remaining score of the player who is now up
         },
       });
@@ -381,8 +416,32 @@ export class EventParser {
 
     // Check for game finished
     if (data.gameFinished && data.gameWinner !== null) {
-      // Find winner by index field, not array position (Autodarts uses index field as winner identifier)
-      const gameWinnerPlayer = data.players.find(p => p.index === data.gameWinner);
+      // DEBUG: Log to understand the data structure
+      console.log('🎯 DEBUG EventParser - GAME FINISHED:');
+      console.log('  data.gameWinner:', data.gameWinner);
+      console.log('  data.players:', JSON.stringify(data.players.map(p => ({ index: p.index, name: p.name })), null, 2));
+
+      // IMPORTANT: gameWinner from Autodarts is the player's INDEX field value, not array position!
+      // When a leg ends, Autodarts rotates the players array for the next leg.
+      // The gameWinner value stays the same (it's the player.index, not array position).
+      //
+      // Example scenario:
+      // - Leg 1: players = [{index:0, name:'A'}, {index:1, name:'B'}]
+      // - Player A (index=0) wins leg 1
+      // - gameWinner = 0 (player A's index field)
+      // - For leg 2, array rotates: players = [{index:1, name:'B'}, {index:0, name:'A'}]
+      // - Using find(p => p.index === gameWinner) correctly finds player A
+      //
+      // We use BOTH approaches and compare to understand the behavior:
+      const gameWinnerByIndex = data.players.find(p => p.index === data.gameWinner);
+      const gameWinnerByArrayPos = data.players[data.gameWinner];
+
+      console.log('  Found by p.index:', gameWinnerByIndex?.name);
+      console.log('  Found by array position:', gameWinnerByArrayPos?.name);
+
+      // Use find by p.index since gameWinner is the player's index field value
+      const gameWinnerPlayer = gameWinnerByIndex;
+
       events.push({
         type: 'game.finished',
         timestamp,
@@ -394,6 +453,8 @@ export class EventParser {
           leg: data.leg,
           set: data.set,
           players: data.players,
+          // Include scores array so frontend can extract legs/sets won
+          scores: data.scores,
         },
       });
     }
@@ -419,6 +480,8 @@ export class EventParser {
           winner: data.winner,
           winnerName: matchWinnerPlayer?.name ?? 'Unknown',
           players: data.players,
+          // Include scores array so frontend can extract legs/sets won
+          scores: data.scores,
         },
       });
 
@@ -468,14 +531,16 @@ export class EventParser {
     }
 
     // Always emit match state event
+    // FIXED: data.player IS the ARRAY POSITION (0-based), not the index field value!
+    const activePlayer = data.players[data.player];
     events.push({
       type: 'match.state',
       timestamp,
       raw,
       data: {
         matchId: data.id,
-        player: data.player,
-        playerName: data.players[data.player]?.name ?? 'Unknown',
+        player: data.player, // This is the array position (used by frontend)
+        playerName: activePlayer?.name ?? 'Unknown',
         gameScores: data.gameScores,
         turnScore: data.turnScore,
         round: data.round,

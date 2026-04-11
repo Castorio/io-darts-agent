@@ -229,6 +229,25 @@ export const api = {
     )
   },
 
+  // Available (Built-in) Modules
+  async getAvailableModules() {
+    return request<{
+      modules: Array<{
+        id: string
+        name: string
+        version: string
+        description: string
+      }>
+    }>('/modules/available')
+  },
+
+  async installBuiltinModule(id: string) {
+    return request<{ success: boolean; moduleId?: string; error?: string }>(
+      `/modules/install-builtin/${id}`,
+      { method: 'POST' }
+    )
+  },
+
   // Module Autostart
   async getModuleAutostart(moduleId: string) {
     return request<{
@@ -313,9 +332,11 @@ export const api = {
         description: string
         category?: string
         sourceModule?: string
+        /** Payload schema with variable names and their types/descriptions */
+        payload?: Record<string, { type: string; description?: string }>
       }>
       error?: string
-    }>('/intents')
+    }>('/intents/available')
   },
 
   // WLED specific

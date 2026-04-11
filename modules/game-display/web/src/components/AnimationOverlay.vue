@@ -59,6 +59,15 @@ watch(animation, (newAnim) => {
   }
 })
 
+// Handle video loaded - ensure autoplay works
+function onVideoLoaded() {
+  if (videoRef.value) {
+    videoRef.value.play().catch(() => {
+      // Autoplay might still be blocked in some cases
+    })
+  }
+}
+
 // Handle video end
 function onVideoEnded() {
   store.dismissAnimation()
@@ -125,8 +134,10 @@ onUnmounted(() => {
             ref="videoRef"
             :src="animation.url"
             autoplay
+            muted
             playsinline
             class="max-w-full max-h-[70vh] object-contain"
+            @loadeddata="onVideoLoaded"
             @ended="onVideoEnded"
           />
 

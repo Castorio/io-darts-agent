@@ -13,3 +13,16 @@ export { registerCallerRoutes } from './caller.js';
 export { registerTtsRoutes } from './tts.js';
 export { registerDeveloperRoutes, type DeveloperDependencies } from './developer.js';
 export { registerAIRoutes, type AIDependencies } from './ai.js';
+export {
+  registerTrainerRoutes,
+  type TrainerDependencies,
+  type TrainingType,
+  type TrainingDifficulty,
+  type SessionStatus,
+  type TrainingTarget,
+  type TrainingSessionConfig,
+  type TrainingSession,
+  type TrainingStats,
+  type PracticeRoutine,
+  type TrainingHistoryEntry,
+} from './trainer.js';

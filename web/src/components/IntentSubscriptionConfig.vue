@@ -3,6 +3,10 @@ import { ref, computed } from 'vue'
 import BaseButton from './BaseButton.vue'
 
 // Types
+// IntentActionConfigField defines the schema for action configuration fields
+// Supported types: string, number, boolean, select, color, template
+// For template type, use availableVariables to list insertable variables like ['playerName', 'score']
+
 interface ModuleIntentAction {
   type: string
   label: string
@@ -28,6 +32,8 @@ interface Props {
     id: string
     description: string
     category?: string
+    /** Payload schema with variable names and their types/descriptions */
+    payload?: Record<string, { type: string; description?: string }>
   }>
   /** Available actions from the module */
   availableActions: ModuleIntentAction[]
@@ -155,6 +161,101 @@ function getAction(subscription: IntentSubscriptionConfig): ModuleIntentAction |
 // Toggle expansion
 function toggleExpand(intentId: string) {
   expandedSubscription.value = expandedSubscription.value === intentId ? null : intentId
+}
+
+// Template input refs for cursor position tracking
+const templateInputRefs = ref<Map<string, HTMLTextAreaElement>>(new Map())
+
+function setTemplateInputRef(intentId: string, fieldKey: string, el: HTMLTextAreaElement | null) {
+  const key = `${intentId}:${fieldKey}`
+  if (el) {
+    templateInputRefs.value.set(key, el)
+  } else {
+    templateInputRefs.value.delete(key)
+  }
+}
+
+// Insert variable at cursor position or at end
+function insertVariable(intentId: string, fieldKey: string, variable: string) {
+  const key = `${intentId}:${fieldKey}`
+  const textarea = templateInputRefs.value.get(key)
+  const subscription = getSubscription(intentId)
+  const currentValue = (subscription?.action.config?.[fieldKey] as string) ?? ''
+  const variableText = `{${variable}}`
+
+  if (textarea) {
+    const start = textarea.selectionStart ?? currentValue.length
+    const end = textarea.selectionEnd ?? currentValue.length
+    const newValue = currentValue.substring(0, start) + variableText + currentValue.substring(end)
+    updateActionConfig(intentId, fieldKey, newValue)
+
+    // Restore focus and set cursor after inserted variable
+    setTimeout(() => {
+      textarea.focus()
+      const newCursorPos = start + variableText.length
+      textarea.setSelectionRange(newCursorPos, newCursorPos)
+    }, 0)
+  } else {
+    // Fallback: append to end
+    updateActionConfig(intentId, fieldKey, currentValue + variableText)
+  }
+}
+
+// Example data for template preview
+const exampleData: Record<string, unknown> = {
+  playerName: 'Max',
+  score: 180,
+  checkout: 170,
+  dartsThrown: 3,
+  average: 95.5,
+  legsWon: 2,
+  setsWon: 1,
+  remaining: 32,
+  matchId: 'match-123',
+  gameType: 'X01',
+  turnScore: 140,
+  previousScore: 60,
+}
+
+// Render template preview with example data
+function getTemplatePreview(template: string, _intentId: string): string {
+  if (!template) return '(Kein Text eingegeben)'
+
+  let result = template
+  // Replace all {variable} patterns with example values
+  result = result.replace(/\{(\w+)\}/g, (match, variable) => {
+    const value = exampleData[variable]
+    if (value !== undefined) {
+      return String(value)
+    }
+    return match // Keep original if no example data
+  })
+
+  return result || '(Leerer Text)'
+}
+
+// Get available variables for a template field
+// First checks field.availableVariables, then falls back to intent payload keys
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getAvailableVariables(intentId: string, field: any): string[] {
+  // If the field defines specific variables, use those
+  if (field.availableVariables && field.availableVariables.length > 0) {
+    return field.availableVariables
+  }
+
+  // Otherwise, use the payload keys from the intent
+  const intent = props.availableIntents.find(i => i.id === intentId)
+  if (intent?.payload) {
+    return Object.keys(intent.payload)
+  }
+
+  return []
+}
+
+// Get variable description from intent payload
+function getVariableDescription(intentId: string, variable: string): string | undefined {
+  const intent = props.availableIntents.find(i => i.id === intentId)
+  return intent?.payload?.[variable]?.description
 }
 </script>
 
@@ -364,6 +465,45 @@ function toggleExpand(intentId: string) {
                     />
                   </div>
                   <p v-if="field.description" class="text-xs text-dark-500">{{ field.description }}</p>
+                </template>
+
+                <!-- Template input with variable insertion -->
+                <template v-else-if="field.type === 'template'">
+                  <label class="block text-sm font-medium text-dark-200">
+                    {{ field.label }}
+                  </label>
+                  <div class="space-y-2">
+                    <textarea
+                      :value="getSubscription(intent.id)?.action.config?.[fieldKey] ?? field.default ?? ''"
+                      @input="updateActionConfig(intent.id, fieldKey, ($event.target as HTMLTextAreaElement).value)"
+                      :ref="(el) => setTemplateInputRef(intent.id, fieldKey, el as HTMLTextAreaElement)"
+                      class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500 min-h-[80px] resize-y font-mono text-sm"
+                      :placeholder="field.description || 'z.B. {playerName} hat {score} Punkte geworfen!'"
+                    />
+                    <!-- Available variables as clickable chips -->
+                    <div v-if="getAvailableVariables(intent.id, field).length > 0" class="space-y-1">
+                      <p class="text-xs text-dark-400">Verfügbare Variablen (klicken zum Einfügen):</p>
+                      <div class="flex flex-wrap gap-1.5">
+                        <button
+                          v-for="variable in getAvailableVariables(intent.id, field)"
+                          :key="variable"
+                          type="button"
+                          @click="insertVariable(intent.id, fieldKey as string, variable)"
+                          class="px-2 py-1 text-xs font-mono rounded-md bg-autodarts-500/20 text-autodarts-400 hover:bg-autodarts-500/30 hover:text-autodarts-300 transition-colors border border-autodarts-500/30"
+                          :title="getVariableDescription(intent.id, variable)"
+                        >
+                          {{"{"}}{{ variable }}{{"}"}}
+                        </button>
+                      </div>
+                    </div>
+                    <!-- Live preview -->
+                    <div class="p-3 rounded-lg bg-dark-700/50 border border-dark-600">
+                      <p class="text-xs text-dark-400 mb-1">Vorschau:</p>
+                      <p class="text-white text-sm">
+                        {{ getTemplatePreview(getSubscription(intent.id)?.action.config?.[fieldKey] as string ?? field.default ?? '', intent.id) }}
+                      </p>
+                    </div>
+                  </div>
                 </template>
               </div>
             </template>

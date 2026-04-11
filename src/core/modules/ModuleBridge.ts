@@ -14,6 +14,7 @@ import type {
   RouteRequestPayload,
   RouteResponsePayload,
   IntentEmitPayload,
+  ModuleRequestPayload,
 } from '../../types/modules.js';
 import type { ParsedEvent } from '../../types/index.js';
 
@@ -332,10 +333,35 @@ export class ModuleBridge extends EventEmitter {
       case 'intent.emit':
         this.handleIntentEmit(message as IPCMessage<IntentEmitPayload>);
         break;
+      case 'request':
+        this.emit('request', (message as IPCMessage<ModuleRequestPayload>).payload, message.id);
+        break;
       default:
         // Unknown message type, emit for custom handling
         this.emit(`message:${message.type}`, message);
     }
+  }
+
+  /**
+   * Send response to a module request
+   */
+  sendRequestResponse(requestId: string, success: boolean, data?: unknown, error?: string): boolean {
+    const message: IPCMessage = {
+      id: this.generateMessageId(),
+      type: 'request.response',
+      timestamp: Date.now(),
+      payload: {
+        requestId,
+        success,
+        data,
+        error,
+      },
+    };
+    return this.send(message);
+  }
+
+  private generateMessageId(): string {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**

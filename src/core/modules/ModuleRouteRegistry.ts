@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply, RouteShorthandOptions } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { EventEmitter } from 'events';
 
 /**
@@ -78,8 +78,12 @@ interface RegisteredRoute {
 /**
  * ModuleRouteRegistry - Manages dynamic route registration for modules
  *
- * Allows modules to register custom API endpoints that are mounted under
- * /api/modules/:moduleId/routes/*
+ * Uses a wildcard catch-all route registered BEFORE server.listen() to handle
+ * all module API requests. This allows modules to register routes dynamically
+ * after the server has started, since Fastify doesn't support adding routes
+ * after listen().
+ *
+ * Routes are mounted under /api/modules/:moduleId/routes/*
  */
 export class ModuleRouteRegistry extends EventEmitter {
   private fastify: FastifyInstance | null = null;
@@ -87,9 +91,11 @@ export class ModuleRouteRegistry extends EventEmitter {
   private routeHandlers = new Map<string, ModuleRouteHandler>(); // moduleId -> handler
   private isAuthEnabled: () => boolean = () => false;
   private getSession: (sessionId: string) => { authenticated?: boolean } | undefined = () => undefined;
+  private wildcardRegistered = false;
 
   /**
-   * Initialize with Fastify instance
+   * Initialize with Fastify instance and register wildcard catch-all route
+   * MUST be called BEFORE fastify.listen()
    */
   initialize(
     fastify: FastifyInstance,
@@ -101,6 +107,204 @@ export class ModuleRouteRegistry extends EventEmitter {
     this.fastify = fastify;
     this.isAuthEnabled = authConfig.isAuthEnabled;
     this.getSession = authConfig.getSession;
+
+    // Register wildcard catch-all route for all module API requests
+    // This MUST happen before fastify.listen()
+    this.registerWildcardRoute();
+  }
+
+  /**
+   * Register the wildcard catch-all route that handles all module API requests
+   * This is registered once at startup and dispatches to the correct module handler
+   */
+  private registerWildcardRoute(): void {
+    if (!this.fastify || this.wildcardRegistered) return;
+
+    const self = this;
+
+    // Create handler that dispatches to module handlers
+    const wildcardHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = request.params as { moduleId: string; '*': string };
+      const moduleId = params.moduleId;
+      const routePath = '/' + (params['*'] || '');
+      const method = request.method as HttpMethod;
+
+      // Find matching route for this module
+      const moduleRoutes = self.routes.get(moduleId);
+      if (!moduleRoutes || moduleRoutes.length === 0) {
+        reply.code(404);
+        return { error: `No routes registered for module: ${moduleId}` };
+      }
+
+      // Find the specific route that matches
+      const matchedRoute = self.findMatchingRoute(moduleRoutes, method, routePath);
+      if (!matchedRoute) {
+        reply.code(404);
+        return { error: `Route not found: ${method} ${routePath}` };
+      }
+
+      // Check authentication if required
+      if (matchedRoute.definition.requireAuth !== false) {
+        const isAuthed = self.checkAuth(request);
+        if (!isAuthed) {
+          reply.code(401);
+          return { error: 'Unauthorized' };
+        }
+      }
+
+      // Get the route handler for this module
+      const routeHandler = self.routeHandlers.get(moduleId);
+      if (!routeHandler) {
+        reply.code(503);
+        return { error: 'Module not ready to handle requests' };
+      }
+
+      // Extract path params from the route pattern
+      const extractedParams = self.extractPathParams(matchedRoute.definition.path, routePath);
+
+      // Build the request object for the module
+      const moduleRequest: ModuleRouteRequest = {
+        handlerId: matchedRoute.definition.handlerId,
+        method: method,
+        path: matchedRoute.definition.path,
+        params: { ...extractedParams },
+        query: request.query as Record<string, unknown>,
+        body: request.body,
+        headers: Object.fromEntries(
+          Object.entries(request.headers)
+            .filter(([, v]) => typeof v === 'string')
+            .map(([k, v]) => [k, v as string])
+        ),
+      };
+
+      try {
+        // Forward request to module
+        const response = await routeHandler(moduleRequest);
+
+        // Set response headers
+        if (response.headers) {
+          for (const [key, value] of Object.entries(response.headers)) {
+            reply.header(key, value);
+          }
+        }
+
+        // Set status code
+        if (response.statusCode) {
+          reply.code(response.statusCode);
+        }
+
+        return response.body;
+      } catch (error) {
+        console.error(`Module ${moduleId} route handler error:`, error);
+        reply.code(500);
+        return { error: 'Internal module error' };
+      }
+    };
+
+    // Register wildcard routes for all HTTP methods
+    // Pattern: /api/modules/:moduleId/routes/*
+    const basePath = '/api/modules/:moduleId/routes/*';
+
+    this.fastify.get(basePath, wildcardHandler);
+    this.fastify.post(basePath, wildcardHandler);
+    this.fastify.put(basePath, wildcardHandler);
+    this.fastify.patch(basePath, wildcardHandler);
+    this.fastify.delete(basePath, wildcardHandler);
+
+    // Also handle the base path without trailing wildcard (for routes like /api/players without subpath)
+    const basePathNoWildcard = '/api/modules/:moduleId/routes';
+    this.fastify.get(basePathNoWildcard, wildcardHandler);
+    this.fastify.post(basePathNoWildcard, wildcardHandler);
+    this.fastify.put(basePathNoWildcard, wildcardHandler);
+    this.fastify.patch(basePathNoWildcard, wildcardHandler);
+    this.fastify.delete(basePathNoWildcard, wildcardHandler);
+
+    this.wildcardRegistered = true;
+    console.log('🛣️  Module wildcard routes registered: /api/modules/:moduleId/routes/*');
+  }
+
+  /**
+   * Find a matching route from the registered routes
+   */
+  private findMatchingRoute(
+    routes: RegisteredRoute[],
+    method: HttpMethod,
+    requestPath: string
+  ): RegisteredRoute | null {
+    for (const route of routes) {
+      if (route.definition.method !== method) continue;
+
+      // Normalize the route path for comparison
+      const routePath = route.definition.path.startsWith('/')
+        ? route.definition.path
+        : '/' + route.definition.path;
+
+      // Check if the paths match (accounting for path parameters)
+      if (this.pathsMatch(routePath, requestPath)) {
+        return route;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Check if a route pattern matches a request path
+   * Handles path parameters like :id, :playerId, etc.
+   */
+  private pathsMatch(routePattern: string, requestPath: string): boolean {
+    // Normalize paths - remove /api prefix if present in route pattern
+    const normalizedPattern = routePattern.replace(/^\/api/, '');
+    const normalizedRequest = requestPath;
+
+    const patternParts = normalizedPattern.split('/').filter(Boolean);
+    const requestParts = normalizedRequest.split('/').filter(Boolean);
+
+    if (patternParts.length !== requestParts.length) {
+      return false;
+    }
+
+    for (let i = 0; i < patternParts.length; i++) {
+      const patternPart = patternParts[i];
+      const requestPart = requestParts[i];
+
+      // If pattern part is a parameter (starts with :), it matches anything
+      if (patternPart.startsWith(':')) {
+        continue;
+      }
+
+      // Otherwise, parts must match exactly
+      if (patternPart !== requestPart) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Extract path parameters from a request path based on route pattern
+   */
+  private extractPathParams(routePattern: string, requestPath: string): Record<string, string> {
+    const params: Record<string, string> = {};
+
+    // Normalize paths
+    const normalizedPattern = routePattern.replace(/^\/api/, '');
+    const normalizedRequest = requestPath;
+
+    const patternParts = normalizedPattern.split('/').filter(Boolean);
+    const requestParts = normalizedRequest.split('/').filter(Boolean);
+
+    for (let i = 0; i < patternParts.length && i < requestParts.length; i++) {
+      const patternPart = patternParts[i];
+      const requestPart = requestParts[i];
+
+      if (patternPart.startsWith(':')) {
+        const paramName = patternPart.slice(1);
+        params[paramName] = requestPart;
+      }
+    }
+
+    return params;
   }
 
   /**
@@ -119,7 +323,8 @@ export class ModuleRouteRegistry extends EventEmitter {
   }
 
   /**
-   * Register routes for a module
+   * Register routes for a module (dynamic - can be called after server start)
+   * Routes are stored in memory and matched by the wildcard handler
    */
   async registerRoutes(registration: ModuleRouteRegistration): Promise<void> {
     if (!this.fastify) {
@@ -136,17 +341,13 @@ export class ModuleRouteRegistry extends EventEmitter {
     for (const route of routes) {
       const fullPath = this.buildFullPath(moduleId, route.path);
 
-      try {
-        await this.registerRoute(moduleId, route, fullPath);
-        registeredRoutes.push({
-          moduleId,
-          definition: route,
-          fullPath,
-        });
-      } catch (error) {
-        console.error(`Failed to register route ${route.method} ${fullPath}:`, error);
-        throw error;
-      }
+      registeredRoutes.push({
+        moduleId,
+        definition: route,
+        fullPath,
+      });
+
+      console.log(`📡 [${moduleId}] Route registered: ${route.method} ${fullPath}`);
     }
 
     this.routes.set(moduleId, registeredRoutes);
@@ -162,9 +363,7 @@ export class ModuleRouteRegistry extends EventEmitter {
       return;
     }
 
-    // Note: Fastify doesn't support dynamic route removal
-    // We mark routes as inactive and they will return 404
-    // The routes will be properly removed on server restart
+    // Just remove from our map - the wildcard handler will return 404
     this.routes.delete(moduleId);
     this.routeHandlers.delete(moduleId);
     this.emit('routesUnregistered', { moduleId });
@@ -198,106 +397,9 @@ export class ModuleRouteRegistry extends EventEmitter {
   private buildFullPath(moduleId: string, routePath: string): string {
     // Normalize path - ensure it starts with /
     const normalizedPath = routePath.startsWith('/') ? routePath : `/${routePath}`;
-    return `/api/modules/${moduleId}/routes${normalizedPath}`;
-  }
-
-  /**
-   * Register a single route with Fastify
-   */
-  private async registerRoute(
-    moduleId: string,
-    route: ModuleRouteDefinition,
-    fullPath: string
-  ): Promise<void> {
-    if (!this.fastify) return;
-
-    const fastify = this.fastify;
-    const self = this;
-
-    const routeOptions: RouteShorthandOptions = {
-      schema: route.schema,
-    };
-
-    const handler = async (request: FastifyRequest, reply: FastifyReply) => {
-      // Check if module still has routes registered
-      if (!self.routes.has(moduleId)) {
-        reply.code(404);
-        return { error: 'Module routes not available' };
-      }
-
-      // Check authentication if required
-      if (route.requireAuth !== false) {
-        const isAuthed = self.checkAuth(request);
-        if (!isAuthed) {
-          reply.code(401);
-          return { error: 'Unauthorized' };
-        }
-      }
-
-      // Get the route handler for this module
-      const routeHandler = self.routeHandlers.get(moduleId);
-      if (!routeHandler) {
-        reply.code(503);
-        return { error: 'Module not ready to handle requests' };
-      }
-
-      // Build the request object for the module
-      const moduleRequest: ModuleRouteRequest = {
-        handlerId: route.handlerId,
-        method: route.method,
-        path: route.path,
-        params: request.params as Record<string, string>,
-        query: request.query as Record<string, unknown>,
-        body: request.body,
-        headers: Object.fromEntries(
-          Object.entries(request.headers)
-            .filter(([_, v]) => typeof v === 'string')
-            .map(([k, v]) => [k, v as string])
-        ),
-      };
-
-      try {
-        // Forward request to module
-        const response = await routeHandler(moduleRequest);
-
-        // Set response headers
-        if (response.headers) {
-          for (const [key, value] of Object.entries(response.headers)) {
-            reply.header(key, value);
-          }
-        }
-
-        // Set status code
-        if (response.statusCode) {
-          reply.code(response.statusCode);
-        }
-
-        return response.body;
-      } catch (error) {
-        console.error(`Module ${moduleId} route handler error:`, error);
-        reply.code(500);
-        return { error: 'Internal module error' };
-      }
-    };
-
-    // Register the route based on method
-    switch (route.method) {
-      case 'GET':
-        fastify.get(fullPath, routeOptions, handler);
-        break;
-      case 'POST':
-        fastify.post(fullPath, routeOptions, handler);
-        break;
-      case 'PUT':
-        fastify.put(fullPath, routeOptions, handler);
-        break;
-      case 'PATCH':
-        fastify.patch(fullPath, routeOptions, handler);
-        break;
-      case 'DELETE':
-        fastify.delete(fullPath, routeOptions, handler);
-        break;
-    }
+    // Remove /api prefix if present (since our wildcard is already under /api/modules)
+    const cleanPath = normalizedPath.replace(/^\/api/, '');
+    return `/api/modules/${moduleId}/routes${cleanPath}`;
   }
 
   /**

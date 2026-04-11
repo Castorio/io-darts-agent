@@ -43,7 +43,13 @@
         "label": "Say Text",
         "description": "Speak custom text using TTS",
         "configSchema": {
-          "text": { "type": "string", "label": "Text to speak", "default": "" }
+          "text": {
+            "type": "template",
+            "label": "Text to speak",
+            "description": "Text with optional variables like {{playerName}} or {{score}}",
+            "default": "",
+            "availableVariables": ["playerName", "score", "checkout", "remaining", "dartsThrown", "average", "legsWon", "setsWon", "turnScore"]
+          }
         }
       },
       {

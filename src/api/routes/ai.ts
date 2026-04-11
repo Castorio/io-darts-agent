@@ -258,6 +258,38 @@ export function registerAIRoutes(
     };
   });
 
+  /**
+   * GET /api/ai/provider-options - Get provider options for module config UI
+   * Returns a list of available providers, optionally filtered by capability
+   * Used by the 'provider-select' config field type
+   */
+  fastify.get<{
+    Querystring: { capability?: AICapability };
+    Reply: {
+      options: Array<{ value: string; label: string; type: string; available: boolean }>;
+    } | { error: string };
+  }>('/api/ai/provider-options', async (request, _reply) => {
+    // This endpoint is public (no auth required) so module UIs can load provider options
+    const service = deps.getService();
+    const providers = service.getProviders();
+    const { capability } = request.query;
+
+    // Filter by capability if specified
+    const filteredProviders = capability
+      ? providers.filter((p) => p.capabilities.includes(capability))
+      : providers;
+
+    // Map to options format for select dropdown
+    const options = filteredProviders.map((p) => ({
+      value: p.config.id,
+      label: p.config.name,
+      type: p.config.type,
+      available: p.isAvailable() && p.config.enabled !== false,
+    }));
+
+    return { options };
+  });
+
   // ============================================================================
   // Generation Endpoints
   // ============================================================================

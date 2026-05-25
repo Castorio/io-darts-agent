@@ -12,8 +12,13 @@ import type {
   ThrowCoords,
 } from '../../types/index.js';
 
+export interface EventParserOptions {
+  debug?: boolean;
+}
+
 export class EventParser {
   private boardId: string;
+  private debug: boolean;
   private currentMatchId: string | null = null;
   private lastPlayerIndex: number | null = null;
   private currentMatchState: MatchStateData | null = null;
@@ -24,8 +29,9 @@ export class EventParser {
   private lastGameScores: number[] = [];
   private lastDartsInTurn: number = 0;
 
-  constructor(boardId: string) {
+  constructor(boardId: string, options: EventParserOptions = {}) {
     this.boardId = boardId;
+    this.debug = options.debug ?? false;
   }
 
   /**
@@ -85,7 +91,7 @@ export class EventParser {
 
     // Board Events (throws, takeouts, etc.)
     if (channel === 'autodarts.boards' && topic === `${this.boardId}.events`) {
-      console.log(`🎯 Board Event received: ${(data as BoardEventData).event}`);
+      if (this.debug) console.log(`🎯 Board Event received: ${(data as BoardEventData).event}`);
       return this.parseBoardEvent(raw, data as BoardEventData, timestamp);
     }
 
@@ -210,7 +216,7 @@ export class EventParser {
 
     if (event === 'Throw detected') {
       const segment = data.throw.segment;
-      console.log(`🎯 Throw detected: segment=${segment.name}, number=${segment.number}, multiplier=${segment.multiplier}, throwNumber=${data.throwNumber ?? 0}`);
+      if (this.debug) console.log(`🎯 Throw detected: segment=${segment.name}, number=${segment.number}, multiplier=${segment.multiplier}, throwNumber=${data.throwNumber ?? 0}`);
       return {
         type: 'throw.detected',
         timestamp,
@@ -277,7 +283,7 @@ export class EventParser {
     const isThirdDart = dartsInCurrentTurn === 3 && this.lastDartsInTurn !== 3;
     const isRoundChanged = this.lastRound !== null && data.round > this.lastRound;
 
-    console.log(`🔍 EventParser: round=${data.round}, lastRound=${this.lastRound}, darts=${dartsInCurrentTurn}, lastDarts=${this.lastDartsInTurn}, turnScore=${data.turnScore}`);
+    if (this.debug) console.log(`🔍 EventParser: round=${data.round}, lastRound=${this.lastRound}, darts=${dartsInCurrentTurn}, lastDarts=${this.lastDartsInTurn}, turnScore=${data.turnScore}`);
 
     // Generate throw.detected events from match state (since Autodarts no longer sends board events for throws)
     // This must happen BEFORE other events so modules can react to individual throws
@@ -286,7 +292,7 @@ export class EventParser {
         const throwData = currentTurn.throws[i];
         if (throwData?.segment) {
           const segment = throwData.segment;
-          console.log(`🎯 Throw detected (from match.state): segment=${segment.name}, number=${segment.number}, multiplier=${segment.multiplier}, throwNumber=${throwData.throw ?? (i + 1)}`);
+          if (this.debug) console.log(`🎯 Throw detected (from match.state): segment=${segment.name}, number=${segment.number}, multiplier=${segment.multiplier}, throwNumber=${throwData.throw ?? (i + 1)}`);
           events.push({
             type: 'throw.detected',
             timestamp,
@@ -308,7 +314,7 @@ export class EventParser {
     if (justBusted) {
       const playerArrayPosition = data.player;
       const player = data.players[playerArrayPosition];
-      console.log(`💥 EventParser: BUST detected for player ${player?.name} (arrayPosition=${playerArrayPosition}, index=${player?.index})`);
+      if (this.debug) console.log(`💥 EventParser: BUST detected for player ${player?.name} (arrayPosition=${playerArrayPosition}, index=${player?.index})`);
       events.push({
         type: 'turn.finished',
         timestamp,
@@ -335,7 +341,7 @@ export class EventParser {
       const player = data.players[playerArrayPosition];
       const remainingScore = data.gameScores[playerArrayPosition] ?? 0;
       const throwsInfo = currentTurn?.throws?.map(t => `${t.segment?.name || 'unknown'}(${t.segment?.number}x${t.segment?.multiplier})`).join(', ') || 'none';
-      console.log(`✅ EventParser: Third dart - Emitting turn.finished - turnScore=${data.turnScore}, remaining=${remainingScore}, throws=[${throwsInfo}]`);
+      if (this.debug) console.log(`✅ EventParser: Third dart - Emitting turn.finished - turnScore=${data.turnScore}, remaining=${remainingScore}, throws=[${throwsInfo}]`);
       events.push({
         type: 'turn.finished',
         timestamp,
@@ -365,7 +371,7 @@ export class EventParser {
       const remainingScore = this.lastGameScores[previousPlayerArrayPosition] ?? data.gameScores[previousPlayerArrayPosition] ?? 0;
       // Get throws from the previous turn (the one that just ended)
       const previousTurn = data.turns && data.turns.length > 1 ? data.turns[data.turns.length - 2] : currentTurn;
-      console.log(`✅ EventParser: Round change - Emitting turn.finished - turnScore=${this.lastTurnScore}, remaining=${remainingScore}`);
+      if (this.debug) console.log(`✅ EventParser: Round change - Emitting turn.finished - turnScore=${this.lastTurnScore}, remaining=${remainingScore}`);
       events.push({
         type: 'turn.finished',
         timestamp,
@@ -416,11 +422,6 @@ export class EventParser {
 
     // Check for game finished
     if (data.gameFinished && data.gameWinner !== null) {
-      // DEBUG: Log to understand the data structure
-      console.log('🎯 DEBUG EventParser - GAME FINISHED:');
-      console.log('  data.gameWinner:', data.gameWinner);
-      console.log('  data.players:', JSON.stringify(data.players.map(p => ({ index: p.index, name: p.name })), null, 2));
-
       // IMPORTANT: gameWinner from Autodarts is the player's INDEX field value, not array position!
       // When a leg ends, Autodarts rotates the players array for the next leg.
       // The gameWinner value stays the same (it's the player.index, not array position).
@@ -431,13 +432,16 @@ export class EventParser {
       // - gameWinner = 0 (player A's index field)
       // - For leg 2, array rotates: players = [{index:1, name:'B'}, {index:0, name:'A'}]
       // - Using find(p => p.index === gameWinner) correctly finds player A
-      //
-      // We use BOTH approaches and compare to understand the behavior:
       const gameWinnerByIndex = data.players.find(p => p.index === data.gameWinner);
       const gameWinnerByArrayPos = data.players[data.gameWinner];
 
-      console.log('  Found by p.index:', gameWinnerByIndex?.name);
-      console.log('  Found by array position:', gameWinnerByArrayPos?.name);
+      if (this.debug) {
+        console.log('🎯 DEBUG EventParser - GAME FINISHED:');
+        console.log('  data.gameWinner:', data.gameWinner);
+        console.log('  data.players:', JSON.stringify(data.players.map(p => ({ index: p.index, name: p.name })), null, 2));
+        console.log('  Found by p.index:', gameWinnerByIndex?.name);
+        console.log('  Found by array position:', gameWinnerByArrayPos?.name);
+      }
 
       // Use find by p.index since gameWinner is the player's index field value
       const gameWinnerPlayer = gameWinnerByIndex;
@@ -465,12 +469,13 @@ export class EventParser {
       // Find winner by index field, not array position (Autodarts uses index field as winner identifier)
       const matchWinnerPlayer = data.players.find(p => p.index === data.winner);
 
-      // DEBUG: Log raw data from Autodarts
-      console.log('🏆 DEBUG EventParser - MATCH FINISHED RAW DATA:');
-      console.log('  data.winner:', data.winner, typeof data.winner);
-      console.log('  data.players:', JSON.stringify(data.players, null, 2));
-      console.log('  matchWinnerPlayer (found by index):', matchWinnerPlayer);
-      console.log('  winnerName:', matchWinnerPlayer?.name);
+      if (this.debug) {
+        console.log('🏆 DEBUG EventParser - MATCH FINISHED RAW DATA:');
+        console.log('  data.winner:', data.winner, typeof data.winner);
+        console.log('  data.players:', JSON.stringify(data.players, null, 2));
+        console.log('  matchWinnerPlayer (found by index):', matchWinnerPlayer);
+        console.log('  winnerName:', matchWinnerPlayer?.name);
+      }
 
       events.push({
         type: 'match.finished',

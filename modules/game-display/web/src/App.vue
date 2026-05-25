@@ -60,18 +60,18 @@ const playerColor = computed(() => {
 // Darker version of player color for gradients
 const playerColorDark = computed(() => {
   const hex = playerColor.value.replace('#', '')
-  const r = Math.max(0, parseInt(hex.substr(0, 2), 16) - 80)
-  const g = Math.max(0, parseInt(hex.substr(2, 2), 16) - 80)
-  const b = Math.max(0, parseInt(hex.substr(4, 2), 16) - 80)
+  const r = Math.max(0, parseInt(hex.substring(0, 2), 16) - 80)
+  const g = Math.max(0, parseInt(hex.substring(2, 4), 16) - 80)
+  const b = Math.max(0, parseInt(hex.substring(4, 6), 16) - 80)
   return `rgb(${r}, ${g}, ${b})`
 })
 
 // Even darker for deep background
 const playerColorDeep = computed(() => {
   const hex = playerColor.value.replace('#', '')
-  const r = Math.max(0, parseInt(hex.substr(0, 2), 16) - 150)
-  const g = Math.max(0, parseInt(hex.substr(2, 2), 16) - 150)
-  const b = Math.max(0, parseInt(hex.substr(4, 2), 16) - 150)
+  const r = Math.max(0, parseInt(hex.substring(0, 2), 16) - 150)
+  const g = Math.max(0, parseInt(hex.substring(2, 4), 16) - 150)
+  const b = Math.max(0, parseInt(hex.substring(4, 6), 16) - 150)
   return `rgb(${r}, ${g}, ${b})`
 })
 

@@ -22,5 +22,5 @@
     "types": ["node", "vitest/globals"]
   },
   "include": ["src/**/*", "modules/*/src/**/*"],
-  "exclude": ["node_modules", "dist", "test", "**/*.test.ts", "modules/*/web/**/*"]
+  "exclude": ["node_modules", "dist", "test", "**/*.test.ts", "modules/*/web/**/*", "modules/autodarts-trainer/**/*"]
 }

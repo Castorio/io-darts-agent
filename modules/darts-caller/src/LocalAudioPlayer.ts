@@ -122,7 +122,7 @@ export class LocalAudioPlayer {
       return;
     }
 
-    const id = `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = `file_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     this.enqueue({ id, filePath, priority, text });
   }
 
@@ -130,7 +130,7 @@ export class LocalAudioPlayer {
    * Play audio from a buffer (writes to temp file first)
    */
   async playBuffer(buffer: Buffer, priority = 5, text?: string): Promise<void> {
-    const id = `buffer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = `buffer_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     this.enqueue({ id, buffer, priority, text });
   }
 

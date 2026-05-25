@@ -42,6 +42,8 @@ IO-Darts-Agent ist eine Middleware-Lösung, die zwischen der Autodarts-Plattform
 | `player.change` | Spielerwechsel | Spieler-Index ändert sich in match.state |
 | `turn.finished` | Aufnahme beendet | 3 Darts geworfen, Bust oder Rundenwechsel |
 
+> **Hinweis zur Array-Rotation:** Autodarts rotiert das Spieler-Array nach jedem Leg. Die synthetischen Events enthalten daher sowohl den `playerName`/`winnerName` (zuverlässig) als auch `playerIndex`/`winnerPlayerIndex` (stabiler Index) für robuste Spieler-Erkennung. Siehe Developer Guide für Details.
+
 ### 2. Modulares Plugin-System
 
 #### Modul-Architektur
@@ -169,6 +171,7 @@ Zeigt den aktuellen Spielstand auf einem separaten Display an.
 - Unterstützung für verschiedene Medientypen: Built-in, GIF, Video
 - Optionale Tonwiedergabe bei jeder Animation
 - Events: 180, Bull, Double Bull, High Score, Bust, Checkout, Leg-Win, Set-Win, Match-Win
+- Robuste Gewinner-Erkennung auch nach Array-Rotation bei Leg-Wechseln
 
 **Spieler-spezifische Animationen:**
 - Individuelle Animationen pro Spieler im "Spieler"-Konfigurations-Tab

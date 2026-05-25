@@ -6,7 +6,8 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { APIServer } from '../Server.js';
-import type { DartsCallerHandler, CallRequest } from '../../core/modules/handlers/index.js';
+import type { DartsCallerHandler } from '../../core/modules/handlers/index.js';
+import type { CallRequest } from '../../core/events/EventSystem.js';
 
 interface CallerRouteOptions {
   getCallerHandler: () => DartsCallerHandler | null;

@@ -8,7 +8,6 @@ import WinAnimation from './components/WinAnimation.vue'
 
 const { t } = useI18n()
 const store = useGameDisplayStore()
-const isDemo = ref(false)
 
 // Configuration
 const config = computed(() => store.config)
@@ -243,16 +242,6 @@ function formatDart(dart: { segment: { number: number; multiplier: number; bed: 
   return getDartLabel(dart.segment)
 }
 
-// Toggle demo mode
-function toggleDemo() {
-  if (isDemo.value) {
-    store.resetGame()
-  } else {
-    store.startDemo()
-  }
-  isDemo.value = !isDemo.value
-}
-
 onMounted(() => {
   store.connect()
 })
@@ -306,12 +295,14 @@ onUnmounted(() => {
     <div class="relative z-10 flex flex-col min-h-screen p-6 lg:p-10">
 
       <!-- Demo Toggle (development) -->
-      <button
+      <!--
+        <button
         @click="toggleDemo"
         class="absolute top-4 right-4 px-3 py-1.5 rounded-lg bg-white/10 text-white/60 text-sm hover:bg-white/20 transition-colors z-50"
       >
         {{ isDemo ? t('demo.stop') : t('demo.start') }}
       </button>
+      -->
 
       <!-- Match Started State - waiting for first throw -->
       <div

@@ -40,25 +40,20 @@ import {
   createGameDisplayHandler,
   createDartsCallerHandler,
 } from './core/modules/handlers/index.js';
+// Note: BuiltinModuleInstaller is available but we use local implementations
+// that integrate with the local state (installedModules map, config loading, etc.)
+// import { installBuiltinModules, scanInstalledModules } from './core/modules/BuiltinModuleInstaller.js';
+import { initializeAIProviders, saveAIProviderConfigs } from './core/ai/AIProviderInitializer.js';
+import { getEventSystem, type LogEntry, type CallRequest } from './core/events/EventSystem.js';
 import { PlayerService } from './core/players/PlayerService.js';
 import { PlayerRepository } from './core/players/PlayerRepository.js';
 import { AutodartsHub } from './index.js';
 import { getIntentBus, createEmitterFromManifest, IntentEmitter } from './core/intents/index.js';
 import { getMatchStatusService } from './core/match/index.js';
 import { getAIProviderService } from './core/ai/AIProviderService.js';
-import {
-  OpenAIProvider,
-  AnthropicProvider,
-  ElevenLabsProvider,
-  StabilityAIProvider,
-  RunwayProvider,
-  ReplicateProvider,
-  OllamaProvider,
-} from './core/ai/providers/index.js';
-import type { AIProviderConfig } from './core/ai/types.js';
 import type { HubConfiguration } from './types/api.js';
 import type { ModuleListItem, ModuleDetailResponse } from './types/api.js';
-import type { ParsedEvent, ModuleStatus, ModuleManifest, Intent } from './types/index.js';
+import type { ParsedEvent, ModuleStatus, ModuleManifest } from './types/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,79 +68,24 @@ const intentBus = getIntentBus({ debug: process.env.NODE_ENV !== 'production' })
 // Match Status Service for centralized match state
 const matchStatusService = getMatchStatusService();
 
+// Event System for centralized event/log management
+const eventSystem = getEventSystem({ debug: false });
+
 // Player service for matching known players
 let playerService: PlayerService | null = null;
 
-// Event subscribers for WebSocket
-const eventSubscribers = new Set<(event: ParsedEvent) => void>();
-const moduleStatusSubscribers = new Set<(moduleId: string, status: ModuleStatus) => void>();
-
-// Voice pack progress subscribers
+// Voice pack progress type
 import type { GenerationProgress } from './core/modules/handlers/index.js';
-const voicePackProgressSubscribers = new Set<(progress: GenerationProgress) => void>();
 
-function emitVoicePackProgress(progress: GenerationProgress): void {
-  for (const subscriber of voicePackProgressSubscribers) {
-    subscriber(progress);
-  }
-}
-
-// Caller request subscribers for audio playback
-import type { CallRequest } from './api/routes/index.js';
-const callerRequestSubscribers = new Set<(request: CallRequest) => void>();
-
-function emitCallerRequest(request: CallRequest): void {
-  for (const subscriber of callerRequestSubscribers) {
-    subscriber(request);
-  }
-}
-
-// Intent subscribers for WebSocket
-const intentSubscribers = new Set<(intent: Intent) => void>();
-
-function emitIntent(intent: Intent): void {
-  for (const subscriber of intentSubscribers) {
-    subscriber(intent);
-  }
-}
-
-// Subscribe IntentBus to forward intents to WebSocket
+// Subscribe IntentBus to forward intents to EventSystem
 intentBus.subscribeGlobal((intent) => {
-  emitIntent(intent);
-  addLog('module', `intent:${intent.source}`, `${intent.id}`, intent.payload);
+  eventSystem.emitIntent(intent);
+  eventSystem.addLog('module', `intent:${intent.source}`, `${intent.id}`, intent.payload);
 });
 
-// Log system for real-time event tracking
-// LogEntry type is also defined in websocket.ts - keeping in sync
-type LogEntry = {
-  id: string;
-  timestamp: number;
-  type: 'event' | 'module' | 'system';
-  source: string;
-  message: string;
-  data?: unknown;
-}
-const logEntries: LogEntry[] = [];
-const MAX_LOG_ENTRIES = 500;
-const logSubscribers = new Set<(entry: LogEntry) => void>();
-
-function addLog(type: LogEntry['type'], source: string, message: string, data?: unknown): void {
-  const entry: LogEntry = {
-    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    timestamp: Date.now(),
-    type,
-    source,
-    message,
-    data,
-  };
-  logEntries.push(entry);
-  if (logEntries.length > MAX_LOG_ENTRIES) {
-    logEntries.shift();
-  }
-  // Notify subscribers
-  for (const subscriber of logSubscribers) {
-    subscriber(entry);
-  }
+// Helper function for logging (shortcut to eventSystem.addLog)
+function addLog(type: 'event' | 'module' | 'system', source: string, message: string, data?: unknown): void {
+  eventSystem.addLog(type, source, message, data);
 }
 
 // Module tracking
@@ -934,10 +874,8 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
     // Enrich event with player colors
     const enrichedEvent = await enrichEventWithPlayerColors(event);
 
-    // Forward to WebSocket subscribers
-    for (const subscriber of eventSubscribers) {
-      subscriber(enrichedEvent);
-    }
+    // Forward to WebSocket subscribers via EventSystem
+    eventSystem.emitEvent(enrichedEvent);
 
     // Forward to running modules
     for (const mod of installedModules.values()) {
@@ -1005,7 +943,7 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
             // Register callback to forward call requests to WebSocket
             mod.dartsCallerHandler.onCallRequest((request) => {
               console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
-              emitCallerRequest(request);
+              eventSystem.emitCallerRequest(request);
             });
             // Initialize ElevenLabs service and VoicePackGenerator if API key is configured
             const elevenLabsApiKey = (config as unknown as { aiProviders?: { elevenlabs?: { apiKey?: string } } })?.aiProviders?.elevenlabs?.apiKey;
@@ -1399,7 +1337,7 @@ async function main(): Promise<void> {
         // Register callback to forward call requests to WebSocket
         mod.dartsCallerHandler.onCallRequest((request) => {
           console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
-          emitCallerRequest(request);
+          eventSystem.emitCallerRequest(request);
         });
         // Initialize ElevenLabs service and VoicePackGenerator if API key is configured
         const config = server.getConfig();
@@ -1500,7 +1438,7 @@ async function main(): Promise<void> {
           // Register callback to forward call requests to WebSocket
           mod.dartsCallerHandler.onCallRequest((request) => {
             console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
-            emitCallerRequest(request);
+            eventSystem.emitCallerRequest(request);
           });
         }
 
@@ -1790,7 +1728,7 @@ async function main(): Promise<void> {
           console.error(`❌ Voice pack generation failed: ${progress.error}`);
         }
         // Emit to WebSocket subscribers
-        emitVoicePackProgress(progress);
+        eventSystem.emitVoicePackProgress(progress);
       });
 
       // Update darts caller handler with the new generator
@@ -1843,8 +1781,7 @@ async function main(): Promise<void> {
   registerCallerRoutes(fastify, server, {
     getCallerHandler: getDartsCallerHandler,
     subscribeToCallRequests: (callback: (request: CallRequest) => void) => {
-      callerRequestSubscribers.add(callback);
-      return () => callerRequestSubscribers.delete(callback);
+      return eventSystem.subscribeToCallerRequests(callback);
     },
   });
   console.log('🗣️  Caller routes initialized');
@@ -1852,10 +1789,8 @@ async function main(): Promise<void> {
   // Register Developer Routes (for simulation/testing)
   registerDeveloperRoutes(fastify, server, {
     emitEvent: (event: ParsedEvent) => {
-      // Emit to WebSocket subscribers
-      for (const subscriber of eventSubscribers) {
-        subscriber(event);
-      }
+      // Emit to WebSocket subscribers via EventSystem
+      eventSystem.emitEvent(event);
       // Also process through modules
       for (const [, mod] of installedModules) {
         if (mod.status === 'running' && mod.eventHandler) {
@@ -1868,146 +1803,24 @@ async function main(): Promise<void> {
   });
   console.log('🔧 Developer routes initialized');
 
-  // Initialize AI Provider Service
-  const aiService = getAIProviderService();
-
-  // Register provider factories
-  // Each factory receives an AIProviderConfig and returns the appropriate provider instance
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('openai', (config) => new OpenAIProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('anthropic', (config) => new AnthropicProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('elevenlabs', (config) => new ElevenLabsProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('stability', (config) => new StabilityAIProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('runway', (config) => new RunwayProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('replicate', (config) => new ReplicateProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('ollama', (config) => new OllamaProvider(config as any));
-
-  // Load AI provider configurations from config file
+  // Initialize AI Provider Service using extracted module
   const aiConfigDir = path.join(__dirname, '..', 'config');
-  const aiConfigPath = path.join(aiConfigDir, 'ai-providers.json');
-
-  // Ensure config directory exists
-  if (!fs.existsSync(aiConfigDir)) {
-    fs.mkdirSync(aiConfigDir, { recursive: true });
-  }
-
-  if (fs.existsSync(aiConfigPath)) {
-    try {
-      const aiConfigs = JSON.parse(fs.readFileSync(aiConfigPath, 'utf-8')) as AIProviderConfig[];
-      for (const config of aiConfigs) {
-        try {
-          aiService.addProvider(config);
-          console.log(`🤖 AI Provider loaded: ${config.name}`);
-        } catch (err) {
-          console.warn(`⚠️  Failed to load AI provider ${config.id}:`, err);
-        }
-      }
-    } catch (err) {
-      console.warn('⚠️  Failed to parse AI providers config:', err);
-    }
-  } else {
-    // Create default configs for all provider types (empty API keys - users configure them in UI)
-    const defaultConfigs: AIProviderConfig[] = [
-      {
-        id: 'openai',
-        type: 'openai',
-        name: 'OpenAI',
-        apiKey: '',
-        enabled: false,
-      },
-      {
-        id: 'anthropic',
-        type: 'anthropic',
-        name: 'Anthropic',
-        apiKey: '',
-        enabled: false,
-      },
-      {
-        id: 'ollama',
-        type: 'ollama',
-        name: 'Ollama (Lokal)',
-        apiKey: '',
-        baseUrl: 'http://localhost:11434',
-        enabled: true,
-      },
-      {
-        id: 'elevenlabs',
-        type: 'elevenlabs',
-        name: 'ElevenLabs',
-        apiKey: '',
-        enabled: false,
-      },
-      {
-        id: 'stability',
-        type: 'stability',
-        name: 'Stability AI',
-        apiKey: '',
-        enabled: false,
-      },
-      {
-        id: 'runway',
-        type: 'runway',
-        name: 'Runway ML',
-        apiKey: '',
-        enabled: false,
-      },
-      {
-        id: 'replicate',
-        type: 'replicate',
-        name: 'Replicate',
-        apiKey: '',
-        enabled: false,
-      },
-    ];
-    fs.writeFileSync(aiConfigPath, JSON.stringify(defaultConfigs, null, 2));
-
-    // Add all default providers
-    for (const config of defaultConfigs) {
-      try {
-        aiService.addProvider(config);
-        console.log(`🤖 AI Provider initialized: ${config.name}`);
-      } catch {
-        // Provider might not be available, that's ok
-      }
-    }
-  }
-
-  // Helper function to save AI provider configs to disk
-  function saveAIProviderConfigs(): void {
-    const providers = aiService.getProviders();
-    const configs: AIProviderConfig[] = providers.map((p) => ({
-      id: p.config.id,
-      type: p.config.type,
-      name: p.config.name,
-      apiKey: p.config.apiKey,
-      baseUrl: p.config.baseUrl,
-      enabled: p.config.enabled,
-      options: p.config.options,
-    }));
-    fs.writeFileSync(aiConfigPath, JSON.stringify(configs, null, 2));
-    console.log('💾 AI Provider config saved');
-  }
+  initializeAIProviders({ configDir: aiConfigDir });
+  const aiService = getAIProviderService();
+  console.log('🤖 AI providers initialized');
 
   // Register AI Routes
   registerAIRoutes(fastify, server, {
     getService: () => aiService,
-    saveConfig: saveAIProviderConfigs,
+    saveConfig: () => saveAIProviderConfigs({ configDir: aiConfigDir }),
   });
   console.log('🤖 AI routes initialized');
 
   // Register Trainer Routes
   registerTrainerRoutes(fastify, server, {
     emitEvent: (event: unknown) => {
-      // Emit training events to subscribers
-      for (const handler of eventSubscribers) {
-        handler(event as ParsedEvent);
-      }
+      // Emit training events to subscribers via EventSystem
+      eventSystem.emitEvent(event as ParsedEvent);
     },
   });
   console.log('🏋️ Trainer routes initialized');
@@ -2018,32 +1831,27 @@ async function main(): Promise<void> {
     getLastMatchUpdate: () => hub?.getLastMatchUpdate() ?? null,
   });
 
-  // Register WebSocket Routes
+  // Register WebSocket Routes - using EventSystem for subscriptions
   const wsManager = registerWebSocketRoutes(fastify, server, {
     getAutodartsStatus: () => ({
       connected: hub?.isActive() ?? false,
       matchId: hub?.getCurrentMatchId() ?? undefined,
     }),
     subscribeToEvents: (handler: (event: ParsedEvent) => void) => {
-      eventSubscribers.add(handler);
-      return () => eventSubscribers.delete(handler);
+      return eventSystem.subscribeToEvents(handler);
     },
     subscribeToModuleStatus: (handler: (moduleId: string, status: ModuleStatus) => void) => {
-      moduleStatusSubscribers.add(handler);
-      return () => moduleStatusSubscribers.delete(handler);
+      return eventSystem.subscribeToModuleStatus(handler);
     },
     subscribeToLogs: (handler: (entry: LogEntry) => void) => {
-      logSubscribers.add(handler);
-      return () => logSubscribers.delete(handler);
+      return eventSystem.subscribeToLogs(handler);
     },
-    getLogHistory: () => [...logEntries],
+    getLogHistory: () => eventSystem.getLogHistory(),
     subscribeToVoicePackProgress: (handler: (progress: GenerationProgress) => void) => {
-      voicePackProgressSubscribers.add(handler);
-      return () => voicePackProgressSubscribers.delete(handler);
+      return eventSystem.subscribeToVoicePackProgress(handler);
     },
     subscribeToCallerRequests: (handler: (request: CallRequest) => void) => {
-      callerRequestSubscribers.add(handler);
-      return () => callerRequestSubscribers.delete(handler);
+      return eventSystem.subscribeToCallerRequests(handler);
     },
   });
 

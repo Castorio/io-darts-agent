@@ -489,6 +489,50 @@ Der EventParser generiert **synthetische Events** aus `match.state` Updates:
 
 Dies ermöglicht Modulen, auf logische Events zu reagieren, ohne den rohen Zustand parsen zu müssen.
 
+### Autodarts Array-Rotation bei Leg-Wechseln
+
+**Wichtig:** Autodarts rotiert das Spieler-Array nach jedem Leg. Dies hat Auswirkungen auf die Event-Verarbeitung:
+
+```
+Match-Start:
+  players[0] = { index: 0, name: "Max" }
+  players[1] = { index: 1, name: "Anna" }
+  data.player = 0 → Max ist am Zug
+
+Nach Leg 1 (Max gewinnt, Anna beginnt Leg 2):
+  players[0] = { index: 1, name: "Anna" }  ← Array rotiert!
+  players[1] = { index: 0, name: "Max" }
+  data.player = 0 → Jetzt ist Anna am Zug (aber Array-Position 0)
+```
+
+#### Der stabile `player.index`
+
+Der `player.index` Wert bleibt über das gesamte Match hinweg stabil und sollte für Zuordnungen verwendet werden:
+
+```typescript
+// Falsch: Array-Position verwenden
+const player = players[data.player]; // Kann nach Rotation falsch sein!
+
+// Richtig: Stabilen Index verwenden
+const playerIndex = players[data.player]?.index;
+const player = players.find(p => p.index === playerIndex);
+```
+
+#### Event-Daten bei Leg-Wechsel
+
+Die synthetischen Events (`player.change`, `turn.finished`, `game.finished`) enthalten zusätzliche Informationen:
+
+| Feld | Beschreibung | Zuverlässigkeit |
+|------|-------------|-----------------|
+| `playerName` | Spielername zum Zeitpunkt des Events | Hoch |
+| `winnerName` | Gewinner-Name (bei game.finished) | Hoch |
+| `playerIndex` | Stabiler player.index | Hoch |
+| `winnerPlayerIndex` | Stabiler Gewinner-Index | Hoch |
+| `currentPlayer` | Array-Position | Niedrig (nach Rotation) |
+| `winner` | Array-Position des Gewinners | Niedrig (nach Rotation) |
+
+**Best Practice:** Verwende immer zuerst `playerName`/`winnerName` oder `playerIndex`/`winnerPlayerIndex` für Lookups.
+
 ### Spielerfarben-Auflösung
 
 Module können Spielerfarben über das Spielerverwaltungssystem auflösen:
@@ -507,6 +551,44 @@ async resolvePlayerColor(playerIndex: number): Promise<string> {
   return '#ffffff';
 }
 ```
+
+### PlayerResolver Pattern (Frontend-Module)
+
+Für Frontend-Module wie das Game Display, die mit Array-Rotation umgehen müssen, gibt es das PlayerResolver-Pattern:
+
+```typescript
+class PlayerResolver {
+  // Persistente Maps: Match-Start Zuordnungen
+  private originalIndexByName: Map<string, number> = new Map()
+
+  updatePlayers(autodartsPlayers: Player[]): void {
+    // Beim ERSTEN Aufruf die originalen Zuordnungen speichern
+    if (!this.isInitialized) {
+      autodartsPlayers.forEach(p => {
+        this.originalIndexByName.set(p.name.toLowerCase(), p.index)
+      })
+      this.isInitialized = true
+    }
+  }
+
+  findPlayer(name: string, players: Player[]): Player | null {
+    // Immer die ORIGINALE Zuordnung verwenden
+    const idx = this.originalIndexByName.get(name.toLowerCase())
+    if (idx !== undefined) {
+      return players.find(p => p.index === idx) || null
+    }
+    return null
+  }
+
+  // Bei neuem Match zurücksetzen
+  reset(): void {
+    this.originalIndexByName.clear()
+    this.isInitialized = false
+  }
+}
+```
+
+**Wichtig:** Der Resolver muss bei `match.start` zurückgesetzt werden, damit die neuen Spielerzuordnungen korrekt erfasst werden.
 
 ### Modul-Sandbox
 

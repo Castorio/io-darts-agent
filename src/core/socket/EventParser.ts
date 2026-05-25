@@ -450,6 +450,7 @@ export class EventParser {
           matchId: data.id,
           winner: data.gameWinner,
           winnerName: gameWinnerPlayer?.name ?? 'Unknown',
+          winnerPlayerIndex: gameWinnerPlayer?.index ?? data.gameWinner,  // Stable player.index value
           leg: data.leg,
           set: data.set,
           players: data.players,
@@ -479,6 +480,7 @@ export class EventParser {
           matchId: data.id,
           winner: data.winner,
           winnerName: matchWinnerPlayer?.name ?? 'Unknown',
+          winnerPlayerIndex: matchWinnerPlayer?.index ?? data.winner,  // Stable player.index value
           players: data.players,
           // Include scores array so frontend can extract legs/sets won
           scores: data.scores,

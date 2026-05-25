@@ -35,15 +35,9 @@ export interface WSVoicePackProgressMessage {
   };
 }
 
-export interface CallRequest {
-  id: string;
-  type: 'score' | 'checkout' | 'player' | 'game' | 'special';
-  text: string;
-  audioFile?: string;
-  priority: number;
-  timestamp: number;
-  callerType?: 'tts' | 'voicepack' | 'elevenlabs' | 'audio';
-}
+// Import and re-export CallRequest from EventSystem for consistency
+import type { CallRequest } from '../../core/events/EventSystem.js';
+export type { CallRequest } from '../../core/events/EventSystem.js';
 
 export interface WSCallerMessage {
   type: 'caller';

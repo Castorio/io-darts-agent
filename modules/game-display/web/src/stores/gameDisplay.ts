@@ -42,6 +42,25 @@ class PlayerResolver {
   // odId -> player.index für Animation-Lookup
   private indexByOdId: Map<string, number> = new Map()
 
+  // PERSISTENTE Maps: Diese werden beim Match-Start gesetzt und NICHT bei Leg-Wechsel überschrieben
+  // Sie speichern die ORIGINALE Zuordnung Name/odId -> playerIndex
+  private originalIndexByName: Map<string, number> = new Map()
+  private originalIndexByOdId: Map<string, number> = new Map()
+  private isInitialized = false
+
+  /**
+   * Setzt den Resolver komplett zurück (bei neuem Match)
+   */
+  reset(): void {
+    this.playersByIndex.clear()
+    this.indexByName.clear()
+    this.indexByOdId.clear()
+    this.originalIndexByName.clear()
+    this.originalIndexByOdId.clear()
+    this.isInitialized = false
+    console.log('🔄 [PlayerResolver] Reset - all maps cleared')
+  }
+
   /**
    * Initialisiert/Aktualisiert den Resolver mit frischen Spielerdaten
    */
@@ -56,6 +75,9 @@ class PlayerResolver {
     this.indexByOdId.clear()
 
     const resolvedPlayers: ResolvedPlayer[] = []
+
+    // Beim ERSTEN Aufruf (Match-Start) die originalen Zuordnungen speichern
+    const isFirstInit = !this.isInitialized
 
     autodartsPlayers.forEach((p, arrayPos) => {
       const playerIndex = (p.index as number) ?? arrayPos
@@ -82,16 +104,44 @@ class PlayerResolver {
         this.indexByOdId.set(odId, playerIndex)
       }
 
+      // Beim ERSTEN Aufruf die ORIGINALEN Zuordnungen speichern
+      // Diese werden bei Leg-Wechseln NICHT überschrieben
+      if (isFirstInit) {
+        this.originalIndexByName.set(name.toLowerCase(), playerIndex)
+        if (odId) {
+          this.originalIndexByOdId.set(odId, playerIndex)
+        }
+      }
+
       resolvedPlayers.push(resolved)
     })
 
+    if (isFirstInit) {
+      this.isInitialized = true
+      console.log('🎯 [PlayerResolver] First init - saved original mappings:', {
+        names: Object.fromEntries(this.originalIndexByName),
+        odIds: Object.fromEntries(this.originalIndexByOdId)
+      })
+    }
+
     // Sortiert nach player.index für stabile UI-Reihenfolge
-    return resolvedPlayers.sort((a, b) => a.index - b.index)
+    resolvedPlayers.sort((a, b) => a.index - b.index)
+
+    // WICHTIG: Nach dem Sortieren müssen die arrayPosition-Werte aktualisiert werden!
+    // Die arrayPosition bezieht sich auf die Position im SORTIERTEN Array (gameState.players)
+    resolvedPlayers.forEach((p, newArrayPos) => {
+      p.arrayPosition = newArrayPos
+    })
+
+    return resolvedPlayers
   }
 
   /**
    * Findet einen Spieler mit Fallback-Strategie
-   * Priorität: Name > player.index > Array-Position
+   * Priorität: Name (original) > player.index > Array-Position
+   *
+   * WICHTIG: Nutzt die ORIGINALEN Name->Index Zuordnungen vom Match-Start,
+   * da Autodarts die Namen bei Array-Rotation mitrotiert!
    */
   findPlayer(params: {
     name?: string
@@ -101,9 +151,17 @@ class PlayerResolver {
   }): PlayerLookupResult {
     const { name, playerIndex, arrayPosition, players } = params
 
-    // 1. Versuch: Nach Name (höchste Zuverlässigkeit)
+    // 1. Versuch: Nach Name mit ORIGINALER Zuordnung (höchste Zuverlässigkeit)
+    // Die originalIndexByName Map enthält die Zuordnung vom Match-Start
     if (name) {
-      const idx = this.indexByName.get(name.toLowerCase())
+      // Zuerst in der ORIGINALEN Map suchen (stabil über Leg-Wechsel)
+      let idx = this.originalIndexByName.get(name.toLowerCase())
+
+      // Fallback auf aktuelle Map wenn nicht in Original gefunden
+      if (idx === undefined) {
+        idx = this.indexByName.get(name.toLowerCase())
+      }
+
       if (idx !== undefined) {
         const player = players.find(p => p.index === idx) || null
         if (player) {
@@ -808,6 +866,11 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // Reset dart tracking for new match
     lastProcessedDartsCount = 0
 
+    // WICHTIG: PlayerResolver für neues Match zurücksetzen
+    // Dies löscht die originalen Name->Index Zuordnungen, damit sie
+    // beim ersten handleMatchState neu initialisiert werden
+    playerResolver.reset()
+
     // Set match started state
     isMatchStarted.value = true
     matchStartedMatchId.value = (data.matchId as string) || null
@@ -866,6 +929,21 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     const isMatchFinished = (data.finished as boolean) && (data.winner as number) !== undefined
     const hasExistingWinner = gameState.value.winner !== null
 
+    // WICHTIG: Wenn ein neues Leg beginnt (gameFinished: false), aber noch ein Winner
+    // vom vorherigen Leg existiert, muss dieser zurückgesetzt werden!
+    const gameFinishedFlag = data.gameFinished as boolean | undefined
+    const isNewLegStarting = gameFinishedFlag === false && hasExistingWinner && !isMatchFinished
+    if (isNewLegStarting) {
+      console.log('🔄 [PlayerResolver] New leg started - clearing previous winner')
+      gameState.value.winner = null
+
+      // Reset dart tracking für neues Leg
+      lastProcessedDartsCount = 0
+    }
+
+    // Re-evaluate hasExistingWinner after potential reset
+    const effectiveHasWinner = gameState.value.winner !== null
+
     if (autodartsPlayers) {
       // DEBUG: Log all incoming player data to diagnose the issue
       console.log('🎯 [GameDisplay] Incoming players from match.state:', autodartsPlayers.map((p, i) => ({
@@ -880,7 +958,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       const activeArrayPos = (data.player as number) ?? 0
       const activePlayerIndex = (autodartsPlayers[activeArrayPos]?.index as number) ?? activeArrayPos
 
-      if (isGameFinished || isMatchFinished || hasExistingWinner) {
+      if (isGameFinished || isMatchFinished || effectiveHasWinner) {
         // ====================================================================
         // FINISHED STATE: In-Place Update um Winner-Referenz zu erhalten
         // ====================================================================
@@ -904,8 +982,36 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
             player.average = incoming.average as number | undefined
             player.dartsThrown = incoming.dartsThrown as number | undefined
             player.odId = (incoming.odId as string) || (incoming.id as string) || player.odId
+            // WICHTIG: isActive wird hier NICHT aktualisiert, um den Winner-Zustand zu erhalten
           }
         })
+      } else if (isNewLegStarting) {
+        // ====================================================================
+        // NEW LEG STATE: Scores zurückgesetzt, aktiver Spieler wechselt
+        // ====================================================================
+        // WICHTIG: Bei neuem Leg wird der aktive Spieler NICHT aus match.state gesetzt!
+        // Autodarts rotiert das Spieler-Array nach jedem Leg, daher ist data.player
+        // (die Array-Position) nicht mehr korrekt.
+        // Stattdessen warten wir auf das player.change Event, das die korrekte Info hat.
+        // Dies ist das gleiche Pattern wie WLED es verwendet.
+        console.log('🎯 [PlayerResolver] New leg - updating scores only, waiting for player.change event')
+
+        // Scores aktualisieren (sollten auf Startwert zurückgesetzt sein)
+        autodartsPlayers.forEach((p, arrayPos) => {
+          const playerIndex = (p.index as number) ?? arrayPos
+          const player = gameState.value.players.find(pl => pl.index === playerIndex)
+          if (player) {
+            player.score = gameScores?.[arrayPos] ?? gameState.value.startScore
+            player.setsWon = playerScores?.[playerIndex]?.sets ?? player.setsWon
+            player.legsWon = playerScores?.[playerIndex]?.legs ?? player.legsWon
+            player.average = p.average as number | undefined
+            player.dartsThrown = p.dartsThrown as number | undefined
+          }
+        })
+
+        // NICHT den aktiven Spieler hier setzen - das macht player.change Event!
+        // Behalte den vorherigen aktiven Spieler bei bis player.change kommt
+        console.log(`🎯 [PlayerResolver] New leg - keeping current active player until player.change event`)
       } else {
         // ====================================================================
         // NORMAL STATE: Nutze PlayerResolver für saubere Spieler-Erstellung
@@ -959,7 +1065,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // ========================================================================
     // ACTIVE PLAYER INDEX (nur wenn nicht finished)
     // ========================================================================
-    if (!isMatchFinished && !isGameFinished && !hasExistingWinner) {
+    if (!isMatchFinished && !isGameFinished && !effectiveHasWinner) {
       const activeIdx = gameState.value.players.findIndex(p => p.isActive)
       if (activeIdx !== -1) {
         gameState.value.activePlayerIndex = activeIdx
@@ -1225,33 +1331,96 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     console.log('handleGameFinished data:', data)
 
     // ========================================================================
-    // WINNER LOOKUP MIT PLAYERRESOLVER
+    // DEBUG: Log all available data to diagnose winner detection
     // ========================================================================
-    const winnerArrayPos = (data.winner as number) ?? (data.winnerIndex as number) ?? 0
-    const winnerName = data.winnerName as string | undefined
-    const winnerPlayerIndex = data.winnerPlayerIndex as number | undefined
-
-    // Nutze PlayerResolver für konsistentes Winner-Lookup
-    const result = playerResolver.findPlayer({
-      name: winnerName,
-      playerIndex: winnerPlayerIndex,
-      arrayPosition: winnerArrayPos,
-      players: gameState.value.players as unknown as ResolvedPlayer[]
+    console.log('🏆 [GameFinished] DEBUG - Available winner fields:', {
+      winnerName: data.winnerName,
+      winnerPlayerIndex: data.winnerPlayerIndex,
+      winner: data.winner,
+      winnerIndex: data.winnerIndex,
     })
+    console.log('🏆 [GameFinished] DEBUG - Current players in store:',
+      gameState.value.players.map(p => ({ index: p.index, name: p.name, score: p.score }))
+    )
 
-    console.log(`🏆 [PlayerResolver] Game finished - Winner: ${result.player?.name} (method: ${result.method}, confidence: ${result.confidence})`)
+    // ========================================================================
+    // RESET FÜR NEUES LEG
+    // ========================================================================
+    // Wichtig: Dart-Tracking zurücksetzen für das neue Leg
+    lastProcessedDartsCount = 0
+
+    // ========================================================================
+    // WINNER ERMITTLUNG - Mehrere Strategien mit Fallbacks
+    // ========================================================================
+    // Reihenfolge der Zuverlässigkeit:
+    // 1. winnerName aus Event-Daten (vom Backend zum Zeitpunkt des Gewinns erfasst)
+    // 2. winnerPlayerIndex aus Event-Daten (stabiler player.index)
+    // 3. Score = 0 (wenn noch nicht für neues Leg zurückgesetzt)
+    // 4. winner Array-Position aus Event (kann nach Rotation falsch sein)
+
+    let winner: Player | null = null
+    let winnerArrayPosition = -1
+
+    const winnerNameFromEvent = data.winnerName as string | undefined
+    const winnerPlayerIndex = data.winnerPlayerIndex as number | undefined
+    const winnerArrayPos = (data.winner as number) ?? (data.winnerIndex as number)
+
+    // STRATEGIE 1: winnerName aus Event (höchste Priorität - vom Backend erfasst)
+    if (winnerNameFromEvent) {
+      console.log(`🏆 [GameFinished] Trying to find winner by name: "${winnerNameFromEvent}"`)
+      const foundByName = gameState.value.players.find(
+        p => p.name.toLowerCase() === winnerNameFromEvent.toLowerCase()
+      )
+      if (foundByName) {
+        winner = foundByName
+        winnerArrayPosition = gameState.value.players.indexOf(foundByName)
+        console.log(`🏆 [GameFinished] Winner by name from event: ${winner.name}`)
+      } else {
+        console.log(`🏆 [GameFinished] Could not find player with name: "${winnerNameFromEvent}"`)
+      }
+    } else {
+      console.log(`🏆 [GameFinished] No winnerName in event data`)
+    }
+
+    // STRATEGIE 2: winnerPlayerIndex aus Event (stabiler index)
+    if (!winner && winnerPlayerIndex !== undefined) {
+      const foundByIndex = gameState.value.players.find(p => p.index === winnerPlayerIndex)
+      if (foundByIndex) {
+        winner = foundByIndex
+        winnerArrayPosition = gameState.value.players.indexOf(foundByIndex)
+        console.log(`🏆 [GameFinished] Winner by playerIndex from event: ${winner.name}`)
+      }
+    }
+
+    // STRATEGIE 3: Spieler mit Score = 0 (wenn Leg noch nicht gewechselt hat)
+    if (!winner) {
+      const zeroScorePlayer = gameState.value.players.find(p => p.score === 0)
+      if (zeroScorePlayer) {
+        winner = zeroScorePlayer
+        winnerArrayPosition = gameState.value.players.indexOf(zeroScorePlayer)
+        console.log(`🏆 [GameFinished] Winner by score=0: ${winner.name}`)
+      }
+    }
+
+    // STRATEGIE 4: winner Array-Position aus Event (Fallback - kann nach Rotation falsch sein)
+    if (!winner && winnerArrayPos !== undefined) {
+      const result = playerResolver.findPlayer({
+        arrayPosition: winnerArrayPos,
+        players: gameState.value.players as unknown as ResolvedPlayer[]
+      })
+      if (result.player) {
+        winner = gameState.value.players[result.arrayPosition]
+        winnerArrayPosition = result.arrayPosition
+        console.log(`🏆 [GameFinished] Winner by arrayPosition (fallback): ${winner?.name}`)
+      }
+    }
+
+    console.log(`🏆 [GameFinished] Final winner: ${winner?.name || 'NOT FOUND'}`)
 
     // Extract legs/sets from scores array (indexed by player.index)
     const scores = data.scores as Array<{ legs: number; sets: number }> | undefined
 
-    if (result.player) {
-      const winner = gameState.value.players[result.arrayPosition]
-
-      // Update Name wenn aus Event verfügbar
-      if (winnerName) {
-        winner.name = winnerName
-      }
-
+    if (winner) {
       // Update alle Spieler-Scores
       if (scores) {
         gameState.value.players.forEach(player => {
@@ -1263,7 +1432,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       }
 
       gameState.value.winner = winner
-      gameState.value.activePlayerIndex = result.arrayPosition
+      gameState.value.activePlayerIndex = winnerArrayPosition
 
       // Win animation data
       const winData: WinEventData = {
@@ -1295,33 +1464,66 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     console.log('handleMatchFinished data:', data)
 
     // ========================================================================
-    // WINNER LOOKUP MIT PLAYERRESOLVER
+    // WINNER ERMITTLUNG - Mehrere Strategien mit Fallbacks
     // ========================================================================
-    const winnerArrayPos = (data.winner as number) ?? (data.winnerIndex as number) ?? 0
-    const winnerName = data.winnerName as string | undefined
+    let winner: Player | null = null
+    let winnerArrayPosition = -1
+
+    const winnerNameFromEvent = data.winnerName as string | undefined
     const winnerPlayerIndex = data.winnerPlayerIndex as number | undefined
+    const winnerArrayPos = (data.winner as number) ?? (data.winnerIndex as number)
 
-    // Nutze PlayerResolver für konsistentes Winner-Lookup
-    const result = playerResolver.findPlayer({
-      name: winnerName,
-      playerIndex: winnerPlayerIndex,
-      arrayPosition: winnerArrayPos,
-      players: gameState.value.players as unknown as ResolvedPlayer[]
-    })
+    // STRATEGIE 1: winnerName aus Event (höchste Priorität)
+    if (winnerNameFromEvent) {
+      const foundByName = gameState.value.players.find(
+        p => p.name.toLowerCase() === winnerNameFromEvent.toLowerCase()
+      )
+      if (foundByName) {
+        winner = foundByName
+        winnerArrayPosition = gameState.value.players.indexOf(foundByName)
+        console.log(`🏆 [MatchFinished] Winner by name from event: ${winner.name}`)
+      }
+    }
 
-    console.log(`🏆 [PlayerResolver] Match finished - Winner: ${result.player?.name} (method: ${result.method}, confidence: ${result.confidence})`)
+    // STRATEGIE 2: winnerPlayerIndex aus Event
+    if (!winner && winnerPlayerIndex !== undefined) {
+      const foundByIndex = gameState.value.players.find(p => p.index === winnerPlayerIndex)
+      if (foundByIndex) {
+        winner = foundByIndex
+        winnerArrayPosition = gameState.value.players.indexOf(foundByIndex)
+        console.log(`🏆 [MatchFinished] Winner by playerIndex from event: ${winner.name}`)
+      }
+    }
+
+    // STRATEGIE 3: Score = 0
+    if (!winner) {
+      const zeroScorePlayer = gameState.value.players.find(p => p.score === 0)
+      if (zeroScorePlayer) {
+        winner = zeroScorePlayer
+        winnerArrayPosition = gameState.value.players.indexOf(zeroScorePlayer)
+        console.log(`🏆 [MatchFinished] Winner by score=0: ${winner.name}`)
+      }
+    }
+
+    // STRATEGIE 4: winner Array-Position (Fallback)
+    if (!winner && winnerArrayPos !== undefined) {
+      const result = playerResolver.findPlayer({
+        arrayPosition: winnerArrayPos,
+        players: gameState.value.players as unknown as ResolvedPlayer[]
+      })
+      if (result.player) {
+        winner = gameState.value.players[result.arrayPosition]
+        winnerArrayPosition = result.arrayPosition
+        console.log(`🏆 [MatchFinished] Winner by arrayPosition (fallback): ${winner?.name}`)
+      }
+    }
+
+    console.log(`🏆 [MatchFinished] Final winner: ${winner?.name || 'NOT FOUND'}`)
 
     // Extract legs/sets from scores array (indexed by player.index)
     const scores = data.scores as Array<{ legs: number; sets: number }> | undefined
 
-    if (result.player) {
-      const winner = gameState.value.players[result.arrayPosition]
-
-      // Update Name wenn aus Event verfügbar
-      if (winnerName) {
-        winner.name = winnerName
-      }
-
+    if (winner) {
       // Update alle Spieler-Scores
       if (scores) {
         gameState.value.players.forEach(player => {
@@ -1333,7 +1535,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       }
 
       gameState.value.winner = winner
-      gameState.value.activePlayerIndex = result.arrayPosition
+      gameState.value.activePlayerIndex = winnerArrayPosition
 
       // Win animation data
       const winData: WinEventData = {
@@ -1691,6 +1893,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     // Reset dart tracking
     lastProcessedDartsCount = 0
+
+    // Reset PlayerResolver für neues Match
+    playerResolver.reset()
 
     // Reset match started state
     isMatchStarted.value = false

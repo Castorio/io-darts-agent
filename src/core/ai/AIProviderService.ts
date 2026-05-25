@@ -433,7 +433,7 @@ export class AIProviderService extends EventEmitter {
     request?: Record<string, unknown>
   ): AIJob {
     const job: AIJob = {
-      id: `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `job_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       providerId,
       providerJobId,
       type,

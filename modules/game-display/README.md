@@ -193,7 +193,7 @@ modules/game-display/
         ├── components/
         │   └── AnimationOverlay.vue
         ├── stores/
-        │   └── gameDisplay.ts
+        │   └── gameDisplay.ts   # Enthält PlayerResolver
         ├── locales/            # i18n (DE, EN, ES)
         └── utils/
             └── checkouts.ts
@@ -221,6 +221,55 @@ Das Display verbindet sich mit dem Hub-WebSocket unter `/api/events` und empfän
 ### Wichtig: Match-Start
 
 Bei `match.start` wird automatisch die vollständige Match-Konfiguration über die API abgerufen (`/api/match/current`), da das Event selbst nur die Match-ID enthält. So werden die echten Spielerdaten und Scores angezeigt, nicht die Standardwerte.
+
+### PlayerResolver - Robuste Spieler-Erkennung
+
+Das Game Display verwendet einen **PlayerResolver** zur stabilen Spieler-Erkennung trotz Array-Rotation bei Leg-Wechseln.
+
+#### Das Problem
+
+Autodarts rotiert das Spieler-Array nach jedem Leg. Das führt zu Problemen:
+- Die Array-Position (`data.player`) ändert sich nach jedem Leg
+- Der "winner"-Index bezieht sich auf die aktuelle (rotierte) Array-Position
+- Spielernamen werden mit dem Array mitrotiert
+
+**Beispiel:**
+```
+Leg 1: players[0] = "Max", players[1] = "Anna" → activePlayer = 0 (Max)
+Leg 2: players[0] = "Anna", players[1] = "Max" → activePlayer = 0 (Anna, aber Name im Array ist jetzt "Anna"!)
+```
+
+#### Die Lösung: PlayerResolver
+
+Der PlayerResolver speichert beim Match-Start die **originale** Zuordnung von Namen zu stabilen `player.index`-Werten und verwendet diese für alle späteren Lookups:
+
+```typescript
+// Lookup-Priorität:
+1. Spielername (case-insensitive) → originale Name→Index Zuordnung
+2. player.index → stabiler Index von Autodarts
+3. Array-Position → Fallback (kann nach Rotation falsch sein)
+```
+
+#### Gewinner-Ermittlung
+
+Bei `game.finished` (Leg-Gewinn) und `match.finished` werden mehrere Strategien verwendet:
+
+| Priorität | Strategie | Zuverlässigkeit |
+|-----------|-----------|-----------------|
+| 1 | `winnerName` aus Event | Höchste - vom Backend zum Zeitpunkt des Gewinns erfasst |
+| 2 | `winnerPlayerIndex` aus Event | Hoch - stabiler player.index |
+| 3 | Spieler mit `score === 0` | Mittel - wenn Leg noch nicht gewechselt hat |
+| 4 | `winner` Array-Position | Niedrig - kann nach Rotation falsch sein |
+
+#### Wichtig: Leg-Wechsel
+
+Bei einem neuen Leg:
+1. Der Winner wird zurückgesetzt
+2. Das Dart-Tracking wird zurückgesetzt
+3. Die Scores werden aktualisiert (auf Startwert zurückgesetzt)
+4. Der **aktive Spieler wird NICHT** aus `match.state` gesetzt - stattdessen wartet das Display auf das `player.change` Event
+
+Dies ist wichtig, da Autodarts nach einem Leg-Wechsel das Spieler-Array rotiert und `data.player` (die Array-Position) nicht mehr zuverlässig den korrekten aktiven Spieler anzeigt.
 
 ### Demo-Modus
 
@@ -288,6 +337,34 @@ Das Display verwendet folgende CSS-Variablen für die Spielerfarbe:
 
 1. Stelle sicher, dass Spielerprofile in der Spielerverwaltung angelegt sind
 2. Prüfe, ob die Spielernamen übereinstimmen (oder Aliase konfiguriert sind)
+
+### Namen/Farben werden im zweiten Leg vertauscht angezeigt
+
+**Symptom:** Im ersten Leg werden die korrekten Namen und Farben angezeigt, aber ab dem zweiten Leg sind sie vertauscht.
+
+**Ursache:** Autodarts rotiert das Spieler-Array nach jedem Leg. Das Display muss diese Rotation korrekt handhaben.
+
+**Lösung:**
+1. Stelle sicher, dass du die aktuelle Version des Game Display Moduls verwendest (mit PlayerResolver)
+2. Prüfe die Browser-Konsole auf `[PlayerResolver]` Log-Einträge
+3. Beim Leg-Wechsel solltest du `🔄 [PlayerResolver] New leg started` sehen
+4. Das Display sollte auf das `player.change` Event warten, nicht auf `match.state`
+
+**Debug-Informationen in der Browser-Konsole:**
+```
+🎯 [PlayerResolver] First init - saved original mappings
+🎯 [PlayerResolver] Building player list, activePlayerIndex: X
+🔄 [PlayerResolver] New leg - updating scores only, waiting for player.change event
+```
+
+### Gewinner wird nach Leg-Gewinn falsch angezeigt
+
+**Symptom:** Nach einem Leg-Gewinn wird der falsche Spieler als Gewinner angezeigt.
+
+**Lösung:**
+1. Prüfe, ob das Backend `winnerName` im `game.finished` Event sendet
+2. Der PlayerResolver sucht den Gewinner nach: Name → playerIndex → score=0 → arrayPosition
+3. Prüfe die Browser-Konsole auf `🏆 [GameFinished] Winner by...` Einträge
 
 ### Display lädt nicht
 

@@ -289,7 +289,25 @@ export function registerTrainerRoutes(
   fastify.post<{
     Body: TrainingSessionConfig;
     Reply: { success: boolean; error?: string; session?: TrainingSession };
-  }>('/api/trainer/session/start', async (request, reply) => {
+  }>('/api/trainer/session/start', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['type', 'difficulty'],
+        properties: {
+          type: { type: 'string', enum: ['checkout', 'doubles', 'scoring', 'around-the-clock', 'cricket', 'custom'] },
+          difficulty: { type: 'string', enum: ['beginner', 'intermediate', 'advanced', 'expert'] },
+          targets: { type: 'array' },
+          rounds: { type: 'number', minimum: 1 },
+          timeLimit: { type: 'number', minimum: 0 },
+          checkoutStart: { type: 'number', minimum: 1, maximum: 170 },
+          checkoutEnd: { type: 'number', minimum: 1, maximum: 170 },
+          doublesOnly: { type: 'boolean' },
+          requireDouble: { type: 'boolean' },
+        },
+      },
+    },
+  }, async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
       reply.code(401);
       return { success: false, error: 'Authentication required' };
@@ -465,7 +483,19 @@ export function registerTrainerRoutes(
       isHit?: boolean;
     };
     Reply: { success: boolean; error?: string; session?: TrainingSession };
-  }>('/api/trainer/session/throw', async (request, reply) => {
+  }>('/api/trainer/session/throw', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['number', 'multiplier'],
+        properties: {
+          number: { type: 'number', minimum: 0, maximum: 25 },
+          multiplier: { type: 'number', enum: [1, 2, 3] },
+          isHit: { type: 'boolean' },
+        },
+      },
+    },
+  }, async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
       reply.code(401);
       return { success: false, error: 'Authentication required' };
@@ -591,7 +621,22 @@ export function registerTrainerRoutes(
   fastify.post<{
     Body: Omit<PracticeRoutine, 'id' | 'createdAt' | 'isBuiltIn'>;
     Reply: { success: boolean; error?: string; routine?: PracticeRoutine };
-  }>('/api/trainer/routines', async (request, reply) => {
+  }>('/api/trainer/routines', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['name', 'description', 'type', 'difficulty', 'duration', 'targets'],
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 100 },
+          description: { type: 'string', maxLength: 500 },
+          type: { type: 'string', enum: ['checkout', 'doubles', 'scoring', 'around-the-clock', 'cricket', 'custom'] },
+          difficulty: { type: 'string', enum: ['beginner', 'intermediate', 'advanced', 'expert'] },
+          duration: { type: 'number', minimum: 1, maximum: 120 },
+          targets: { type: 'array', minItems: 1 },
+        },
+      },
+    },
+  }, async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
       reply.code(401);
       return { success: false, error: 'Authentication required' };

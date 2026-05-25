@@ -63,6 +63,7 @@ export interface TrainingSession {
   config: TrainingSessionConfig;
   status: SessionStatus;
   startedAt: number;
+  activeStartedAt: number; // Tracks when current active period started (reset on resume)
   pausedAt?: number;
   completedAt?: number;
   currentRound: number;
@@ -326,11 +327,13 @@ export function registerTrainerRoutes(
       }
     }
 
+    const now = Date.now();
     currentSession = {
       id: generateId(),
       config,
       status: 'active',
-      startedAt: Date.now(),
+      startedAt: now,
+      activeStartedAt: now,
       currentRound: 1,
       currentTarget: targets[0] || undefined,
       targets,
@@ -360,9 +363,10 @@ export function registerTrainerRoutes(
       return { success: false, error: 'Session is not active' };
     }
 
+    const now = Date.now();
     currentSession.status = 'paused';
-    currentSession.pausedAt = Date.now();
-    currentSession.stats.timeSpent += Date.now() - currentSession.startedAt;
+    currentSession.pausedAt = now;
+    currentSession.stats.timeSpent += now - currentSession.activeStartedAt;
 
     console.log(`⏸️ [TRAINER] Training session paused`);
     return { success: true };
@@ -388,7 +392,7 @@ export function registerTrainerRoutes(
     }
 
     currentSession.status = 'active';
-    currentSession.startedAt = Date.now();
+    currentSession.activeStartedAt = Date.now();
     currentSession.pausedAt = undefined;
 
     console.log(`▶️ [TRAINER] Training session resumed`);
@@ -413,7 +417,7 @@ export function registerTrainerRoutes(
     // Finalize stats
     const now = Date.now();
     if (currentSession.status === 'active') {
-      currentSession.stats.timeSpent += now - currentSession.startedAt;
+      currentSession.stats.timeSpent += now - currentSession.activeStartedAt;
     }
     currentSession.status = 'completed';
     currentSession.completedAt = now;
@@ -662,6 +666,7 @@ export function registerTrainerRoutes(
     }
 
     const targets = routine.targets.map((t) => ({ ...t, completed: 0 }));
+    const now = Date.now();
 
     currentSession = {
       id: generateId(),
@@ -672,7 +677,8 @@ export function registerTrainerRoutes(
         timeLimit: routine.duration * 60 * 1000,
       },
       status: 'active',
-      startedAt: Date.now(),
+      startedAt: now,
+      activeStartedAt: now,
       currentRound: 1,
       currentTarget: targets[0] || undefined,
       targets,

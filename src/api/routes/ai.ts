@@ -268,8 +268,12 @@ export function registerAIRoutes(
     Reply: {
       options: Array<{ value: string; label: string; type: string; available: boolean }>;
     } | { error: string };
-  }>('/api/ai/provider-options', async (request, _reply) => {
-    // This endpoint is public (no auth required) so module UIs can load provider options
+  }>('/api/ai/provider-options', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { error: 'Authentication required' };
+    }
+
     const service = deps.getService();
     const providers = service.getProviders();
     const { capability } = request.query;

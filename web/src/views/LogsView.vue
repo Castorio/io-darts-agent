@@ -120,7 +120,7 @@ function addLog(entry: LogEntry) {
 
 function addLocalLog(type: LogEntry['type'], source: string, message: string) {
   const entry: LogEntry = {
-    id: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `local-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
     timestamp: Date.now(),
     type,
     source,

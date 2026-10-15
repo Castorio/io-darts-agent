@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Higgsfield als AI-Provider** (Bild: Soul Standard, Video: Kling 3.0 Standard, Kling 2.5 Turbo Pro, Hailuo 2.3). Zugang als `KEY_ID:KEY_SECRET`, kostenfreier Verbindungstest, Idempotency-Key gegen Doppelabrechnung.
+- **Engine-Wahl im Animations-Generator** (Runway oder Higgsfield) in der Game-Display-Konfiguration, gespeichert in `config/animation-settings.json`, Routen `GET/PUT /api/animations/engine`.
+
+### Changed
+
+- Animations-Jobs bleiben bei der Engine, die sie gestartet hat; kurze Fehler beim Abfragen brechen bezahlte Jobs nicht mehr ab, Jobs geben nach 30 Minuten auf, Abbrechen wird bis zur Engine durchgereicht.
+- Bestehende `ai-providers.json` bekommen neu hinzugekommene Provider automatisch ergänzt.
+
 ### Changed
 
 - **Autodarts-Login auf v2 umgestellt.** Der alte Keycloak-Login (`login.autodarts.io`) ist abgeschaltet. Der Hub meldet sich jetzt über `https://api.autodarts.com/auth/v1/login` an (Client-ID `autodarts-play`, per `AUTODARTS_CLIENT_ID` überschreibbar, kein Client-Secret mehr) und erneuert Tokens über `/auth/v1/refresh` (rotierende Refresh-Tokens, Neu-Login als Fallback).

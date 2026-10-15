@@ -41,7 +41,11 @@ export interface HiggsfieldStatus {
 export interface HiggsfieldClientOptions {
   baseUrl?: string;
   timeoutMs?: number;
+  /** Delay before retrying a failed submit (tests pass a fake) */
+  sleep?: (ms: number) => Promise<void>;
 }
+
+const SUBMIT_RETRY_DELAY_MS = 1000;
 
 export interface WaitOptions {
   timeoutMs: number;
@@ -120,12 +124,14 @@ export class HiggsfieldClient {
   private readonly authorization: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
+  private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(apiKey: string, options: HiggsfieldClientOptions = {}) {
     const { keyId, secret } = parseHiggsfieldCredentials(apiKey);
     this.authorization = `Key ${keyId}:${secret}`;
     this.baseUrl = (options.baseUrl ?? BASE_URL).replace(/\/+$/, '');
     this.timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
+    this.sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   }
 
   /**
@@ -156,6 +162,7 @@ export class HiggsfieldClient {
       response = await send();
     } catch (error) {
       if (!isTransientHiggsfieldError(error)) throw error;
+      await this.sleep(SUBMIT_RETRY_DELAY_MS);
       response = await send();
     }
 

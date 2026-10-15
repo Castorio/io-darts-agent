@@ -288,6 +288,13 @@ export class AnimationGeneratorService {
       }
     }
 
+    // A deleted job that is still running would keep generating (and billing)
+    const provider = this.jobProviders.get(id);
+    if (provider && job.providerJobId && (job.status === 'queued' || job.status === 'processing')) {
+      await provider.cancelJob(job.providerJobId).catch(() => false);
+    }
+    this.jobProviders.delete(id);
+
     this.jobs.delete(id);
     await this.saveJobs();
 
@@ -302,6 +309,7 @@ export class AnimationGeneratorService {
     for (const [id, job] of this.jobs.entries()) {
       if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
         this.jobs.delete(id);
+        this.jobProviders.delete(id);
         count++;
       }
     }
@@ -341,7 +349,17 @@ export class AnimationGeneratorService {
         colors: job.style.colors,
       });
 
+      // Cancelled or deleted while the engine was accepting the job
+      if (job.status !== 'queued' || !this.jobs.has(job.id)) {
+        this.jobProviders.delete(job.id);
+        if (result.success && result.jobId) {
+          await provider.cancelJob(result.jobId).catch(() => false);
+        }
+        return;
+      }
+
       if (!result.success) {
+        this.jobProviders.delete(job.id);
         job.status = 'failed';
         job.error = result.error ?? 'Generation failed';
         await this.saveJobs();
@@ -350,7 +368,7 @@ export class AnimationGeneratorService {
 
       // If immediate result (unlikely for video)
       if (result.resultUrl) {
-        await this.handleCompletion(job, result.resultUrl);
+        await this.handleCompletion(job, result.resultUrl, provider);
         return;
       }
 
@@ -362,6 +380,7 @@ export class AnimationGeneratorService {
       // Poll for completion
       this.pollJobStatus(job);
     } catch (error) {
+      this.jobProviders.delete(job.id);
       job.status = 'failed';
       job.error = error instanceof Error ? error.message : 'Unknown error';
       await this.saveJobs();
@@ -405,7 +424,7 @@ export class AnimationGeneratorService {
 
         if (status.status === 'completed') {
           if (status.resultUrl) {
-            await this.handleCompletion(job, status.resultUrl);
+            await this.handleCompletion(job, status.resultUrl, provider);
           } else {
             await fail('Generation finished with no result URL');
           }
@@ -431,13 +450,9 @@ export class AnimationGeneratorService {
   /**
    * Handle successful completion
    */
-  private async handleCompletion(job: AnimationJob, resultUrl: string): Promise<void> {
-    const provider = this.jobProviders.get(job.id) ?? this.provider;
+  private async handleCompletion(job: AnimationJob, resultUrl: string, provider: AIProvider): Promise<void> {
     this.jobProviders.delete(job.id);
     try {
-      if (!provider) {
-        throw new Error('No AI provider configured');
-      }
       // Create subfolder structure: ai-generated/{styleId}
       const folderName = `ai-generated/${job.style.id}`;
       const folderPath = path.join(this.config.outputDir, folderName);

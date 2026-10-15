@@ -60,6 +60,8 @@ describe('HiggsfieldClient', () => {
     });
 
     it('retries a submit after a network error with the same idempotency key', async () => {
+      const sleep = vi.fn().mockResolvedValue(undefined);
+      client = new HiggsfieldClient(API_KEY, { sleep });
       fetchMock.mockReset();
       fetchMock
         .mockRejectedValueOnce(new TypeError('fetch failed'))
@@ -71,6 +73,7 @@ describe('HiggsfieldClient', () => {
       const keys = fetchMock.mock.calls.map((c) => ((c[1] as RequestInit).headers as Record<string, string>)['Idempotency-Key']);
       expect(keys).toHaveLength(2);
       expect(keys[0]).toBe(keys[1]);
+      expect(sleep).toHaveBeenCalledWith(1000);
     });
 
     it('does not retry a submit that was rejected', async () => {

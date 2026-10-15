@@ -149,4 +149,38 @@ describe('AnimationGeneratorService job lifecycle', () => {
     expect(s.getJob(job.id)!.status).toBe('cancelled');
     expect(provider.getJobStatus.mock.calls.length).toBeLessThanOrEqual(callsAfterCancel + 1);
   });
+
+  it('cancels at the engine when a job is cancelled before the engine accepted it', async () => {
+    const provider = fakeProvider('higgsfield', [{ status: 'processing', progress: 50 }]);
+    let accept!: (value: { success: boolean; jobId: string }) => void;
+    provider.generate.mockReturnValue(new Promise((r) => (accept = r)));
+    const s = service(provider);
+    await s.init();
+    const job = await s.generateSingle({ eventType: 'bull' as never, style });
+
+    expect(await s.cancelJob(job.id)).toBe(true);
+    accept({ success: true, jobId: 'late-job' });
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(s.getJob(job.id)!.status).toBe('cancelled');
+    expect(provider.cancelJob).toHaveBeenCalledWith('late-job');
+    expect(provider.getJobStatus).not.toHaveBeenCalled();
+  });
+
+  it('forgets the engine of jobs that failed to start or were deleted', async () => {
+    const failing = fakeProvider('higgsfield', []);
+    failing.generate.mockResolvedValue({ success: false, error: 'Higgsfield: not enough credits' });
+    const s = service(failing);
+    await s.init();
+    const failed = await s.generateSingle({ eventType: 'bull' as never, style });
+    await settle(s, failed.id);
+
+    const running = fakeProvider('runway', [{ status: 'processing', progress: 50 }]);
+    s.setProvider(running);
+    const job = await s.generateSingle({ eventType: 'bull' as never, style });
+    await new Promise((r) => setTimeout(r, 20));
+    await s.deleteJob(job.id);
+
+    expect((s as unknown as { jobProviders: Map<string, unknown> }).jobProviders.size).toBe(0);
+  });
 });

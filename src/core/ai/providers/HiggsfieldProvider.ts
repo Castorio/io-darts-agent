@@ -98,6 +98,9 @@ function failureReason(status: HiggsfieldStatus): string {
   return status.error || 'Higgsfield generation failed';
 }
 
+// Enough to cover all image jobs a user follows; older ids fall back to output detection
+const MAX_TRACKED_IMAGE_REQUESTS = 200;
+
 const VIDEO_MODEL_IDS = new Set(HIGGSFIELD_MODELS.filter((m) => m.type === 'video').map((m) => m.id));
 
 export class HiggsfieldProvider extends BaseAIProvider {
@@ -147,6 +150,10 @@ export class HiggsfieldProvider extends BaseAIProvider {
       batch_size: (request.count ?? 1) > 1 ? 4 : 1,
     });
     this.imageRequestIds.add(requestId);
+    if (this.imageRequestIds.size > MAX_TRACKED_IMAGE_REQUESTS) {
+      // Sets keep insertion order, so the first entry is the oldest
+      this.imageRequestIds.delete(this.imageRequestIds.values().next().value as string);
+    }
     const status = await client.waitFor(requestId, { timeoutMs: IMAGE_TIMEOUT_MS });
     if (status.status !== 'completed') {
       throw new Error(failureReason(status));

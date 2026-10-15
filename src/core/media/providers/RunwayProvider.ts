@@ -12,6 +12,7 @@ import {
   BaseAIProvider,
   type AIProviderConfig,
 } from './AIProvider.js';
+import { buildAnimationPrompt } from './animationPrompt.js';
 import type {
   AnimationGenerationOptions,
   ProviderGenerationResult,
@@ -90,7 +91,7 @@ export class RunwayProvider extends BaseAIProvider {
       const requestBody: Record<string, unknown> = {
         model,
         promptImage: baseImageDataUrl,
-        promptText: this.buildPrompt(prompt, options),
+        promptText: buildAnimationPrompt(prompt, options),
         duration,
         ratio,
         watermark: this.runwayConfig.watermark ?? false,
@@ -264,34 +265,7 @@ export class RunwayProvider extends BaseAIProvider {
     }
   }
 
-  /**
-   * Build enhanced prompt for transparent animation
-   */
-  private buildPrompt(
-    basePrompt: string,
-    options?: AnimationGenerationOptions
-  ): string {
-    const parts = [basePrompt];
 
-    // Add transparency hints - request solid black background for later chromakey removal
-    if (options?.transparent !== false) {
-      parts.push('on a solid pure black #000000 background');
-      parts.push('isolated subject, centered, no background elements');
-      parts.push('high contrast against black, glowing edges');
-    }
-
-    // Add quality hints
-    if (options?.quality === 'quality') {
-      parts.push('high quality, detailed, smooth animation');
-    } else if (options?.quality === 'fast') {
-      parts.push('simple, clean animation');
-    }
-
-    // Add animation style
-    parts.push('looping animation, seamless loop');
-
-    return parts.join(', ');
-  }
 
   /**
    * Get aspect ratio string from options

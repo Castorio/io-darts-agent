@@ -6,6 +6,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { APIServer } from '../Server.js';
 import type { AnimationGeneratorService } from '../../core/media/AnimationGeneratorService.js';
+import { isAnimationEngine, type AnimationEngine } from '../../core/media/AnimationEngineSettings.js';
 import type {
   AnimationStyle,
   AnimationJob,
@@ -16,8 +17,18 @@ import type {
 /**
  * Dependencies for animation routes
  */
+export interface AnimationEngineInfo {
+  engine: AnimationEngine;
+  engines: Array<{ id: AnimationEngine; name: string; available: boolean }>;
+}
+
 export interface AnimationDependencies {
   animationService: AnimationGeneratorService;
+  /** Engine choice (Runway / Higgsfield); optional for older wiring */
+  engine?: {
+    get(): AnimationEngineInfo;
+    set(engine: AnimationEngine): void | Promise<void>;
+  };
 }
 
 /**
@@ -78,8 +89,44 @@ export function registerAnimationRoutes(
 
     return {
       available: animationService.isProviderConfigured(),
-      provider: animationService.isProviderConfigured() ? 'runway' : null,
+      provider: animationService.isProviderConfigured() ? (deps.engine?.get().engine ?? 'runway') : null,
     };
+  });
+
+  /**
+   * GET /api/animations/engine - Selected engine and which engines are usable
+   */
+  fastify.get('/api/animations/engine', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { error: 'Unauthorized' };
+    }
+    if (!deps.engine) {
+      reply.code(404);
+      return { error: 'Engine selection not available' };
+    }
+    return deps.engine.get();
+  });
+
+  /**
+   * PUT /api/animations/engine - Switch between Runway and Higgsfield
+   */
+  fastify.put<{ Body: { engine?: unknown } }>('/api/animations/engine', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { error: 'Unauthorized' };
+    }
+    if (!deps.engine) {
+      reply.code(404);
+      return { error: 'Engine selection not available' };
+    }
+    const engine = request.body?.engine;
+    if (!isAnimationEngine(engine)) {
+      reply.code(400);
+      return { error: 'Unknown animation engine' };
+    }
+    await deps.engine.set(engine);
+    return deps.engine.get();
   });
 
   /**

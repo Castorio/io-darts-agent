@@ -25,6 +25,9 @@ import { ElevenLabsService, VoicePackGenerator } from './core/modules/handlers/i
 import { MediaService } from './core/media/MediaService.js';
 import { AnimationGeneratorService } from './core/media/AnimationGeneratorService.js';
 import { createRunwayProvider } from './core/media/providers/RunwayProvider.js';
+import { HiggsfieldAnimationProvider } from './core/media/providers/HiggsfieldAnimationProvider.js';
+import { AnimationEngineSettings } from './core/media/AnimationEngineSettings.js';
+import { HiggsfieldProvider } from './core/ai/providers/HiggsfieldProvider.js';
 import { APIConfigService } from './core/config/ConfigService.js';
 import { AuthService } from './core/auth/AuthService.js';
 import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
@@ -1648,8 +1651,30 @@ async function main(): Promise<void> {
   });
   await animationService.init();
 
-  // Function to configure/reconfigure the AI provider
+  const animationEngineSettings = new AnimationEngineSettings(
+    path.join(__dirname, '..', 'config', 'animation-settings.json')
+  );
+
+  // Higgsfield uses the access configured in the AI settings
+  function getHiggsfieldProvider(): HiggsfieldProvider | undefined {
+    const provider = getAIProviderService().getProvider('higgsfield');
+    return provider instanceof HiggsfieldProvider ? provider : undefined;
+  }
+
+  // Function to configure/reconfigure the animation engine
   function configureAnimationProvider() {
+    if (animationEngineSettings.get() === 'higgsfield') {
+      const higgsfield = getHiggsfieldProvider();
+      if (higgsfield) {
+        animationService.setProvider(new HiggsfieldAnimationProvider(higgsfield));
+        console.log(`🎬 Animation generator: Higgsfield ${higgsfield.isAvailable() ? 'configured' : 'selected, not configured'}`);
+      } else {
+        animationService.setProvider(null);
+        console.log('🎬 Animation generator: Higgsfield selected, provider not loaded yet');
+      }
+      return;
+    }
+
     const config = server.getConfig();
     const runwayConfig = config?.aiProviders?.runway;
     const runwayProvider = createRunwayProvider(runwayConfig);
@@ -1674,6 +1699,23 @@ async function main(): Promise<void> {
   // Register Animation Routes
   registerAnimationRoutes(fastify, server, {
     animationService,
+    engine: {
+      get: () => ({
+        engine: animationEngineSettings.get(),
+        engines: [
+          {
+            id: 'runway',
+            name: 'Runway ML',
+            available: !!createRunwayProvider(server.getConfig()?.aiProviders?.runway),
+          },
+          { id: 'higgsfield', name: 'Higgsfield', available: !!getHiggsfieldProvider()?.isAvailable() },
+        ],
+      }),
+      set: (engine) => {
+        animationEngineSettings.set(engine);
+        configureAnimationProvider();
+      },
+    },
   });
 
   // ElevenLabs TTS Service
@@ -1793,6 +1835,8 @@ async function main(): Promise<void> {
   const aiConfigDir = path.join(__dirname, '..', 'config');
   initializeAIProviders({ configDir: aiConfigDir });
   const aiService = getAIProviderService();
+  // The animation engine may use Higgsfield, which only exists from here on
+  configureAnimationProvider();
   console.log('🤖 AI providers initialized');
 
   // Register AI Routes

@@ -186,6 +186,15 @@ describe('APIServer', () => {
       ['http://10.0.0.5'],
       ['http://172.20.1.1'],
       ['http://darts.local:3000'],
+      ['http://dartpc:3000'],
+      ['http://darts.fritz.box'],
+      ['http://nuc.lan'],
+      ['http://nuc.home.arpa'],
+      ['http://169.254.10.20'],
+      ['http://172.16.0.1'],
+      ['http://172.31.255.255'],
+      ['http://[fd12:3456::1]:3000'],
+      ['http://[fe80::1]'],
     ])('accepts local origin %s', (origin) => {
       expect(isLocalOrigin(origin)).toBe(true);
     });
@@ -193,6 +202,9 @@ describe('APIServer', () => {
     it.each([
       ['https://evil.com'],
       ['http://172.32.0.1'],
+      ['http://172.15.0.1'],
+      ['http://localhost.evil.com'],
+      ['http://[2001:db8::1]'],
       ['http://192.168.1.20.evil.com'],
       ['http://8.8.8.8'],
       ['null'],
@@ -201,15 +213,37 @@ describe('APIServer', () => {
       expect(isLocalOrigin(origin)).toBe(false);
     });
 
-    it('does not grant CORS access to internet origins', async () => {
+    it('rejects requests from internet origins before they reach a route', async () => {
       await server.initialize(null);
       const response = await server.getInstance().inject({
-        method: 'GET',
+        method: 'POST',
         url: '/health',
         headers: { origin: 'https://evil.com' },
       });
 
+      expect(response.statusCode).toBe(403);
       expect(response.headers['access-control-allow-origin']).toBeUndefined();
+    });
+
+    it('rejects preflight requests from internet origins', async () => {
+      await server.initialize(null);
+      const response = await server.getInstance().inject({
+        method: 'OPTIONS',
+        url: '/health',
+        headers: {
+          origin: 'https://evil.com',
+          'access-control-request-method': 'POST',
+        },
+      });
+
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('serves requests without origin header', async () => {
+      await server.initialize(null);
+      const response = await server.getInstance().inject({ method: 'GET', url: '/health' });
+
+      expect(response.statusCode).toBe(200);
     });
 
     it('grants CORS access to LAN origins', async () => {

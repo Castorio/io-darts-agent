@@ -24,6 +24,15 @@ const DEFAULT_OPTIONS: ServerOptions = {
   logger: true,
 };
 
+const LOCAL_DOMAIN_SUFFIXES = ['.local', '.lan', '.home.arpa', '.fritz.box'];
+
+function isLocalIPv6(address: string): boolean {
+  if (address === '::1') return true;
+  const firstHextet = address.split(':')[0];
+  // fc00::/7 unique local, fe80::/10 link local
+  return /^f[cd][0-9a-f]{0,2}$/.test(firstHextet) || /^fe[89ab][0-9a-f]$/.test(firstHextet);
+}
+
 /**
  * Whether a browser Origin belongs to the local network.
  *
@@ -41,7 +50,14 @@ export function isLocalOrigin(origin: string | undefined): boolean {
     return false;
   }
 
-  if (hostname === 'localhost' || hostname === '[::1]' || hostname.endsWith('.local')) {
+  if (hostname.startsWith('[')) {
+    return isLocalIPv6(hostname.slice(1, -1).toLowerCase());
+  }
+
+  // Dotless names (e.g. "dartpc") only resolve inside the LAN
+  if (!hostname.includes('.')) return true;
+
+  if (LOCAL_DOMAIN_SUFFIXES.some((suffix) => hostname.endsWith(suffix))) {
     return true;
   }
 
@@ -53,6 +69,7 @@ export function isLocalOrigin(origin: string | undefined): boolean {
   return (
     a === 127 ||
     a === 10 ||
+    (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168)
   );
@@ -102,6 +119,15 @@ export class APIServer extends EventEmitter {
    */
   async initialize(config: HubConfiguration | null): Promise<void> {
     this.config = config;
+
+    // Reject cross-site requests from non-local pages before any route or
+    // websocket upgrade runs. CORS alone only hides responses; simple
+    // requests (e.g. a bodyless POST) would still be executed.
+    this.fastify.addHook('onRequest', async (request, reply) => {
+      if (!isLocalOrigin(request.headers.origin)) {
+        return reply.code(403).send({ error: 'Origin not allowed' });
+      }
+    });
 
     // Register CORS
     await this.fastify.register(fastifyCors, {

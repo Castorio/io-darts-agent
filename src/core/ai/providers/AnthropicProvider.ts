@@ -236,6 +236,9 @@ export class AnthropicProvider extends BaseAIProvider {
     if (!text && response.stop_reason === 'max_tokens') {
       throw new Error(`${response.model} reached the token limit before answering`);
     }
+    if (!text && response.stop_reason === 'refusal') {
+      throw new Error(`${response.model} declined the request`);
+    }
 
     return {
       text,

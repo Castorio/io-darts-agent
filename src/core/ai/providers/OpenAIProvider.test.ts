@@ -89,22 +89,33 @@ describe('OpenAIProvider', () => {
     it('lists only current text models the key can use, newest preferred first', async () => {
       const models = await provider().listTextModels();
 
-      expect(models.map((m) => m.id)).toEqual(['gpt-6-luna', 'gpt-4.1-mini', 'gpt-4.1', 'o4-mini']);
+      expect(models.map((m) => m.id)).toEqual(['gpt-6-luna', 'gpt-4.1-mini', 'gpt-4.1']);
+    });
+
+    it('drops models that are shut down or Responses-only', async () => {
+      fetchMock = routedFetch([
+        'o1', 'o1-mini', 'o3-mini', 'o4-mini', 'gpt-4.1-nano', 'gpt-5-chat-latest', 'gpt-5.3-codex', 'gpt-4.1',
+      ]);
+      vi.stubGlobal('fetch', fetchMock);
+
+      const models = await provider().listTextModels();
+
+      expect(models.map((m) => m.id)).toEqual(['gpt-4.1']);
     });
   });
 
   it('drops legacy gpt-4 snapshots and Responses-only pro models from the list', async () => {
-    fetchMock = routedFetch(['gpt-4', 'gpt-4-0613', 'o1', 'o1-pro', 'o1-pro-2025-03-19', 'gpt-4.1-nano']);
+    fetchMock = routedFetch(['gpt-4', 'gpt-4-0613', 'o1-pro', 'o1-pro-2025-03-19', 'gpt-4.1-mini']);
     vi.stubGlobal('fetch', fetchMock);
 
     const models = await provider().listTextModels();
 
-    expect(models.map((m) => m.id)).toEqual(['gpt-4.1-nano', 'o1']);
+    expect(models.map((m) => m.id)).toEqual(['gpt-4.1-mini']);
   });
 
   describe('text', () => {
     it('uses the newest preferred model the key can access when none is configured', async () => {
-      fetchMock = routedFetch(['gpt-4.1', 'gpt-4.1-mini', 'o4-mini']);
+      fetchMock = routedFetch(['gpt-4.1', 'gpt-4.1-mini']);
       vi.stubGlobal('fetch', fetchMock);
 
       await provider().generateText({ prompt: 'Tip?' });
@@ -161,7 +172,7 @@ describe('OpenAIProvider', () => {
     });
 
     it('gives reasoning models low effort and enough room to answer', async () => {
-      await provider().generateText({ prompt: 'Tip?', model: 'o4-mini', maxTokens: 100 });
+      await provider().generateText({ prompt: 'Tip?', model: 'gpt-6-luna', maxTokens: 100 });
 
       const body = bodyFor(fetchMock, '/chat/completions');
       expect(body.reasoning_effort).toBe('low');
@@ -180,19 +191,19 @@ describe('OpenAIProvider', () => {
       fetchMock = routedFetch(ACCOUNT_MODELS, {
         '/chat/completions': {
           choices: [{ message: { content: '' }, finish_reason: 'length' }],
-          model: 'o4-mini',
+          model: 'gpt-6-luna',
           usage: { prompt_tokens: 10, completion_tokens: 1024, total_tokens: 1034 },
         },
       });
       vi.stubGlobal('fetch', fetchMock);
 
-      await expect(provider().generateText({ prompt: 'Tip?', model: 'o4-mini' })).rejects.toThrow(
+      await expect(provider().generateText({ prompt: 'Tip?', model: 'gpt-6-luna' })).rejects.toThrow(
         'token limit'
       );
     });
 
     it('prefers the model chosen in the UI over a legacy textModel option', async () => {
-      await provider({ defaultModel: 'gpt-4.1', textModel: 'gpt-4.1-nano' }).generateText({ prompt: 'Tip?' });
+      await provider({ defaultModel: 'gpt-4.1', textModel: 'gpt-4.1-mini' }).generateText({ prompt: 'Tip?' });
 
       expect(bodyFor(fetchMock, '/chat/completions').model).toBe('gpt-4.1');
     });
@@ -200,12 +211,12 @@ describe('OpenAIProvider', () => {
     it('reloads the model list after the configuration changed', async () => {
       const p = provider();
       await p.listTextModels();
-      fetchMock = routedFetch(['gpt-4.1-nano']);
+      fetchMock = routedFetch(['gpt-4.1']);
       vi.stubGlobal('fetch', fetchMock);
 
       p.onConfigUpdated();
 
-      expect((await p.listTextModels()).map((m) => m.id)).toEqual(['gpt-4.1-nano']);
+      expect((await p.listTextModels()).map((m) => m.id)).toEqual(['gpt-4.1']);
     });
 
     it('keeps sampling parameters for gpt-4.1 models', async () => {

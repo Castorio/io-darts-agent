@@ -130,12 +130,22 @@ describe('AnthropicProvider', () => {
     expect(sentHeaders(fetchMock)['anthropic-beta']).toBe('server-side-fallback-2026-07-01');
   });
 
-  it('maps a refusal to content_filter', async () => {
-    fetchMock.mockResolvedValue(messageResponse({ content: [], stop_reason: 'refusal' }));
+  it('maps a refusal with partial text to content_filter', async () => {
+    fetchMock.mockResolvedValue(
+      messageResponse({ content: [{ type: 'text', text: 'Aim' }], stop_reason: 'refusal' })
+    );
 
     const result = await createAnthropicProvider('key').generateText({ prompt: 'Tip?' });
 
     expect(result.finishReason).toBe('content_filter');
+  });
+
+  it('fails instead of returning an empty answer when the model declined', async () => {
+    fetchMock.mockResolvedValue(messageResponse({ content: [], stop_reason: 'refusal' }));
+
+    await expect(createAnthropicProvider('key').generateText({ prompt: 'Tip?' })).rejects.toThrow(
+      'declined'
+    );
   });
 
   it('ignores thinking blocks in the returned text', async () => {

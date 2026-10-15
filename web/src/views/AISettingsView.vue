@@ -168,6 +168,8 @@ const LIVE_MODEL_TYPES = ['openai', 'anthropic']
 const liveModels = ref<Record<string, ModelOption[]>>({})
 // Model id as saved on the server, per provider
 const savedModels = ref<Record<string, string>>({})
+// Form value right after loading, to tell a user's own pick from the initial value
+const initialModels = ref<Record<string, string>>({})
 // Saved model ids that are no longer offered, per provider (shown as a hint)
 const replacedModels = ref<Record<string, string>>({})
 
@@ -187,6 +189,9 @@ function ensureOfferedModel(provider: AIProvider) {
   const models = modelsFor(provider)
   if (!form || !LIVE_MODEL_TYPES.includes(provider.type) || !models?.length) return
   const saved = savedModels.value[provider.id]
+  // Keep a model the user picked while the live list was loading
+  if (form.defaultModel !== initialModels.value[provider.id] &&
+    models.some(m => m.id === form.defaultModel)) return
   if (models.some(m => m.id === saved)) {
     form.defaultModel = saved
     delete replacedModels.value[provider.id]
@@ -246,6 +251,7 @@ async function fetchProviders() {
       }
       savedModels.value[provider.id] = (provider.defaultModel ||
         (provider.options?.defaultModel as string) || '')
+      initialModels.value[provider.id] = savedModel
       if (LIVE_MODEL_TYPES.includes(provider.type) && provider.hasApiKey) {
         void loadLiveModels(provider)
       } else {

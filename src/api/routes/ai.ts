@@ -81,7 +81,8 @@ export function registerAIRoutes(
         capabilities: provider.capabilities,
         hasApiKey: !!provider.config.apiKey,
         baseUrl: provider.config.baseUrl,
-        defaultModel: (provider.config.options as Record<string, unknown>)?.defaultModel as string | undefined,
+        defaultModel: (((provider.config.options as Record<string, unknown>)?.defaultModel ??
+          (provider.config.options as Record<string, unknown>)?.textModel) as string | undefined),
         options: provider.config.options,
       })),
     };
@@ -116,7 +117,8 @@ export function registerAIRoutes(
       capabilities: provider.capabilities,
       hasApiKey: !!provider.config.apiKey,
       baseUrl: provider.config.baseUrl,
-      defaultModel: (provider.config.options as Record<string, unknown>)?.defaultModel as string | undefined,
+      defaultModel: (((provider.config.options as Record<string, unknown>)?.defaultModel ??
+          (provider.config.options as Record<string, unknown>)?.textModel) as string | undefined),
       options: provider.config.options,
     };
   });

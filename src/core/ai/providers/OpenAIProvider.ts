@@ -37,7 +37,7 @@ export const DEFAULT_OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
 // Ids that are not chat models: audio, realtime, search, research, Responses-only
 // pro models and dated snapshots
 const NON_CHAT_TEXT_MODELS = [
-  /realtime|audio|transcribe|tts|search|research|embedding|moderation|instruct/,
+  /realtime|audio|transcribe|tts|search|research|embedding|moderation|instruct|codex/,
   /-pro($|-)/,
   /-\d{4}-\d{2}-\d{2}$/,
 ];
@@ -48,6 +48,11 @@ const DEPRECATED_TEXT_MODELS = [
   /^gpt-4o(-mini)?$/,
   /^gpt-4(-\d{4})?$/,
   /^gpt-4-turbo/,
+  // Shut down by 2026-10-23 (developers.openai.com/api/docs/deprecations)
+  /^o1(-mini)?$/,
+  /^o[34]-mini$/,
+  /^gpt-4\.1-nano$/,
+  /^gpt-5-chat/,
   /^gpt-3\.5-turbo/,
   /^dall-e-/,
   /^gpt-image/,

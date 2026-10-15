@@ -430,7 +430,7 @@ Backend
 Two independent layers (see [API Documentation](api.md#authentication) for the exact per-route behavior):
 
 1. **Local-only by default.** `src/api/Server.ts` rejects any request whose `Origin` header does not resolve to a local/private address, both at the CORS layer and with an explicit `onRequest` check. The hub is not meant to be reachable from outside the LAN.
-2. **Optional web login.** A global `onRequest` hook (`src/api/middleware/auth.ts`) blocks the setup wizard until setup is completed, then - if "web auth" is enabled in settings - requires a valid `autodarts_session` cookie for everything except a short list of always-public routes (`/health`, `/api/auth/session`, `/api/auth/login`, `/api/setup/status`).
+2. **Optional web login.** A global `onRequest` hook (`src/api/middleware/auth.ts`) answers every `/api/*` route except `/api/setup/*` with 403 until setup is completed (the web UI with the setup wizard still loads). After setup, if "web auth" is enabled in settings, it requires a valid `autodarts_session` cookie for everything except a short list of always-public routes (`/health`, `/api/auth/session`, `/api/auth/login`, `/api/setup/status`).
 
 The Autodarts connection itself is separate from web auth: `AuthService` logs in to the official Autodarts account API with the email/password/board ID collected in the setup wizard, independent of whether the hub's own web login is turned on.
 

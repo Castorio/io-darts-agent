@@ -13,6 +13,23 @@ declare module 'fastify' {
 }
 
 /**
+ * Path the request is routed to
+ *
+ * Prefers the matched route pattern, since the router decodes the URL
+ * (/%61pi/... reaches /api/...). Without a match the URL is normalized
+ * and decoded the same way; an undecodable URL counts as an API path.
+ */
+function requestPath(request: FastifyRequest): string {
+  const routeUrl = (request as { routeOptions?: { url?: string } }).routeOptions?.url;
+  if (routeUrl) return routeUrl;
+  try {
+    return decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+  } catch {
+    return '/api';
+  }
+}
+
+/**
  * Create authentication middleware
  */
 export function createAuthMiddleware(server: APIServer) {
@@ -22,8 +39,7 @@ export function createAuthMiddleware(server: APIServer) {
   ): Promise<void> {
     // If setup not completed, the web UI loads but the API only answers setup routes
     if (server.isSetupRequired()) {
-      // Resolve dot segments so /x/../api/... cannot pass as a UI path
-      const pathname = new URL(request.url, 'http://localhost').pathname;
+      const pathname = requestPath(request);
       const isApi = pathname === '/api' || pathname.startsWith('/api/');
       const isSetupApi = pathname === '/api/setup' || pathname.startsWith('/api/setup/');
       if (isApi && !isSetupApi) {

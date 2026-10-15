@@ -55,7 +55,7 @@ describe('Auth Middleware', () => {
       }
     );
 
-    it.each(['/api/settings', '/api', '/api/setupx', '/module-ui/../api/status'])(
+    it.each(['/api/settings', '/api', '/api/setupx', '/module-ui/../api/status', '/%61pi/settings', '/api%2Fsettings', '/%E0%A4%A'])(
       'still blocks the API at %s while setup is required',
       async (url) => {
         (mockServer.isSetupRequired as ReturnType<typeof vi.fn>).mockReturnValue(true);
@@ -67,6 +67,17 @@ describe('Auth Middleware', () => {
         expect(mockReply.code).toHaveBeenCalledWith(403);
       }
     );
+
+    it('decides on the matched route when the router provides it', async () => {
+      (mockServer.isSetupRequired as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      mockRequest.url = '/whatever';
+      (mockRequest as { routeOptions?: unknown }).routeOptions = { url: '/api/settings' };
+
+      const middleware = createAuthMiddleware(mockServer as APIServer);
+      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+
+      expect(mockReply.code).toHaveBeenCalledWith(403);
+    });
 
     it('should block non-setup routes when setup is required', async () => {
       (mockServer.isSetupRequired as ReturnType<typeof vi.fn>).mockReturnValue(true);

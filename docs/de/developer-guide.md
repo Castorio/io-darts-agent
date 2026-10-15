@@ -432,7 +432,7 @@ Backend
 Zwei unabhängige Ebenen (siehe [API-Dokumentation](api.md#authentifizierung) für das genaue Verhalten pro Route):
 
 1. **Standardmäßig nur lokal.** `src/api/Server.ts` lehnt jede Anfrage ab, deren `Origin`-Header nicht zu einer lokalen/privaten Adresse auflöst, sowohl auf CORS-Ebene als auch mit einer expliziten `onRequest`-Prüfung. Der Hub ist nicht dafür gedacht, von außerhalb des LANs erreichbar zu sein.
-2. **Optionaler Web-Login.** Ein globaler `onRequest`-Hook (`src/api/middleware/auth.ts`) blockiert den Setup-Wizard, bis das Setup abgeschlossen ist, und verlangt danach, falls "Web-Auth" in den Einstellungen aktiviert ist, für alles außer einer kurzen Liste immer öffentlicher Routen (`/health`, `/api/auth/session`, `/api/auth/login`, `/api/setup/status`) ein gültiges `autodarts_session`-Cookie.
+2. **Optionaler Web-Login.** Ein globaler `onRequest`-Hook (`src/api/middleware/auth.ts`) beantwortet bis zum Abschluss des Setups jede `/api/*`-Route außer `/api/setup/*` mit 403 (die Web-UI mit dem Setup-Assistenten lädt trotzdem) und verlangt danach, falls "Web-Auth" in den Einstellungen aktiviert ist, für alles außer einer kurzen Liste immer öffentlicher Routen (`/health`, `/api/auth/session`, `/api/auth/login`, `/api/setup/status`) ein gültiges `autodarts_session`-Cookie.
 
 Die Autodarts-Verbindung selbst ist vom Web-Login getrennt: `AuthService` loggt sich bei der offiziellen Autodarts-Account-API mit der im Setup-Wizard erfassten E-Mail/Passwort/Board-ID ein, unabhängig davon, ob der eigene Web-Login des Hubs aktiviert ist.
 

@@ -9,8 +9,13 @@
     "build": "tsc",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["autodarts", "darts", "module", "sdk"],
-  "author": "",
+  "keywords": [
+    "autodarts",
+    "darts",
+    "module",
+    "sdk"
+  ],
+  "author": "castor.io / Christoph Castor",
   "license": "MIT",
   "peerDependencies": {
     "typescript": "^5.0.0"

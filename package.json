@@ -57,7 +57,7 @@
     "hub"
   ],
   "author": "castor.io / Christoph Castor",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/archiver": "^7.0.0",
@@ -93,5 +93,13 @@
     "play-sound": "^1.1.6",
     "uuid": "^13.0.0",
     "ws": "^8.20.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Castorio/io-darts-agent.git"
+  },
+  "homepage": "https://github.com/Castorio/io-darts-agent#readme",
+  "bugs": {
+    "url": "https://github.com/Castorio/io-darts-agent/issues"
   }
 }

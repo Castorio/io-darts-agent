@@ -18,8 +18,8 @@
     "lighting",
     "darts"
   ],
-  "author": "",
-  "license": "MIT",
+  "author": "castor.io / Christoph Castor",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "dependencies": {
     "@autodarts-hub/module-sdk": "file:../../module-sdk"
   },

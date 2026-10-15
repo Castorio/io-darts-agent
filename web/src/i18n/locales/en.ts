@@ -849,6 +849,7 @@ export default {
     ollamaHint: 'Default: http://localhost:11434 - Ollama must be running locally',
     defaultModel: 'Default Model',
     usedForGeneration: 'Used for new generations',
+    modelReplaced: 'The saved model {model} is no longer available. The selected model is used until you save.',
     testConnection: 'Test Connection',
   },
 

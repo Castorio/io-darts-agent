@@ -166,6 +166,13 @@ const providerForms = ref<Record<string, { apiKey: string; baseUrl: string; defa
 // Models the configured API key can actually use, loaded from the provider API
 const LIVE_MODEL_TYPES = ['openai', 'anthropic']
 const liveModels = ref<Record<string, ModelOption[]>>({})
+// Model id as saved on the server, per provider
+const savedModels = ref<Record<string, string>>({})
+// Saved model ids that are no longer offered, per provider (shown as a hint)
+const replacedModels = ref<Record<string, string>>({})
+
+// Model the server falls back to when the saved one is retired
+const SERVER_FALLBACK_MODEL: Record<string, string> = { anthropic: 'claude-opus-5' }
 
 function modelsFor(provider: AIProvider): ModelOption[] | undefined {
   return liveModels.value[provider.id] ?? providerConfigs[provider.type]?.models
@@ -173,28 +180,36 @@ function modelsFor(provider: AIProvider): ModelOption[] | undefined {
 
 // Cloud providers retire models; a saved model that is no longer offered is replaced
 // server-side, so preselect the first offered model instead of an empty selection
+// Always compares against the saved model, so running it again for the live list
+// cannot replace a choice that only the built-in list lacked
 function ensureOfferedModel(provider: AIProvider) {
   const form = providerForms.value[provider.id]
   const models = modelsFor(provider)
   if (!form || !LIVE_MODEL_TYPES.includes(provider.type) || !models?.length) return
-  if (!models.some(m => m.id === form.defaultModel)) {
-    form.defaultModel = models[0].id
+  const saved = savedModels.value[provider.id]
+  if (models.some(m => m.id === saved)) {
+    form.defaultModel = saved
+    delete replacedModels.value[provider.id]
+    return
   }
+  if (saved) replacedModels.value[provider.id] = saved
+  const serverFallback = SERVER_FALLBACK_MODEL[provider.type]
+  // OpenAI live lists are ordered like the server's own preference
+  form.defaultModel = models.find(m => m.id === serverFallback)?.id ?? models[0].id
 }
 
 async function loadLiveModels(provider: AIProvider) {
   if (!LIVE_MODEL_TYPES.includes(provider.type) || !provider.hasApiKey) return
   try {
     const response = await fetch(`/api/ai/providers/${provider.id}/models`)
-    if (!response.ok) return
-    const data = await response.json() as { models?: ModelOption[] }
-    if (data.models?.length) {
-      liveModels.value[provider.id] = data.models
-      ensureOfferedModel(provider)
+    if (response.ok) {
+      const data = await response.json() as { models?: ModelOption[] }
+      if (data.models?.length) liveModels.value[provider.id] = data.models
     }
   } catch {
     // Keep the built-in list when the provider cannot be reached
   }
+  ensureOfferedModel(provider)
 }
 
 // Computed
@@ -229,8 +244,13 @@ async function fetchProviders() {
         baseUrl: provider.baseUrl || config?.defaultBaseUrl || '',
         defaultModel: savedModel,
       }
-      ensureOfferedModel(provider)
-      void loadLiveModels(provider)
+      savedModels.value[provider.id] = (provider.defaultModel ||
+        (provider.options?.defaultModel as string) || '')
+      if (LIVE_MODEL_TYPES.includes(provider.type) && provider.hasApiKey) {
+        void loadLiveModels(provider)
+      } else {
+        ensureOfferedModel(provider)
+      }
     }
   } catch (error) {
     message.value = {
@@ -518,6 +538,9 @@ onMounted(fetchProviders)
                     {{ model.name }}{{ model.category ? ` (${model.category})` : '' }}
                   </option>
                 </select>
+                <p v-if="replacedModels[provider.id]" class="text-xs text-amber-400 mt-1">
+                  {{ t('ai.modelReplaced', { model: replacedModels[provider.id] }) }}
+                </p>
                 <p class="text-xs text-dark-400 mt-1">
                   {{ t('ai.usedForGeneration') }}
                 </p>

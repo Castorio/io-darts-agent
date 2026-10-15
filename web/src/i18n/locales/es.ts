@@ -431,6 +431,7 @@ export default {
     ollamaHint: 'Predeterminado: http://localhost:11434 - Ollama debe estar ejecutándose localmente',
     defaultModel: 'Modelo Predeterminado',
     usedForGeneration: 'Se usa para nuevas generaciones',
+    modelReplaced: 'El modelo guardado {model} ya no está disponible. Se usa el modelo seleccionado hasta que guardes.',
     testConnection: 'Probar Conexión',
   },
 

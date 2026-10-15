@@ -81,6 +81,13 @@ describe('HiggsfieldAnimationProvider', () => {
     await expect(adapter.getJobStatus(JOB_ID)).resolves.toEqual(expected);
   });
 
+  it('treats a completed job without a video URL as failed', async () => {
+    const provider = fakeProvider({ getJobStatus: vi.fn().mockResolvedValue(job('completed')) });
+    const adapter = new HiggsfieldAnimationProvider(provider as never);
+
+    await expect(adapter.getJobStatus(JOB_ID)).resolves.toMatchObject({ status: 'failed' });
+  });
+
   it('cancels through the provider', async () => {
     const provider = fakeProvider();
 

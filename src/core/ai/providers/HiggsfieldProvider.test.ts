@@ -74,6 +74,13 @@ describe('HiggsfieldProvider', () => {
       expect(submittedBody(fetchMock).batch_size).toBe(4);
     });
 
+    it('rejects a video model for image generation without spending credits', async () => {
+      await expect(
+        provider().generateImage({ prompt: 'x', model: 'kling-video/v3.0/std/text-to-video' })
+      ).rejects.toThrow('not an image model');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('explains a moderation rejection', async () => {
       fetchMock
         .mockResolvedValueOnce(jsonResponse(200, { status: 'queued', request_id: REQUEST_ID }))
@@ -138,6 +145,19 @@ describe('HiggsfieldProvider', () => {
       expect(job.status).toBe(expected);
       if (expected === 'completed') expect(job.resultUrl).toBe('https://cdn/v.mp4');
     });
+  });
+
+  it('reports image jobs as image jobs even before they finish', async () => {
+    const p = provider();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, { status: 'queued', request_id: REQUEST_ID }))
+      .mockResolvedValueOnce(jsonResponse(200, { status: 'failed' }))
+      .mockResolvedValueOnce(jsonResponse(200, { status: 'queued' }));
+    await p.generateImage({ prompt: 'x' }).catch(() => undefined);
+
+    const job = await p.getJobStatus(REQUEST_ID);
+
+    expect(job.type).toBe('image-generation');
   });
 
   describe('getStatus()', () => {

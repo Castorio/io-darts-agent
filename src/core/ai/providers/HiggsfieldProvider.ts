@@ -98,8 +98,12 @@ function failureReason(status: HiggsfieldStatus): string {
   return status.error || 'Higgsfield generation failed';
 }
 
+const VIDEO_MODEL_IDS = new Set(HIGGSFIELD_MODELS.filter((m) => m.type === 'video').map((m) => m.id));
+
 export class HiggsfieldProvider extends BaseAIProvider {
   readonly capabilities: AICapability[] = ['image-generation', 'video-generation'];
+  // Request ids of image generations, so their job type is known before output exists
+  private readonly imageRequestIds = new Set<string>();
 
   override isConfigured(): boolean {
     try {
@@ -132,6 +136,9 @@ export class HiggsfieldProvider extends BaseAIProvider {
 
   async generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
     const model = request.model || this.options().imageModel || DEFAULT_HIGGSFIELD_IMAGE_MODEL;
+    if (VIDEO_MODEL_IDS.has(model)) {
+      throw new Error(`${model} is not an image model`);
+    }
     const client = this.client();
 
     const requestId = await client.submit(model, {
@@ -139,6 +146,7 @@ export class HiggsfieldProvider extends BaseAIProvider {
       aspect_ratio: imageAspectRatio(request.width, request.height),
       batch_size: (request.count ?? 1) > 1 ? 4 : 1,
     });
+    this.imageRequestIds.add(requestId);
     const status = await client.waitFor(requestId, { timeoutMs: IMAGE_TIMEOUT_MS });
     if (status.status !== 'completed') {
       throw new Error(failureReason(status));
@@ -177,7 +185,7 @@ export class HiggsfieldProvider extends BaseAIProvider {
       id: jobId,
       providerId: this.config.id,
       providerJobId: jobId,
-      type: status.images ? 'image-generation' : 'video-generation',
+      type: this.imageRequestIds.has(jobId) || status.images ? 'image-generation' : 'video-generation',
       status: mapped,
       createdAt: now,
       updatedAt: now,

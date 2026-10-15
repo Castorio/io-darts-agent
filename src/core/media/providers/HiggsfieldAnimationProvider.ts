@@ -55,7 +55,9 @@ export class HiggsfieldAnimationProvider extends BaseAIProvider {
       case 'processing':
         return { status: 'processing', progress: 50 };
       case 'completed':
-        return { status: 'completed', progress: 100, resultUrl: job.resultUrl };
+        return job.resultUrl
+          ? { status: 'completed', progress: 100, resultUrl: job.resultUrl }
+          : { status: 'failed', progress: 0, error: 'Higgsfield finished without a video URL' };
       default:
         return { status: 'failed', progress: 0, error: job.error };
     }

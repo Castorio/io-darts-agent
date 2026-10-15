@@ -64,6 +64,28 @@ export function isHiggsfieldTerminal(status: HiggsfieldRequestStatus): boolean {
   return TERMINAL_STATUSES.has(status);
 }
 
+/** HTTP error from the Higgsfield API, with a message safe to show */
+export class HiggsfieldApiError extends Error {
+  constructor(readonly status: number) {
+    super(describeError(status));
+    this.name = 'HiggsfieldApiError';
+  }
+}
+
+/**
+ * Timeouts, network failures and server-side errors are worth retrying;
+ * credential, credit and validation errors are not.
+ */
+export function isTransientHiggsfieldError(error: unknown): boolean {
+  if (error instanceof HiggsfieldApiError) {
+    return error.status >= 500 || error.status === 423;
+  }
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError'))
+  );
+}
+
 function assertRequestId(requestId: unknown): asserts requestId is string {
   if (typeof requestId !== 'string' || !REQUEST_ID_PATTERN.test(requestId)) {
     throw new Error('Higgsfield returned an invalid request id');
@@ -114,17 +136,27 @@ export class HiggsfieldClient {
       throw new Error(`Invalid Higgsfield model: ${modelPath}`);
     }
 
-    const response = await this.request(`/${modelPath}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // One key per generation intent, so a retried timeout is not billed twice
-        'Idempotency-Key': randomUUID(),
-      },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error(describeError(response.status));
+    // One key per generation intent: the single retry below reuses it, so a
+    // submit whose response got lost is not created or billed twice
+    const send = async (): Promise<Response> => {
+      const response = await this.request(`/${modelPath}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        throw new HiggsfieldApiError(response.status);
+      }
+      return response;
+    };
+    const idempotencyKey = randomUUID();
+
+    let response: Response;
+    try {
+      response = await send();
+    } catch (error) {
+      if (!isTransientHiggsfieldError(error)) throw error;
+      response = await send();
     }
 
     const data = (await response.json()) as { request_id?: unknown };
@@ -140,7 +172,7 @@ export class HiggsfieldClient {
     assertRequestId(requestId);
     const response = await this.request(`/requests/${requestId}/status`, { method: 'GET' });
     if (!response.ok) {
-      throw new Error(describeError(response.status));
+      throw new HiggsfieldApiError(response.status);
     }
 
     const data = (await response.json()) as HiggsfieldStatus;
@@ -162,8 +194,14 @@ export class HiggsfieldClient {
     let delay = POLL_START_MS;
 
     for (;;) {
-      const status = await this.getStatus(requestId);
-      if (isHiggsfieldTerminal(status.status)) {
+      let status: HiggsfieldStatus | null = null;
+      try {
+        status = await this.getStatus(requestId);
+      } catch (error) {
+        // The request keeps running at Higgsfield; only give up on permanent errors
+        if (!isTransientHiggsfieldError(error)) throw error;
+      }
+      if (status && isHiggsfieldTerminal(status.status)) {
         return status;
       }
       if (now() + delay > deadline) {
@@ -193,7 +231,7 @@ export class HiggsfieldClient {
     });
     if (response.status === 401) return false;
     if (response.status === 404 || response.ok) return true;
-    throw new Error(describeError(response.status));
+    throw new HiggsfieldApiError(response.status);
   }
 
   private request(path: string, init: RequestInit): Promise<Response> {

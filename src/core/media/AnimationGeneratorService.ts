@@ -105,6 +105,10 @@ export interface AnimationGeneratorConfig {
   pollInterval?: number;
   /** Max concurrent jobs */
   maxConcurrent?: number;
+  /** Consecutive status errors before a job is given up (default 5) */
+  maxPollErrors?: number;
+  /** Time after which a job that is still running is given up (default 30 min) */
+  jobTimeoutMs?: number;
 }
 
 /**
@@ -116,11 +120,17 @@ export class AnimationGeneratorService {
   private jobs: Map<string, AnimationJob> = new Map();
   private jobsFilePath: string;
   private pollInterval: number;
+  private maxPollErrors: number;
+  private jobTimeoutMs: number;
+  // Engine that started each running job; switching engines must not affect it
+  private jobProviders: Map<string, AIProvider> = new Map();
 
   constructor(config: AnimationGeneratorConfig) {
     this.config = config;
     this.provider = config.provider ?? null;
     this.pollInterval = config.pollInterval ?? 5000;
+    this.maxPollErrors = config.maxPollErrors ?? 5;
+    this.jobTimeoutMs = config.jobTimeoutMs ?? 30 * 60_000;
     this.jobsFilePath = path.join(config.outputDir, '.animation-jobs.json');
   }
 
@@ -246,11 +256,16 @@ export class AnimationGeneratorService {
       return false;
     }
 
-    // Try to cancel at provider level
-    if (job.providerJobId && this.provider) {
-      await this.provider.cancelJob(job.providerJobId);
+    // Cancel at the engine that runs the job; some engines can only cancel queued work
+    const provider = this.jobProviders.get(job.id);
+    if (job.providerJobId && provider) {
+      const cancelled = await provider.cancelJob(job.providerJobId);
+      if (!cancelled) {
+        return false;
+      }
     }
 
+    this.jobProviders.delete(job.id);
     job.status = 'cancelled';
     job.completedAt = new Date();
     await this.saveJobs();
@@ -301,12 +316,14 @@ export class AnimationGeneratorService {
     job: AnimationJob,
     options?: AnimationGenerationOptions
   ): Promise<void> {
-    if (!this.provider) {
+    const provider = this.provider;
+    if (!provider) {
       job.status = 'failed';
       job.error = 'No AI provider configured';
       await this.saveJobs();
       return;
     }
+    this.jobProviders.set(job.id, provider);
 
     try {
       job.status = 'queued';
@@ -317,7 +334,7 @@ export class AnimationGeneratorService {
       const prompt = this.buildFullPrompt(job.eventType, job.style, job.customPrompt);
 
       // Start generation - pass style colors for base image generation
-      const result = await this.provider.generate(prompt, {
+      const result = await provider.generate(prompt, {
         ...options,
         format: 'webm',
         transparent: true,
@@ -352,45 +369,75 @@ export class AnimationGeneratorService {
   }
 
   /**
-   * Poll provider for job status
+   * Poll the job's own engine until it finishes. Transient errors are
+   * retried; the job fails after repeated errors or when it runs too long.
    */
   private async pollJobStatus(job: AnimationJob): Promise<void> {
-    if (!this.provider || !job.providerJobId) return;
+    const provider = this.jobProviders.get(job.id);
+    if (!provider || !job.providerJobId) return;
+
+    const startedAt = job.startedAt?.getTime() ?? Date.now();
+    let consecutiveErrors = 0;
+
+    const fail = async (error: string) => {
+      this.jobProviders.delete(job.id);
+      job.status = 'failed';
+      job.error = error;
+      job.completedAt = new Date();
+      await this.saveJobs();
+    };
 
     const poll = async () => {
+      // Cancelled or deleted in the meantime
+      if (job.status !== 'processing' || !this.jobs.has(job.id)) return;
+
+      if (Date.now() - startedAt > this.jobTimeoutMs) {
+        await fail('Generation did not finish in time');
+        return;
+      }
+
       try {
-        const status = await this.provider!.getJobStatus(job.providerJobId!);
+        const status = await provider.getJobStatus(job.providerJobId!);
+        consecutiveErrors = 0;
+        if (job.status !== 'processing') return;
 
         job.progress = status.progress;
 
-        if (status.status === 'completed' && status.resultUrl) {
-          await this.handleCompletion(job, status.resultUrl);
+        if (status.status === 'completed') {
+          if (status.resultUrl) {
+            await this.handleCompletion(job, status.resultUrl);
+          } else {
+            await fail('Generation finished with no result URL');
+          }
         } else if (status.status === 'failed') {
-          job.status = 'failed';
-          job.error = status.error ?? 'Generation failed';
-          job.completedAt = new Date();
-          await this.saveJobs();
-        } else if (status.status === 'processing' || status.status === 'pending') {
-          // Continue polling
+          await fail(status.error ?? 'Generation failed');
+        } else {
           await this.saveJobs();
           setTimeout(poll, this.pollInterval);
         }
       } catch (error) {
-        job.status = 'failed';
-        job.error = error instanceof Error ? error.message : 'Polling error';
-        job.completedAt = new Date();
-        await this.saveJobs();
+        consecutiveErrors++;
+        if (consecutiveErrors >= this.maxPollErrors) {
+          await fail(error instanceof Error ? error.message : 'Polling error');
+        } else {
+          setTimeout(poll, this.pollInterval);
+        }
       }
     };
 
-    poll();
+    void poll();
   }
 
   /**
    * Handle successful completion
    */
   private async handleCompletion(job: AnimationJob, resultUrl: string): Promise<void> {
+    const provider = this.jobProviders.get(job.id) ?? this.provider;
+    this.jobProviders.delete(job.id);
     try {
+      if (!provider) {
+        throw new Error('No AI provider configured');
+      }
       // Create subfolder structure: ai-generated/{styleId}
       const folderName = `ai-generated/${job.style.id}`;
       const folderPath = path.join(this.config.outputDir, folderName);
@@ -407,7 +454,7 @@ export class AnimationGeneratorService {
       const outputPath = path.join(folderPath, filename);
 
       // Download result to temp file
-      await this.provider!.downloadResult(resultUrl, tempPath);
+      await provider.downloadResult(resultUrl, tempPath);
 
       // Post-process: Remove black background and create transparent WebM
       const transparentSuccess = await this.removeBlackBackground(tempPath, outputPath);
@@ -421,7 +468,7 @@ export class AnimationGeneratorService {
         // If FFmpeg failed, try to use the original file
         console.warn('[AnimationGenerator] FFmpeg post-processing failed, using original');
         // Re-download to final path
-        await this.provider!.downloadResult(resultUrl, outputPath);
+        await provider.downloadResult(resultUrl, outputPath);
       }
 
       job.status = 'completed';

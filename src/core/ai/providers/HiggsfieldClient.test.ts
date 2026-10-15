@@ -59,6 +59,28 @@ describe('HiggsfieldClient', () => {
       expect(init.signal).toBeInstanceOf(AbortSignal);
     });
 
+    it('retries a submit after a network error with the same idempotency key', async () => {
+      fetchMock.mockReset();
+      fetchMock
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce(jsonResponse(200, queued));
+
+      const requestId = await client.submit('higgsfield-ai/soul/standard', { prompt: 'x' });
+
+      expect(requestId).toBe(REQUEST_ID);
+      const keys = fetchMock.mock.calls.map((c) => ((c[1] as RequestInit).headers as Record<string, string>)['Idempotency-Key']);
+      expect(keys).toHaveLength(2);
+      expect(keys[0]).toBe(keys[1]);
+    });
+
+    it('does not retry a submit that was rejected', async () => {
+      fetchMock.mockReset();
+      fetchMock.mockResolvedValue(jsonResponse(422, { detail: [] }));
+
+      await expect(client.submit('higgsfield-ai/soul/standard', { prompt: 'x' })).rejects.toThrow();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
     it.each(['../requests', 'https://evil.example.com/x', 'kling video', 'single'])(
       'rejects the model path %j without sending anything',
       async (modelPath) => {
@@ -133,6 +155,28 @@ describe('HiggsfieldClient', () => {
 
       expect(status.status).toBe('completed');
       expect(sleep.mock.calls.map((c) => c[0])).toEqual([2000, 3000]);
+    });
+
+    it('keeps polling through transient errors until the request finishes', async () => {
+      const timeout = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+      fetchMock
+        .mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce(jsonResponse(503, { detail: 'Service unavailable' }))
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce(jsonResponse(200, { status: 'completed', images: [{ url: 'https://cdn/i.jpg' }] }));
+      const sleep = vi.fn().mockResolvedValue(undefined);
+
+      const status = await client.waitFor(REQUEST_ID, { timeoutMs: 60_000, sleep });
+
+      expect(status.status).toBe('completed');
+    });
+
+    it('stops polling on errors that will not go away', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(401, { detail: 'Invalid credentials' }));
+      const sleep = vi.fn().mockResolvedValue(undefined);
+
+      await expect(client.waitFor(REQUEST_ID, { timeoutMs: 60_000, sleep })).rejects.toThrow('invalid key');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('caps the poll interval at ten seconds', async () => {

@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DOCS_IMAGES = path.join(__dirname, '..', 'docs', 'images');
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000';
 
 async function takeScreenshots() {
   console.log('🎬 Starting screenshot capture...\n');

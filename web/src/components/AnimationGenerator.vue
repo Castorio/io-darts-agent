@@ -51,6 +51,9 @@ const emit = defineEmits<{
 
 // State
 const isAvailable = ref(false)
+const engine = ref('runway')
+const engines = ref<Array<{ id: string; name: string; available: boolean }>>([])
+const engineMessage = ref<string | null>(null)
 const isLoading = ref(true)
 const styles = ref<AnimationStyle[]>([])
 const jobs = ref<AnimationJob[]>([])
@@ -81,11 +84,33 @@ const completedJobs = computed(() => jobs.value.filter((j) => j.status === 'comp
 const failedJobs = computed(() => jobs.value.filter((j) => j.status === 'failed'))
 
 // Methods
+async function changeEngine() {
+  error.value = null
+  try {
+    const info = await api.setAnimationEngine(engine.value)
+    engines.value = info.engines
+    const name = info.engines.find((e) => e.id === info.engine)?.name ?? info.engine
+    engineMessage.value = t('animationGen.engineChanged', { name })
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
+  }
+  await loadData()
+}
+
 async function loadData() {
   isLoading.value = true
   error.value = null
 
   try {
+    // Engine choice is shown even when the selected engine is not set up
+    try {
+      const engineInfo = await api.getAnimationEngine()
+      engine.value = engineInfo.engine
+      engines.value = engineInfo.engines
+    } catch {
+      engines.value = []
+    }
+
     // Check if available
     const statusResponse = await api.getAnimationGeneratorStatus()
     isAvailable.value = statusResponse.available
@@ -273,6 +298,22 @@ onUnmounted(() => {
 
 <template>
   <BaseCard :title="t('animationGen.title')" :subtitle="t('animationGen.subtitle')">
+    <!-- Engine selection (Runway / Higgsfield) -->
+    <div v-if="engines.length" class="flex flex-wrap items-center gap-3 mb-4">
+      <label class="text-sm font-medium text-dark-200" for="animation-engine">{{ t('animationGen.engine') }}</label>
+      <select
+        id="animation-engine"
+        v-model="engine"
+        class="px-3 py-2 rounded-lg bg-dark-700 border border-dark-600 text-white focus:border-autodarts-500 outline-none"
+        @change="changeEngine"
+      >
+        <option v-for="e in engines" :key="e.id" :value="e.id">
+          {{ e.name }}{{ e.available ? '' : ` (${t('animationGen.engineNotConfigured')})` }}
+        </option>
+      </select>
+      <span v-if="engineMessage" class="text-sm text-green-400">{{ engineMessage }}</span>
+    </div>
+
     <!-- Loading State -->
     <div v-if="isLoading" class="flex items-center justify-center py-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-autodarts-500" />

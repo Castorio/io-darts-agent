@@ -126,6 +126,20 @@ const providerConfigs: Record<string, ProviderConfig> = {
       { id: 'gen-3', name: 'Gen-3' },
     ],
   },
+  higgsfield: {
+    icon: '🎞️',
+    gradient: 'from-fuchsia-500 to-indigo-600',
+    description: 'Video (Kling, Hailuo) und Bild (Soul)',
+    capabilities: ['video-generation', 'image-generation'],
+    requiresApiKey: true,
+    hasBaseUrl: false,
+    // Default video model; images use Soul Standard
+    models: [
+      { id: 'kling-video/v3.0/std/text-to-video', name: 'Kling 3.0 Standard', category: 'Video' },
+      { id: 'kling-video/v2.5-turbo/pro/text-to-video', name: 'Kling 2.5 Turbo Pro', category: 'Video' },
+      { id: 'minimax/hailuo-2.3/standard/text-to-video', name: 'Hailuo 2.3', category: 'Video' },
+    ],
+  },
   replicate: {
     icon: '🔄',
     gradient: 'from-rose-500 to-red-600',
@@ -219,7 +233,7 @@ async function loadLiveModels(provider: AIProvider) {
 
 // Computed
 const sortedProviders = computed(() => {
-  const order = ['openai', 'anthropic', 'ollama', 'elevenlabs', 'stability', 'runway', 'replicate']
+  const order = ['openai', 'anthropic', 'ollama', 'elevenlabs', 'stability', 'runway', 'higgsfield', 'replicate']
   return [...providers.value].sort((a, b) => {
     const aIndex = order.indexOf(a.type)
     const bIndex = order.indexOf(b.type)
@@ -583,6 +597,10 @@ onMounted(fetchProviders)
               </div>
               <div v-else-if="provider.type === 'runway'" class="text-sm text-dark-400 pt-2">
                 API Key erhältlich auf <a href="https://runwayml.com/" target="_blank" class="text-autodarts-400 hover:underline">runwayml.com</a>
+              </div>
+              <div v-else-if="provider.type === 'higgsfield'" class="text-sm text-dark-400 pt-2">
+                {{ t('ai.higgsfieldKeyHint') }}
+                <a href="https://console.higgsfield.ai" target="_blank" rel="noopener noreferrer" class="text-autodarts-400 hover:underline">console.higgsfield.ai</a>
               </div>
               <div v-else-if="provider.type === 'replicate'" class="text-sm text-dark-400 pt-2">
                 API Key erhältlich auf <a href="https://replicate.com/" target="_blank" class="text-autodarts-400 hover:underline">replicate.com</a>

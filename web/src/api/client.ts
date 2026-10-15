@@ -12,6 +12,11 @@ class APIError extends Error {
   }
 }
 
+export interface AnimationEngineInfo {
+  engine: string
+  engines: Array<{ id: string; name: string; available: boolean }>
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -803,6 +808,17 @@ export const api = {
   // Animation Generator
   async getAnimationGeneratorStatus() {
     return request<{ available: boolean; provider: string | null }>('/animations/status')
+  },
+
+  async getAnimationEngine() {
+    return request<AnimationEngineInfo>('/animations/engine')
+  },
+
+  async setAnimationEngine(engine: string) {
+    return request<AnimationEngineInfo>('/animations/engine', {
+      method: 'PUT',
+      body: JSON.stringify({ engine }),
+    })
   },
 
   async getAnimationStyles() {

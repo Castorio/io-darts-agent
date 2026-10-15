@@ -5,6 +5,9 @@ const AUTH_BASE_URL = 'https://api.autodarts.com/auth/v1';
 /** Client id of the Autodarts web app; the v1 auth service accepts password logins for it */
 export const DEFAULT_CLIENT_ID = 'autodarts-play';
 
+/** Client of the retired Keycloak login, still present in older .env and config files */
+export const RETIRED_CLIENT_IDS: ReadonlySet<string> = new Set(['developer-darts-caller']);
+
 const DEFAULT_EXPIRES_IN_SECONDS = 900;
 
 export interface AuthServiceOptions {
@@ -110,7 +113,8 @@ export class AuthService {
   }
 
   private clientId(): string {
-    return this.config.clientId || DEFAULT_CLIENT_ID;
+    const configured = this.config.clientId;
+    return configured && !RETIRED_CLIENT_IDS.has(configured) ? configured : DEFAULT_CLIENT_ID;
   }
 
   private post(path: string, body: Record<string, string>): Promise<Response> {

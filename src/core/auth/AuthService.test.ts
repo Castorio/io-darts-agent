@@ -86,6 +86,15 @@ describe('AuthService', () => {
       expect(requestBody(fetchMock.mock.calls[0]).client_id).toBe('my-client');
     });
 
+    it('ignores the retired Keycloak client id', async () => {
+      authService = new AuthService({ ...mockConfig, clientId: 'developer-darts-caller' });
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+
+      await authService.login();
+
+      expect(requestBody(fetchMock.mock.calls[0]).client_id).toBe('autodarts-play');
+    });
+
     it('reports invalid credentials in plain words', async () => {
       fetchMock.mockResolvedValueOnce(
         jsonResponse(401, { statusCode: 401, error: { code: 'invalid_credentials' } })

@@ -206,12 +206,11 @@ export function loadConfigFromEnv(): HubConfig {
 // ============================================
 
 import type { HubConfiguration } from '../../types/api.js';
+import { RETIRED_CLIENT_IDS } from '../auth/AuthService.js';
 
 // Optional OAuth client id override; AuthService falls back to the web app client
 const ENV_CLIENT_ID = process.env.AUTODARTS_CLIENT_ID || undefined;
 
-// Client of the retired Keycloak login; older versions persisted it into the config
-const RETIRED_CLIENT_IDS = new Set(['developer-darts-caller']);
 
 /**
  * Remove credentials of the retired Keycloak login from a loaded config.

@@ -12,10 +12,29 @@ import type { ElevenLabsService } from './ElevenLabsService.js';
 import type { VoicePackGenerator } from './VoicePackGenerator.js';
 import { LocalAudioPlayer } from './LocalAudioPlayer.js';
 
+import {
+  normalizeDartsCallerConfig,
+  type CallerType,
+  type CallSettings,
+  type TtsSettings,
+  type ElevenlabsSettings,
+  type NormalizedDartsCallerConfig,
+} from './config.js';
+
+export type { CallerType } from './config.js';
+
 /**
- * Caller type options
+ * Browser TTS parameters sent along with a TTS call request
  */
-export type CallerType = 'tts' | 'audio' | 'elevenlabs' | 'voicepack';
+export interface CallRequestTts {
+  voice: string;
+  rate: number;
+  pitch: number;
+  /** 0 to 100 */
+  volume: number;
+  /** BCP 47 language tag for the utterance */
+  lang: string;
+}
 
 /**
  * Call request for the frontend
@@ -28,6 +47,7 @@ export interface CallRequest {
   priority: number;
   timestamp: number;
   callerType?: CallerType;
+  tts?: CallRequestTts;
 }
 
 /**
@@ -43,92 +63,17 @@ export interface ElevenLabsCallerConfig {
 }
 
 /**
- * TTS Settings group
+ * Darts Caller configuration as the handler holds it: the normalized shape
+ * (see config.ts) plus the runtime voice packs directory.
  */
-export interface TtsSettings {
-  voice?: string;
-  rate?: number;
-  pitch?: number;
-}
-
-/**
- * Voice Pack Settings group
- */
-export interface VoicepackSettings {
-  packId?: string;
-}
-
-/**
- * ElevenLabs Settings group
- */
-export interface ElevenlabsSettings {
-  voiceId?: string;
-  stability?: number;
-  similarity?: number;
-}
-
-/**
- * Audio Settings group
- */
-export interface AudioSettings {
-  packPath?: string;
-}
-
-/**
- * Call Settings group
- */
-export interface CallSettings {
-  scores?: boolean;
-  highScoresOnly?: boolean;
-  checkouts?: boolean;
-  playerChange?: boolean;
-  gameStart?: boolean;
-  gameOver?: boolean;
-  special180?: boolean;
-  busts?: boolean;
-  bulls?: boolean;
-  doubleBulls?: boolean;
-}
-
-/**
- * Darts Caller configuration (supports both old flat and new grouped structure)
- */
-export interface DartsCallerConfig {
-  enabled?: boolean;
-  callerType?: CallerType;
-  language?: string;
-  volume?: number;
-  delayMs?: number;
-
-  // New grouped structure
-  ttsSettings?: TtsSettings;
-  voicepackSettings?: VoicepackSettings;
-  elevenlabsSettings?: ElevenlabsSettings;
-  audioSettings?: AudioSettings;
-  callSettings?: CallSettings;
-
-  // Selected voice pack (from multi-pack UI)
-  selectedVoicePackId?: string;
-
-  // Legacy flat structure (for backward compatibility)
-  ttsVoice?: string;
-  ttsRate?: number;
-  ttsPitch?: number;
-  audioPackPath?: string;
-  voicePackId?: string;
+export type DartsCallerConfig = NormalizedDartsCallerConfig & {
   voicePacksDir?: string;
-  callScores?: boolean;
-  callHighScoresOnly?: boolean;
-  callCheckouts?: boolean;
-  callPlayerChange?: boolean;
-  callGameStart?: boolean;
-  callGameOver?: boolean;
-  call180?: boolean;
-  callBusts?: boolean;
-  callBulls?: boolean;
-  callDoubleBulls?: boolean;
-  elevenlabs?: ElevenLabsCallerConfig;
-}
+};
+
+const UTTERANCE_LANG: Record<NormalizedDartsCallerConfig['language'], string> = {
+  en: 'en-GB',
+  de: 'de-DE',
+};
 
 /**
  * Callback for call requests
@@ -242,14 +187,11 @@ export class DartsCallerHandler {
     voicePackCalls: 0,
   };
 
-  constructor(config: DartsCallerConfig) {
+  constructor(config: object) {
+    const raw = config as Record<string, unknown>;
     this.config = {
-      enabled: true,
-      callerType: 'tts',
-      volume: 80,
-      delayMs: 200,
-      language: 'en',
-      ...config,
+      ...normalizeDartsCallerConfig(raw),
+      voicePacksDir: typeof raw.voicePacksDir === 'string' ? raw.voicePacksDir : undefined,
     };
 
     // Initialize local audio player
@@ -258,71 +200,35 @@ export class DartsCallerHandler {
     });
   }
 
-  /**
-   * Helper to get config values with support for both old and new structure
-   */
-  private getCallSetting(key: keyof CallSettings, legacyKey?: keyof DartsCallerConfig): boolean {
-    // Check new grouped structure first
-    if (this.config.callSettings && this.config.callSettings[key] !== undefined) {
-      return this.config.callSettings[key] ?? true;
-    }
-    // Fall back to legacy flat structure
-    if (legacyKey && this.config[legacyKey] !== undefined) {
-      return this.config[legacyKey] as boolean;
-    }
-    // Default values
-    const defaults: Record<keyof CallSettings, boolean> = {
-      scores: true,
-      highScoresOnly: false,
-      checkouts: true,
-      playerChange: true,
-      gameStart: true,
-      gameOver: true,
-      special180: true,
-      busts: true,
-      bulls: true,
-      doubleBulls: true,
-    };
-    return defaults[key];
+  private getCallSetting<K extends keyof CallSettings>(key: K): CallSettings[K] {
+    return this.config.callSettings[key];
   }
 
-  // TTS settings are sent to the frontend, not used in the handler
-  getTtsSetting<K extends keyof TtsSettings>(key: K): TtsSettings[K] | undefined {
-    if (this.config.ttsSettings && this.config.ttsSettings[key] !== undefined) {
-      return this.config.ttsSettings[key];
-    }
-    // Legacy mapping
-    const legacyMap: Record<keyof TtsSettings, keyof DartsCallerConfig> = {
-      voice: 'ttsVoice',
-      rate: 'ttsRate',
-      pitch: 'ttsPitch',
-    };
-    return this.config[legacyMap[key]] as TtsSettings[K] | undefined;
+  // TTS settings are sent to the frontend with every TTS call request
+  getTtsSetting<K extends keyof TtsSettings>(key: K): TtsSettings[K] {
+    return this.config.ttsSettings[key];
   }
 
   private getVoicepackId(): string | undefined {
-    // Priority: selectedVoicePackId (from multi-pack UI) > voicepackSettings > legacy voicePackId
-    return this.config.selectedVoicePackId ?? this.config.voicepackSettings?.packId ?? this.config.voicePackId;
+    return this.config.voicepackSettings.packId || undefined;
   }
 
-  private getElevenlabsSetting<K extends keyof ElevenlabsSettings>(key: K): ElevenlabsSettings[K] | undefined {
-    if (this.config.elevenlabsSettings && this.config.elevenlabsSettings[key] !== undefined) {
-      return this.config.elevenlabsSettings[key];
-    }
-    // Legacy mapping
-    if (this.config.elevenlabs) {
-      const legacyMap: Record<keyof ElevenlabsSettings, keyof ElevenLabsCallerConfig> = {
-        voiceId: 'voiceId',
-        stability: 'stability',
-        similarity: 'similarityBoost',
-      };
-      return this.config.elevenlabs[legacyMap[key]] as ElevenlabsSettings[K] | undefined;
-    }
-    return undefined;
+  private getElevenlabsSetting<K extends keyof ElevenlabsSettings>(key: K): ElevenlabsSettings[K] {
+    return this.config.elevenlabsSettings[key];
   }
 
   private getAudioPackPath(): string | undefined {
-    return this.config.audioSettings?.packPath ?? this.config.audioPackPath;
+    return this.config.audioSettings.packPath || undefined;
+  }
+
+  private buildTtsPayload(): CallRequestTts {
+    return {
+      voice: this.config.ttsSettings.voice,
+      rate: this.config.ttsSettings.rate,
+      pitch: this.config.ttsSettings.pitch,
+      volume: this.config.volume,
+      lang: UTTERANCE_LANG[this.config.language],
+    };
   }
 
   /**
@@ -378,26 +284,28 @@ export class DartsCallerHandler {
   /**
    * Update configuration
    */
-  updateConfig(config: DartsCallerConfig): void {
-    this.config = { ...this.config, ...config };
-    // Update audio player volume if changed
-    if (config.volume !== undefined) {
-      this.audioPlayer.setVolume(config.volume);
-    }
+  updateConfig(config: object): void {
+    const raw = config as Record<string, unknown>;
+    const voicePacksDir = typeof raw.voicePacksDir === 'string' ? raw.voicePacksDir : this.config.voicePacksDir;
+    this.config = {
+      ...normalizeDartsCallerConfig({ ...this.config, ...raw }),
+      voicePacksDir,
+    };
+    this.audioPlayer.setVolume(this.config.volume);
   }
 
   /**
    * Get current configuration
    */
   getConfig(): DartsCallerConfig {
-    return { ...this.config };
+    return structuredClone(this.config);
   }
 
   /**
    * Check if caller is enabled
    */
   isEnabled(): boolean {
-    return this.config.enabled ?? true;
+    return this.config.enabled;
   }
 
   /**
@@ -597,7 +505,7 @@ export class DartsCallerHandler {
     const playerAudioFile = this.getPlayerAudioFile(playerName);
     const hasAudio = this.hasPlayerAudio(playerName);
 
-    if (remaining && this.getCallSetting('checkouts', 'callCheckouts') && this.isCheckoutPossible(remaining)) {
+    if (remaining && this.shouldCallRequiredScore(remaining)) {
       // Announce player name first, then checkout requirement
       if (this.config.callerType === 'voicepack' && hasAudio) {
         console.log(`🔊 Playing player audio for "${playerName}" (file: ${playerAudioFile})`);
@@ -683,7 +591,7 @@ export class DartsCallerHandler {
         // Reset known players and match state for new match
         this.knownPlayerNames.clear();
         this.currentMatchState = null;
-        if (this.getCallSetting('gameStart', 'callGameStart')) {
+        if (this.getCallSetting('gameStart')) {
           this.generateCall('game', 'Game on!', 'game_on', 10);
         }
         break;
@@ -720,7 +628,7 @@ export class DartsCallerHandler {
         break;
 
       case 'match.finished':
-        if (this.getCallSetting('gameOver', 'callGameOver')) {
+        if (this.getCallSetting('gameOver')) {
           const winner = eventData.winner as Record<string, unknown>;
           const winnerName = winner?.name as string;
           if (winnerName) {
@@ -732,7 +640,7 @@ export class DartsCallerHandler {
         break;
 
       case 'game.finished':
-        if (this.getCallSetting('gameOver', 'callGameOver')) {
+        if (this.getCallSetting('gameOver')) {
           const gameWinner = eventData.winner as Record<string, unknown>;
           const gameWinnerName = gameWinner?.name as string;
           if (gameWinnerName) {
@@ -746,7 +654,7 @@ export class DartsCallerHandler {
       case 'player.change':
       case 'player.changed':
         console.log(`📥 Received player.changed event:`, JSON.stringify(eventData, null, 2));
-        if (this.getCallSetting('playerChange', 'callPlayerChange')) {
+        if (this.getCallSetting('playerChange')) {
           const playerName = eventData.playerName as string;
           const playerIndex = eventData.playerIndex as number | undefined;
 
@@ -768,7 +676,7 @@ export class DartsCallerHandler {
             }
           }
 
-          console.log(`🎯 Player change: "${playerName}", remaining: ${remaining}, callCheckouts: ${this.getCallSetting('checkouts', 'callCheckouts')}, isCheckout: ${remaining ? this.isCheckoutPossible(remaining) : 'N/A'}`);
+          console.log(`🎯 Player change: "${playerName}", remaining: ${remaining}, callCheckouts: ${this.getCallSetting('checkouts')}, isCheckout: ${remaining ? this.isCheckoutPossible(remaining) : 'N/A'}`);
           if (playerName) {
             // Handle player change asynchronously to wait for audio generation if needed
             this.handlePlayerChange(playerName, remaining).catch((err) => {
@@ -833,7 +741,7 @@ export class DartsCallerHandler {
 
     // Handle busted turn
     if (busted) {
-      if (this.getCallSetting('busts', 'callBusts')) {
+      if (this.getCallSetting('busts')) {
         this.generateCall('special', 'Bust!', 'bust', 8);
         this.stats.specialCalls++;
       }
@@ -841,30 +749,30 @@ export class DartsCallerHandler {
     }
 
     // Handle double bull (bullseye) - highest priority after 180
-    if (hasDoubleBull && this.getCallSetting('doubleBulls', 'callDoubleBulls')) {
+    if (hasDoubleBull && this.getCallSetting('doubleBulls')) {
       this.generateCall('special', 'Bullseye!', 'double_bull', 9);
       this.stats.specialCalls++;
       // Continue to also call the score
     }
 
     // Handle single bull
-    if (hasBull && !hasDoubleBull && this.getCallSetting('bulls', 'callBulls')) {
+    if (hasBull && !hasDoubleBull && this.getCallSetting('bulls')) {
       this.generateCall('special', 'Bull!', 'bull', 7);
       this.stats.specialCalls++;
       // Continue to also call the score
     }
 
     // Check for 180
-    if (turnPoints === 180 && this.getCallSetting('special180', 'call180')) {
+    if (turnPoints === 180 && this.getCallSetting('special180')) {
       this.generateCall('special', 'One hundred and eighty!', '180', 10);
       this.stats.specialCalls++;
       return;
     }
 
     // Call score
-    if (this.getCallSetting('scores', 'callScores')) {
+    if (this.getCallSetting('scores')) {
       // Check if we should only call high scores
-      if (this.getCallSetting('highScoresOnly', 'callHighScoresOnly') && turnPoints < 100) {
+      if (this.getCallSetting('highScoresOnly') && turnPoints < 100) {
         return;
       }
 
@@ -881,6 +789,14 @@ export class DartsCallerHandler {
   /**
    * Check if a checkout is possible
    */
+  private shouldCallRequiredScore(remaining: number): boolean {
+    return (
+      this.getCallSetting('checkouts') &&
+      remaining <= this.getCallSetting('checkoutThreshold') &&
+      this.isCheckoutPossible(remaining)
+    );
+  }
+
   private isCheckoutPossible(remaining: number): boolean {
     // Standard checkout range in darts (2-170, excluding 169, 168, 166, 165, 163, 162, 159)
     if (remaining < 2 || remaining > 170) return false;
@@ -957,13 +873,14 @@ export class DartsCallerHandler {
       audioFile,
       priority,
       timestamp: Date.now(),
-      callerType: this.config.callerType || 'tts',
+      callerType: this.config.callerType,
+      ...(this.config.callerType === 'tts' ? { tts: this.buildTtsPayload() } : {}),
     };
 
     this.stats.callsGenerated++;
 
     // Apply delay if configured
-    const delay = this.config.delayMs || 0;
+    const delay = this.config.delayMs;
 
     const playLocalAudio = async () => {
       console.log(`🔊 Caller type: ${this.config.callerType}, audioFile: ${audioFile}`);
@@ -1156,6 +1073,7 @@ export class DartsCallerHandler {
             text,
             priority: 5,
             timestamp: Date.now(),
+            tts: this.buildTtsPayload(),
           });
         }
         break;
@@ -1172,6 +1090,7 @@ export class DartsCallerHandler {
             text: String(score),
             priority: 5,
             timestamp: Date.now(),
+            tts: this.buildTtsPayload(),
           });
         }
         break;
@@ -1194,7 +1113,7 @@ export class DartsCallerHandler {
    * Play an audio file by name (for intents)
    */
   private async playIntentAudioFile(name: string): Promise<void> {
-    const voicePackId = this.config.voicepackSettings?.packId;
+    const voicePackId = this.getVoicepackId();
     const voicePacksDir = this.config.voicePacksDir;
     if (voicePackId && voicePacksDir) {
       const filePath = path.join(voicePacksDir, voicePackId, `${name}.mp3`);
@@ -1213,5 +1132,5 @@ export class DartsCallerHandler {
 export function createDartsCallerHandler(
   config: Record<string, unknown>
 ): DartsCallerHandler {
-  return new DartsCallerHandler(config as DartsCallerConfig);
+  return new DartsCallerHandler(config);
 }

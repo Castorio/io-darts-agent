@@ -28,17 +28,22 @@ export type {
 } from '../../../../modules/game-display/src/index.js';
 
 // Darts Caller Module
-export { DartsCallerHandler, createDartsCallerHandler } from '../../../../modules/darts-caller/src/index.js';
+export {
+  DartsCallerHandler,
+  createDartsCallerHandler,
+  normalizeDartsCallerConfig,
+} from '../../../../modules/darts-caller/src/index.js';
 export type {
   DartsCallerConfig,
   ElevenLabsCallerConfig,
   CallerType,
   CallRequest,
   CallRequestCallback,
+  NormalizedDartsCallerConfig,
 } from '../../../../modules/darts-caller/src/index.js';
 
 // Re-export ElevenLabs and VoicePackGenerator from darts-caller
-export { ElevenLabsService, VoicePackGenerator, LocalAudioPlayer } from '../../../../modules/darts-caller/src/index.js';
+export { ElevenLabsService, VoicePackGenerator, LocalAudioPlayer, isValidPackId } from '../../../../modules/darts-caller/src/index.js';
 export type {
   ElevenLabsVoice,
   VoiceSettings,

@@ -119,7 +119,7 @@ export function registerCallerRoutes(
       message: 'Test call triggered',
       config: {
         callerType: config.callerType,
-        voicePackId: config.voicePackId,
+        voicePackId: config.voicepackSettings.packId,
         voicePacksDir: config.voicePacksDir,
       },
     });

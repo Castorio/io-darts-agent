@@ -228,8 +228,16 @@
         "checkouts": {
           "type": "boolean",
           "label": "Call Checkouts",
-          "description": "Announce checkout opportunities",
+          "description": "Announce \"You require X\" on player change when a checkout is possible",
           "default": true
+        },
+        "checkoutThreshold": {
+          "type": "number",
+          "label": "Checkout Threshold",
+          "description": "Only announce the required score when it is at most this value (2 - 170)",
+          "default": 170,
+          "min": 2,
+          "max": 170
         },
         "playerChange": {
           "type": "boolean",

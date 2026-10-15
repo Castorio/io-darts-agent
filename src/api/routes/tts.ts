@@ -7,6 +7,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { APIServer } from '../Server.js';
 import type { ElevenLabsService, VoicePackGenerator, VoicePackConfig } from '../../core/modules/handlers/index.js';
+import { isValidPackId } from '../../core/modules/handlers/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -386,6 +387,13 @@ export function registerTtsRoutes(
       return reply.status(400).send({
         success: false,
         error: 'Missing required fields: packId, packName, voiceId, language',
+      });
+    }
+
+    if (!isValidPackId(packId)) {
+      return reply.status(400).send({
+        success: false,
+        error: 'packId may only contain letters, digits, dot, dash and underscore',
       });
     }
 

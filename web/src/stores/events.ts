@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { WSMessage, WSEventMessage, WSCallerMessage, CallRequest } from '../types/api'
 import { useModulesStore } from './modules'
+import { applyCallerTts } from '../lib/callerTts'
 
 interface EventLogEntry {
   id: number
@@ -46,18 +47,18 @@ class CallerAudioPlayer {
     this.isPlaying = true
 
     try {
-      if (request.audioFile) {
+      if (request.audioFile && !request.tts) {
         // Play audio file (base64 data URL or file path)
         await this.playAudio(request.audioFile)
       } else {
-        // Use browser TTS as fallback
-        await this.speakTTS(request.text)
+        // Browser TTS (audioFile is only a voice pack file name then)
+        await this.speakTTS(request)
       }
     } catch (error) {
       console.error('Failed to play caller audio:', error)
       // Try TTS as fallback
       try {
-        await this.speakTTS(request.text)
+        await this.speakTTS(request)
       } catch (e) {
         console.error('TTS fallback also failed:', e)
       }
@@ -87,17 +88,15 @@ class CallerAudioPlayer {
     })
   }
 
-  private speakTTS(text: string): Promise<void> {
+  private speakTTS(request: CallRequest): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!('speechSynthesis' in window)) {
         reject(new Error('Speech synthesis not supported'))
         return
       }
 
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.volume = this.volume
-      utterance.rate = 1.0
-      utterance.pitch = 1.0
+      const utterance = new SpeechSynthesisUtterance(request.text)
+      applyCallerTts(utterance, request.tts, window.speechSynthesis.getVoices(), this.volume)
 
       utterance.onend = () => resolve()
       utterance.onerror = (e) => reject(e)

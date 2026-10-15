@@ -189,6 +189,19 @@ export interface WSModuleMessage {
   message?: string
 }
 
+export interface CallRequestTts {
+  /** Browser voice name, empty for the default voice */
+  voice: string
+  /** 0.5 to 2.0 */
+  rate: number
+  /** 0.5 to 2.0 */
+  pitch: number
+  /** 0 to 100 */
+  volume: number
+  /** BCP 47 language tag */
+  lang: string
+}
+
 export interface CallRequest {
   id: string
   type: 'score' | 'checkout' | 'player' | 'game' | 'special'
@@ -196,6 +209,9 @@ export interface CallRequest {
   audioFile?: string
   priority: number
   timestamp: number
+  callerType?: 'tts' | 'voicepack' | 'elevenlabs' | 'audio'
+  /** Browser TTS settings from the Darts Caller config */
+  tts?: CallRequestTts
 }
 
 export interface WSCallerMessage {

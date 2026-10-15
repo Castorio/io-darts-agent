@@ -186,6 +186,18 @@ function scoreToGerman(score: number): string {
   return `${hundredPart}${scoreToGerman(r)}`;
 }
 
+/**
+ * A pack id is used as a folder name below the voice pack directory,
+ * so it must be a single plain path segment.
+ */
+export function isValidPackId(packId: unknown): packId is string {
+  return (
+    typeof packId === 'string' &&
+    /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/.test(packId) &&
+    !packId.includes('..')
+  );
+}
+
 export class VoicePackGenerator {
   private elevenLabsService: ElevenLabsService;
   private outputDir: string;
@@ -250,6 +262,10 @@ export class VoicePackGenerator {
   async generate(config: VoicePackConfig): Promise<GenerationProgress> {
     if (this.isGenerating()) {
       throw new Error('Generation already in progress');
+    }
+
+    if (!isValidPackId(config.packId)) {
+      throw new Error('Invalid voice pack id');
     }
 
     this.cancelRequested = false;
@@ -416,6 +432,7 @@ export class VoicePackGenerator {
    * Delete a voice pack
    */
   deletePack(packId: string): boolean {
+    if (!isValidPackId(packId)) return false;
     const packDir = path.join(this.outputDir, packId);
 
     if (!fs.existsSync(packDir)) {
@@ -445,6 +462,7 @@ export class VoicePackGenerator {
     totalFiles: number;
     files: string[];
   } | null {
+    if (!isValidPackId(packId)) return null;
     const packDir = path.join(this.outputDir, packId);
     const metadataPath = path.join(packDir, 'metadata.json');
 
@@ -474,6 +492,7 @@ export class VoicePackGenerator {
    * Check if a player name audio file exists in a pack
    */
   hasPlayerName(packId: string, playerName: string): boolean {
+    if (!isValidPackId(packId)) return false;
     const packDir = path.join(this.outputDir, packId);
     const filename = this.sanitizePlayerNameForFilename(playerName);
     const filePath = path.join(packDir, `player_${filename}.mp3`);
@@ -484,6 +503,7 @@ export class VoicePackGenerator {
    * Get existing player names in a pack
    */
   getExistingPlayerNames(packId: string): string[] {
+    if (!isValidPackId(packId)) return [];
     const packDir = path.join(this.outputDir, packId);
 
     if (!fs.existsSync(packDir)) {
@@ -518,6 +538,7 @@ export class VoicePackGenerator {
       language?: string;
     }
   ): Promise<{ success: boolean; filePath?: string; error?: string }> {
+    if (!isValidPackId(packId)) return { success: false, error: 'Invalid voice pack id' };
     const packDir = path.join(this.outputDir, packId);
     const filename = this.sanitizePlayerNameForFilename(playerName);
     const outputPath = path.join(packDir, `player_${filename}.mp3`);
@@ -653,6 +674,7 @@ export class VoicePackGenerator {
    * Get the audio file path for a player name
    */
   getPlayerNameAudioPath(packId: string, playerName: string): string | null {
+    if (!isValidPackId(packId)) return null;
     const packDir = path.join(this.outputDir, packId);
     const filename = this.sanitizePlayerNameForFilename(playerName);
     const filePath = path.join(packDir, `player_${filename}.mp3`);
@@ -792,6 +814,9 @@ export class VoicePackGenerator {
       }
 
       const packId = metadata.id;
+      if (!isValidPackId(packId)) {
+        return { success: false, error: 'metadata.json contains an invalid pack id' };
+      }
       const packDir = path.join(this.outputDir, packId);
 
       // Check if pack already exists

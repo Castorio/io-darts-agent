@@ -19,6 +19,22 @@ Professioneller Darts-Caller für IO-Darts-Agent. Sagt Scores, Checkouts und Spi
 
 Die folgenden Feldnamen entsprechen `modules/darts-caller/module.json` (nicht frei erfunden, das ist wichtig, falls du die Konfiguration direkt über `PUT /api/modules/darts-caller/config` setzt).
 
+Die Caller-Seite der Web-Oberfläche, das allgemeine Modulformular und der Handler nutzen genau diese Form. `normalizeDartsCallerConfig()` in `src/config.ts` füllt fehlende Werte mit den Standards, begrenzt Zahlen auf die erlaubten Bereiche und verwirft ungültige Voice-Pack-IDs (nur ein Ordnername, kein Pfad). Der Hub normalisiert beim Laden und bei jedem Speichern und übergibt die neue Konfiguration sofort an den laufenden Handler, ein Neustart ist nicht nötig.
+
+**Migration älterer Konfigurationen**: In `config/modules/darts-caller.json` können noch zwei ältere Formen liegen. Beide werden übernommen, gruppierte Werte haben dabei Vorrang:
+
+| Alte Form | Alter Schlüssel | Neues Feld |
+|-----------|-----------------|------------|
+| Caller-Seite | `voiceType` (`system`, `elevenlabs`, `custom`) | `callerType` (`tts`; `voicepack` wenn ein Pack ausgewählt ist, sonst `elevenlabs`; `tts`). Ein `callerType` ungleich `tts` hat Vorrang. |
+| Caller-Seite | `systemVoice`, `rate`, `pitch` (Prozent) | `ttsSettings.voice`, `ttsSettings.rate`, `ttsSettings.pitch` (Faktor) |
+| Caller-Seite | `elevenLabsVoiceId` | `elevenlabsSettings.voiceId` |
+| Caller-Seite | `selectedVoicePackId` | `voicepackSettings.packId` |
+| Caller-Seite | `callScores`, `callCheckouts`, `callPlayerNames`, `checkoutThreshold` | `callSettings.scores`, `.checkouts`, `.playerChange`, `.checkoutThreshold` |
+| Caller-Seite | `events.<event>.enabled: false` (score, checkout, playerChange, gameOn, gameShot, matchShot, 180, bust, bull, bullseye) | passender Schalter in `callSettings` |
+| Handler (flach) | `ttsVoice`, `ttsRate`, `ttsPitch`, `audioPackPath`, `voicePackId`, `call*`, `elevenlabs.{voiceId, stability, similarityBoost}` | entsprechende Gruppenfelder |
+
+Verworfen werden Optionen ohne Umsetzung: `customVoiceUrl`, `elevenLabsApiKey` (der Schlüssel kommt aus den AI-Provider-Einstellungen), `callRemaining`, `usePlayerNicknames`, `events` (Sounds und Text-Vorlagen) und `playerOverrides`. Andere Schlüssel wie `autoStart` bleiben erhalten.
+
 ### Allgemeine Einstellungen
 
 | Option | Typ | Standard | Beschreibung |
@@ -33,7 +49,7 @@ Die folgenden Feldnamen entsprechen `modules/darts-caller/module.json` (nicht fr
 
 | Option | Typ | Standard | Beschreibung |
 |--------|-----|----------|-------------|
-| `ttsSettings.voice` | string | `""` | Stimmen-Identifier (Browser-abhängig) |
+| `ttsSettings.voice` | string | `""` | Name der Browser-Stimme (`SpeechSynthesisVoice.name`), leer für die Standardstimme |
 | `ttsSettings.rate` | number | `1.0` | Sprechgeschwindigkeit (0.5-2.0) |
 | `ttsSettings.pitch` | number | `1.0` | Tonhöhe (0.5-2.0) |
 
@@ -55,7 +71,7 @@ Die folgenden Feldnamen entsprechen `modules/darts-caller/module.json` (nicht fr
 
 | Option | Typ | Standard | Beschreibung |
 |--------|-----|----------|-------------|
-| `audioSettings.packPath` | string | `""` | Pfad zum Audio-Pack-Ordner relativ zum Medienverzeichnis |
+| `audioSettings.packPath` | string | `""` | Ordner mit den Audiodateien, absolut oder relativ zum Arbeitsverzeichnis des Hubs (leer: `caller/default`) |
 
 ### Ansage-Optionen (Gruppe `callSettings`)
 
@@ -63,7 +79,8 @@ Die folgenden Feldnamen entsprechen `modules/darts-caller/module.json` (nicht fr
 |--------|-----|----------|-------------|
 | `callSettings.scores` | boolean | `true` | Geworfene Scores ansagen |
 | `callSettings.highScoresOnly` | boolean | `false` | Nur Scores ≥100 ansagen |
-| `callSettings.checkouts` | boolean | `true` | Checkout-Möglichkeiten ansagen |
+| `callSettings.checkouts` | boolean | `true` | Beim Spielerwechsel "You require X" ansagen, wenn ein Checkout möglich ist |
+| `callSettings.checkoutThreshold` | number | `170` | "You require X" nur bis zu diesem Rest ansagen (2-170) |
 | `callSettings.playerChange` | boolean | `true` | Spielerwechsel ansagen |
 | `callSettings.gameStart` | boolean | `true` | Spiel- und Match-Start ansagen |
 | `callSettings.gameOver` | boolean | `true` | Spiel- und Match-Ende ansagen |
@@ -82,7 +99,7 @@ Verwendet die eingebaute Text-to-Speech des Browsers. Keine zusätzliche Softwar
 
 - Funktioniert in allen modernen Browsern
 - Stimmen abhängig vom Betriebssystem
-- Konfigurierbare Geschwindigkeit und Tonhöhe
+- Stimme, Geschwindigkeit, Tonhöhe, Lautstärke und Sprache werden mit jeder Ansage (`request.tts`) an den Browser geschickt
 
 ### Voice Pack (`callerType: "voicepack"`)
 
@@ -109,7 +126,7 @@ Verwendet voraufgenommene Audio-Dateien aus `audioSettings.packPath`, server-sei
 
 ## Audio Packs
 
-Audio Packs sollten im `media/caller/`-Verzeichnis mit folgender Struktur platziert werden:
+Audio Packs liegen in dem Ordner aus `audioSettings.packPath`. Der Pfad wird derzeit nicht gegen das Medienverzeichnis aufgelöst, sondern absolut bzw. relativ zum Arbeitsverzeichnis des Hubs (leer: `caller/default`). Gib daher am besten einen absoluten Pfad an, zum Beispiel auf den Ordner `media/caller/default` mit folgender Struktur:
 
 ```
 media/

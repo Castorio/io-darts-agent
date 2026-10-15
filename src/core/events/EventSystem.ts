@@ -39,6 +39,14 @@ export interface CallRequest {
   priority: number;
   timestamp: number;
   callerType?: CallerType;
+  /** Browser TTS parameters (only for callerType 'tts') */
+  tts?: {
+    voice: string;
+    rate: number;
+    pitch: number;
+    volume: number;
+    lang: string;
+  };
 }
 
 export interface EventSystemOptions {

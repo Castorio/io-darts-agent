@@ -165,6 +165,21 @@ export abstract class BaseAIProvider implements AIProvider {
     throw lastError ?? new Error('Request failed after retries');
   }
 
+  /**
+   * Send a request exactly once, for requests that start paid work: after a
+   * timeout, network error or 5xx the provider may already have run it.
+   * Returns the response for every status; throws on network errors and timeouts.
+   */
+  protected async fetchOnce(url: string, options: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.config.timeout ?? 30000);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   protected delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }

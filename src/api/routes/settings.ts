@@ -68,7 +68,8 @@ export function registerSettingsRoutes(
       aiProviders: {
         runway: {
           configured: !!(config.aiProviders?.runway?.apiKey),
-          model: config.aiProviders?.runway?.model || 'gen3a_turbo',
+          // Legacy entry; the model is chosen in the AI settings now
+          ...(config.aiProviders?.runway?.model ? { model: config.aiProviders.runway.model } : {}),
         },
         elevenlabs: {
           configured: !!(config.aiProviders?.elevenlabs?.apiKey),

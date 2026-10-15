@@ -280,6 +280,8 @@ export class OpenAIProvider extends BaseAIProvider {
       };
     }>(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
+      // Paid request: sent once, a retry could bill twice
+      retry: false,
       body: {
         model,
         messages,
@@ -342,6 +344,8 @@ export class OpenAIProvider extends BaseAIProvider {
       }>;
     }>(`${this.baseUrl}/images/generations`, {
       method: 'POST',
+      // Paid request: sent once, a retry could bill twice
+      retry: false,
       body: {
         model,
         prompt: request.prompt,
@@ -371,7 +375,7 @@ export class OpenAIProvider extends BaseAIProvider {
     // speed only applies to the tts-1 family
     const speed = model.startsWith('tts-1') ? request.speed || 1.0 : undefined;
 
-    const response = await this.fetchWithRetry(`${this.baseUrl}/audio/speech`, {
+    const response = await this.fetchOnce(`${this.baseUrl}/audio/speech`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -412,6 +416,8 @@ export class OpenAIProvider extends BaseAIProvider {
       };
     }>(`${this.baseUrl}/embeddings`, {
       method: 'POST',
+      // Paid request: sent once, a retry could bill twice
+      retry: false,
       body: {
         model,
         input: request.input,

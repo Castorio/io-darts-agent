@@ -172,7 +172,7 @@ export class ElevenLabsProvider extends BaseAIProvider {
       }
     }
 
-    const response = await this.fetchWithRetry(
+    const response = await this.fetchOnce(
       `${this.baseUrl}/text-to-speech/${voiceId}`,
       {
         method: 'POST',

@@ -21,7 +21,7 @@ export interface HubConfiguration {
 export interface AIProvidersConfig {
   runway?: {
     apiKey: string;
-    model?: 'gen3a_turbo' | 'gen3a';
+    model?: string;
   };
   elevenlabs?: {
     apiKey: string;
@@ -241,7 +241,7 @@ export interface SettingsResponse {
   aiProviders?: {
     runway?: {
       configured: boolean;
-      model: 'gen3a_turbo' | 'gen3a';
+      model?: string;
     };
     elevenlabs?: {
       configured: boolean;
@@ -269,7 +269,7 @@ export interface UpdateSettingsRequest {
   aiProviders?: {
     runway?: {
       apiKey?: string;
-      model?: 'gen3a_turbo' | 'gen3a';
+      model?: string;
     };
     elevenlabs?: {
       apiKey?: string;

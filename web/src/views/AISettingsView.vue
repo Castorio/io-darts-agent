@@ -117,13 +117,13 @@ const providerConfigs: Record<string, ProviderConfig> = {
   runway: {
     icon: '🎬',
     gradient: 'from-purple-500 to-pink-600',
-    description: 'Gen-3 Alpha Video-Generierung',
+    description: 'Text-zu-Video (Gen-4.5, Veo, Kling, Seedance, WAN)',
     capabilities: ['video-generation'],
     requiresApiKey: true,
     hasBaseUrl: false,
+    // Fallback only; the full catalog comes from the hub
     models: [
-      { id: 'gen3a_turbo', name: 'Gen-3 Alpha Turbo' },
-      { id: 'gen-3', name: 'Gen-3' },
+      { id: 'gen4.5', name: 'Gen-4.5' },
     ],
   },
   higgsfield: {
@@ -178,9 +178,9 @@ const testingProvider = ref<string | null>(null)
 const providerForms = ref<Record<string, { apiKey: string; baseUrl: string; defaultModel: string; imageModel?: string }>>({})
 
 // Models the configured API key can actually use, loaded from the provider API
-const LIVE_MODEL_TYPES = ['openai', 'anthropic', 'higgsfield']
-// Higgsfield serves a fixed catalog that needs no key
-const KEYLESS_MODEL_TYPES = ['higgsfield']
+const LIVE_MODEL_TYPES = ['openai', 'anthropic', 'higgsfield', 'runway']
+// Higgsfield and Runway serve a fixed catalog that needs no key
+const KEYLESS_MODEL_TYPES = ['higgsfield', 'runway']
 const liveModels = ref<Record<string, ModelOption[]>>({})
 // Model id as saved on the server, per provider
 const savedModels = ref<Record<string, string>>({})
@@ -194,6 +194,8 @@ const SERVER_FALLBACK_MODEL: Record<string, string> = {
   anthropic: 'claude-opus-5',
   // Only used when nothing is saved; a saved Higgsfield id is kept (see below)
   higgsfield: 'kling-video/v3.0/std/text-to-video',
+  // Retired ids (Gen-3) and ids outside the catalog are replaced by Gen-4.5
+  runway: 'gen4.5',
 }
 // Higgsfield sends any saved model id as is, so the UI keeps it too
 const KEEP_SAVED_MODEL_TYPES = ['higgsfield']
@@ -202,6 +204,8 @@ const HIGGSFIELD_DEFAULT_IMAGE_MODEL = 'higgsfield-ai/soul/standard'
 // Models for the default model select; Higgsfield lists its video models here
 function modelsFor(provider: AIProvider): ModelOption[] | undefined {
   const models = liveModels.value[provider.id] ?? providerConfigs[provider.type]?.models
+  // Runway lists video models only, so the category label would be noise
+  if (provider.type === 'runway') return models?.map(m => ({ id: m.id, name: m.name }))
   if (provider.type !== 'higgsfield') return models
   // Only video models here, so the category label would be noise
   return withSavedModel(

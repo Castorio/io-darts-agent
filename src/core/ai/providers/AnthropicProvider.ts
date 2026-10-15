@@ -210,6 +210,8 @@ export class AnthropicProvider extends BaseAIProvider {
       `${this.baseUrl}/v1/messages`,
       {
         method: 'POST',
+        // Paid request: sent once, a retry could bill twice
+        retry: false,
         headers: fallback ? { 'anthropic-beta': FALLBACK_BETA } : undefined,
         body: {
           model,

@@ -1,8 +1,9 @@
 /**
  * Runway ML Provider
  *
- * Provider implementation for Runway's Gen-2/Gen-3 API.
- * Supports video generation from text and images.
+ * Video generation through the Runway API (X-Runway-Version 2024-11-06).
+ * Text-to-video bodies come from the model catalog, because every model
+ * accepts its own ratios, durations and fields.
  */
 
 import { BaseAIProvider } from '../AIProvider.js';
@@ -14,7 +15,14 @@ import type {
   VideoGenerationResponse,
   AIJob,
   AIJobStatus,
+  AIModelInfo,
 } from '../types.js';
+import {
+  RUNWAY_TEXT_TO_VIDEO_MODELS,
+  buildRunwayTextToVideoBody,
+  resolveRunwayModel,
+  type RunwayAspect,
+} from './runwayCatalog.js';
 
 /**
  * Runway-specific configuration
@@ -22,7 +30,7 @@ import type {
 export interface RunwayProviderConfig extends AIProviderConfig {
   type: 'runway';
   options?: {
-    /** Default model (gen-2, gen-3) */
+    /** text_to_video model id from the catalog (default: gen4.5) */
     defaultModel?: string;
     /** Polling interval in ms */
     pollingInterval?: number;
@@ -34,7 +42,8 @@ export interface RunwayProviderConfig extends AIProviderConfig {
  */
 interface RunwayTaskStatus {
   id: string;
-  status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  status: 'PENDING' | 'THROTTLED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  /** 0-1 */
   progress?: number;
   failure?: string;
   failureCode?: string;
@@ -56,14 +65,32 @@ export class RunwayProvider extends BaseAIProvider {
   readonly capabilities: AICapability[] = ['video-generation'];
 
   private readonly baseUrl: string;
-  private readonly defaultModel: string;
   private readonly pollingInterval: number;
 
   constructor(config: RunwayProviderConfig) {
     super(config);
     this.baseUrl = config.baseUrl ?? 'https://api.dev.runwayml.com';
-    this.defaultModel = config.options?.defaultModel ?? 'gen3a_turbo';
     this.pollingInterval = config.options?.pollingInterval ?? 5000;
+  }
+
+  /**
+   * Saved model, read per call because the AI settings replace config.options
+   * at runtime. Retired or unknown ids fall back to the catalog default.
+   */
+  private configuredModel(): string {
+    const saved = (this.config as RunwayProviderConfig).options?.defaultModel;
+    const { model, replaced } = resolveRunwayModel(saved);
+    if (replaced) {
+      console.warn(`[RunwayProvider] Model "${replaced}" is not available for text_to_video, using ${model}`);
+    }
+    return model;
+  }
+
+  /**
+   * Runway has no model listing endpoint; the catalog comes from its API reference
+   */
+  async listTextModels(): Promise<AIModelInfo[]> {
+    return RUNWAY_TEXT_TO_VIDEO_MODELS.map((m) => ({ id: m.id, name: m.name, category: 'video' }));
   }
 
   /**
@@ -137,7 +164,8 @@ export class RunwayProvider extends BaseAIProvider {
    * Generate video from text or image
    */
   async generateVideo(request: VideoGenerationRequest): Promise<VideoGenerationResponse> {
-    const model = request.model ?? this.defaultModel;
+    // An explicit model is sent as is; the catalog builds a safe body for unknown ids
+    const model = request.model || this.configuredModel();
 
     // Determine if image-to-video or text-to-video
     if (request.imageUrl) {
@@ -154,29 +182,19 @@ export class RunwayProvider extends BaseAIProvider {
     request: VideoGenerationRequest,
     model: string
   ): Promise<VideoGenerationResponse> {
-    const body: Record<string, unknown> = {
-      promptText: request.prompt,
-      model,
-      duration: request.duration ?? 5,
-    };
+    const body = buildRunwayTextToVideoBody(model, {
+      prompt: request.prompt,
+      duration: request.duration,
+      aspect: aspectOf(request),
+    });
 
-    if (request.aspectRatio) {
-      body.ratio = request.aspectRatio;
-    }
-
-    const response = await this.fetchJson<RunwayTaskResponse>(
-      `${this.baseUrl}/v1/text_to_video`,
-      {
-        method: 'POST',
-        body,
-      }
-    );
+    const response = await this.startTask('text_to_video', body);
 
     return {
       videoUrl: '',
       jobId: response.id,
       model,
-      duration: request.duration ?? 5,
+      duration: body.duration as number,
     };
   }
 
@@ -201,13 +219,7 @@ export class RunwayProvider extends BaseAIProvider {
       body.ratio = request.aspectRatio;
     }
 
-    const response = await this.fetchJson<RunwayTaskResponse>(
-      `${this.baseUrl}/v1/image_to_video`,
-      {
-        method: 'POST',
-        body,
-      }
-    );
+    const response = await this.startTask('image_to_video', body);
 
     return {
       videoUrl: '',
@@ -215,6 +227,18 @@ export class RunwayProvider extends BaseAIProvider {
       model,
       duration: request.duration ?? 5,
     };
+  }
+
+  /**
+   * Start a paid generation task. Sent exactly once: after a timeout, network
+   * error or 5xx Runway may already have started (and billed) the task.
+   */
+  private async startTask(endpoint: 'text_to_video' | 'image_to_video', body: Record<string, unknown>): Promise<RunwayTaskResponse> {
+    return this.fetchJson<RunwayTaskResponse>(`${this.baseUrl}/v1/${endpoint}`, {
+      method: 'POST',
+      body,
+      retry: false,
+    });
   }
 
   /**
@@ -232,7 +256,8 @@ export class RunwayProvider extends BaseAIProvider {
       providerJobId: response.id,
       type: 'video-generation',
       status: this.mapStatus(response.status),
-      progress: response.progress,
+      // Runway reports 0-1, AIJob uses percent
+      progress: response.progress !== undefined ? Math.round(response.progress * 100) : undefined,
       createdAt: new Date(response.createdAt),
       updatedAt: new Date(),
       resultUrl: response.output?.[0],
@@ -241,14 +266,14 @@ export class RunwayProvider extends BaseAIProvider {
   }
 
   /**
-   * Cancel a running job
+   * Cancel a running job (DELETE cancels pending, throttled and running tasks)
    */
   async cancelJob(jobId: string): Promise<boolean> {
     try {
-      await this.fetchJson(
-        `${this.baseUrl}/v1/tasks/${jobId}/cancel`,
-        { method: 'POST' }
-      );
+      await this.fetchWithRetry(`${this.baseUrl}/v1/tasks/${jobId}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders(),
+      });
       return true;
     } catch {
       return false;
@@ -283,6 +308,7 @@ export class RunwayProvider extends BaseAIProvider {
   private mapStatus(status: string): AIJobStatus {
     switch (status) {
       case 'PENDING':
+      case 'THROTTLED':
         return 'pending';
       case 'RUNNING':
         return 'processing';
@@ -296,6 +322,17 @@ export class RunwayProvider extends BaseAIProvider {
         return 'pending';
     }
   }
+}
+
+function aspectOf(request: VideoGenerationRequest): RunwayAspect {
+  if (request.aspectRatio === '9:16') return 'portrait';
+  if (request.aspectRatio === '1:1') return 'square';
+  if (request.aspectRatio === '16:9') return 'landscape';
+  if (request.width && request.height) {
+    if (request.height > request.width) return 'portrait';
+    if (request.height === request.width) return 'square';
+  }
+  return 'landscape';
 }
 
 /**

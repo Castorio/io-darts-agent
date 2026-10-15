@@ -95,6 +95,16 @@ export interface IAIProvider {
 }
 
 /**
+ * Error answer from a provider API (status and response text)
+ */
+export class ApiResponseError extends Error {
+  constructor(readonly status: number, body: string) {
+    super(`API error (${status}): ${body}`);
+    this.name = 'ApiResponseError';
+  }
+}
+
+/**
  * Base AI Provider implementation with common functionality
  */
 export abstract class BaseAIProvider implements IAIProvider {
@@ -158,16 +168,15 @@ export abstract class BaseAIProvider implements IAIProvider {
 
         clearTimeout(timeout);
 
-        // Don't retry on client errors (4xx)
+        // Client errors (4xx) are final
         if (response.status >= 400 && response.status < 500) {
-          const error = await response.text();
-          throw new Error(`API error (${response.status}): ${error}`);
+          throw new ApiResponseError(response.status, await response.text());
         }
 
         // Retry on server errors (5xx)
         if (response.status >= 500) {
-          lastError = new Error(`Server error: ${response.status}`);
-          await this.delay(1000 * Math.pow(2, i)); // Exponential backoff
+          lastError = new ApiResponseError(response.status, await response.text().catch(() => ''));
+          if (i < retries - 1) await this.delay(1000 * Math.pow(2, i)); // Exponential backoff
           continue;
         }
 
@@ -175,12 +184,12 @@ export abstract class BaseAIProvider implements IAIProvider {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
-        // Don't retry on abort
-        if (lastError.name === 'AbortError') {
+        // Neither a client error nor an abort gets better by retrying
+        if (lastError instanceof ApiResponseError || lastError.name === 'AbortError') {
           throw lastError;
         }
 
-        await this.delay(1000 * Math.pow(2, i));
+        if (i < retries - 1) await this.delay(1000 * Math.pow(2, i));
       }
     }
 
@@ -188,21 +197,51 @@ export abstract class BaseAIProvider implements IAIProvider {
   }
 
   /**
+   * Send a request exactly once, for requests that start paid work: after a
+   * 5xx, timeout or network error the provider may already have processed and
+   * billed it. A 4xx stays an ApiResponseError (nothing was processed).
+   */
+  protected async fetchOnce(url: string, options: RequestInit): Promise<Response> {
+    try {
+      return await this.fetchWithRetry(url, options, 1);
+    } catch (error) {
+      if (error instanceof ApiResponseError && error.status < 500) throw error;
+      const reason = error instanceof ApiResponseError
+        ? `status ${error.status}`
+        : error instanceof Error
+          ? (error.name === 'AbortError' ? 'timeout' : error.message)
+          : String(error);
+      throw new Error(
+        `${this.config.name ?? this.config.id}: request failed (${reason}); not retried, because it may already have been processed and billed`
+      );
+    }
+  }
+
+  /**
    * Make a JSON API request
    */
   protected async fetchJson<T>(
     url: string,
-    options: Omit<RequestInit, 'body'> & { body?: Record<string, unknown> }
+    options: Omit<RequestInit, 'body'> & {
+      body?: Record<string, unknown>;
+      /**
+       * false sends the request exactly once. Use it for requests that start
+       * paid work: after a timeout or 5xx the provider may already have run it.
+       */
+      retry?: boolean;
+    }
   ): Promise<T> {
-    const response = await this.fetchWithRetry(url, {
-      ...options,
+    const { retry, ...init } = options;
+    const request: RequestInit = {
+      ...init,
       headers: {
         'Content-Type': 'application/json',
         ...this.getAuthHeaders(),
-        ...options.headers,
+        ...init.headers,
       },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
+      body: init.body ? JSON.stringify(init.body) : undefined,
+    };
+    const response = retry === false ? await this.fetchOnce(url, request) : await this.fetchWithRetry(url, request);
 
     return response.json() as Promise<T>;
   }

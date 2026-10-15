@@ -204,6 +204,8 @@ export class StabilityAIProvider extends BaseAIProvider {
       `${this.baseUrl}/v1/generation/${engine}/text-to-image`,
       {
         method: 'POST',
+        // Paid request: sent once, a retry could bill twice
+        retry: false,
         body,
       }
     );
@@ -248,7 +250,7 @@ export class StabilityAIProvider extends BaseAIProvider {
     formData.append('output_format', 'png');
 
     const endpoint = model === 'stable-image-ultra' ? 'ultra' : 'core';
-    const response = await this.fetchWithRetry(
+    const response = await this.fetchOnce(
       `${this.baseUrl}/v2beta/stable-image/generate/${endpoint}`,
       {
         method: 'POST',

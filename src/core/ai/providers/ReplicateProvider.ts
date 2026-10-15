@@ -250,6 +250,8 @@ export class ReplicateProvider extends BaseAIProvider {
       `${this.baseUrl}/v1/predictions`,
       {
         method: 'POST',
+        // Paid request: sent once, a retry could bill twice
+        retry: false,
         body,
       }
     );
@@ -278,6 +280,8 @@ export class ReplicateProvider extends BaseAIProvider {
       `${this.baseUrl}/v1/predictions`,
       {
         method: 'POST',
+        // Paid request: sent once, a retry could bill twice
+        retry: false,
         body,
       }
     );

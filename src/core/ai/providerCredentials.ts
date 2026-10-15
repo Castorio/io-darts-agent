@@ -8,7 +8,7 @@
  */
 
 interface ProviderLookup {
-  getProvider(id: string): { config: { apiKey: string }; isAvailable(): boolean } | undefined;
+  getProvider(id: string): { config: { apiKey: string; options?: Record<string, unknown> }; isAvailable(): boolean } | undefined;
 }
 
 export function resolveProviderApiKey(
@@ -21,4 +21,22 @@ export function resolveProviderApiKey(
     return provider.config.apiKey;
   }
   return legacy?.apiKey || undefined;
+}
+
+function nonEmpty(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+/**
+ * Model chosen in the AI settings (`options.defaultModel`), even when the
+ * provider is disabled and only the legacy key applies; the legacy hub config
+ * model is the fallback. Callers validate the id against their catalog.
+ */
+export function resolveProviderDefaultModel(
+  service: ProviderLookup,
+  providerId: string,
+  legacy: { model?: string } | undefined
+): string | undefined {
+  const options = service.getProvider(providerId)?.config.options;
+  return nonEmpty(options?.defaultModel) ?? nonEmpty(legacy?.model);
 }

@@ -722,9 +722,6 @@ function shouldModuleAutostart(mod: InstalledModule): boolean {
     case 'darts-caller':
       // Darts caller auto-starts if enabled
       return mod.configValues.enabled !== false;
-    case 'player-analytics':
-      // Player analytics auto-starts by default
-      return true;
     default:
       // External modules: check if entry exists (SDK modules), default to false
       if (mod.manifest.entry && mod.manifest.entry !== 'internal') {

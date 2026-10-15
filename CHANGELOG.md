@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Autodarts-Login auf v2 umgestellt.** Der alte Keycloak-Login (`login.autodarts.io`) ist abgeschaltet. Der Hub meldet sich jetzt über `https://api.autodarts.com/auth/v1/login` an (Client-ID `autodarts-play`, per `AUTODARTS_CLIENT_ID` überschreibbar, kein Client-Secret mehr) und erneuert Tokens über `/auth/v1/refresh` (rotierende Refresh-Tokens, Neu-Login als Fallback).
+- **WebSocket per Ticket.** Verbindung zu `wss://play.ws.autodarts.com/ms/v0/subscribe?code=<ticket>`; jedes Connect und Reconnect holt ein frisches Ticket über `/ms/v0/tickets`.
+- Alte Client-Credentials (`developer-darts-caller`, Client-Secret) in Config oder `.env` werden ignoriert und nicht mehr in die Config geschrieben.
+
 ### Added
 
 - **Intent System** (`src/core/intents/`): semantische Intent-Schicht über dem

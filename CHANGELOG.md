@@ -20,9 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Animations-Jobs bleiben bei der Engine, die sie gestartet hat; kurze Fehler beim Abfragen brechen bezahlte Jobs nicht mehr ab, Jobs geben nach 30 Minuten auf, Abbrechen wird bis zur Engine durchgereicht.
 - Bestehende `ai-providers.json` bekommen neu hinzugekommene Provider automatisch ergänzt.
-
-### Changed
-
 - **Autodarts-Login auf v2 umgestellt.** Der alte Keycloak-Login (`login.autodarts.io`) ist abgeschaltet. Der Hub meldet sich jetzt über `https://api.autodarts.com/auth/v1/login` an (Client-ID `autodarts-play`, per `AUTODARTS_CLIENT_ID` überschreibbar, kein Client-Secret mehr) und erneuert Tokens über `/auth/v1/refresh` (rotierende Refresh-Tokens, Neu-Login als Fallback).
 - **AI-Provider aktualisiert.** Claude: Standard `claude-opus-5` (Claude 3.5 Sonnet war abgeschaltet), abgeschaltete IDs fallen auf den Standard zurück, `temperature`/`top_p` nur noch für Modelle, die sie akzeptieren, `effort: low` und mind. 1024 Tokens für Modelle mit Thinking, Refusal-Fallbacks. OpenAI: Modelle kommen live aus `GET /v1/models` des jeweiligen Keys (bevorzugt neueste), abgeschaltete Modelle (DALL-E, gpt-4o, o1/o3-mini/o4-mini, gpt-4.1-nano, tts-1) werden ersetzt, `max_completion_tokens` und `reasoning_effort` für Reasoning-Modelle, GPT Image ohne `response_format`. Neuer Endpunkt `GET /api/ai/providers/:id/models`; die Einstellungsseite zeigt die verfügbaren Modelle des Keys.
 - **WebSocket per Ticket.** Verbindung zu `wss://play.ws.autodarts.com/ms/v0/subscribe?code=<ticket>`; jedes Connect und Reconnect holt ein frisches Ticket über `/ms/v0/tickets`.

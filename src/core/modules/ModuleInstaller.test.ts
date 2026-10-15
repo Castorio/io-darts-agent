@@ -1,15 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { execFile } from 'child_process';
 import { ModuleInstaller } from './ModuleInstaller.js';
 import type { ModuleManifest } from '../../types/modules.js';
 
 vi.mock('fs/promises');
 vi.mock('child_process', () => ({
-  exec: vi.fn((cmd, opts, cb) => {
-    if (typeof opts === 'function') {
-      cb = opts;
-    }
+  execFile: vi.fn((file, args, opts, cb) => {
     cb(null, { stdout: '', stderr: '' });
   }),
 }));
@@ -38,6 +36,7 @@ describe('ModuleInstaller', () => {
     vi.mocked(fs.rm).mockResolvedValue(undefined);
     vi.mocked(fs.symlink).mockResolvedValue(undefined);
     vi.mocked(fs.readdir).mockResolvedValue([]);
+    vi.mocked(fs.lstat).mockRejectedValue({ code: 'ENOENT' });
     vi.mocked(fs.copyFile).mockResolvedValue(undefined);
   });
 
@@ -155,8 +154,9 @@ describe('ModuleInstaller', () => {
     it('should update a git module', async () => {
       vi.mocked(fs.access).mockResolvedValue(undefined); // all checks pass
       vi.mocked(fs.readFile)
-        .mockResolvedValueOnce(JSON.stringify({ ...TEST_MANIFEST, version: '1.0.0' }))
-        .mockResolvedValueOnce(JSON.stringify({ ...TEST_MANIFEST, version: '1.1.0' }));
+        .mockResolvedValueOnce(JSON.stringify({ ...TEST_MANIFEST, version: '1.0.0' })) // module.json before pull
+        .mockResolvedValueOnce(JSON.stringify({ name: 'test-module' })) // package.json (buildModule)
+        .mockResolvedValueOnce(JSON.stringify({ ...TEST_MANIFEST, version: '1.1.0' })); // module.json after pull
 
       const handler = vi.fn();
       installer.on('updated', handler);
@@ -269,6 +269,54 @@ describe('ModuleInstaller', () => {
         type: 'git',
         url: 'https://github.com/user/repo.git',
       });
+    });
+  });
+
+  describe('command execution and name validation', () => {
+    it('passes the git url as a single argument without a shell', async () => {
+      const url = 'https://github.com/user";$(touch /tmp/pwn)"/repo.git';
+
+      const result = await installer.install({ type: 'git', url });
+
+      expect(result.success).toBe(true);
+      const gitCall = vi.mocked(execFile).mock.calls.find((c) => c[0] === 'git');
+      expect(gitCall![1]).toEqual(['clone', '--', url, path.join(testModulesDir, 'repo')]);
+      expect((gitCall![2] as { shell?: boolean }).shell).toBeFalsy();
+    });
+
+    it('rejects a git url whose repository name escapes the modules dir', async () => {
+      const result = await installer.install({ type: 'git', url: 'https://example.com/..' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid repository name');
+    });
+
+    it('rejects a local module whose manifest id is a path', async () => {
+      vi.mocked(fs.access).mockResolvedValueOnce(undefined);
+      vi.mocked(fs.readFile).mockResolvedValueOnce(
+        JSON.stringify({ ...TEST_MANIFEST, id: '../evil' })
+      );
+
+      const result = await installer.install({ type: 'local', path: '/path/to/module' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid module id');
+    });
+
+    it('refuses to uninstall a module id that is a path', async () => {
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+
+      await expect(installer.uninstall('../..')).rejects.toThrow('Invalid module id');
+      expect(fs.rm).not.toHaveBeenCalled();
+    });
+
+    it('refuses to update a module id that is a path', async () => {
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+
+      const result = await installer.update('../other');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid module id');
     });
   });
 });

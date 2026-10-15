@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -10,7 +10,21 @@ import type {
   UpdateResult,
 } from '../../types/modules.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+// Module ids and repository names become directory names below modulesDir,
+// so they must not contain path separators or be "." / "..".
+const MODULE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+function isValidModuleName(name: string): boolean {
+  return MODULE_NAME_PATTERN.test(name) && name !== '.' && name !== '..';
+}
+
+function assertValidModuleId(moduleId: string): void {
+  if (!isValidModuleName(moduleId)) {
+    throw new Error(`Invalid module id: ${moduleId}`);
+  }
+}
 
 interface InstallerOptions {
   modulesDir: string;
@@ -85,6 +99,8 @@ export class ModuleInstaller extends EventEmitter {
     const modulePath = path.join(this.options.modulesDir, moduleId);
 
     try {
+      assertValidModuleId(moduleId);
+
       // Check if module exists
       await fs.access(modulePath);
 
@@ -109,10 +125,10 @@ export class ModuleInstaller extends EventEmitter {
       this.emit('updating', moduleId);
 
       // Git pull
-      await this.execCommand(`git -C "${modulePath}" pull`, modulePath);
+      await this.execCommand('git', ['-C', modulePath, 'pull'], modulePath);
 
       // Run npm install (including devDependencies for build)
-      await this.execCommand(`npm install`, modulePath);
+      await this.execCommand('npm', ['install'], modulePath);
 
       // Fix SDK symlink if it uses relative path
       await this.fixSdkLink(modulePath);
@@ -147,6 +163,7 @@ export class ModuleInstaller extends EventEmitter {
    * Uninstall a module
    */
   async uninstall(moduleId: string): Promise<void> {
+    assertValidModuleId(moduleId);
     const modulePath = path.join(this.options.modulesDir, moduleId);
 
     try {
@@ -208,21 +225,22 @@ export class ModuleInstaller extends EventEmitter {
     }
 
     // Git clone
-    let cloneCmd = `git clone "${source.url}"`;
+    const cloneArgs = ['clone'];
     if (source.branch) {
-      cloneCmd += ` --branch "${source.branch}"`;
+      cloneArgs.push('--branch', source.branch);
     }
     if (source.tag) {
-      cloneCmd += ` --branch "${source.tag}"`;
+      cloneArgs.push('--branch', source.tag);
     }
-    cloneCmd += ` "${targetPath}"`;
+    // "--" keeps a url starting with "-" from being parsed as an option
+    cloneArgs.push('--', source.url, targetPath);
 
     this.emit('progress', { step: 'git-clone', message: `Cloning ${source.url}...` });
-    await this.execCommand(cloneCmd, this.options.modulesDir);
+    await this.execCommand('git', cloneArgs, this.options.modulesDir);
 
     // Run npm install (including devDependencies for build)
     this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
-    await this.execCommand('npm install', targetPath);
+    await this.execCommand('npm', ['install'], targetPath);
 
     // Fix SDK symlink if it uses relative path
     await this.fixSdkLink(targetPath);
@@ -286,7 +304,7 @@ export class ModuleInstaller extends EventEmitter {
 
       // Run npm install in copied directory
       this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
-      await this.execCommand('npm install', targetPath);
+      await this.execCommand('npm', ['install'], targetPath);
 
       // Fix SDK symlink if it uses relative path
       await this.fixSdkLink(targetPath);
@@ -384,7 +402,7 @@ export class ModuleInstaller extends EventEmitter {
       // Check if the module has a build script
       if (packageJson.scripts?.build) {
         this.emit('progress', { step: 'build', message: 'Building module...' });
-        await this.execCommand('npm run build', modulePath);
+        await this.execCommand('npm', ['run', 'build'], modulePath);
       }
     } catch (err) {
       // If package.json doesn't exist or has no build script, skip silently
@@ -407,6 +425,7 @@ export class ModuleInstaller extends EventEmitter {
       if (!this.validateManifest(manifest)) {
         throw new Error('Invalid module manifest');
       }
+      assertValidModuleId(manifest.id);
 
       return manifest;
     } catch (err) {
@@ -444,18 +463,26 @@ export class ModuleInstaller extends EventEmitter {
 
     let name = url.split('/').pop() || 'unknown';
     name = name.replace(/\.git$/, '');
+    if (!isValidModuleName(name)) {
+      throw new Error(`Invalid repository name in url: ${url}`);
+    }
     return name;
   }
 
   /**
    * Execute a command with timeout
    */
-  private async execCommand(command: string, cwd: string): Promise<string> {
+  private async execCommand(file: string, args: string[], cwd: string): Promise<string> {
+    // execFile runs without a shell, so arguments are never interpreted.
+    // On Windows npm is a .cmd script that Node only starts through a shell;
+    // npm is only ever called with constant arguments.
+    const isWindowsNpm = file === 'npm' && process.platform === 'win32';
     try {
-      const { stdout, stderr } = await execAsync(command, {
+      const { stdout, stderr } = await execFileAsync(isWindowsNpm ? 'npm.cmd' : file, args, {
         cwd,
         timeout: this.options.timeout,
         maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        shell: isWindowsNpm,
       });
 
       if (stderr) {
@@ -465,9 +492,10 @@ export class ModuleInstaller extends EventEmitter {
       return stdout;
     } catch (err) {
       const error = err as Error & { stderr?: string };
-      throw new Error(`Command failed: ${command}\n${error.stderr || error.message}`);
+      throw new Error(`Command failed: ${file} ${args.join(' ')}\n${error.stderr || error.message}`);
     }
   }
+
 
   /**
    * Copy directory recursively

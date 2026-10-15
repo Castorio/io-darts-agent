@@ -10,6 +10,7 @@ import BaseButton from '../components/BaseButton.vue'
 import BaseInput from '../components/BaseInput.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import WledEventConfig from '../components/WledEventConfig.vue'
+import { FADE_TIME_UNIT, MAX_FADE_MS, normalizeWledConfig, parseGlobalFadeInput } from '../lib/wledFade'
 
 // Types
 interface WledPreset {
@@ -32,7 +33,8 @@ interface EventConfig {
   brightness?: number
   speed?: number
   intensity?: number
-  fadeTime?: number // Fade/transition time in seconds (0-10)
+  duration?: number // ms
+  fadeTime?: number // ms, undefined = global fadeTime
   usePlayerColor?: boolean
 }
 
@@ -41,6 +43,8 @@ interface WledConfig {
   wledPort: number
   events: Record<string, EventConfig>
   playerColors?: string[]
+  fadeTime: number | null // ms for every action on "Global"; null = WLED default (no transition sent)
+  fadeTimeUnit: typeof FADE_TIME_UNIT
 }
 
 // Available intent from other modules
@@ -62,6 +66,8 @@ const module = computed(() => modulesStore.selectedModule)
 // Configuration state
 const wledHost = ref('')
 const wledPort = ref(80)
+// ms; empty = WLED default, 0 = instant (v-model.number yields '' for an empty field)
+const globalFadeTime = ref<number | string>('')
 const isConnected = ref(false)
 const isConnecting = ref(false)
 const connectionError = ref<string | null>(null)
@@ -218,6 +224,7 @@ const i18n = computed(() => {
       red: lang === 'de' ? 'Rot' : lang === 'es' ? 'Rojo' : 'Red',
       start: lang === 'de' ? 'Starten' : lang === 'es' ? 'Iniciar' : 'Start',
       stop: lang === 'de' ? 'Stoppen' : lang === 'es' ? 'Detener' : 'Stop',
+      wledDefault: lang === 'de' ? 'WLED-Standard' : lang === 'es' ? 'Valor de WLED' : 'WLED default',
       loadingIntents: lang === 'de' ? 'Lade Modul-Intents...' : lang === 'es' ? 'Cargando intents de módulos...' : 'Loading module intents...',
     }
   }
@@ -305,9 +312,16 @@ watch(
     if (values) {
       wledHost.value = (values.wledHost as string) || ''
       wledPort.value = (values.wledPort as number) || 80
-      if (values.events) {
+      // Converts legacy per-action fade values (tenths of a second) to ms, same rules as the hub
+      const normalized = normalizeWledConfig({
+        fadeTime: values.fadeTime as number | undefined,
+        fadeTimeUnit: values.fadeTimeUnit as typeof FADE_TIME_UNIT | undefined,
+        events: values.events as Record<string, EventConfig> | undefined,
+      })
+      globalFadeTime.value = normalized.fadeTime ?? ''
+      if (normalized.events) {
         // Merge saved events with initialized events
-        eventConfigs.value = { ...eventConfigs.value, ...(values.events as Record<string, EventConfig>) }
+        eventConfigs.value = { ...eventConfigs.value, ...normalized.events }
       }
       if (values.playerColors && Array.isArray(values.playerColors)) {
         playerColors.value = values.playerColors as string[]
@@ -355,6 +369,9 @@ async function saveConfig() {
       wledPort: wledPort.value,
       events: eventConfigs.value,
       playerColors: playerColors.value,
+      // null clears a stored value; the hub merges configs, so a missing key would keep the old one
+      fadeTime: parseGlobalFadeInput(globalFadeTime.value) ?? null,
+      fadeTimeUnit: FADE_TIME_UNIT,
     }
 
     await modulesStore.updateConfig(module.value.id, config as unknown as Record<string, unknown>)
@@ -410,6 +427,7 @@ async function testEvent(_eventName: string, config: EventConfig) {
         brightness: config.brightness,
         speed: config.speed,
         intensity: config.intensity,
+        fadeTime: config.fadeTime ?? parseGlobalFadeInput(globalFadeTime.value),
       }
     )
 
@@ -545,6 +563,22 @@ onMounted(async () => {
                   class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500"
                 />
               </div>
+            </div>
+
+            <!-- Global fade time (ms) -->
+            <div>
+              <label for="wled-fade-time" class="block text-sm font-medium text-dark-200 mb-1">{{ getConfigLabel('fadeTime') }}</label>
+              <input
+                id="wled-fade-time"
+                type="number"
+                v-model.number="globalFadeTime"
+                min="0"
+                :max="MAX_FADE_MS"
+                step="100"
+                :placeholder="i18n.strings.wledDefault"
+                class="w-full md:w-48 px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500"
+              />
+              <p class="text-xs text-dark-500 mt-1">{{ i18n.config.fadeTime?.description }}</p>
             </div>
 
             <!-- Connection Status -->

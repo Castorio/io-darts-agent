@@ -12,6 +12,7 @@ import type { ModuleManifest } from '../../types/modules.js';
 import type { SupportedLanguage } from '../../types/i18n.js';
 import type { TranslatedModuleManifest } from '../../core/modules/ModuleI18n.js';
 import { getTranslatedManifest, getModuleStrings, getAvailableLanguages } from '../../core/modules/ModuleI18n.js';
+import { sanitizeFadeMs, toWledTransition } from '../../../modules/wled/src/fade.js';
 
 // WLED Test Action Request
 export interface WledTestActionRequest {
@@ -24,6 +25,60 @@ export interface WledTestActionRequest {
   brightness?: number;
   speed?: number;
   intensity?: number;
+  /** Transition time in ms */
+  fadeTime?: number;
+}
+
+/**
+ * Builds the WLED JSON state payload for a test action. The fade time is sent
+ * as `tt` (this call only, 100 ms units) so a test never changes the device default.
+ */
+export function buildWledTestPayload(action: WledTestActionRequest): Record<string, unknown> {
+  const { actionType, presetId, effectId, color, color2, color3, brightness, speed, intensity } = action;
+  let wledPayload: Record<string, unknown> = { on: true };
+
+  switch (actionType) {
+    case 'preset':
+      wledPayload = { ps: presetId || 1 };
+      break;
+    case 'effect':
+      wledPayload = {
+        on: true,
+        bri: brightness ?? 255,
+        seg: [{
+          fx: effectId ?? 0,
+          sx: speed ?? 128,
+          ix: intensity ?? 128,
+          col: [
+            color ? [color.r, color.g, color.b] : [255, 255, 255],
+            color2 ? [color2.r, color2.g, color2.b] : [0, 0, 0],
+            color3 ? [color3.r, color3.g, color3.b] : [0, 0, 0],
+          ],
+        }],
+      };
+      break;
+    case 'solid':
+      wledPayload = {
+        on: true,
+        bri: brightness ?? 255,
+        seg: [{
+          fx: 0, // Solid
+          col: [
+            color ? [color.r, color.g, color.b] : [255, 255, 255],
+          ],
+        }],
+      };
+      break;
+    case 'off':
+      wledPayload = { on: false };
+      break;
+  }
+
+  const fadeMs = sanitizeFadeMs(action.fadeTime);
+  if (fadeMs !== undefined) {
+    wledPayload.tt = toWledTransition(fadeMs);
+  }
+  return wledPayload;
 }
 
 export interface ModuleUpdateResponse {
@@ -542,7 +597,7 @@ export function registerModuleRoutes(
       return { success: false, error: 'Authentication required' };
     }
 
-    const { host, port = 80, actionType, presetId, effectId, color, color2, color3, brightness, speed, intensity } = request.body;
+    const { host, port = 80, actionType } = request.body;
 
     if (!host) {
       reply.code(400);
@@ -557,44 +612,7 @@ export function registerModuleRoutes(
     try {
       // Build WLED API request
       const wledUrl = `http://${host}:${port}/json/state`;
-      let wledPayload: Record<string, unknown> = { on: true };
-
-      switch (actionType) {
-        case 'preset':
-          wledPayload = { ps: presetId || 1 };
-          break;
-        case 'effect':
-          wledPayload = {
-            on: true,
-            bri: brightness ?? 255,
-            seg: [{
-              fx: effectId ?? 0,
-              sx: speed ?? 128,
-              ix: intensity ?? 128,
-              col: [
-                color ? [color.r, color.g, color.b] : [255, 255, 255],
-                color2 ? [color2.r, color2.g, color2.b] : [0, 0, 0],
-                color3 ? [color3.r, color3.g, color3.b] : [0, 0, 0],
-              ],
-            }],
-          };
-          break;
-        case 'solid':
-          wledPayload = {
-            on: true,
-            bri: brightness ?? 255,
-            seg: [{
-              fx: 0, // Solid
-              col: [
-                color ? [color.r, color.g, color.b] : [255, 255, 255],
-              ],
-            }],
-          };
-          break;
-        case 'off':
-          wledPayload = { on: false };
-          break;
-      }
+      const wledPayload = buildWledTestPayload(request.body);
 
       // Send request to WLED
       const response = await fetch(wledUrl, {

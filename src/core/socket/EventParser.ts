@@ -226,6 +226,7 @@ export class EventParser {
           coords: data.throw.coords,
           throwNumber: data.throwNumber ?? 0,
           boardId: data.boardId,
+          points: calculateSegmentScore(data.throw.segment),
         },
       };
     }
@@ -291,6 +292,10 @@ export class EventParser {
       for (let i = this.lastDartsInTurn; i < dartsInCurrentTurn; i++) {
         const throwData = currentTurn.throws[i];
         if (throwData?.segment) {
+          // Running turn total up to and including this dart, so a 180 is visible on the third dart
+          const turnPoints = currentTurn.throws
+            .slice(0, i + 1)
+            .reduce((sum, t) => sum + (t?.segment ? calculateSegmentScore(t.segment) : 0), 0);
           const segment = throwData.segment;
           if (this.debug) console.log(`🎯 Throw detected (from match.state): segment=${segment.name}, number=${segment.number}, multiplier=${segment.multiplier}, throwNumber=${throwData.throw ?? (i + 1)}`);
           events.push({
@@ -302,6 +307,10 @@ export class EventParser {
               coords: throwData.coords,
               throwNumber: throwData.throw ?? (i + 1),
               boardId: this.boardId,
+              points: calculateSegmentScore(throwData.segment),
+              turnPoints,
+              // Only the newest dart can have caused the bust reported in this update
+              busted: data.turnBusted === true && i === dartsInCurrentTurn - 1,
             },
           });
         }

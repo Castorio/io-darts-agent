@@ -5,6 +5,7 @@
  */
 
 import type { ParsedEvent } from '../../../src/types/index.js';
+import { FADE_TIME_UNIT, normalizeWledConfig, toWledTransition } from './fade.js';
 
 // ============================================
 // Types and Interfaces
@@ -32,7 +33,9 @@ export interface WledAction {
   brightness?: number;
   speed?: number;
   intensity?: number;
+  /** How long the action stays before the player color is restored, in ms (0 = until the next event). */
   duration?: number;
+  /** Transition time in ms. Overrides the global fadeTime; 0 forces an instant change. */
   fadeTime?: number;
   usePlayerColor?: boolean;
 }
@@ -45,7 +48,10 @@ export interface WledConfig {
   defaultState?: WledAction;
   autoStart?: boolean;
   playerColors?: Array<string | { r: number; g: number; b: number }>;
+  /** Global transition time in ms, used when an action has no own fadeTime. */
   fadeTime?: number;
+  /** Unit marker for fadeTime values. Missing means a legacy config, see fade.ts. */
+  fadeTimeUnit?: typeof FADE_TIME_UNIT;
 }
 
 type RGB = { r: number; g: number; b: number };
@@ -132,7 +138,7 @@ export class WledHandler {
   };
 
   constructor(config: WledConfig) {
-    this.config = config;
+    this.config = normalizeWledConfig(config);
   }
 
   /**
@@ -162,7 +168,7 @@ export class WledHandler {
    * Update configuration
    */
   updateConfig(config: WledConfig): void {
-    this.config = config;
+    this.config = normalizeWledConfig(config);
   }
 
   /**
@@ -536,7 +542,10 @@ export class WledHandler {
     // Handle throw events with special conditions
     if (eventType === 'throw.detected') {
       const eventKey = this.getThrowEventKey(eventData);
-      return this.findActionByKey(eventsConfig, eventKey);
+      const found = this.findActionByKey(eventsConfig, eventKey);
+      if (found || (eventKey !== 'throw.180' && eventKey !== 'throw.bust')) return found;
+      // Turn-level keys without an own action fall back to what the dart itself hit
+      return this.findActionByKey(eventsConfig, this.getThrowEventKey({ ...eventData, turnPoints: 0, busted: false }));
     }
 
     // Map event type to canonical key
@@ -552,7 +561,8 @@ export class WledHandler {
     const segment = eventData.segment as Record<string, unknown>;
     const multiplier = (segment?.multiplier as number) || 0;
     const number = (segment?.number as number) || 0;
-    const points = (eventData.points as number) || 0;
+    // Older payloads carry no points; derive them from the segment so a single hit is not a miss
+    const points = typeof eventData.points === 'number' ? eventData.points : number * multiplier;
 
     if (turnPoints === 180) return 'throw.180';
     if (eventData.busted) return 'throw.bust';
@@ -633,16 +643,12 @@ export class WledHandler {
         ? 'solid'
         : action.actionType;
 
-    // Get fade/transition time (action-specific or global config, in 100ms units for WLED)
-    const fadeTimeMs = action.fadeTime ?? this.config.fadeTime ?? 0;
-    const transitionTime = Math.round(fadeTimeMs / 100); // WLED uses 100ms units
+    // Fade time in ms: action-specific, else global. Undefined leaves the device default untouched.
+    const fadeTimeMs = action.fadeTime ?? this.config.fadeTime;
 
     switch (effectiveActionType) {
       case 'preset':
         payload = { ps: action.presetId || 1 };
-        if (transitionTime > 0) {
-          payload.transition = transitionTime;
-        }
         break;
 
       case 'effect':
@@ -662,9 +668,6 @@ export class WledHandler {
             },
           ],
         };
-        if (transitionTime > 0) {
-          payload.transition = transitionTime;
-        }
         break;
 
       case 'solid':
@@ -678,9 +681,6 @@ export class WledHandler {
             },
           ],
         };
-        if (transitionTime > 0) {
-          payload.transition = transitionTime;
-        }
         break;
 
       case 'brightness':
@@ -688,21 +688,20 @@ export class WledHandler {
           on: true,
           bri: action.brightness ?? 255,
         };
-        if (transitionTime > 0) {
-          payload.transition = transitionTime;
-        }
         break;
 
       case 'off':
         payload = { on: false };
-        if (transitionTime > 0) {
-          payload.transition = transitionTime;
-        }
         break;
     }
 
+    // tt applies to this call only; `transition` would change the device default for every later call.
+    if (fadeTimeMs !== undefined) {
+      payload.tt = toWledTransition(fadeTimeMs);
+    }
+
     this.log(`Sending ${effectiveActionType} action for ${eventType}`, payload);
-    console.log(`🎨 WLED [${eventType}]: Sending ${effectiveActionType} action${transitionTime > 0 ? ` (fade: ${fadeTimeMs}ms)` : ''}`);
+    console.log(`🎨 WLED [${eventType}]: Sending ${effectiveActionType} action${fadeTimeMs ? ` (fade: ${fadeTimeMs}ms)` : ''}`);
 
     try {
       const response = await fetch(wledUrl, {
@@ -739,34 +738,40 @@ export class WledHandler {
 
     const eventType = `intent.${intent.id}`;
     const getColor = (color: unknown, fallback: RGB): RGB => color ? parseColor(color, fallback) : fallback;
+    const runTimed = async (timedAction: WledAction): Promise<void> => {
+      await this.executeAction(timedAction, null, eventType);
+      if (timedAction.duration && timedAction.duration > 0) {
+        this.schedulePlayerColorRestore(timedAction.duration, eventType);
+      }
+    };
 
     switch (type) {
       case 'solidColor':
-        await this.executeAction({
+        await runTimed({
           actionType: 'solid',
           color: getColor(config.color, { r: 255, g: 0, b: 0 }),
           brightness: config.brightness as number ?? 255,
           duration: config.duration as number ?? 0,
-        }, null, eventType);
+        });
         break;
 
       case 'effect':
-        await this.executeAction({
+        await runTimed({
           actionType: 'effect',
           effectId: config.effectId as number ?? 0,
           speed: config.speed as number ?? 128,
           intensity: config.intensity as number ?? 128,
           color: config.color ? parseColor(config.color) : undefined,
           duration: config.duration as number ?? 2000,
-        }, null, eventType);
+        });
         break;
 
       case 'preset':
-        await this.executeAction({
+        await runTimed({
           actionType: 'preset',
           presetId: config.presetId as number ?? 1,
           duration: config.duration as number ?? 0,
-        }, null, eventType);
+        });
         break;
 
       case 'flash':
@@ -774,13 +779,13 @@ export class WledHandler {
         break;
 
       case 'rainbow':
-        await this.executeAction({
+        await runTimed({
           actionType: 'effect',
           effectId: 9,
           speed: config.speed as number ?? 200,
           intensity: 128,
           duration: config.duration as number ?? 3000,
-        }, null, eventType);
+        });
         break;
 
       case 'off':
@@ -801,9 +806,10 @@ export class WledHandler {
     const count = config.count as number ?? 3;
 
     for (let i = 0; i < count; i++) {
-      await this.executeAction({ actionType: 'solid', color, brightness: 255 }, null, `${eventType}.flash`);
+      // fadeTime 0: a global fade would smear the flash into a slow pulse
+      await this.executeAction({ actionType: 'solid', color, brightness: 255, fadeTime: 0 }, null, `${eventType}.flash`);
       await new Promise(resolve => setTimeout(resolve, duration / 2));
-      await this.executeAction({ actionType: 'off' }, null, `${eventType}.off`);
+      await this.executeAction({ actionType: 'off', fadeTime: 0 }, null, `${eventType}.off`);
       await new Promise(resolve => setTimeout(resolve, duration / 2));
     }
   }

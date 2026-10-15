@@ -37,7 +37,7 @@ Das WLED-Modul ist standardmäßig im IO-Darts-Agent enthalten und muss nicht se
 |-------------|-------------|
 | **WLED IP-Adresse** | IP-Adresse deines WLED-Controllers (z.B. 192.168.1.100) |
 | **WLED Port** | HTTP-Port von WLED (Standard: 80) |
-| **Übergangszeit (Fade Time)** | Globale Übergangszeit in ms für sanfte Farbwechsel |
+| **Übergangszeit (ms)** | Globale Übergangszeit in Millisekunden, gilt für alle Aktionen mit Übergangszeit "Global". Leer (Standard) = WLED-Standard, `0` = sofortiger Wechsel |
 
 ### Event-Aktionen
 
@@ -50,31 +50,36 @@ Für jedes Ereignis kann eine Aktion konfiguriert werden:
 | **Keine Aktion** | Event wird ignoriert |
 | **Preset** | Aktiviert ein gespeichertes WLED-Preset |
 | **Effekt** | Startet einen WLED-Effekt mit konfigurierten Parametern |
-| **Solid** | Setzt eine einzelne Farbe |
-| **Helligkeit** | Ändert nur die Helligkeit |
+| **Farbe** | Setzt eine einzelne Farbe |
+| **Helligkeit** | Ändert nur die Helligkeit (nur in der Konfigurationsdatei, nicht in der Oberfläche) |
 | **Aus** | Schaltet die LEDs aus |
 
 #### Verfügbare Events
 
+Diese Events bietet die Konfigurationsseite an:
+
 | Event | Wann ausgelöst |
 |-------|----------------|
-| **Match Start** | Spiel wird gestartet |
-| **Match Ergebnis** | Match-Ergebnis wird angezeigt |
-| **Match Beenden** | Benutzer schließt Match-Ergebnisse |
-| **Match Ende** | Spiel ist beendet |
-| **Match Abbruch** | Spiel wird abgebrochen |
+| **Match gestartet** | Ein neues Match beginnt |
+| **Match beendet** | Ein Match ist zu Ende |
+| **Match verlassen** | Benutzer klickt nach der Ergebnisanzeige auf Beenden |
+| **Match abgebrochen** | Match wurde abgebrochen |
+| **Wurf erkannt** | Jeder Wurf, der in keine der folgenden Kategorien fällt |
+| **Triple getroffen** | Triple-Feld getroffen |
+| **Double getroffen** | Double-Feld getroffen |
+| **Single Bull** | Äußeres Bull (25 Punkte) |
+| **Bullseye!** | Bullseye (50 Punkte) |
+| **180!** | Der dritte Dart einer Aufnahme mit 180 Punkten |
+| **Fehlwurf** | Dart außerhalb der Wertungsfelder (0 Punkte) |
 | **Spielerwechsel** | Anderer Spieler ist dran |
-| **Triple** | Triple-Feld getroffen |
-| **Double** | Double-Feld getroffen |
-| **Bullseye** | Doppel-Bull (50 Punkte) |
-| **Bull** | Single-Bull (25 Punkte) |
-| **180** | 180 Punkte in einer Aufnahme |
-| **Bust** | Überworfen |
-| **Miss** | Außerhalb des Boards |
-| **Wurf** | Jeder erkannte Wurf |
-| **Pfeile gezogen (Takeout)** | Nach dem Entfernen der Pfeile |
+| **Aufnahme gestartet** | Ein Spieler beginnt seine Aufnahme |
+| **Aufnahme beendet** | Ein Spieler beendet seine Aufnahme |
+| **Pfeile ziehen** | Die Pfeile werden aus der Scheibe gezogen |
+| **Pfeile gezogen** | Die Pfeile wurden gezogen |
 
-**Hinweis:** "High Finish" ist in `module.json` als Event gelistet, wird aber vom WLED-Modul aktuell nicht ausgelöst: Es gibt keine Checkout-Erkennung in der Wurf-Zuordnung. Die Zeile wurde hier bewusst weggelassen; bis das implementiert ist, bleibt eine dafür konfigurierte Aktion wirkungslos.
+Ein überworfener Dart (Bust) hat intern den Schlüssel `throw.bust`, die Oberfläche bietet dafür aber keine Aktion an. Ein Bust-Dart löst deshalb die Aktion des getroffenen Feldes aus (z.B. Triple getroffen). Genauso fällt der dritte Dart einer 180 auf die Feld-Aktion zurück, wenn für 180! keine Aktion eingestellt ist.
+
+Ein Event "High Finish" gibt es nicht: Der Hub liefert keinen Checkout-Wert, deshalb kann das Modul ihn nicht erkennen.
 
 ### Erweiterte Optionen
 
@@ -90,9 +95,9 @@ Wenn **Spielerfarbe verwenden** aktiviert ist, wird für den Effekt automatisch 
 Mit der **Dauer**-Einstellung kann ein Effekt nach einer bestimmten Zeit automatisch zur Spielerfarbe zurückkehren:
 
 - Dauer = 0: Effekt bleibt aktiv bis zum nächsten Event
-- Dauer > 0: Nach X Millisekunden wird zur Spielerfarbe zurückgekehrt
+- Dauer > 0: Nach X Millisekunden wird die Farbe des aktiven Spielers gesetzt, mit der Aktion für `player.change`
 
-**Wichtig:** Nach Ablauf der Dauer wird nicht der vorherige WLED-Zustand wiederhergestellt, sondern die aktuelle Spielerfarbe angewendet.
+**Wichtig:** Nach Ablauf der Dauer wird nicht der vorherige WLED-Zustand wiederhergestellt, sondern die aktuelle Spielerfarbe angewendet. Ohne Aktion für `player.change` oder außerhalb eines Matches passiert nichts. Beim Match-Start ist die Dauer die Wartezeit bis zur Spielerfarbe; nach Match-Ende, Match verlassen und Match-Abbruch wird nichts gesetzt. Intent-Aktionen mit Dauer (Farbe, Effekt, Preset, Rainbow) verhalten sich genauso.
 
 Beispiel: Ein 180er löst einen kurzen Flash-Effekt aus, danach kehrt WLED zur Spielerfarbe zurück.
 
@@ -100,9 +105,21 @@ Beispiel: Ein 180er löst einen kurzen Flash-Effekt aus, danach kehrt WLED zur S
 
 Die **Fade Time** bestimmt, wie sanft der Übergang zwischen zwei Lichtzuständen ist:
 
-- **Global**: In den Grundeinstellungen konfigurierbar
-- **Pro Aktion**: Kann für jede Aktion individuell überschrieben werden
-- Wert in Millisekunden (z.B. 500ms = 0,5 Sekunden Übergang)
+- **Global**: In den Verbindungseinstellungen konfigurierbar (Millisekunden)
+- **Pro Aktion**: Global, Sofort, 0.2s, 0.5s, 1s, 2s oder 5s. "Global" übernimmt den globalen Wert, "Sofort" erzwingt einen Wechsel ohne Übergang
+- Gespeichert wird immer in Millisekunden (z.B. 500 = 0,5 Sekunden). Erst beim Senden wird in WLED-Einheiten umgerechnet: `tt = round(ms / 100)`, maximal 65,5 Sekunden
+- Ist das globale Feld leer und die Aktion auf "Global", schickt das Modul keine Übergangszeit und WLED nutzt seine eigene Standard-Übergangszeit
+- Blitz-Aktionen (Flash) laufen immer ohne Übergang
+
+**Migration älterer Konfigurationen:** Frühere Versionen haben die Übergangszeit pro Aktion in Zehntelsekunden gespeichert (50 = 5s), aber als Millisekunden gelesen. Konfigurationen ohne das Feld `fadeTimeUnit: "ms"` werden beim Laden umgerechnet:
+
+| Alter Wert pro Aktion | Neuer Wert |
+|-----------------------|------------|
+| 0 bis 100 | Wert × 100 ms (50 wird 5000 ms) |
+| über 100 | bleibt, wird als Millisekunden gelesen (der alte Editor konnte solche Werte nicht erzeugen) |
+| negativ oder keine Zahl | wird entfernt, die Aktion nutzt dann die globale Übergangszeit |
+
+Die globale Übergangszeit war schon immer in Millisekunden. Ein alter globaler Wert `0` war nur der frühere Standardwert (in der Oberfläche nicht einstellbar) und wird entfernt, damit WLED wie bisher seine eigene Standard-Übergangszeit nutzt. Ein alter globaler Wert über 0 bleibt erhalten. Beim nächsten Speichern in der Oberfläche wird `fadeTimeUnit: "ms"` gesetzt; danach wird nichts mehr umgerechnet.
 
 ### Einzelspieler-Modus
 
@@ -127,23 +144,23 @@ Beispiel: Wenn der Darts Caller "180" ansagt, kann WLED einen speziellen Lichtef
 ### Gaming-Setup mit Spielerfarben
 
 ```
-Match Start: Effekt "Rainbow", Dauer 2000ms
-Spielerwechsel: Solid mit Spielerfarbe, Fade Time 500ms
-Triple: Effekt "Blink", Spielerfarbe, Dauer 300ms
-180: Effekt "Fireworks", Dauer 3000ms
-Bust: Solid Rot, Dauer 1000ms
-Pfeile gezogen: Solid mit Spielerfarbe
-Match Ende: Preset 1 (z.B. "Winner Animation")
+Match gestartet: Effekt "Rainbow", Dauer 2s
+Spielerwechsel: Farbe mit Spielerfarbe, Übergangszeit 0.5s
+Triple getroffen: Effekt "Blink", Spielerfarbe, Dauer 0.5s
+180!: Effekt "Fireworks", Dauer 3s
+Fehlwurf: Farbe Rot, Dauer 1s
+Pfeile gezogen: Farbe mit Spielerfarbe
+Match beendet: Preset 1 (z.B. "Winner Animation")
 ```
 
 ### Ambient-Setup
 
 ```
-Match Start: Helligkeit auf 50%
-Spielerwechsel: Solid mit Spielerfarbe, Fade Time 1000ms
-Wurf: Kurzer Flash, Dauer 100ms
-Pfeile gezogen: Spielerfarbe wiederherstellen
-Match Ende: Aus
+Match gestartet: Farbe Weiß, Helligkeit 50%
+Spielerwechsel: Farbe mit Spielerfarbe, Übergangszeit 1s
+Wurf erkannt: Farbe Weiß, Dauer 0.5s
+Pfeile gezogen: Farbe mit Spielerfarbe
+Match beendet: Aus
 ```
 
 ## API
@@ -156,12 +173,12 @@ Das Modul kommuniziert über die WLED JSON API:
 POST http://<wled-ip>:<port>/json/state
 ```
 
-Beispiel-Payload mit Fade Time:
+Beispiel-Payload mit 500 ms Übergangszeit:
 ```json
 {
   "on": true,
   "bri": 255,
-  "transition": 5,
+  "tt": 5,
   "seg": [{
     "fx": 0,
     "col": [[255, 0, 0]]
@@ -169,7 +186,7 @@ Beispiel-Payload mit Fade Time:
 }
 ```
 
-Hinweis: `transition` ist in 100ms-Einheiten (5 = 500ms).
+Hinweis: `tt` ist in 100ms-Einheiten (5 = 500ms) und gilt nur für diesen Befehl. Das Modul nutzt bewusst nicht `transition`, weil das die Standard-Übergangszeit des Controllers dauerhaft ändern würde.
 
 ### Effekt-IDs
 

@@ -17,7 +17,6 @@
     "throw.bull",
     "throw.bullseye",
     "throw.180",
-    "throw.highfinish",
     "throw.miss",
     "player.changed",
     "turn.started",
@@ -67,10 +66,6 @@
       "label": { "de": "180!", "en": "180!", "es": "¡180!" },
       "description": { "de": "Eine perfekte 180 wurde geworfen", "en": "A perfect 180 was thrown", "es": "Se lanzó un 180 perfecto" }
     },
-    "throw.highfinish": {
-      "label": { "de": "High Finish", "en": "High Finish", "es": "High Finish" },
-      "description": { "de": "Ein Checkout über 100 Punkte", "en": "A checkout over 100 points", "es": "Un checkout de más de 100 puntos" }
-    },
     "throw.miss": {
       "label": { "de": "Fehlwurf", "en": "Miss", "es": "Fallo" },
       "description": { "de": "Die Scheibe wurde verfehlt", "en": "The board was missed", "es": "Se falló el tablero" }
@@ -107,7 +102,7 @@
     },
     {
       "title": { "de": "Wurf Events", "en": "Throw Events", "es": "Eventos de Tiro" },
-      "events": ["throw.detected", "throw.triple", "throw.double", "throw.bull", "throw.bullseye", "throw.180", "throw.highfinish", "throw.miss"]
+      "events": ["throw.detected", "throw.triple", "throw.double", "throw.bull", "throw.bullseye", "throw.180", "throw.miss"]
     },
     {
       "title": { "de": "Spieler Events", "en": "Player Events", "es": "Eventos de Jugador" },
@@ -137,8 +132,7 @@
     "fadeTime": {
       "type": "number",
       "label": "Fade Time (ms)",
-      "description": "Global transition time in milliseconds for fading between light states",
-      "default": 0,
+      "description": "Global transition time in milliseconds for fading between light states. Empty = WLED default, 0 = instant",
       "min": 0,
       "max": 10000,
       "step": 100
@@ -239,7 +233,7 @@
         },
         "fadeTime": {
           "label": "Fade Time (ms)",
-          "description": "Global transition time in milliseconds for fading between light states"
+          "description": "Global transition time in milliseconds. Empty = WLED default, 0 = instant"
         }
       },
       "strings": {
@@ -264,7 +258,7 @@
         },
         "fadeTime": {
           "label": "Übergangszeit (ms)",
-          "description": "Globale Übergangszeit in Millisekunden für das Überblenden zwischen Lichtzuständen"
+          "description": "Globale Übergangszeit in Millisekunden. Leer = WLED-Standard, 0 = sofort"
         }
       },
       "strings": {
@@ -289,7 +283,7 @@
         },
         "fadeTime": {
           "label": "Tiempo de Transición (ms)",
-          "description": "Tiempo de transición global en milisegundos para desvanecerse entre estados de luz"
+          "description": "Tiempo de transición global en milisegundos. Vacío = valor de WLED, 0 = instantáneo"
         }
       },
       "strings": {

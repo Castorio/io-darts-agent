@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import BaseButton from './BaseButton.vue'
+import { FADE_PRESETS_MS, formatSeconds } from '../lib/wledFade'
 
 // Types
 type ActionType = 'preset' | 'effect' | 'solid' | 'off' | 'none'
@@ -25,8 +26,8 @@ interface EventConfig {
   brightness?: number
   speed?: number
   intensity?: number
-  duration?: number // Duration in ms - after this time, WLED reverts to previous state
-  fadeTime?: number // Fade/transition time in 100ms units (0-100 = 0-10s) for smooth color transitions
+  duration?: number // ms; afterwards the hub sets the active player's color again (0 = stays until the next event)
+  fadeTime?: number // Transition time in ms; undefined = use the global fade time from the WLED connection settings
   usePlayerColor?: boolean // If true, use player color instead of fixed color
 }
 
@@ -63,21 +64,39 @@ const config = computed({
     speed: props.modelValue.speed ?? 128,
     intensity: props.modelValue.intensity ?? 128,
     duration: props.modelValue.duration ?? 0,
-    fadeTime: props.modelValue.fadeTime ?? 0, // 0 = instant, in 100ms units (0-100 = 0-10s)
+    fadeTime: props.modelValue.fadeTime, // ms, undefined = global fade time
     usePlayerColor: props.modelValue.usePlayerColor ?? false,
   }),
   set: (value: EventConfig) => emit('update:modelValue', value),
 })
 
-// Fade time presets for quick selection (in 100ms units for WLED API)
-const fadeTimePresets = [
-  { label: 'Sofort', value: 0 },
-  { label: '0.2s', value: 2 },
-  { label: '0.5s', value: 5 },
-  { label: '1s', value: 10 },
-  { label: '2s', value: 20 },
-  { label: '5s', value: 50 },
+// Fade time presets in milliseconds; undefined falls back to the global fade time
+const fadeTimePresets: Array<{ label: string; value: number | undefined }> = [
+  { label: 'Global', value: undefined },
+  ...FADE_PRESETS_MS,
 ]
+
+const fadeTimeHint = computed(() => {
+  const ms = config.value.fadeTime
+  if (ms === undefined) return 'Nutzt die globale Übergangszeit aus den Verbindungseinstellungen (leer dort = WLED-Standard)'
+  if (ms === 0) return 'Sofortiger Wechsel ohne Übergang'
+  return `Sanfter Übergang über ${formatSeconds(ms)}`
+})
+
+// Events where the hub does not restore the player color after the duration
+const noRestoreEvents = ['match.started', 'match.finished', 'match.finish', 'match.deleted']
+
+const durationHint = computed(() => {
+  const ms = config.value.duration ?? 0
+  if (ms === 0) return 'Bleibt aktiv bis zum nächsten Event'
+  if (props.eventName === 'match.started') {
+    return `Nach ${formatSeconds(ms)} wird die Farbe des aktiven Spielers gesetzt, sofern für Spielerwechsel eine Aktion eingestellt ist`
+  }
+  if (noRestoreEvents.includes(props.eventName)) {
+    return 'Bei diesem Event wird danach nichts wiederhergestellt'
+  }
+  return `Nach ${formatSeconds(ms)} wird die Farbe des aktiven Spielers gesetzt, sofern für Spielerwechsel eine Aktion eingestellt ist. Der vorherige WLED-Zustand wird nicht wiederhergestellt.`
+})
 
 // Duration presets for quick selection
 const durationPresets = [
@@ -497,7 +516,7 @@ async function testAction() {
       <!-- Duration Selection (for effect/solid/preset) -->
       <div v-if="config.actionType !== 'none' && config.actionType !== 'off'" class="space-y-2">
         <label class="block text-sm font-medium text-dark-200">
-          Dauer (danach zurück zum vorherigen Zustand)
+          Dauer (danach Farbe des aktiven Spielers)
         </label>
         <div class="flex flex-wrap gap-2">
           <button
@@ -516,7 +535,7 @@ async function testAction() {
           </button>
         </div>
         <p class="text-xs text-dark-500">
-          {{ config.duration === 0 ? 'Effekt bleibt aktiv bis zum nächsten Event' : `Nach ${config.duration}ms wird der vorherige WLED-Zustand wiederhergestellt` }}
+          {{ durationHint }}
         </p>
       </div>
 
@@ -528,7 +547,7 @@ async function testAction() {
         <div class="flex flex-wrap gap-2">
           <button
             v-for="preset in fadeTimePresets"
-            :key="preset.value"
+            :key="preset.label"
             type="button"
             @click="updateConfig('fadeTime', preset.value)"
             :class="[
@@ -542,7 +561,7 @@ async function testAction() {
           </button>
         </div>
         <p class="text-xs text-dark-500">
-          {{ config.fadeTime === 0 ? 'Sofortiger Wechsel ohne Übergang' : `Sanfter Übergang über ${(config.fadeTime ?? 0) / 10}s` }}
+          {{ fadeTimeHint }}
         </p>
       </div>
 

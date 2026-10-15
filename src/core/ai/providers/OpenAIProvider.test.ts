@@ -92,6 +92,17 @@ describe('OpenAIProvider', () => {
       expect(models.map((m) => m.id)).toEqual(['gpt-6-luna', 'gpt-4.1-mini', 'gpt-4.1']);
     });
 
+    it('loads a fresh list each time, so newly enabled models appear without a restart', async () => {
+      const p = provider();
+      await p.listTextModels();
+      fetchMock = routedFetch(['gpt-6-luna', 'gpt-4.1']);
+      vi.stubGlobal('fetch', fetchMock);
+
+      const models = await p.listTextModels();
+
+      expect(models.map((m) => m.id)).toEqual(['gpt-6-luna', 'gpt-4.1']);
+    });
+
     it('drops models that are shut down or Responses-only', async () => {
       fetchMock = routedFetch([
         'o1', 'o1-mini', 'o3-mini', 'o4-mini', 'gpt-4.1-nano', 'gpt-5-chat-latest', 'gpt-5.3-codex', 'gpt-4.1',

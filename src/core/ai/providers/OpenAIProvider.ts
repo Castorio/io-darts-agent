@@ -202,6 +202,9 @@ export class OpenAIProvider extends BaseAIProvider {
    * Chat models the API key can use, preferred models first
    */
   async listTextModels(): Promise<AIModelInfo[]> {
+    // The settings page asks for this; always reload so models enabled in the
+    // OpenAI project since the last call show up (and refresh the cache with it)
+    this.availableModels = null;
     const ids = await this.loadModelIds();
     return preferredFirst(ids.filter(isChatModel), PREFERRED_TEXT_MODELS).map((id) => ({ id, name: id }));
   }

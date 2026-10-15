@@ -51,5 +51,16 @@
     "name": "Replicate",
     "apiKey": "",
     "enabled": false
+  },
+  {
+    "id": "higgsfield",
+    "type": "higgsfield",
+    "name": "Higgsfield",
+    "apiKey": "",
+    "enabled": false,
+    "options": {
+      "defaultModel": "kling-video/v3.0/std/text-to-video",
+      "imageModel": "higgsfield-ai/soul/standard"
+    }
   }
 ]

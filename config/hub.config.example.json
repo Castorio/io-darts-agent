@@ -1,13 +1,19 @@
 {
-  "auth": {
-    "email": "your-email@example.com",
-    "password": "your-password",
-    "clientId": "developer-darts-caller",
-    "clientSecret": "***REMOVED***"
+  "setupCompleted": true,
+  "language": "en",
+  "webAuth": {
+    "enabled": false,
+    "username": "admin",
+    "passwordHash": ""
   },
-  "boardId": "your-board-id-here",
+  "autodarts": {
+    "email": "your-email@example.com",
+    "password": "your-autodarts-password",
+    "boardId": "your-board-id"
+  },
   "server": {
     "port": 3000,
     "host": "0.0.0.0"
-  }
+  },
+  "developerMode": false
 }

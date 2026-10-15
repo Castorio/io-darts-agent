@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   HiggsfieldProvider,
-  HIGGSFIELD_MODELS,
   DEFAULT_HIGGSFIELD_IMAGE_MODEL,
   DEFAULT_HIGGSFIELD_VIDEO_MODEL,
 } from './HiggsfieldProvider.js';
+import { findHiggsfieldModel } from './higgsfieldCatalog.js';
 
 const REQUEST_ID = 'd7e6c0f3-6699-4f6c-bb45-2ad7fd9158ff';
 
@@ -43,7 +43,8 @@ describe('HiggsfieldProvider', () => {
     expect(p.capabilities).toEqual(['image-generation', 'video-generation']);
     expect(DEFAULT_HIGGSFIELD_VIDEO_MODEL).toBe('kling-video/v3.0/std/text-to-video');
     expect(DEFAULT_HIGGSFIELD_IMAGE_MODEL).toBe('higgsfield-ai/soul/standard');
-    expect(HIGGSFIELD_MODELS.map((m) => m.id)).toContain(DEFAULT_HIGGSFIELD_VIDEO_MODEL);
+    expect(findHiggsfieldModel(DEFAULT_HIGGSFIELD_VIDEO_MODEL)?.type).toBe('video');
+    expect(findHiggsfieldModel(DEFAULT_HIGGSFIELD_IMAGE_MODEL)?.type).toBe('image');
   });
 
   it('is not configured with a key in the wrong format', () => {
@@ -106,16 +107,24 @@ describe('HiggsfieldProvider', () => {
       expect(result).toEqual({ videoUrl: '', jobId: REQUEST_ID, model: DEFAULT_HIGGSFIELD_VIDEO_MODEL, duration: 15 });
     });
 
-    it('sends only prompt and duration to models whose schema is not verified', async () => {
+    it('builds the body from the model schema (Hailuo only allows 6 or 10 seconds)', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse(200, { status: 'queued', request_id: REQUEST_ID }));
 
-      await provider().generateVideo({
+      const result = await provider().generateVideo({
         prompt: 'x',
         model: 'minimax/hailuo-2.3/standard/text-to-video',
         aspectRatio: '1:1',
       });
 
-      expect(submittedBody(fetchMock)).toEqual({ prompt: 'x', duration: 5 });
+      expect(submittedBody(fetchMock)).toEqual({ prompt: 'x', duration: 6 });
+      expect(result.duration).toBe(6);
+    });
+
+    it('refuses an image model for video generation', async () => {
+      await expect(provider().generateVideo({ prompt: 'x', model: 'ideogram/v4.0' })).rejects.toThrow(
+        'not a video model'
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('uses a configured default video model', async () => {
@@ -158,6 +167,15 @@ describe('HiggsfieldProvider', () => {
     const job = await p.getJobStatus(REQUEST_ID);
 
     expect(job.type).toBe('image-generation');
+  });
+
+  it('lists the whole catalog with video and image categories', async () => {
+    const models = await provider().listTextModels();
+
+    expect(models).toHaveLength(30);
+    expect(models.filter((m) => m.category === 'video')).toHaveLength(20);
+    expect(models.find((m) => m.id === DEFAULT_HIGGSFIELD_IMAGE_MODEL)).toMatchObject({ category: 'image' });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   describe('getStatus()', () => {

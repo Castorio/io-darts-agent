@@ -24,28 +24,13 @@ import {
   type HiggsfieldRequestStatus,
   type HiggsfieldStatus,
 } from './HiggsfieldClient.js';
+import { HIGGSFIELD_CATALOG, buildHiggsfieldBody, findHiggsfieldModel } from './higgsfieldCatalog.js';
 
 export const DEFAULT_HIGGSFIELD_VIDEO_MODEL = 'kling-video/v3.0/std/text-to-video';
 export const DEFAULT_HIGGSFIELD_IMAGE_MODEL = 'higgsfield-ai/soul/standard';
 
-/** Model id = endpoint path (docs.higgsfield.ai/docs/models, 2026-10-15) */
-export const HIGGSFIELD_MODELS: Array<AIModelInfo & { type: 'video' | 'image' }> = [
-  { id: DEFAULT_HIGGSFIELD_VIDEO_MODEL, name: 'Kling 3.0 Standard (Text-zu-Video)', type: 'video' },
-  { id: 'kling-video/v2.5-turbo/pro/text-to-video', name: 'Kling 2.5 Turbo Pro (Text-zu-Video)', type: 'video' },
-  { id: 'minimax/hailuo-2.3/standard/text-to-video', name: 'Hailuo 2.3 (Text-zu-Video)', type: 'video' },
-  { id: DEFAULT_HIGGSFIELD_IMAGE_MODEL, name: 'Soul Standard (Bild)', type: 'image' },
-];
-
-// Kling video length limits per model page
-const MIN_VIDEO_SECONDS = 3;
-const MAX_VIDEO_SECONDS = 15;
-const DEFAULT_VIDEO_SECONDS = 5;
-
 // Images usually finish within a minute; keep a generous ceiling
 const IMAGE_TIMEOUT_MS = 5 * 60_000;
-
-// Only Kling 3.0 has a verified aspect_ratio/sound schema; others get prompt and duration
-const KLING_3_MODELS = new Set([DEFAULT_HIGGSFIELD_VIDEO_MODEL]);
 
 export interface HiggsfieldProviderConfig extends AIProviderConfig {
   type: 'higgsfield';
@@ -55,26 +40,6 @@ export interface HiggsfieldProviderConfig extends AIProviderConfig {
     /** Default image model (endpoint path) */
     imageModel?: string;
   };
-}
-
-/** Soul aspect ratio closest to the requested size */
-export function imageAspectRatio(width?: number, height?: number): string {
-  if (!width || !height || width === height) return '1:1';
-  const ratio = width / height;
-  const options: Array<[string, number]> = [
-    ['16:9', 16 / 9],
-    ['3:2', 3 / 2],
-    ['4:3', 4 / 3],
-    ['3:4', 3 / 4],
-    ['2:3', 2 / 3],
-    ['9:16', 9 / 16],
-  ];
-  return options.reduce((best, cur) => (Math.abs(cur[1] - ratio) < Math.abs(best[1] - ratio) ? cur : best))[0];
-}
-
-function clampDuration(seconds?: number): number {
-  const value = Math.round(seconds ?? DEFAULT_VIDEO_SECONDS);
-  return Math.min(MAX_VIDEO_SECONDS, Math.max(MIN_VIDEO_SECONDS, value));
 }
 
 function mapStatus(status: HiggsfieldRequestStatus): AIJobStatus {
@@ -100,8 +65,6 @@ function failureReason(status: HiggsfieldStatus): string {
 
 // Enough to cover all image jobs a user follows; older ids fall back to output detection
 const MAX_TRACKED_IMAGE_REQUESTS = 200;
-
-const VIDEO_MODEL_IDS = new Set(HIGGSFIELD_MODELS.filter((m) => m.type === 'video').map((m) => m.id));
 
 export class HiggsfieldProvider extends BaseAIProvider {
   readonly capabilities: AICapability[] = ['image-generation', 'video-generation'];
@@ -139,16 +102,20 @@ export class HiggsfieldProvider extends BaseAIProvider {
 
   async generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
     const model = request.model || this.options().imageModel || DEFAULT_HIGGSFIELD_IMAGE_MODEL;
-    if (VIDEO_MODEL_IDS.has(model)) {
+    if (findHiggsfieldModel(model)?.type === 'video') {
       throw new Error(`${model} is not an image model`);
     }
     const client = this.client();
 
-    const requestId = await client.submit(model, {
-      prompt: request.prompt,
-      aspect_ratio: imageAspectRatio(request.width, request.height),
-      batch_size: (request.count ?? 1) > 1 ? 4 : 1,
-    });
+    const requestId = await client.submit(
+      model,
+      buildHiggsfieldBody(model, {
+        prompt: request.prompt,
+        width: request.width,
+        height: request.height,
+        count: request.count,
+      })
+    );
     this.imageRequestIds.add(requestId);
     if (this.imageRequestIds.size > MAX_TRACKED_IMAGE_REQUESTS) {
       // Sets keep insertion order, so the first entry is the oldest
@@ -169,18 +136,29 @@ export class HiggsfieldProvider extends BaseAIProvider {
    * Start a video; poll with getJobStatus(jobId)
    */
   async generateVideo(request: VideoGenerationRequest): Promise<VideoGenerationResponse> {
-    const model = request.model || this.options().defaultModel || DEFAULT_HIGGSFIELD_VIDEO_MODEL;
-    const duration = clampDuration(request.duration);
-
-    const body: Record<string, unknown> = { prompt: request.prompt, duration };
-    if (KLING_3_MODELS.has(model)) {
-      body.aspect_ratio = request.aspectRatio ?? '16:9';
-      // Animations play muted; native audio would only add cost
-      body.sound = 'off';
+    const configured = this.options().defaultModel;
+    // An image model saved as default must not break video generation
+    const fallback = configured && findHiggsfieldModel(configured)?.type !== 'image' ? configured : undefined;
+    const model = request.model || fallback || DEFAULT_HIGGSFIELD_VIDEO_MODEL;
+    if (findHiggsfieldModel(model)?.type === 'image') {
+      throw new Error(`${model} is not a video model`);
     }
 
+    const body = buildHiggsfieldBody(model, {
+      prompt: request.prompt,
+      duration: request.duration,
+      aspectRatio: request.aspectRatio,
+    });
+
     const jobId = await this.client().submit(model, body);
-    return { videoUrl: '', jobId, model, duration };
+    return { videoUrl: '', jobId, model, duration: body.duration as number | undefined };
+  }
+
+  /**
+   * Higgsfield has no model listing endpoint; the catalog comes from its docs
+   */
+  async listTextModels(): Promise<AIModelInfo[]> {
+    return HIGGSFIELD_CATALOG.map((m) => ({ id: m.id, name: m.name, category: m.type }));
   }
 
   async getJobStatus(jobId: string): Promise<AIJob> {

@@ -72,6 +72,8 @@ export interface AIProviderConfig {
 export interface AIModelInfo {
   id: string;
   name: string;
+  /** For providers that offer several kinds of models */
+  category?: 'video' | 'image';
 }
 
 export interface AIProviderStatus {

@@ -44,31 +44,31 @@ const providerConfigs: Record<string, ProviderConfig> = {
   openai: {
     icon: '🤖',
     gradient: 'from-green-500 to-emerald-600',
-    description: 'GPT-4, DALL-E, Whisper, TTS',
+    description: 'GPT-6, GPT Image, TTS',
     capabilities: ['text-generation', 'image-generation', 'audio-tts', 'embeddings'],
     requiresApiKey: true,
     hasBaseUrl: false,
+    // Text models only: the default model is used for text generation; image and
+    // speech models are picked by the provider. Built-in list until the key's own
+    // models are loaded (see loadLiveModels).
     models: [
-      { id: 'gpt-4o', name: 'GPT-4o', category: 'Text' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', category: 'Text' },
-      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', category: 'Text' },
-      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', category: 'Text' },
-      { id: 'dall-e-3', name: 'DALL-E 3', category: 'Bild' },
-      { id: 'dall-e-2', name: 'DALL-E 2', category: 'Bild' },
+      { id: 'gpt-6-luna', name: 'GPT-6 Luna (schnell, günstig)', category: 'Text' },
+      { id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol', category: 'Text' },
+      { id: 'gpt-6-astra', name: 'GPT-6 Astra (am stärksten)', category: 'Text' },
+      { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', category: 'Text' },
     ],
   },
   anthropic: {
     icon: '🧠',
     gradient: 'from-orange-500 to-amber-600',
-    description: 'Claude 3 Opus, Sonnet, Haiku',
+    description: 'Claude Opus 5, Sonnet 5, Haiku 4.5',
     capabilities: ['text-generation'],
     requiresApiKey: true,
     hasBaseUrl: false,
     models: [
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
+      { id: 'claude-opus-5', name: 'Claude Opus 5' },
+      { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
+      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5 (schnell, günstig)' },
     ],
   },
   ollama: {
@@ -163,6 +163,40 @@ const testingProvider = ref<string | null>(null)
 // Form state for each provider
 const providerForms = ref<Record<string, { apiKey: string; baseUrl: string; defaultModel: string }>>({})
 
+// Models the configured API key can actually use, loaded from the provider API
+const LIVE_MODEL_TYPES = ['openai', 'anthropic']
+const liveModels = ref<Record<string, ModelOption[]>>({})
+
+function modelsFor(provider: AIProvider): ModelOption[] | undefined {
+  return liveModels.value[provider.id] ?? providerConfigs[provider.type]?.models
+}
+
+// Cloud providers retire models; a saved model that is no longer offered is replaced
+// server-side, so preselect the first offered model instead of an empty selection
+function ensureOfferedModel(provider: AIProvider) {
+  const form = providerForms.value[provider.id]
+  const models = modelsFor(provider)
+  if (!form || !LIVE_MODEL_TYPES.includes(provider.type) || !models?.length) return
+  if (!models.some(m => m.id === form.defaultModel)) {
+    form.defaultModel = models[0].id
+  }
+}
+
+async function loadLiveModels(provider: AIProvider) {
+  if (!LIVE_MODEL_TYPES.includes(provider.type) || !provider.hasApiKey) return
+  try {
+    const response = await fetch(`/api/ai/providers/${provider.id}/models`)
+    if (!response.ok) return
+    const data = await response.json() as { models?: ModelOption[] }
+    if (data.models?.length) {
+      liveModels.value[provider.id] = data.models
+      ensureOfferedModel(provider)
+    }
+  } catch {
+    // Keep the built-in list when the provider cannot be reached
+  }
+}
+
 // Computed
 const sortedProviders = computed(() => {
   const order = ['openai', 'anthropic', 'ollama', 'elevenlabs', 'stability', 'runway', 'replicate']
@@ -195,6 +229,8 @@ async function fetchProviders() {
         baseUrl: provider.baseUrl || config?.defaultBaseUrl || '',
         defaultModel: savedModel,
       }
+      ensureOfferedModel(provider)
+      void loadLiveModels(provider)
     }
   } catch (error) {
     message.value = {
@@ -226,7 +262,7 @@ async function updateProvider(providerId: string) {
     }
 
     // Save default model if provider has models
-    if (provider && providerConfigs[provider.type]?.models?.length && form.defaultModel) {
+    if (provider && modelsFor(provider)?.length && form.defaultModel) {
       updates.options = { defaultModel: form.defaultModel }
     }
 
@@ -382,10 +418,10 @@ onMounted(fetchProviders)
 
                   <!-- Current Model Badge -->
                   <span
-                    v-if="providerForms[provider.id]?.defaultModel && getProviderConfig(provider.type).models?.length"
+                    v-if="providerForms[provider.id]?.defaultModel && modelsFor(provider)?.length"
                     class="inline-block mt-1 px-2 py-0.5 rounded text-xs bg-autodarts-500/20 text-autodarts-400"
                   >
-                    Modell: {{ getProviderConfig(provider.type).models?.find(m => m.id === providerForms[provider.id]?.defaultModel)?.name || providerForms[provider.id]?.defaultModel }}
+                    Modell: {{ modelsFor(provider)?.find(m => m.id === providerForms[provider.id]?.defaultModel)?.name || providerForms[provider.id]?.defaultModel }}
                   </span>
 
                   <!-- Capabilities -->
@@ -466,7 +502,7 @@ onMounted(fetchProviders)
               </div>
 
               <!-- Model Selection -->
-              <div v-if="getProviderConfig(provider.type).models?.length">
+              <div v-if="modelsFor(provider)?.length">
                 <label class="block text-sm font-medium text-dark-200 mb-1.5">
                   {{ t('ai.defaultModel') }}
                 </label>
@@ -475,7 +511,7 @@ onMounted(fetchProviders)
                   class="w-full px-3 py-2 rounded-lg bg-dark-700 border border-dark-600 text-white focus:border-autodarts-500 focus:ring-1 focus:ring-autodarts-500 outline-none"
                 >
                   <option
-                    v-for="model in getProviderConfig(provider.type).models"
+                    v-for="model in modelsFor(provider)"
                     :key="model.id"
                     :value="model.id"
                   >

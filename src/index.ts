@@ -6,6 +6,8 @@ import { EventBus, getEventBus } from './core/events/EventBus.js';
 import { ConfigService, loadConfigFromEnv } from './core/config/ConfigService.js';
 import type { HubConfig } from './types/index.js';
 
+const CONNECT_TIMEOUT_MS = 30000;
+
 export class AutodartsHub {
   private authService: AuthService;
   private socketService: SocketService;
@@ -58,22 +60,14 @@ export class AutodartsHub {
       })
     );
 
-    // Wait for connection
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Connection timeout'));
-      }, 10000);
-
-      const checkConnection = (): void => {
-        if (this.socketService.getConnectionState() === 'connected') {
-          clearTimeout(timeout);
-          resolve();
-        } else {
-          setTimeout(checkConnection, 100);
-        }
-      };
-      checkConnection();
-    });
+    // Wait for connection; ticket fetch and a first backoff count against the timeout
+    try {
+      await this.socketService.waitUntilConnected(CONNECT_TIMEOUT_MS);
+    } catch (error) {
+      this.socketService.disconnect();
+      this.authService.stopAutoRefresh();
+      throw error;
+    }
 
     // Subscribe to board
     this.socketService.subscribeToBoard();

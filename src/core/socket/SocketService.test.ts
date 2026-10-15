@@ -204,6 +204,42 @@ describe('SocketService', () => {
       expect(socketService.getConnectionState()).toBe('connected');
     });
 
+    it('opens only one socket when reconnected while a ticket is in flight', async () => {
+      let resolveFirst!: (t: string) => void;
+      const slowProvider = (): Promise<string> =>
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        });
+
+      socketService.connect(slowProvider);
+      socketService.disconnect();
+      socketService.connect(ticketProvider);
+      await vi.advanceTimersByTimeAsync(50);
+      resolveFirst('stale-ticket');
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(sockets()).toHaveLength(1);
+      expect(sockets()[0].url).toContain(`code=${TICKET}`);
+      expect(socketService.getConnectionState()).toBe('connected');
+    });
+
+    it('waits until connected', async () => {
+      socketService.connect(ticketProvider);
+
+      const wait = socketService.waitUntilConnected(1000);
+      await vi.advanceTimersByTimeAsync(200);
+      await expect(wait).resolves.toBeUndefined();
+    });
+
+    it('rejects waiting when no connection is made in time', async () => {
+      socketService.connect(() => new Promise<string>(() => {}));
+
+      const wait = socketService.waitUntilConnected(1000);
+      const assertion = expect(wait).rejects.toThrow('Connection timeout');
+      await vi.advanceTimersByTimeAsync(1100);
+      await assertion;
+    });
+
     it('retries with backoff when the ticket cannot be fetched', async () => {
       const provider = vi
         .fn<[], Promise<string>>()

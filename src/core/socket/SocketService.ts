@@ -26,6 +26,8 @@ export class SocketService {
 
   private ws: WebSocket | null = null;
   private ticketProvider: TicketProvider | null = null;
+  // Identifies the current connection attempt; stale ticket fetches and sockets are dropped
+  private attemptId = 0;
   private boardId: string;
   private eventParser: EventParser;
   private eventBus: EventBus;
@@ -61,6 +63,7 @@ export class SocketService {
       return;
     }
 
+    this.clearReconnectTimeout();
     this.ticketProvider = ticketProvider;
     this.connectionState = 'connecting';
     this.onConnectionChange?.(this.connectionState);
@@ -68,35 +71,57 @@ export class SocketService {
     void this.openWithFreshTicket();
   }
 
+  /**
+   * Resolve once the socket is connected, reject after the timeout.
+   */
+  waitUntilConnected(timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const startedAt = Date.now();
+      const poll = setInterval(() => {
+        if (this.connectionState === 'connected') {
+          clearInterval(poll);
+          resolve();
+        } else if (Date.now() - startedAt >= timeoutMs) {
+          clearInterval(poll);
+          reject(new Error('Connection timeout'));
+        }
+      }, 50);
+    });
+  }
+
   private async openWithFreshTicket(): Promise<void> {
     const provider = this.ticketProvider;
     if (!provider) return;
+    const attempt = ++this.attemptId;
 
     let ticket: string;
     try {
       ticket = await provider();
     } catch (error) {
-      if (this.connectionState === 'disconnected') return;
+      if (attempt !== this.attemptId) return;
       this.onError?.(error instanceof Error ? error : new Error(String(error)));
       this.handleConnectFailure();
       return;
     }
 
-    // disconnect() may have been called while the ticket was in flight
-    if (this.connectionState === 'disconnected') return;
+    // A disconnect() or a newer connect() happened while the ticket was in flight
+    if (attempt !== this.attemptId) return;
 
-    this.ws = new WebSocket(`${this.wsUrl}?code=${encodeURIComponent(ticket)}`);
+    const ws = new WebSocket(`${this.wsUrl}?code=${encodeURIComponent(ticket)}`);
+    this.ws = ws;
+    const current = (): boolean => attempt === this.attemptId && this.ws === ws;
 
-    this.ws.on('open', () => this.handleOpen());
-    this.ws.on('message', (data: WebSocket.RawData) => this.handleMessage(data));
-    this.ws.on('close', (code: number, reason: Buffer) => this.handleClose(code, reason));
-    this.ws.on('error', (error: Error) => this.handleError(error));
+    ws.on('open', () => current() && this.handleOpen());
+    ws.on('message', (data: WebSocket.RawData) => current() && this.handleMessage(data));
+    ws.on('close', (code: number, reason: Buffer) => current() && this.handleClose(code, reason));
+    ws.on('error', (error: Error) => current() && this.handleError(error));
   }
 
   /**
    * Disconnect from the WebSocket server
    */
   disconnect(): void {
+    this.attemptId++;
     this.clearReconnectTimeout();
     this.subscriptions.clear();
     this.pendingSubscriptions = [];

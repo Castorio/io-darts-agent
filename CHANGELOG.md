@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Higgsfield als AI-Provider** (Bild: Soul Standard, Video: Kling 3.0 Standard, Kling 2.5 Turbo Pro, Hailuo 2.3). Zugang als `KEY_ID:KEY_SECRET`, kostenfreier Verbindungstest, Idempotency-Key gegen Doppelabrechnung.
+- **Higgsfield als AI-Provider** mit vollständigem Text-Katalog (20 Video-, 10 Bildmodelle aus docs.higgsfield.ai, Default Kling 3.0 Standard und Soul Standard). Request-Body je Modell aus dem Schema (erlaubte Dauer, Seitenverhältnis, Batch-Größe, Ton aus über `sound` oder `generate_audio`), getrennte Auswahl für Video- und Bildmodell in den AI-Einstellungen. Zugang als `KEY_ID:KEY_SECRET`, kostenfreier Verbindungstest, Idempotency-Key gegen Doppelabrechnung.
 - **Engine-Wahl im Animations-Generator** (Runway oder Higgsfield) in der Game-Display-Konfiguration, gespeichert in `config/animation-settings.json`, Routen `GET/PUT /api/animations/engine`.
 - **Intent System** (`src/core/intents/`): semantische Intent-Schicht über dem
   EventBus für lose gekoppelte Inter-Modul-Kommunikation. Module emittieren

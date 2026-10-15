@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { animationSlotFor } from '../lib/animationEvents'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -277,7 +278,8 @@ async function saveConfig() {
 
 // Handle AI-generated animation ready
 function onAnimationReady(eventType: string, url: string) {
-  const animationKey = `animation${eventType.charAt(0).toUpperCase()}${eventType.slice(1)}`
+  const animationKey = animationSlotFor(eventType)
+  if (!animationKey) return
   const currentGroup = (config.value[animationKey] as Record<string, unknown>) || {}
   updateValue(animationKey, {
     ...currentGroup,

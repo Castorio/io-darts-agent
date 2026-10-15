@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ANIMATION_EVENTS } from '../lib/animationEvents'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '../api/client'
@@ -29,20 +30,13 @@ interface AnimationJob {
   completedAt?: string
 }
 
-type DartEventType = '180' | 'bull' | 'doubleBull' | 'highScore' | 'checkout' | 'legWin' | 'setWin' | 'matchWin' | 'bust'
+// Event ids as the hub expects them, see lib/animationEvents
+type DartEventType = string
 
 // Event definitions - labels will be translated in template
-const eventDefinitions: Record<DartEventType, { labelKey: string; icon: string }> = {
-  '180': { labelKey: 'animationGen.event180', icon: '🎯' },
-  bull: { labelKey: 'animationGen.eventBull', icon: '🎯' },
-  doubleBull: { labelKey: 'animationGen.eventDoubleBull', icon: '🎯' },
-  highScore: { labelKey: 'animationGen.eventHighScore', icon: '🔥' },
-  checkout: { labelKey: 'animationGen.eventCheckout', icon: '✅' },
-  legWin: { labelKey: 'animationGen.eventLegWin', icon: '🏆' },
-  setWin: { labelKey: 'animationGen.eventSetWin', icon: '🏆' },
-  matchWin: { labelKey: 'animationGen.eventMatchWin', icon: '🥇' },
-  bust: { labelKey: 'animationGen.eventBust', icon: '💥' },
-}
+const eventDefinitions: Record<DartEventType, { labelKey: string; icon: string }> = Object.fromEntries(
+  ANIMATION_EVENTS.map((e) => [e.id, { labelKey: e.labelKey, icon: e.icon }])
+)
 
 // Emit for when animation is generated
 const emit = defineEmits<{

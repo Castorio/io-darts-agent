@@ -105,7 +105,8 @@ export function setSessionCookie(
   reply.setCookie(SESSION_COOKIE, sessionId, {
     path: '/',
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    // The hub serves plain HTTP in the LAN; a Secure cookie would never come back
+    secure: reply.request?.protocol === 'https',
     sameSite: 'strict',
     maxAge: 24 * 60 * 60, // 24 hours
   });

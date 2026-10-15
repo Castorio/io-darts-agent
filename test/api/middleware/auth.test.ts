@@ -192,6 +192,26 @@ describe('Auth Middleware', () => {
     });
   });
 
+  it.each([
+    ['http', false],
+    ['https', true],
+  ])('marks the cookie secure only for %s requests, also in production', (protocol, secure) => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      (mockReply as { request?: unknown }).request = { protocol };
+      setSessionCookie(mockReply as FastifyReply, 'session-id-123');
+
+      expect(mockReply.setCookie).toHaveBeenCalledWith(
+        'autodarts_session',
+        'session-id-123',
+        expect.objectContaining({ secure })
+      );
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
+
   describe('clearSessionCookie', () => {
     it('should clear session cookie', () => {
       clearSessionCookie(mockReply as FastifyReply);

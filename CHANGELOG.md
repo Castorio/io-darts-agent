@@ -48,7 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Shell-Befehle mehr einschleusen.
 - Modul-IDs und Repository-Namen werden validiert; `uninstall('../..')` kann
   nicht mehr außerhalb des Modulverzeichnisses löschen.
-- CORS nur noch für lokale Origins (localhost, private IPv4-Netze, `*.local`).
+- Nur noch lokale Origins: CORS-Allowlist (localhost, private IPv4/IPv6-Netze, Hostnamen ohne Punkt, `.local`, `.lan`, `.home.arpa`, `.fritz.box`) und 403 für Requests fremder Origins, inklusive WebSocket-Upgrade.
+- npm läuft unter Windows über `cmd.exe` statt `shell: true`.
 
 ### Removed
 

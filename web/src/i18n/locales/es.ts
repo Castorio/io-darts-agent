@@ -432,6 +432,7 @@ export default {
     defaultModel: 'Modelo Predeterminado',
     usedForGeneration: 'Se usa para nuevas generaciones',
     higgsfieldKeyHint: 'Introduce el ID de clave y el secreto de Higgsfield Console como KEY_ID:KEY_SECRET.',
+    imageModel: 'Modelo de imagen',
     modelReplaced: 'El modelo guardado {model} ya no está disponible. Se usa el modelo seleccionado hasta que guardes.',
     testConnection: 'Probar Conexión',
   },

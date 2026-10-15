@@ -850,6 +850,7 @@ export default {
     defaultModel: 'Default Model',
     usedForGeneration: 'Used for new generations',
     higgsfieldKeyHint: 'Enter the key ID and secret from the Higgsfield Console as KEY_ID:KEY_SECRET.',
+    imageModel: 'Image model',
     modelReplaced: 'The saved model {model} is no longer available. The selected model is used until you save.',
     testConnection: 'Test Connection',
   },

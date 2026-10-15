@@ -175,10 +175,12 @@ const expandedProvider = ref<string | null>(null)
 const testingProvider = ref<string | null>(null)
 
 // Form state for each provider
-const providerForms = ref<Record<string, { apiKey: string; baseUrl: string; defaultModel: string }>>({})
+const providerForms = ref<Record<string, { apiKey: string; baseUrl: string; defaultModel: string; imageModel?: string }>>({})
 
 // Models the configured API key can actually use, loaded from the provider API
-const LIVE_MODEL_TYPES = ['openai', 'anthropic']
+const LIVE_MODEL_TYPES = ['openai', 'anthropic', 'higgsfield']
+// Higgsfield serves a fixed catalog that needs no key
+const KEYLESS_MODEL_TYPES = ['higgsfield']
 const liveModels = ref<Record<string, ModelOption[]>>({})
 // Model id as saved on the server, per provider
 const savedModels = ref<Record<string, string>>({})
@@ -188,10 +190,24 @@ const initialModels = ref<Record<string, string>>({})
 const replacedModels = ref<Record<string, string>>({})
 
 // Model the server falls back to when the saved one is retired
-const SERVER_FALLBACK_MODEL: Record<string, string> = { anthropic: 'claude-opus-5' }
+const SERVER_FALLBACK_MODEL: Record<string, string> = {
+  anthropic: 'claude-opus-5',
+  higgsfield: 'kling-video/v3.0/std/text-to-video',
+}
+const HIGGSFIELD_DEFAULT_IMAGE_MODEL = 'higgsfield-ai/soul/standard'
 
+// Models for the default model select; Higgsfield lists its video models here
 function modelsFor(provider: AIProvider): ModelOption[] | undefined {
-  return liveModels.value[provider.id] ?? providerConfigs[provider.type]?.models
+  const models = liveModels.value[provider.id] ?? providerConfigs[provider.type]?.models
+  if (provider.type !== 'higgsfield') return models
+  // Only video models here, so the category label would be noise
+  return models?.filter(m => m.category !== 'image').map(m => ({ id: m.id, name: m.name }))
+}
+
+// Higgsfield image models for the second select
+function imageModelsFor(provider: AIProvider): ModelOption[] {
+  if (provider.type !== 'higgsfield') return []
+  return (liveModels.value[provider.id] ?? []).filter(m => m.category === 'image')
 }
 
 // Cloud providers retire models; a saved model that is no longer offered is replaced
@@ -218,7 +234,8 @@ function ensureOfferedModel(provider: AIProvider) {
 }
 
 async function loadLiveModels(provider: AIProvider) {
-  if (!LIVE_MODEL_TYPES.includes(provider.type) || !provider.hasApiKey) return
+  if (!LIVE_MODEL_TYPES.includes(provider.type)) return
+  if (!provider.hasApiKey && !KEYLESS_MODEL_TYPES.includes(provider.type)) return
   try {
     const response = await fetch(`/api/ai/providers/${provider.id}/models`)
     if (response.ok) {
@@ -262,11 +279,15 @@ async function fetchProviders() {
         apiKey: '',
         baseUrl: provider.baseUrl || config?.defaultBaseUrl || '',
         defaultModel: savedModel,
+        imageModel: provider.type === 'higgsfield'
+          ? ((provider.options?.imageModel as string) || HIGGSFIELD_DEFAULT_IMAGE_MODEL)
+          : undefined,
       }
       savedModels.value[provider.id] = (provider.defaultModel ||
         (provider.options?.defaultModel as string) || '')
       initialModels.value[provider.id] = savedModel
-      if (LIVE_MODEL_TYPES.includes(provider.type) && provider.hasApiKey) {
+      if (LIVE_MODEL_TYPES.includes(provider.type) &&
+        (provider.hasApiKey || KEYLESS_MODEL_TYPES.includes(provider.type))) {
         void loadLiveModels(provider)
       } else {
         ensureOfferedModel(provider)
@@ -303,7 +324,11 @@ async function updateProvider(providerId: string) {
 
     // Save default model if provider has models
     if (provider && modelsFor(provider)?.length && form.defaultModel) {
-      updates.options = { defaultModel: form.defaultModel }
+      const options: Record<string, string> = { defaultModel: form.defaultModel }
+      if (provider.type === 'higgsfield' && form.imageModel) {
+        options.imageModel = form.imageModel
+      }
+      updates.options = options
     }
 
     const response = await fetch(`/api/ai/providers/${providerId}`, {
@@ -564,6 +589,22 @@ onMounted(fetchProviders)
                 <p class="text-xs text-dark-400 mt-1">
                   {{ t('ai.usedForGeneration') }}
                 </p>
+              </div>
+
+              <!-- Higgsfield image model -->
+              <div v-if="imageModelsFor(provider).length">
+                <label class="block text-sm font-medium text-dark-200 mb-1.5" :for="`image-model-${provider.id}`">
+                  {{ t('ai.imageModel') }}
+                </label>
+                <select
+                  :id="`image-model-${provider.id}`"
+                  v-model="providerForms[provider.id].imageModel"
+                  class="w-full px-3 py-2 rounded-lg bg-dark-700 border border-dark-600 text-white focus:border-autodarts-500 focus:ring-1 focus:ring-autodarts-500 outline-none"
+                >
+                  <option v-for="model in imageModelsFor(provider)" :key="model.id" :value="model.id">
+                    {{ model.name }}
+                  </option>
+                </select>
               </div>
 
               <!-- Action Buttons -->

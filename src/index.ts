@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { AuthService } from './core/auth/AuthService.js';
 import { SocketService } from './core/socket/SocketService.js';
+import { fetchSocketTicket } from './core/socket/SocketTicket.js';
 import { EventBus, getEventBus } from './core/events/EventBus.js';
 import { ConfigService, loadConfigFromEnv } from './core/config/ConfigService.js';
 import type { HubConfig } from './types/index.js';
@@ -32,14 +33,13 @@ export class AutodartsHub {
 
     // Authenticate
     console.log('Authenticating...');
-    const token = await this.authService.login();
+    await this.authService.login();
     console.log('✅ Authentication successful');
     console.log(`   User ID: ${this.authService.getUserId()}`);
 
-    // Setup auto-refresh
-    this.authService.startAutoRefresh((newToken) => {
+    // Setup auto-refresh; the socket fetches a fresh ticket on every (re)connect
+    this.authService.startAutoRefresh(() => {
       console.log('🔄 Token refreshed');
-      this.socketService.updateToken(newToken);
     });
 
     // Connect WebSocket
@@ -52,7 +52,11 @@ export class AutodartsHub {
       console.error('❌ Socket error:', error.message);
     });
 
-    this.socketService.connect(token);
+    this.socketService.connect(() =>
+      fetchSocketTicket(() => this.authService.getToken(), {
+        onUnauthorized: () => this.authService.refresh(),
+      })
+    );
 
     // Wait for connection
     await new Promise<void>((resolve, reject) => {

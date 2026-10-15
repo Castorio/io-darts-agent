@@ -11,13 +11,18 @@ vi.mock('ws', () => {
     static CLOSING = 2;
     static CLOSED = 3;
 
+    static instances: MockWebSocket[] = [];
+
     readyState = 0;
     sentMessages: string[] = [];
     url: string;
+    options: unknown;
 
-    constructor(url: string) {
+    constructor(url: string, options?: unknown) {
       super();
       this.url = url;
+      this.options = options;
+      MockWebSocket.instances.push(this);
       this.readyState = 0; // CONNECTING
 
       // Simulate async connection
@@ -41,10 +46,16 @@ vi.mock('ws', () => {
 });
 
 // Import after mock
+import WebSocket from 'ws';
 import { SocketService } from './SocketService.js';
 
+type MockSocket = { url: string; options: unknown; emit: (event: string, ...args: unknown[]) => void };
+const sockets = (): MockSocket[] =>
+  (WebSocket as unknown as { instances: MockSocket[] }).instances;
+
 const BOARD_ID = 'test-board-id';
-const TOKEN = 'test-token';
+const TICKET = 'test-ticket';
+const ticketProvider = (): Promise<string> => Promise.resolve(TICKET);
 const MATCH_ID = 'test-match-id';
 
 describe('SocketService', () => {
@@ -53,6 +64,7 @@ describe('SocketService', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    sockets().length = 0;
     eventBus = new EventBus();
     socketService = new SocketService(BOARD_ID, eventBus, {
       reconnectInterval: 1000,
@@ -72,7 +84,7 @@ describe('SocketService', () => {
       const stateCallback = vi.fn();
       socketService.onStateChange(stateCallback);
 
-      socketService.connect(TOKEN);
+      socketService.connect(ticketProvider);
 
       expect(stateCallback).toHaveBeenCalledWith('connecting');
 
@@ -87,8 +99,8 @@ describe('SocketService', () => {
       const stateCallback = vi.fn();
       socketService.onStateChange(stateCallback);
 
-      socketService.connect(TOKEN);
-      socketService.connect(TOKEN);
+      socketService.connect(ticketProvider);
+      socketService.connect(ticketProvider);
 
       expect(stateCallback).toHaveBeenCalledTimes(1);
     });
@@ -96,7 +108,7 @@ describe('SocketService', () => {
 
   describe('disconnect()', () => {
     it('should disconnect from WebSocket server', async () => {
-      socketService.connect(TOKEN);
+      socketService.connect(ticketProvider);
       await vi.advanceTimersByTimeAsync(50);
 
       socketService.disconnect();
@@ -113,7 +125,7 @@ describe('SocketService', () => {
     });
 
     it('should subscribe when connected', async () => {
-      socketService.connect(TOKEN);
+      socketService.connect(ticketProvider);
       await vi.advanceTimersByTimeAsync(50);
 
       socketService.subscribe('autodarts.boards', `${BOARD_ID}.state`);
@@ -124,7 +136,7 @@ describe('SocketService', () => {
 
   describe('subscribeToBoard()', () => {
     it('should subscribe to board state and matches', async () => {
-      socketService.connect(TOKEN);
+      socketService.connect(ticketProvider);
       await vi.advanceTimersByTimeAsync(50);
 
       socketService.subscribeToBoard();
@@ -135,7 +147,7 @@ describe('SocketService', () => {
 
   describe('subscribeToMatch()', () => {
     it('should set match ID when subscribing', async () => {
-      socketService.connect(TOKEN);
+      socketService.connect(ticketProvider);
       await vi.advanceTimersByTimeAsync(50);
 
       socketService.subscribeToMatch(MATCH_ID);
@@ -146,7 +158,7 @@ describe('SocketService', () => {
 
   describe('unsubscribeFromMatch()', () => {
     it('should clear match ID when unsubscribing', async () => {
-      socketService.connect(TOKEN);
+      socketService.connect(ticketProvider);
       await vi.advanceTimersByTimeAsync(50);
 
       socketService.subscribeToMatch(MATCH_ID);
@@ -162,18 +174,53 @@ describe('SocketService', () => {
     });
 
     it('should return connecting after connect called', () => {
-      socketService.connect(TOKEN);
+      socketService.connect(ticketProvider);
       expect(socketService.getConnectionState()).toBe('connecting');
     });
   });
 
-  describe('updateToken()', () => {
-    it('should update the stored token', async () => {
-      socketService.connect(TOKEN);
+  describe('ticket authentication', () => {
+    it('opens the message bus url with the ticket and without an auth header', async () => {
+      socketService.connect(ticketProvider);
       await vi.advanceTimersByTimeAsync(50);
 
-      socketService.updateToken('new-token');
+      expect(sockets()[0].url).toBe(`wss://play.ws.autodarts.com/ms/v0/subscribe?code=${TICKET}`);
+      expect(sockets()[0].options).toBeUndefined();
+    });
 
+    it('fetches a fresh ticket for every reconnect', async () => {
+      const provider = vi
+        .fn<[], Promise<string>>()
+        .mockResolvedValueOnce('ticket-1')
+        .mockResolvedValueOnce('ticket-2');
+      socketService.connect(provider);
+      await vi.advanceTimersByTimeAsync(50);
+
+      sockets()[0].emit('close', 1006, Buffer.from('gone'));
+      await vi.advanceTimersByTimeAsync(1100);
+
+      expect(provider).toHaveBeenCalledTimes(2);
+      expect(sockets()[1].url).toContain('code=ticket-2');
+      expect(socketService.getConnectionState()).toBe('connected');
+    });
+
+    it('retries with backoff when the ticket cannot be fetched', async () => {
+      const provider = vi
+        .fn<[], Promise<string>>()
+        .mockRejectedValueOnce(new Error('Socket ticket request failed: 503'))
+        .mockResolvedValueOnce('ticket-2');
+      const errorCallback = vi.fn();
+      socketService.onErrorCallback(errorCallback);
+
+      socketService.connect(provider);
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(socketService.getConnectionState()).toBe('reconnecting');
+      expect(errorCallback).toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1100);
+
+      expect(provider).toHaveBeenCalledTimes(2);
       expect(socketService.getConnectionState()).toBe('connected');
     });
   });
@@ -183,7 +230,7 @@ describe('SocketService', () => {
       const errorCallback = vi.fn();
       socketService.onErrorCallback(errorCallback);
 
-      socketService.connect(TOKEN);
+      socketService.connect(ticketProvider);
       await vi.advanceTimersByTimeAsync(50);
 
       expect(socketService.getConnectionState()).toBe('connected');

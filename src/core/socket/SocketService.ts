@@ -6,7 +6,10 @@ import type {
 import { EventParser } from './EventParser.js';
 import { EventBus } from '../events/EventBus.js';
 
-const WS_URL = 'wss://api.autodarts.io/ms/v0/subscribe';
+const WS_URL = 'wss://play.ws.autodarts.com/ms/v0/subscribe';
+
+/** Supplies a fresh single-use message bus ticket per connection attempt */
+export type TicketProvider = () => Promise<string>;
 
 export interface SocketServiceOptions {
   wsUrl?: string;
@@ -22,7 +25,7 @@ export class SocketService {
   private maxReconnectAttempts: number;
 
   private ws: WebSocket | null = null;
-  private token: string | null = null;
+  private ticketProvider: TicketProvider | null = null;
   private boardId: string;
   private eventParser: EventParser;
   private eventBus: EventBus;
@@ -50,22 +53,39 @@ export class SocketService {
   }
 
   /**
-   * Connect to the WebSocket server
+   * Connect to the WebSocket server. Every attempt, including reconnects,
+   * fetches a fresh ticket from the provider.
    */
-  connect(token: string): void {
+  connect(ticketProvider: TicketProvider): void {
     if (this.connectionState === 'connected' || this.connectionState === 'connecting') {
       return;
     }
 
-    this.token = token;
+    this.ticketProvider = ticketProvider;
     this.connectionState = 'connecting';
     this.onConnectionChange?.(this.connectionState);
 
-    this.ws = new WebSocket(this.wsUrl, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    void this.openWithFreshTicket();
+  }
+
+  private async openWithFreshTicket(): Promise<void> {
+    const provider = this.ticketProvider;
+    if (!provider) return;
+
+    let ticket: string;
+    try {
+      ticket = await provider();
+    } catch (error) {
+      if (this.connectionState === 'disconnected') return;
+      this.onError?.(error instanceof Error ? error : new Error(String(error)));
+      this.handleConnectFailure();
+      return;
+    }
+
+    // disconnect() may have been called while the ticket was in flight
+    if (this.connectionState === 'disconnected') return;
+
+    this.ws = new WebSocket(`${this.wsUrl}?code=${encodeURIComponent(ticket)}`);
 
     this.ws.on('open', () => this.handleOpen());
     this.ws.on('message', (data: WebSocket.RawData) => this.handleMessage(data));
@@ -200,15 +220,6 @@ export class SocketService {
     this.onError = callback;
   }
 
-  /**
-   * Update auth token (for token refresh)
-   */
-  updateToken(token: string): void {
-    this.token = token;
-    // Note: WebSocket connections don't support header updates
-    // A reconnect would be needed for the new token to take effect
-  }
-
   // ==================== Private Methods ====================
 
   private handleOpen(): void {
@@ -269,7 +280,10 @@ export class SocketService {
     }
 
     console.warn(`WebSocket closed: ${code} - ${reason.toString()}`);
+    this.handleConnectFailure();
+  }
 
+  private handleConnectFailure(): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.connectionState = 'reconnecting';
       this.onConnectionChange?.(this.connectionState);
@@ -299,8 +313,10 @@ export class SocketService {
     this.reconnectAttempts++;
 
     this.reconnectTimeout = setTimeout(() => {
-      if (this.token) {
-        this.connect(this.token);
+      if (this.ticketProvider && this.connectionState === 'reconnecting') {
+        this.connectionState = 'connecting';
+        this.onConnectionChange?.(this.connectionState);
+        void this.openWithFreshTicket();
       }
     }, delay);
   }

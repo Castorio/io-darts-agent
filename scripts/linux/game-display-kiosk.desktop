@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Game Display (IO-Darts-Agent)
+Comment=Opens the game display full screen after login
+# Install: cp game-display-kiosk.desktop ~/.config/autostart/
+Exec=sh -c '"$HOME/.local/bin/game-display-kiosk.sh"'
+X-GNOME-Autostart-enabled=true

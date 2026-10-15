@@ -1,0 +1,19 @@
+# systemd user service for IO-Darts-Agent
+# Install: cp io-darts-agent.service ~/.config/systemd/user/
+#          systemctl --user daemon-reload && systemctl --user enable --now io-darts-agent
+#          sudo loginctl enable-linger "$USER"   # start at boot without login
+[Unit]
+Description=IO-Darts-Agent (Autodarts hub)
+
+[Service]
+WorkingDirectory=%h/io-darts-agent
+Environment=NODE_ENV=production
+# The hub does not retry a failed start-up login, so wait for DNS first
+ExecStartPre=/bin/sh -c "until getent hosts api.autodarts.com >/dev/null; do sleep 2; done"
+TimeoutStartSec=180
+ExecStart=/usr/bin/node dist/src/main.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

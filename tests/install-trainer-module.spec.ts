@@ -1,8 +1,11 @@
 import { test, expect } from '@playwright/test';
 
-const MODULE_PATH = '/Users/christophcastor/projects/autodarts-trainer-module';
+// Local checkout of the trainer module, e.g. TRAINER_MODULE_PATH=../autodarts-trainer-module
+const MODULE_PATH = process.env.TRAINER_MODULE_PATH ?? '';
 
 test.describe('Install Autodarts Trainer Module', () => {
+  test.skip(!MODULE_PATH, 'Set TRAINER_MODULE_PATH to run this test');
+
   test('should install module from local path and verify it works', async ({ page }) => {
     // Increase timeout for this test
     test.setTimeout(60000);

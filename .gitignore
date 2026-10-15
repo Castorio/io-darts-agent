@@ -104,9 +104,15 @@ Desktop.ini
 *.ipr
 *.iws
 
-# Claude Code / Claw
+# Local working files (notes, plans, assistant config)
 .claudeclaw.json
 .claude/
+CLAUDE.md
+AGENTS.md
+.planning/
+docs/superpowers/
+PROJEKTPLAN.md
+autodarts_websocket_doku.md
 
 # Vim
 *.swp

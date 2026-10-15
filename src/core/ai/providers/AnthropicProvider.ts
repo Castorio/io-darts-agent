@@ -7,6 +7,7 @@
 
 import { BaseAIProvider } from '../AIProvider.js';
 import type {
+  AIModelInfo,
   AIProviderConfig,
   AIProviderStatus,
   AICapability,
@@ -14,6 +15,38 @@ import type {
   TextGenerationResponse,
   ChatMessage,
 } from '../types.js';
+
+/** Default model (Claude Opus 5) */
+export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5';
+
+// Retired or deprecated models; configs that still name them fall back to the default
+const RETIRED_MODEL_PATTERNS = [
+  /^claude-2/,
+  /^claude-3-/,
+  /^claude-(sonnet|opus)-4-0$/,
+  /^claude-(sonnet|opus)-4-20250514$/,
+  /^claude-opus-4-1/,
+];
+
+// Models that still accept temperature/top_p; newer models reject them with a 400
+const SAMPLING_MODEL_PATTERNS = [/^claude-haiku-4-5/, /^claude-(sonnet|opus)-4-[56]/];
+
+// Models that support server-side refusal fallbacks with fallbacks: "default"
+const FALLBACK_MODELS = new Set(['claude-opus-5', 'claude-fable-5-1']);
+const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
+
+export type AnthropicEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+function resolveModel(model: string | undefined): string {
+  if (!model || RETIRED_MODEL_PATTERNS.some((p) => p.test(model))) {
+    return DEFAULT_ANTHROPIC_MODEL;
+  }
+  return model;
+}
+
+function acceptsSampling(model: string): boolean {
+  return SAMPLING_MODEL_PATTERNS.some((p) => p.test(model));
+}
 
 /**
  * Anthropic-specific configuration
@@ -25,6 +58,8 @@ export interface AnthropicProviderConfig extends AIProviderConfig {
     defaultModel?: string;
     /** API version */
     apiVersion?: string;
+    /** Effort for current models (default: low, the answers here are short tips) */
+    effort?: AnthropicEffort;
   };
 }
 
@@ -43,12 +78,13 @@ interface AnthropicResponse {
   id: string;
   type: 'message';
   role: 'assistant';
-  content: Array<{
-    type: 'text';
-    text: string;
-  }>;
+  content: Array<
+    | { type: 'text'; text: string }
+    | { type: 'thinking'; thinking: string }
+    | { type: string }
+  >;
   model: string;
-  stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence' | null;
+  stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence' | 'refusal' | string | null;
   stop_sequence: string | null;
   usage: {
     input_tokens: number;
@@ -65,12 +101,14 @@ export class AnthropicProvider extends BaseAIProvider {
   private readonly baseUrl: string;
   private readonly apiVersion: string;
   private readonly defaultModel: string;
+  private readonly effort: AnthropicEffort;
 
   constructor(config: AnthropicProviderConfig) {
     super(config);
     this.baseUrl = config.baseUrl ?? 'https://api.anthropic.com';
     this.apiVersion = config.options?.apiVersion ?? '2023-06-01';
-    this.defaultModel = config.options?.defaultModel ?? 'claude-3-5-sonnet-20241022';
+    this.defaultModel = resolveModel(config.options?.defaultModel);
+    this.effort = config.options?.effort ?? 'low';
   }
 
   /**
@@ -94,30 +132,20 @@ export class AnthropicProvider extends BaseAIProvider {
     }
 
     try {
-      // Anthropic doesn't have a simple status endpoint, so we do a minimal request
-      // Using a simple message request with minimal tokens to verify API key
+      // Listing models verifies the API key without spending tokens
       // Don't use fetchWithRetry to handle 4xx ourselves
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.config.timeout ?? 30000);
 
-      const response = await fetch(`${this.baseUrl}/v1/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...this.getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          model: this.defaultModel,
-          max_tokens: 1,
-          messages: [{ role: 'user', content: 'hi' }],
-        }),
+      const response = await fetch(`${this.baseUrl}/v1/models`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
         signal: controller.signal,
       });
 
       clearTimeout(timeout);
 
-      // 200 = success, 400 = bad request (but API key valid), 401 = invalid key
-      if (response.ok || response.status === 400) {
+      if (response.ok) {
         return {
           ...baseStatus,
           available: this.isAvailable(),
@@ -146,10 +174,28 @@ export class AnthropicProvider extends BaseAIProvider {
   }
 
   /**
+   * Text models the API key can use, as listed by the Models API
+   */
+  async listTextModels(): Promise<AIModelInfo[]> {
+    const response = await this.fetchJson<{ data?: Array<{ id: string; display_name?: string }> }>(
+      `${this.baseUrl}/v1/models?limit=100`,
+      { method: 'GET' }
+    );
+    if (!Array.isArray(response.data)) {
+      throw new Error('Unexpected /v1/models response');
+    }
+    return response.data
+      .filter((m) => !RETIRED_MODEL_PATTERNS.some((p) => p.test(m.id)))
+      .map((m) => ({ id: m.id, name: m.display_name || m.id }));
+  }
+
+  /**
    * Generate text using Claude
    */
   async generateText(request: TextGenerationRequest): Promise<TextGenerationResponse> {
-    const model = request.model ?? this.defaultModel;
+    const model = request.model ? resolveModel(request.model) : this.defaultModel;
+    const sampling = acceptsSampling(model);
+    const fallback = FALLBACK_MODELS.has(model);
 
     // Convert prompt to messages format
     const { system, messages } = this.convertToMessages(request.prompt, request.system);
@@ -158,21 +204,26 @@ export class AnthropicProvider extends BaseAIProvider {
       `${this.baseUrl}/v1/messages`,
       {
         method: 'POST',
+        headers: fallback ? { 'anthropic-beta': FALLBACK_BETA } : undefined,
         body: {
           model,
           max_tokens: request.maxTokens ?? 4096,
           system: system || undefined,
           messages,
-          temperature: request.temperature,
-          top_p: request.topP,
+          temperature: sampling ? request.temperature : undefined,
+          top_p: sampling ? request.topP : undefined,
           stop_sequences: request.stop,
+          // Current models think adaptively; low effort keeps short answers from
+          // being used up by thinking. Older models do not take effort.
+          output_config: sampling ? undefined : { effort: this.effort },
+          fallbacks: fallback ? 'default' : undefined,
         },
       }
     );
 
     // Extract text from content blocks
     const text = response.content
-      .filter((block) => block.type === 'text')
+      .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
       .map((block) => block.text)
       .join('');
 
@@ -232,6 +283,8 @@ export class AnthropicProvider extends BaseAIProvider {
         return 'stop';
       case 'max_tokens':
         return 'length';
+      case 'refusal':
+        return 'content_filter';
       default:
         return undefined;
     }

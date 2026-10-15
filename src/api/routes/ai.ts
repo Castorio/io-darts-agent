@@ -7,6 +7,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { APIServer } from '../Server.js';
 import type {
+  AIModelInfo,
   AIProviderInfo,
   AIProviderConfigUpdate,
   AIProviderStatus,
@@ -141,6 +142,38 @@ export function registerAIRoutes(
     }
 
     return provider.getStatus();
+  });
+
+  /**
+   * GET /api/ai/providers/:id/models - Text models the configured key can use
+   */
+  fastify.get<{
+    Params: { id: string };
+    Reply: { models: AIModelInfo[] } | { error: string };
+  }>('/api/ai/providers/:id/models', async (request, reply) => {
+    if (!isAuthorized(server, request.session)) {
+      reply.code(401);
+      return { error: 'Authentication required' };
+    }
+
+    const provider = deps.getService().getProvider(request.params.id);
+    if (!provider) {
+      reply.code(404);
+      return { error: 'Provider not found' };
+    }
+    if (!provider.listTextModels) {
+      reply.code(400);
+      return { error: 'Provider does not list models' };
+    }
+
+    try {
+      return { models: await provider.listTextModels() };
+    } catch (error) {
+      // Upstream errors can echo request details; keep them in the server log only
+      request.log.warn({ err: error, provider: request.params.id }, 'Listing AI models failed');
+      reply.code(502);
+      return { error: 'Could not load models from the provider' };
+    }
   });
 
   /**

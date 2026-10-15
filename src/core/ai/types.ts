@@ -65,6 +65,14 @@ export interface AIProviderConfig {
 /**
  * Provider status
  */
+/**
+ * A model a provider offers, as listed by its API
+ */
+export interface AIModelInfo {
+  id: string;
+  name: string;
+}
+
 export interface AIProviderStatus {
   /** Provider ID */
   id: string;

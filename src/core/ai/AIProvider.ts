@@ -6,6 +6,7 @@
  */
 
 import type {
+  AIModelInfo,
   AIProviderConfig,
   AIProviderStatus,
   AICapability,
@@ -51,6 +52,11 @@ export interface IAIProvider {
    * Text generation (if supported)
    */
   generateText?(request: TextGenerationRequest): Promise<TextGenerationResponse>;
+
+  /**
+   * Text models the configured API key can use (if supported)
+   */
+  listTextModels?(): Promise<AIModelInfo[]>;
 
   /**
    * Image generation (if supported)

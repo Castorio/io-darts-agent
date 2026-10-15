@@ -6,6 +6,7 @@
 
 import { BaseAIProvider } from '../AIProvider.js';
 import type {
+  AIModelInfo,
   AIProviderConfig,
   AIProviderStatus,
   AICapability,
@@ -23,9 +24,67 @@ import type {
 /**
  * OpenAI-specific configuration
  */
+// Preferred models, newest first (developers.openai.com, 2026-10-15). Which ones a key
+// can use depends on the OpenAI project, so the first one listed by /models wins.
+const PREFERRED_TEXT_MODELS = ['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6-astra', 'gpt-4.1-mini', 'gpt-4.1'];
+const PREFERRED_IMAGE_MODELS = ['gpt-image-2.5-flare', 'gpt-image-2', 'gpt-image-1'];
+
+/** Fallbacks when the model list cannot be loaded: widely available models */
+export const DEFAULT_OPENAI_TEXT_MODEL = 'gpt-4.1-mini';
+export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-1';
+export const DEFAULT_OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
+
+// Ids that are not chat models: audio, realtime, search, research, Responses-only
+// pro models and dated snapshots
+const NON_CHAT_TEXT_MODELS = [
+  /realtime|audio|transcribe|tts|search|research|embedding|moderation|instruct/,
+  /-pro($|-)/,
+  /-\d{4}-\d{2}-\d{2}$/,
+];
+
+// Shut down or scheduled for shutdown; configs that still name them use the defaults
+// Image and speech models also land here when picked as "default model" in older UIs
+const DEPRECATED_TEXT_MODELS = [
+  /^gpt-4o(-mini)?$/,
+  /^gpt-4(-\d{4})?$/,
+  /^gpt-4-turbo/,
+  /^gpt-3\.5-turbo/,
+  /^dall-e-/,
+  /^gpt-image/,
+  /tts/,
+];
+const DEPRECATED_IMAGE_MODELS = [/^dall-e-/];
+const DEPRECATED_TTS_MODELS = [/^tts-1/];
+
+// Non-reasoning models that still accept temperature, top_p and stop
+const SAMPLING_TEXT_MODELS = [/^gpt-4\.1/, /^gpt-4o/];
+
+function isUsable(model: string | undefined, deprecated: RegExp[]): model is string {
+  return !!model && !deprecated.some((p) => p.test(model));
+}
+
+function isChatModel(id: string): boolean {
+  return (
+    /^(gpt-|o\d)/.test(id) &&
+    !/^gpt-image/.test(id) &&
+    isUsable(id, DEPRECATED_TEXT_MODELS) &&
+    !NON_CHAT_TEXT_MODELS.some((p) => p.test(id))
+  );
+}
+
+function preferredFirst(ids: string[], preferred: string[]): string[] {
+  const rank = (id: string): number => {
+    const index = preferred.indexOf(id);
+    return index === -1 ? preferred.length : index;
+  };
+  return [...ids].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+}
+
 export interface OpenAIProviderConfig extends AIProviderConfig {
   type: 'openai';
   options?: {
+    /** Text model chosen in the settings UI */
+    defaultModel?: string;
     /** Default model for text generation */
     textModel?: string;
     /** Default model for image generation */
@@ -52,6 +111,7 @@ export class OpenAIProvider extends BaseAIProvider {
   ];
 
   private baseUrl: string;
+  private availableModels: Promise<string[]> | null = null;
 
   constructor(config: OpenAIProviderConfig) {
     super(config);
@@ -123,11 +183,55 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   /**
+   * Chat models the API key can use, preferred models first
+   */
+  async listTextModels(): Promise<AIModelInfo[]> {
+    const ids = await this.loadModelIds();
+    return preferredFirst(ids.filter(isChatModel), PREFERRED_TEXT_MODELS).map((id) => ({ id, name: id }));
+  }
+
+  /**
+   * Model ids from GET /models, cached per provider instance. A failed load is not
+   * cached so the next request tries again.
+   */
+  private loadModelIds(): Promise<string[]> {
+    this.availableModels ??= this.fetchJson<{ data?: Array<{ id: string }> }>(`${this.baseUrl}/models`, {
+      method: 'GET',
+    }).then((response) => {
+      if (!Array.isArray(response.data)) throw new Error('Unexpected /models response');
+      return response.data.map((m) => m.id);
+    });
+    return this.availableModels.catch((error: unknown) => {
+      this.availableModels = null;
+      throw error;
+    });
+  }
+
+  private async pickAvailable(
+    pick: (ids: string[]) => string | undefined,
+    fallback: string
+  ): Promise<string> {
+    try {
+      return pick(await this.loadModelIds()) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  /**
    * Generate text using GPT models
    */
   async generateText(request: TextGenerationRequest): Promise<TextGenerationResponse> {
     const options = (this.config as OpenAIProviderConfig).options;
-    const model = request.model || options?.textModel || 'gpt-4o';
+    const configured = request.model || options?.textModel || options?.defaultModel;
+    const model = isUsable(configured, DEPRECATED_TEXT_MODELS)
+      ? configured
+      : await this.pickAvailable(
+          (ids) => preferredFirst(ids.filter(isChatModel), PREFERRED_TEXT_MODELS)[0],
+          DEFAULT_OPENAI_TEXT_MODEL
+        );
+    // Reasoning models reject sampling parameters
+    const sampling = SAMPLING_TEXT_MODELS.some((p) => p.test(model));
 
     // Convert prompt to messages format
     const messages: Array<{ role: string; content: string }> = [];
@@ -160,10 +264,10 @@ export class OpenAIProvider extends BaseAIProvider {
       body: {
         model,
         messages,
-        max_tokens: request.maxTokens,
-        temperature: request.temperature,
-        top_p: request.topP,
-        stop: request.stop,
+        max_completion_tokens: request.maxTokens,
+        temperature: sampling ? request.temperature : undefined,
+        top_p: sampling ? request.topP : undefined,
+        stop: sampling ? request.stop : undefined,
       },
     });
 
@@ -180,22 +284,28 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   /**
-   * Generate images using DALL-E
+   * Generate images using GPT Image
    */
   async generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
     const options = (this.config as OpenAIProviderConfig).options;
-    const model = request.model || options?.imageModel || 'dall-e-3';
+    const configured = request.model || options?.imageModel;
+    const model = isUsable(configured, DEPRECATED_IMAGE_MODELS)
+      ? configured
+      : await this.pickAvailable(
+          (ids) => PREFERRED_IMAGE_MODELS.find((id) => ids.includes(id)),
+          DEFAULT_OPENAI_IMAGE_MODEL
+        );
 
-    // DALL-E 3 size options
     let size = '1024x1024';
     if (request.width && request.height) {
       if (request.width > request.height) {
-        size = '1792x1024';
+        size = '1536x1024';
       } else if (request.height > request.width) {
-        size = '1024x1792';
+        size = '1024x1536';
       }
     }
 
+    // GPT Image always returns base64; response_format was DALL-E only
     const response = await this.fetchJson<{
       data: Array<{
         url?: string;
@@ -209,8 +319,7 @@ export class OpenAIProvider extends BaseAIProvider {
         prompt: request.prompt,
         n: request.count || 1,
         size,
-        quality: request.style === 'hd' ? 'hd' : 'standard',
-        response_format: 'url',
+        quality: request.style === 'hd' ? 'high' : 'auto',
       },
     });
 
@@ -229,7 +338,10 @@ export class OpenAIProvider extends BaseAIProvider {
    */
   async generateSpeech(request: TTSRequest): Promise<TTSResponse> {
     const options = (this.config as OpenAIProviderConfig).options;
-    const model = request.model || options?.ttsModel || 'tts-1';
+    const configured = request.model || options?.ttsModel;
+    const model = isUsable(configured, DEPRECATED_TTS_MODELS) ? configured : DEFAULT_OPENAI_TTS_MODEL;
+    // speed only applies to the tts-1 family
+    const speed = model.startsWith('tts-1') ? request.speed || 1.0 : undefined;
 
     const response = await this.fetchWithRetry(`${this.baseUrl}/audio/speech`, {
       method: 'POST',
@@ -242,7 +354,7 @@ export class OpenAIProvider extends BaseAIProvider {
         input: request.text,
         voice: request.voice || 'alloy',
         response_format: request.format || 'mp3',
-        speed: request.speed || 1.0,
+        speed,
       }),
     });
 

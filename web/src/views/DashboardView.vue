@@ -211,7 +211,7 @@ onUnmounted(() => {
                 size="sm"
                 @click="connectAutodarts"
               >
-                {{ t('common.connect') }}
+                {{ t('dashboard.connect') }}
               </BaseButton>
             </div>
 

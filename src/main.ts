@@ -54,6 +54,7 @@ import { AutodartsHub } from './index.js';
 import { getIntentBus, createEmitterFromManifest, IntentEmitter } from './core/intents/index.js';
 import { getMatchStatusService } from './core/match/index.js';
 import { getAIProviderService } from './core/ai/AIProviderService.js';
+import { resolveProviderApiKey } from './core/ai/providerCredentials.js';
 import type { HubConfiguration } from './types/api.js';
 import type { ModuleListItem, ModuleDetailResponse } from './types/api.js';
 import type { ParsedEvent, ModuleStatus, ModuleManifest } from './types/index.js';
@@ -935,7 +936,11 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
               eventSystem.emitCallerRequest(request);
             });
             // Initialize ElevenLabs service and VoicePackGenerator if API key is configured
-            const elevenLabsApiKey = (config as unknown as { aiProviders?: { elevenlabs?: { apiKey?: string } } })?.aiProviders?.elevenlabs?.apiKey;
+            const elevenLabsApiKey = resolveProviderApiKey(
+              getAIProviderService(),
+              'elevenlabs',
+              (config as unknown as { aiProviders?: { elevenlabs?: { apiKey?: string } } })?.aiProviders?.elevenlabs
+            );
             if (elevenLabsApiKey) {
               const service = new ElevenLabsService({
                 apiKey: elevenLabsApiKey,
@@ -995,6 +1000,11 @@ function stopHub(): void {
  */
 async function main(): Promise<void> {
   console.log('🚀 Starting IO-Darts-Agent Server...\n');
+
+  // AI providers first: modules (darts caller, animations) read their keys from them
+  const aiConfigDir = path.join(__dirname, '..', 'config');
+  initializeAIProviders({ configDir: aiConfigDir });
+  console.log('🤖 AI providers initialized');
 
   // Paths
   const configPath = path.join(__dirname, '..', 'config', 'hub.config.json');
@@ -1330,7 +1340,7 @@ async function main(): Promise<void> {
         });
         // Initialize ElevenLabs service and VoicePackGenerator if API key is configured
         const config = server.getConfig();
-        const elevenLabsApiKey = config?.aiProviders?.elevenlabs?.apiKey;
+        const elevenLabsApiKey = resolveProviderApiKey(getAIProviderService(), 'elevenlabs', config?.aiProviders?.elevenlabs);
         if (elevenLabsApiKey) {
           const service = new ElevenLabsService({
             apiKey: elevenLabsApiKey,
@@ -1655,6 +1665,12 @@ async function main(): Promise<void> {
     path.join(__dirname, '..', 'config', 'animation-settings.json')
   );
 
+  // Runway key from the AI settings, legacy hub config as fallback
+  function runwayAnimationConfig() {
+    const legacy = server.getConfig()?.aiProviders?.runway;
+    return { ...legacy, apiKey: resolveProviderApiKey(getAIProviderService(), 'runway', legacy) };
+  }
+
   // Higgsfield uses the access configured in the AI settings
   function getHiggsfieldProvider(): HiggsfieldProvider | undefined {
     const provider = getAIProviderService().getProvider('higgsfield');
@@ -1675,9 +1691,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    const config = server.getConfig();
-    const runwayConfig = config?.aiProviders?.runway;
-    const runwayProvider = createRunwayProvider(runwayConfig);
+    const runwayProvider = createRunwayProvider(runwayAnimationConfig());
 
     if (runwayProvider) {
       animationService.setProvider(runwayProvider);
@@ -1706,7 +1720,7 @@ async function main(): Promise<void> {
           {
             id: 'runway',
             name: 'Runway ML',
-            available: !!createRunwayProvider(server.getConfig()?.aiProviders?.runway),
+            available: !!createRunwayProvider(runwayAnimationConfig()),
           },
           { id: 'higgsfield', name: 'Higgsfield', available: !!getHiggsfieldProvider()?.isAvailable() },
         ],
@@ -1725,10 +1739,16 @@ async function main(): Promise<void> {
 
   function getOrCreateElevenLabsService(): ElevenLabsService | null {
     const config = server.getConfig();
-    const apiKey = config?.aiProviders?.elevenlabs?.apiKey;
+    const apiKey = resolveProviderApiKey(getAIProviderService(), 'elevenlabs', config?.aiProviders?.elevenlabs);
 
     if (!apiKey) {
+      // Key removed or provider disabled: the darts caller must stop using the old one
+      if (elevenLabsService) {
+        installedModules.get('darts-caller')?.dartsCallerHandler?.setElevenLabsService(null);
+        console.log('🎙️  ElevenLabs no longer configured, Darts Caller detached');
+      }
       elevenLabsService = null;
+      voicePackGenerator = null;
       return null;
     }
 
@@ -1831,13 +1851,12 @@ async function main(): Promise<void> {
   });
   console.log('🔧 Developer routes initialized');
 
-  // Initialize AI Provider Service using extracted module
-  const aiConfigDir = path.join(__dirname, '..', 'config');
-  initializeAIProviders({ configDir: aiConfigDir });
   const aiService = getAIProviderService();
-  // The animation engine may use Higgsfield, which only exists from here on
-  configureAnimationProvider();
-  console.log('🤖 AI providers initialized');
+  // Keys changed in the AI settings reach the darts caller and animation engine
+  aiService.on('provider:status', () => {
+    getOrCreateElevenLabsService();
+    configureAnimationProvider();
+  });
 
   // Register AI Routes
   registerAIRoutes(fastify, server, {

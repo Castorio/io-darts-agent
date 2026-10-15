@@ -48,10 +48,14 @@ describe('ConfigService', () => {
       vi.mocked(fs.access).mockRejectedValueOnce(error).mockResolvedValue(undefined);
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
       vi.mocked(fs.mkdir).mockResolvedValue(undefined);
+      vi.stubEnv('AUTODARTS_CLIENT_ID', 'test-client');
+      vi.stubEnv('AUTODARTS_CLIENT_SECRET', 'test-secret');
 
       const config = await configService.load();
+      vi.unstubAllEnvs();
 
-      expect(config.auth.clientId).toBe('developer-darts-caller');
+      expect(config.auth.clientId).toBe('test-client');
+      expect(config.auth.clientSecret).toBe('test-secret');
       expect(fs.writeFile).toHaveBeenCalled();
     });
 
@@ -207,6 +211,8 @@ describe('loadConfigFromEnv()', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    process.env.AUTODARTS_CLIENT_ID = 'test-client';
+    process.env.AUTODARTS_CLIENT_SECRET = 'test-secret';
   });
 
   afterEach(() => {
@@ -223,7 +229,17 @@ describe('loadConfigFromEnv()', () => {
     expect(config.auth.email).toBe('test@example.com');
     expect(config.auth.password).toBe('password123');
     expect(config.boardId).toBe('test-board-id');
-    expect(config.auth.clientId).toBe('developer-darts-caller');
+    expect(config.auth.clientId).toBe('test-client');
+    expect(config.auth.clientSecret).toBe('test-secret');
+  });
+
+  it('should throw if client credentials are missing', () => {
+    process.env.AUTODARTS_EMAIL = 'test@example.com';
+    process.env.AUTODARTS_PASSWORD = 'password123';
+    process.env.AUTODARTS_BOARD_ID = 'test-board-id';
+    delete process.env.AUTODARTS_CLIENT_ID;
+
+    expect(() => loadConfigFromEnv()).toThrow('AUTODARTS_CLIENT_ID');
   });
 
   it('should use custom client credentials from env', () => {

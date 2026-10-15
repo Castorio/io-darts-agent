@@ -9,6 +9,7 @@ export const DEFAULT_CLIENT_ID = 'autodarts-play';
 export const RETIRED_CLIENT_IDS: ReadonlySet<string> = new Set(['developer-darts-caller']);
 
 const DEFAULT_EXPIRES_IN_SECONDS = 900;
+const REQUEST_TIMEOUT_MS = 10000;
 
 export interface AuthServiceOptions {
   authBaseUrl?: string;
@@ -42,6 +43,10 @@ export class AuthService {
   private userId: string | null = null;
   private refreshTimeout: ReturnType<typeof setTimeout> | null = null;
   private pendingRefresh: Promise<string> | null = null;
+  // Bumped by logout(); responses that arrive afterwards must not restore tokens
+  private session = 0;
+  // Bumped by stopAutoRefresh(); in-flight auto refreshes must not re-arm the timer
+  private autoRefreshGeneration = 0;
 
   constructor(config: AuthConfig, options: AuthServiceOptions = {}) {
     this.config = config;
@@ -67,11 +72,13 @@ export class AuthService {
    * Login with username/password
    */
   async login(): Promise<string> {
+    const session = this.session;
     const response = await this.post('/login', {
       username: this.config.email,
       password: this.config.password,
       client_id: this.clientId(),
     });
+    this.assertSession(session);
 
     if (!response.ok) {
       this.clearTokens();
@@ -99,17 +106,29 @@ export class AuthService {
   }
 
   private async doRefresh(refreshToken: string): Promise<string> {
+    const session = this.session;
     const response = await this.post('/refresh', {
       refresh_token: refreshToken,
       client_id: this.clientId(),
     });
+    this.assertSession(session);
 
-    if (!response.ok) {
+    // A rejected refresh token needs a new login; outages must not hammer /login
+    if (response.status === 400 || response.status === 401) {
       return this.login();
+    }
+    if (!response.ok) {
+      throw new Error(`Token refresh failed: ${await describeError(response)}`);
     }
 
     this.setTokens((await response.json()) as TokenResponse);
     return this.accessToken!;
+  }
+
+  private assertSession(session: number): void {
+    if (session !== this.session) {
+      throw new Error('Logged out during authentication');
+    }
   }
 
   private clientId(): string {
@@ -122,6 +141,7 @@ export class AuthService {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   }
 
@@ -129,8 +149,9 @@ export class AuthService {
    * Get current access token, refreshing if necessary
    */
   async getToken(): Promise<string> {
+    // No token, e.g. after a failed re-login during an outage: try again
     if (!this.accessToken) {
-      throw new Error('Not authenticated. Please login first.');
+      return this.login();
     }
 
     if (this.isTokenExpired()) {
@@ -176,18 +197,22 @@ export class AuthService {
    */
   startAutoRefresh(onRefresh?: (token: string) => void): void {
     this.stopAutoRefresh();
+    const generation = this.autoRefreshGeneration;
 
     if (!this.expiresAt) return;
+
+    const onRefreshed = (token: string): void => {
+      if (generation !== this.autoRefreshGeneration) return;
+      onRefresh?.(token);
+      this.startAutoRefresh(onRefresh);
+    };
 
     const refreshTime = this.expiresAt.getTime() - this.tokenRefreshBuffer * 1000 - Date.now();
 
     if (refreshTime <= 0) {
       // Token already expired or about to, refresh immediately
       void this.refresh()
-        .then((token) => {
-          onRefresh?.(token);
-          this.startAutoRefresh(onRefresh);
-        })
+        .then(onRefreshed)
         .catch((err) => {
           console.error('Auto-refresh failed:', err instanceof Error ? err.message : err);
         });
@@ -196,10 +221,7 @@ export class AuthService {
 
     this.refreshTimeout = setTimeout(() => {
       void this.refresh()
-        .then((token) => {
-          onRefresh?.(token);
-          this.startAutoRefresh(onRefresh);
-        })
+        .then(onRefreshed)
         .catch((err) => {
           console.error('Auto-refresh failed:', err instanceof Error ? err.message : err);
         });
@@ -210,6 +232,7 @@ export class AuthService {
    * Stop automatic token refresh
    */
   stopAutoRefresh(): void {
+    this.autoRefreshGeneration++;
     if (this.refreshTimeout) {
       clearTimeout(this.refreshTimeout);
       this.refreshTimeout = null;
@@ -220,6 +243,7 @@ export class AuthService {
    * Logout - clear all tokens
    */
   logout(): void {
+    this.session++;
     this.stopAutoRefresh();
     this.clearTokens();
   }

@@ -10,10 +10,6 @@ on:
         description: 'Version to release (e.g., 1.0.0)'
         required: false
 
-# Autodarts client credentials are injected via GitHub Secrets
-# Required secrets:
-#   - AUTODARTS_CLIENT_ID
-#   - AUTODARTS_CLIENT_SECRET
 
 jobs:
   build-linux:
@@ -38,16 +34,11 @@ jobs:
 
       - name: Build application
         run: npm run prebuild:dist
-        env:
-          AUTODARTS_CLIENT_ID: ${{ secrets.AUTODARTS_CLIENT_ID }}
-          AUTODARTS_CLIENT_SECRET: ${{ secrets.AUTODARTS_CLIENT_SECRET }}
 
       - name: Build Linux packages
         run: npm run dist:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AUTODARTS_CLIENT_ID: ${{ secrets.AUTODARTS_CLIENT_ID }}
-          AUTODARTS_CLIENT_SECRET: ${{ secrets.AUTODARTS_CLIENT_SECRET }}
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -82,16 +73,11 @@ jobs:
 
       - name: Build application
         run: npm run prebuild:dist
-        env:
-          AUTODARTS_CLIENT_ID: ${{ secrets.AUTODARTS_CLIENT_ID }}
-          AUTODARTS_CLIENT_SECRET: ${{ secrets.AUTODARTS_CLIENT_SECRET }}
 
       - name: Build Windows installer
         run: npm run dist:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AUTODARTS_CLIENT_ID: ${{ secrets.AUTODARTS_CLIENT_ID }}
-          AUTODARTS_CLIENT_SECRET: ${{ secrets.AUTODARTS_CLIENT_SECRET }}
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -123,16 +109,11 @@ jobs:
 
       - name: Build application
         run: npm run prebuild:dist
-        env:
-          AUTODARTS_CLIENT_ID: ${{ secrets.AUTODARTS_CLIENT_ID }}
-          AUTODARTS_CLIENT_SECRET: ${{ secrets.AUTODARTS_CLIENT_SECRET }}
 
       - name: Build macOS packages
         run: npm run dist:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AUTODARTS_CLIENT_ID: ${{ secrets.AUTODARTS_CLIENT_ID }}
-          AUTODARTS_CLIENT_SECRET: ${{ secrets.AUTODARTS_CLIENT_SECRET }}
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4

@@ -86,6 +86,14 @@ describe('AuthService', () => {
       expect(requestBody(fetchMock.mock.calls[0]).client_id).toBe('my-client');
     });
 
+    it('aborts the request after a timeout', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+
+      await authService.login();
+
+      expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBeInstanceOf(AbortSignal);
+    });
+
     it('ignores the retired Keycloak client id', async () => {
       authService = new AuthService({ ...mockConfig, clientId: 'developer-darts-caller' });
       fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
@@ -213,6 +221,29 @@ describe('AuthService', () => {
       await expect(authService.refresh()).rejects.toThrow('No refresh token available');
     });
 
+    it('does not fall back to a password login on server errors', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+      await authService.login();
+      fetchMock.mockResolvedValueOnce(jsonResponse(503, {}));
+
+      await expect(authService.refresh()).rejects.toThrow('Token refresh failed: 503');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not restore tokens when logged out during a refresh', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+      await authService.login();
+      let resolveRefresh!: (r: Response) => void;
+      fetchMock.mockReturnValueOnce(new Promise<Response>((r) => (resolveRefresh = r)));
+
+      const refreshing = authService.refresh().catch((e: Error) => e);
+      authService.logout();
+      resolveRefresh(jsonResponse(200, createMockTokenResponse()));
+      await refreshing;
+
+      expect(authService.isAuthenticated()).toBe(false);
+    });
+
     it('shares one request between concurrent refreshes', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
       await authService.login();
@@ -225,6 +256,22 @@ describe('AuthService', () => {
   });
 
   describe('startAutoRefresh()', () => {
+    it('does not re-arm the timer when stopped while a refresh is in flight', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse(1)));
+      await authService.login();
+      let resolveRefresh!: (r: Response) => void;
+      fetchMock.mockReturnValueOnce(new Promise<Response>((r) => (resolveRefresh = r)));
+      const onRefresh = vi.fn();
+
+      authService.startAutoRefresh(onRefresh);
+      authService.stopAutoRefresh();
+      resolveRefresh(jsonResponse(200, createMockTokenResponse(1)));
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(onRefresh).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
     it('does not leave an unhandled rejection when an immediate refresh fails', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse(1)));
       await authService.login();
@@ -255,8 +302,13 @@ describe('AuthService', () => {
       expect(token).toBe(MOCK_JWT);
     });
 
-    it('should throw if not authenticated', async () => {
-      await expect(authService.getToken()).rejects.toThrow('Not authenticated');
+    it('logs in when no token is present, e.g. after a failed re-login', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+
+      const token = await authService.getToken();
+
+      expect(token).toBe(MOCK_JWT);
+      expect(fetchMock.mock.calls[0][0]).toBe(`${AUTH_BASE}/login`);
     });
 
     it('should refresh token if expired', async () => {

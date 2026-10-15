@@ -1,4 +1,5 @@
 const TICKET_URL = 'https://play.ws.autodarts.com/ms/v0/tickets';
+const REQUEST_TIMEOUT_MS = 10000;
 
 export interface SocketTicketOptions {
   url?: string;
@@ -36,5 +37,6 @@ function requestTicket(url: string, token: string): Promise<Response> {
   return fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 }

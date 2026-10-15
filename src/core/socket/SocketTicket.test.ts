@@ -32,6 +32,7 @@ describe('fetchSocketTicket', () => {
     expect(fetchMock).toHaveBeenCalledWith(TICKET_URL, {
       method: 'POST',
       headers: { Authorization: 'Bearer access-1' },
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -48,6 +49,7 @@ describe('fetchSocketTicket', () => {
     expect(fetchMock.mock.calls[1][1]).toEqual({
       method: 'POST',
       headers: { Authorization: 'Bearer access-2' },
+      signal: expect.any(AbortSignal),
     });
   });
 

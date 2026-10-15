@@ -133,8 +133,6 @@ export function registerSetupRoutes(
           email: autodarts.email,
           password: autodarts.password,
           boardId: autodarts.boardId,
-          clientId: '',
-          clientSecret: '',
         },
         server: {
           port: 3000,

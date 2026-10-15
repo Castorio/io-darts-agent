@@ -1,29 +1,31 @@
-# IO-Darts-Agent - Module SDK
+# IO-Darts-Agent: Module SDK
 
 Diese Dokumentation beschreibt, wie du eigene Module für den IO-Darts-Agent entwickeln kannst.
 
 ## Übersicht
 
-Module sind eigenständige Erweiterungen, die auf Autodarts-Events reagieren und verschiedene Aktionen ausführen können. Jedes Modul besteht aus:
+Module sind Erweiterungen, die auf Autodarts-Events reagieren und Aktionen ausführen. Jedes Modul besteht aus:
 
-1. **Manifest** (`module.json`) - Metadaten und Konfigurationsschema
-2. **Event Handler** - Code, der auf Events reagiert (optional, für interne Module)
-3. **Web UI** - Eigene Benutzeroberfläche (optional)
+1. **Manifest** (`module.json`): Metadaten und Konfigurationsschema (erforderlich)
+2. **Code**: entweder direkt im Hub verdrahtet (`entry: "internal"`, nur für Hub-Entwicklung) oder ein eigenständiger Node.js-Prozess auf Basis des `@autodarts-hub/module-sdk`-Pakets (jeder andere `entry`-Wert)
+3. **Web UI**: eigene Benutzeroberfläche, ausgeliefert unter `/module-ui/<module-id>/` (optional)
 
 ## Modul-Struktur
 
 ```
 my-module/
 ├── module.json          # Manifest (erforderlich)
+├── package.json         # Erforderlich für ein Prozess-Modul
 ├── README.md            # Dokumentation
-├── web/                 # Frontend (optional)
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── src/
-│       ├── main.ts
-│       ├── App.vue
-│       └── ...
-└── dist/                # Build-Output des Frontends
+├── src/                 # Prozess-Entry-Point(s), z.B. src/index.ts
+├── dist/                # Build-Output (entry zeigt hierher auf dist/index.js)
+└── web/                 # Frontend (optional)
+    ├── package.json
+    ├── vite.config.ts
+    └── src/
+        ├── main.ts
+        ├── App.vue
+        └── ...
 ```
 
 ## Manifest (module.json)
@@ -37,11 +39,11 @@ Das Manifest definiert alle Metadaten und die Konfiguration deines Moduls:
   "version": "1.0.0",
   "description": "Beschreibung des Moduls",
   "author": "Dein Name",
-  "entry": "internal",
+  "entry": "dist/index.js",
   "events": [
     "throw.detected",
     "player.change",
-    "match.started",
+    "match.start",
     "match.finished"
   ],
   "config": {
@@ -87,14 +89,16 @@ Das Manifest definiert alle Metadaten und die Konfiguration deines Moduls:
 | `description` | string | Nein | Kurzbeschreibung (Englisch) |
 | `author` | string | Nein | Autor/Entwickler |
 | `repository` | string | Nein | URL zum Git-Repository |
-| `entry` | string | Ja | Pfad zur Haupt-JS-Datei (z.B. "dist/index.js") oder "internal" für Hub-Module |
-| `events` | string[] | Nein | Events, auf die reagiert wird |
+| `entry` | string | Ja | `"internal"` für Code, der direkt im Hub verdrahtet ist, sonst ein JS-Dateipfad (z.B. `"dist/index.js"`), den der Hub als eigenen Prozess startet |
+| `events` | string[] | Nein | `AutodartsEventType`-Werte, die die Konfig-UI des Moduls als Trigger anbietet |
 | `config` | object | Nein | Konfigurationsschema |
 | `i18n` | object | Nein | Mehrsprachige Übersetzungen |
 | `intents` | object | Nein | Intent-System-Konfiguration |
 | `eventMeta` | object | Nein | Metadaten für Events (Labels, Beschreibungen) |
 | `eventGroups` | array | Nein | Gruppierung von Events für die UI |
 | `effects` | array | Nein | Liste von verfügbaren Effekten (z.B. für WLED) |
+
+`entry: "internal"` funktioniert nur für die drei Module, die der Hub anhand ihrer ID als Sonderfall behandelt (WLED, Game Display, Darts Caller); ein neu erstelltes Modul braucht einen Prozess-Entry-Point. Siehe [Developer Guide: Modul-Typen](developer-guide.md#modul-typen).
 
 ### Konfigurations-Feldtypen
 
@@ -157,6 +161,19 @@ Das `step`-Attribut ist optional und definiert die Schrittweite für Slider-Eing
 }
 ```
 
+#### provider-select
+
+Zeigt ein Dropdown der auf dem Hub konfigurierten KI-Provider (siehe `GET /api/ai/provider-options` in der [API-Dokumentation](api.md)), optional nach Fähigkeit gefiltert:
+
+```json
+{
+  "type": "provider-select",
+  "label": "TTS-Provider",
+  "providerCapability": "audio-tts",
+  "default": ""
+}
+```
+
 #### group (Verschachtelte Konfiguration)
 
 Gruppen ermöglichen es, zusammengehörige Einstellungen zu organisieren, mit optionaler bedingter Sichtbarkeit:
@@ -197,16 +214,12 @@ Module können Metadaten für Events mit mehrsprachiger Unterstützung bereitste
     "throw.detected": {
       "label": { "en": "Throw detected", "de": "Wurf erkannt", "es": "Tiro detectado" },
       "description": { "en": "A throw was detected", "de": "Ein Wurf wurde erkannt", "es": "Se detectó un tiro" }
-    },
-    "throw.180": {
-      "label": { "en": "180!", "de": "180!", "es": "¡180!" },
-      "description": { "en": "A perfect 180 was thrown", "de": "Eine perfekte 180 wurde geworfen", "es": "Se lanzó un 180 perfecto" }
     }
   }
 }
 ```
 
-Diese Metadaten werden in der UI verwendet, um lesbare Event-Namen und Beschreibungen anzuzeigen.
+Diese Metadaten werden in der UI verwendet, um lesbare Event-Namen und Beschreibungen anzuzeigen. Sie sind rein kosmetisch. Sie ändern nicht, welche Events das Modul tatsächlich empfängt.
 
 ## Event-Gruppen (eventGroups)
 
@@ -217,15 +230,11 @@ Events können in logische Gruppen für bessere UI-Darstellung organisiert werde
   "eventGroups": [
     {
       "title": { "en": "Match Events", "de": "Match Events", "es": "Eventos de Partido" },
-      "events": ["match.started", "match.finished", "match.deleted"]
-    },
-    {
-      "title": { "en": "Throw Events", "de": "Wurf Events", "es": "Eventos de Tiro" },
-      "events": ["throw.detected", "throw.triple", "throw.double", "throw.180"]
+      "events": ["match.start", "match.finished", "match.delete"]
     },
     {
       "title": { "en": "Player Events", "de": "Spieler Events", "es": "Eventos de Jugador" },
-      "events": ["player.changed", "turn.started", "turn.finished"]
+      "events": ["player.change", "turn.finished"]
     }
   ]
 }
@@ -252,40 +261,14 @@ Diese Liste wird in der UI angezeigt und kann für Effekt-Auswahl in Intent-Akti
 
 ## Intent-System
 
-Das Intent-System ermöglicht **Modul-zu-Modul-Kommunikation**. Ein Modul kann Aktionen anbieten, die andere Module aufrufen können. Es geht dabei NICHT um das Replizieren von Events - dafür gibt es bereits Events. Intents dienen dazu, spezifische Funktionalitäten eines Moduls anzusprechen.
+Das Intent-System ermöglicht **Modul-zu-Modul-Kommunikation**. Ein Modul kann Aktionen anbieten, die andere Module aufrufen können. Es geht dabei NICHT um das Replizieren von Events, dafür gibt es bereits Events. Intents dienen dazu, spezifische Funktionalitäten eines Moduls anzusprechen.
 
 ### Zweck von Intents
 
 Intents ermöglichen Modulen:
-1. **Fähigkeiten anbieten** - Ein Modul deklariert, welche Aktionen es ausführen kann
-2. **Von anderen Modulen aufgerufen werden** - Andere Module können diese Aktionen nutzen
-3. **Als Service fungieren** - Ein Modul kann als Dienstleister für andere agieren
-
-### Praxis-Beispiel: MQTT-Modul
-
-Das MQTT-Modul bietet eine `publish`-Aktion an, die andere Module nutzen können um MQTT-Nachrichten zu senden:
-
-```json
-{
-  "intents": {
-    "actions": [
-      {
-        "type": "publish",
-        "label": "Nachricht veröffentlichen",
-        "description": "Eine eigene Nachricht an ein Topic senden",
-        "configSchema": {
-          "topic": { "type": "string", "label": "Topic", "default": "custom/event" },
-          "message": { "type": "string", "label": "Nachricht", "default": "{}" },
-          "retain": { "type": "boolean", "label": "Nachricht speichern", "default": false }
-        }
-      }
-    ],
-    "defaultSubscriptions": []
-  }
-}
-```
-
-**Anwendungsfall:** Ein WLED-Modul könnte `mqtt.publish` verwenden, um eine Nachricht an Home Assistant zu senden, wenn ein bestimmter Effekt ausgelöst wird.
+1. **Fähigkeiten anbieten**: ein Modul deklariert, welche Aktionen es ausführen kann (`intents.actions`)
+2. **Von anderen Modulen aufgerufen werden**: andere Module können diese Aktionen nutzen
+3. **Eigene semantische Intents aussenden**: ein Modul kann Intents deklarieren, die es aussendet (`intents.emits`), auf die andere Module Reaktionen abonnieren können
 
 ### Praxis-Beispiel: WLED-Modul
 
@@ -325,7 +308,7 @@ Das WLED-Modul bietet Aktionen zur LED-Steuerung an:
 }
 ```
 
-**Anwendungsfall:** Ein Caller-Modul könnte `wled.effect` auslösen, wenn eine 180 angesagt wird.
+**Anwendungsfall:** Ein anderes Modul könnte `wled.effect` auslösen, wenn ein besonderer Score angesagt wird.
 
 ### Aktions-Felder
 
@@ -336,50 +319,61 @@ Das WLED-Modul bietet Aktionen zur LED-Steuerung an:
 | `description` | string | Nein | Beschreibung der Aktion |
 | `configSchema` | object | Nein | Konfigurationsoptionen, die der Aufrufer bereitstellen muss/kann |
 
-### Intent-Aktionen aufrufen
+### Intents aussenden (aus einem Prozess-Modul)
 
-Andere Module können die Aktionen deines Moduls über das Intent-System auslösen:
+Wenn du `AutodartsModule` aus `@autodarts-hub/module-sdk` erweiterst, rufe die geschützte Methode `this.emitIntent(intentId, payload)` auf. Deklariere jede ausgesendete Intent-ID unter `intents.emits` in `module.json`, damit die UI sie als etwas anzeigen kann, das andere Module abonnieren können:
+
+```json
+{
+  "intents": {
+    "emits": [
+      {
+        "id": "scoreboard.milestone",
+        "description": "Ein bemerkenswerter Score wurde geworfen",
+        "category": "my-module",
+        "payload": {
+          "score": { "type": "number", "description": "Der Score" },
+          "playerName": { "type": "string" }
+        }
+      }
+    ]
+  }
+}
+```
 
 ```typescript
-// Ein anderes Modul kann einen Intent an das MQTT-Modul senden
-await sendIntent({
-  targetModule: 'mqtt',
-  action: 'publish',
-  payload: {
-    topic: 'autodarts/180',
-    message: '{"event": "180", "player": "John"}',
-    retain: false
-  }
+this.emitIntent('scoreboard.milestone', { score: 180, playerName: 'Max' });
+```
+
+Mit dem kleinen Templating-Helfer des SDKs lässt sich Ansagetext an einer Stelle pflegen:
+
+```typescript
+import { registerIntentTemplate } from '@autodarts-hub/module-sdk';
+
+registerIntentTemplate({
+  id: 'milestone-180',
+  category: 'scoreboard',
+  priority: 10,
+  duration: 3000,
+  templates: { en: '{{playerName}} just threw {{score}}!', de: '{{playerName}} hat gerade {{score}} geworfen!' },
+  requiredParams: ['playerName', 'score'],
 });
 
-// Oder das WLED-Modul ansprechen
-await sendIntent({
-  targetModule: 'wled',
-  action: 'solidColor',
-  payload: {
-    color: '#ff0000',
-    brightness: 255,
-    duration: 2000
-  }
-});
+// später
+this.emitTemplatedIntent('scoreboard.milestone', 'milestone-180', { playerName: 'Max', score: 180 }, 'de');
 ```
 
 ### Standard-Subscriptions
 
-Module können Standard Event-zu-Aktion-Zuordnungen definieren. Das sind vorkonfigurierte Reaktionen, die das Modul ausführt wenn bestimmte Events auftreten:
+Module können Standard Event-zu-Aktion-Zuordnungen definieren. Das sind vorkonfigurierte Reaktionen, die ein Modul von Haus aus anbietet (der Nutzer kann sie in der UI trotzdem ändern, gespeichert als `intentSubscriptions` in der Modul-Konfiguration):
 
 ```json
 {
   "defaultSubscriptions": [
     {
-      "event": "player.changed",
+      "event": "player.change",
       "action": "solidColor",
       "config": { "usePlayerColor": true }
-    },
-    {
-      "event": "throw.180",
-      "action": "effect",
-      "config": { "effectId": 9, "duration": 3000 }
     }
   ]
 }
@@ -392,19 +386,15 @@ Module können Standard Event-zu-Aktion-Zuordnungen definieren. Das sind vorkonf
 | Auf Spielgeschehnisse reagieren (Würfe, Spielerwechsel, etc.) | **Events** abonnieren |
 | Funktionalität eines anderen Moduls auslösen | **Intent-Aktion** aufrufen |
 | Anderen Modulen eigene Funktionalität anbieten | **Intent-Aktionen** bereitstellen |
-| Mitteilen dass etwas passiert ist | **Event** aussenden |
-
-**Beispiel-Ablauf:**
-1. Spieler wirft 180 → `throw.180` **Event** wird ausgelöst
-2. Caller-Modul empfängt Event → spielt "ONE HUNDRED AND EIGHTY" Audio ab
-3. Caller-Modul ruft auch `wled.effect` **Intent** auf → LEDs zeigen Rainbow-Effekt
-4. WLED-Modul ruft auch `mqtt.publish` **Intent** auf → Home Assistant erhält Benachrichtigung
+| Mitteilen, dass etwas passiert ist | **Intent** aussenden |
 
 ## Internationalisierung (i18n)
 
 Module können Übersetzungen für mehrere Sprachen bereitstellen. Die Standardsprache ist Englisch, welche für alle Labels im `config`-Abschnitt verwendet werden sollte. Übersetzungen werden im `i18n`-Abschnitt definiert.
 
 ### Unterstützte Sprachen
+
+Die Hub-UI selbst liefert diese zehn mit; ein Modul kann Übersetzungen für eine beliebige Teilmenge bereitstellen.
 
 | Code | Sprache |
 |------|---------|
@@ -431,14 +421,6 @@ Module können Übersetzungen für mehrere Sprachen bereitstellen. Die Standards
       "type": "string",
       "label": "Host Address",
       "description": "IP address of the server"
-    },
-    "mode": {
-      "type": "select",
-      "label": "Mode",
-      "options": [
-        { "value": "normal", "label": "Normal" },
-        { "value": "fast", "label": "Fast" }
-      ]
     }
   },
   "i18n": {
@@ -449,13 +431,6 @@ Module können Übersetzungen für mehrere Sprachen bereitstellen. Die Standards
         "hostAddress": {
           "label": "Host Address",
           "description": "IP address of the server"
-        },
-        "mode": {
-          "label": "Mode",
-          "options": {
-            "normal": "Normal",
-            "fast": "Fast"
-          }
         }
       },
       "strings": {
@@ -470,39 +445,11 @@ Module können Übersetzungen für mehrere Sprachen bereitstellen. Die Standards
         "hostAddress": {
           "label": "Host-Adresse",
           "description": "IP-Adresse des Servers"
-        },
-        "mode": {
-          "label": "Modus",
-          "options": {
-            "normal": "Normal",
-            "fast": "Schnell"
-          }
         }
       },
       "strings": {
         "connectionSuccess": "Erfolgreich verbunden!",
         "connectionFailed": "Verbindung fehlgeschlagen"
-      }
-    },
-    "es": {
-      "name": "Mi Módulo",
-      "description": "Descripción del módulo en español",
-      "config": {
-        "hostAddress": {
-          "label": "Dirección del Host",
-          "description": "Dirección IP del servidor"
-        },
-        "mode": {
-          "label": "Modo",
-          "options": {
-            "normal": "Normal",
-            "fast": "Rápido"
-          }
-        }
-      },
-      "strings": {
-        "connectionSuccess": "¡Conectado correctamente!",
-        "connectionFailed": "Conexión fallida"
       }
     }
   }
@@ -530,9 +477,6 @@ const { manifest, strings, availableLanguages } = await response.json()
 
 // Übersetzte Strings verwenden
 const successMessage = strings.connectionSuccess || 'Connected!'
-
-// Verfügbare Sprachen prüfen
-console.log('Verfügbare Sprachen:', availableLanguages) // ['en', 'de', 'es']
 ```
 
 ### Sprach-Fallback
@@ -544,9 +488,9 @@ Das Übersetzungssystem verwendet folgende Fallback-Reihenfolge:
 
 Dies stellt sicher, dass Module auch funktionieren, wenn Übersetzungen unvollständig sind.
 
-### Modul-Init-Payload
+### Modul-Init-Payload (Prozess-Module)
 
-Wenn ein Modul initialisiert wird, erhält es die aktuelle Spracheinstellung:
+Wenn `onInit(config)` eines Prozess-Moduls aufgerufen wird, hat der Hub bereits eine `init`-IPC-Nachricht gesendet mit:
 
 ```typescript
 interface InitPayload {
@@ -554,131 +498,100 @@ interface InitPayload {
   config: Record<string, unknown>;
   hubVersion: string;
   subscribedEvents: string[];
-  language: string; // Aktuelle UI-Sprache (z.B. 'de')
 }
 ```
 
 ## Events
 
-Module können auf folgende Autodarts-Events reagieren:
+Module können auf folgende Autodarts-Events reagieren. `type` ist einer aus einer festen `AutodartsEventType`-Union. Alle Payload-Felder stehen in der [API-Dokumentation](api.md#autodarts-events).
 
-### Native Events (von Autodarts)
+### Native Events (von Autodarts weitergeleitet)
 
 | Event | Beschreibung | Wichtige Daten |
 |-------|-------------|----------------|
+| `board.state` | Board verbindet/trennt sich | Board-Verbindungsinfo |
+| `board.event` | Jedes andere rohe Board-Event | eventspezifisch |
 | `match.start` | Match gestartet | `matchId`, `boardId` |
-| `match.state` | Match-Status Update | `players`, `gameScores`, `player`, `round`, `settings` |
-| `match.finished` | Match beendet (Gewinner ermittelt) | `winner`, `winnerName`, `matchId` |
-| `match.result` | Match-Ergebnis mit vollständigen Daten | `winner`, `winnerName`, `chalkboards`, `stats`, `scores`, `settings` |
-| `match.finish` | Match geschlossen (Benutzer klickt "Beenden") | `matchId` |
-| `match.delete` | Match abgebrochen | `matchId` |
-| `throw.detected` | Wurf erkannt | `segment`, `points`, `remaining`, `playerIndex` |
-| `game.finished` | Leg/Set gewonnen | `winner`, `checkoutPath` |
-| `takeout.started` | Dart-Entnahme gestartet | `matchId` |
-| `takeout.finished` | Dart-Entnahme beendet | `matchId` |
+| `match.state` | Match-Status-Update | `players`, `gameScores`, `player`, `round`, `settings` |
+| `match.delete` | Match abgebrochen | `matchId`, `boardId` |
+| `match.finish` | Benutzer schließt die Ergebnisanzeige | `matchId`, `boardId` |
+| `throw.detected` | Wurf erkannt | `segment`, `coords?`, `throwNumber`, `boardId` |
+| `takeout.started` | Dart-Entnahme gestartet | `boardId` |
+| `takeout.finished` | Dart-Entnahme beendet | `boardId` |
 
-### Synthetische Events (generiert von EventParser)
-
-Diese Events werden vom IO-Darts-Agent aus `match.state` Updates generiert:
+### Synthetische Events (generiert vom `EventParser` des Hubs)
 
 | Event | Beschreibung | Wichtige Daten |
 |-------|-------------|----------------|
-| `player.changed` | Spielerwechsel | `playerIndex`, `playerName`, `remaining`, `players[]` mit Farben |
-| `turn.started` | Aufnahme gestartet | `playerIndex`, `playerName`, `remaining` |
-| `turn.finished` | Aufnahme beendet | `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining` |
+| `player.change` | Aktiver Spieler gewechselt | `previousPlayer`, `currentPlayer`, `playerIndex`, `playerName`, `remaining` |
+| `turn.finished` | Aufnahme beendet | `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining`, `round` |
+| `game.finished` | Leg gewonnen | `winner`, `winnerName`, `winnerPlayerIndex`, `leg`, `set` |
+| `match.finished` | Match gewonnen | `winner`, `winnerName`, `winnerPlayerIndex`, `scores` |
+| `match.result` | Vollständige Ergebnisdaten, zusammen mit `match.finished` gesendet | `chalkboards`, `stats`, `scores`, `settings` |
 
-> **Hinweis:** Synthetische Events bieten praktische Hooks für Module. Das `turn.finished` Event wird ausgelöst wenn:
-> - 3 Darts geworfen wurden
-> - Ein Bust auftritt
-> - Die Rundennummer sich ändert
+> **Hinweis:** Synthetische Events bieten praktische Hooks für Module. `turn.finished` wird ausgelöst, wenn 3 Darts geworfen wurden, ein Bust auftritt oder sich die Rundennummer ändert.
 
-### Wurf Sub-Events
+### Wurf-Unterschlüssel auf Modul-Ebene (keine Hub-Events)
 
-Diese werden aus `throw.detected` Daten abgeleitet:
+Es gibt kein `throw.triple`, `throw.double`, `throw.180`, `throw.bullseye`, `throw.bull`, `throw.miss` oder `throw.highfinish` auf dem Event-Bus oder im WebSocket des Hubs. Manche Module (das WLED-Modul ist die Referenzimplementierung, siehe `modules/wled/src/WledHandler.ts`) leiten diese als interne Lookup-Schlüssel aus einem `throw.detected`-Payload ab, rein um eine Aktion pro Ereignis in der eigenen Konfiguration auszuwählen:
 
-| Event | Auslöser | Daten |
-|-------|----------|-------|
-| `throw.triple` | `multiplier === 3` | `segment` |
-| `throw.double` | `multiplier === 2` | `segment` |
-| `throw.bullseye` | `number === 25 && multiplier === 2` | - |
-| `throw.bull` | `number === 25 && multiplier === 1` | - |
-| `throw.miss` | `points === 0` | - |
-| `throw.180` | `turnPoints === 180` | - |
-| `throw.highfinish` | Checkout über 100 Punkte | `checkoutScore` |
-| `throw.bust` | Match State zeigt Bust | - |
+```typescript
+function getThrowEventKey(data: { turnPoints?: number; busted?: boolean; segment?: { number?: number; multiplier?: number }; points?: number }): string {
+  const { turnPoints = 0, segment, points = 0 } = data;
+  const { number = 0, multiplier = 0 } = segment ?? {};
+  if (turnPoints === 180) return 'throw.180';
+  if (data.busted) return 'throw.bust';
+  if (number === 25 && multiplier === 2) return 'throw.bullseye';
+  if (number === 25 && multiplier === 1) return 'throw.bull';
+  if (multiplier === 3) return 'throw.triple';
+  if (multiplier === 2) return 'throw.double';
+  if (points === 0) return 'throw.miss';
+  return 'throw.detected';
+}
+```
+
+Soll die UI deines Moduls Aktionen pro Wurftyp anbieten, implementiere dieselbe Art Ableitung selbst; dafür gibt es heute keinen vom Hub bereitgestellten Helfer.
 
 ## Custom API Routes (Module Routes)
 
-Module können eigene API-Endpunkte registrieren, die unter `/api/modules/<module-id>/routes/` verfügbar sind.
+Module können eigene API-Endpunkte registrieren, die unter `/api/modules/<module-id>/routes/` verfügbar sind. Wenn du `AutodartsModule` aus `@autodarts-hub/module-sdk` erweiterst, nutze dessen eingebaute Route-API statt eigene IPC-Nachrichten zu bauen:
 
 ### Routes registrieren
 
 ```typescript
-// Im Modul - Routes beim Hub registrieren
-const routes: ModuleRouteDefinition[] = [
-  {
-    method: 'GET',
-    path: '/status',
-    handlerId: 'getStatus',
-    description: 'Get module status'
-  },
-  {
-    method: 'POST',
-    path: '/test',
-    handlerId: 'runTest',
-    description: 'Run a test action'
-  },
-  {
-    method: 'GET',
-    path: '/effects/:id',
-    handlerId: 'getEffect',
-    description: 'Get effect by ID'
-  }
-];
+import { AutodartsModule, type ModuleRouteDefinition } from '@autodarts-hub/module-sdk';
 
-// Über IPC an Hub senden
-sendMessage({
-  type: 'routes.register',
-  payload: { routes }
-});
+class MyModule extends AutodartsModule {
+  protected async onInit(): Promise<void> {
+    const routes: ModuleRouteDefinition[] = [
+      { method: 'GET', path: '/status', handlerId: 'getStatus', description: 'Get module status' },
+      { method: 'POST', path: '/test', handlerId: 'runTest', description: 'Run a test action' },
+      { method: 'GET', path: '/effects/:id', handlerId: 'getEffect', description: 'Get effect by ID' },
+    ];
+
+    this.registerRoutes(routes);
+
+    this.setRouteHandler('getStatus', async () => ({
+      statusCode: 200,
+      body: { status: 'ok', connected: true },
+    }));
+
+    this.setRouteHandler('runTest', async (request) => {
+      await runTestAction(request.body);
+      return { statusCode: 200, body: { success: true } };
+    });
+
+    this.setRouteHandler('getEffect', async (request) => {
+      const effect = getEffectById(request.params.id);
+      return { statusCode: effect ? 200 : 404, body: effect ?? { error: 'Not found' } };
+    });
+  }
+
+  protected async onEvent(): Promise<void> {}
+}
 ```
 
-### Route Handler implementieren
-
-```typescript
-// Auf route.request vom Hub reagieren
-onMessage('route.request', async (payload: RouteRequestPayload) => {
-  const { handlerId, method, params, query, body } = payload;
-
-  switch (handlerId) {
-    case 'getStatus':
-      return {
-        statusCode: 200,
-        body: { status: 'ok', connected: true }
-      };
-
-    case 'runTest':
-      await runTestAction(body);
-      return {
-        statusCode: 200,
-        body: { success: true }
-      };
-
-    case 'getEffect':
-      const effect = getEffectById(params.id);
-      return {
-        statusCode: effect ? 200 : 404,
-        body: effect || { error: 'Not found' }
-      };
-
-    default:
-      return {
-        statusCode: 404,
-        body: { error: 'Handler not found' }
-      };
-  }
-});
-```
+`registerRoutes` und `setRouteHandler` sind geschützte Methoden auf `AutodartsModule`; rufe sie innerhalb deiner Modul-Klasse auf (z.B. in `onInit`).
 
 ### Route Definition Felder
 
@@ -702,7 +615,7 @@ const status = await response.json();
 await fetch('/api/modules/my-module/routes/test', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ action: 'flash' })
+  body: JSON.stringify({ action: 'flash' }),
 });
 ```
 
@@ -757,8 +670,8 @@ ws.onmessage = (event) => {
       // Verbindungsstatus
       break
     case 'event':
-      // Autodarts-Event
-      handleEvent(message.data)
+      // Autodarts-Event: message.event.type, message.event.data
+      handleEvent(message.event)
       break
     case 'log':
       // Log-Eintrag
@@ -766,12 +679,12 @@ ws.onmessage = (event) => {
   }
 }
 
-function handleEvent(event) {
+function handleEvent(event: { type: string; data: unknown }) {
   switch (event.type) {
     case 'throw.detected':
       // Wurf verarbeiten
       break
-    case 'player.changed':
+    case 'player.change':
       // Spielerwechsel
       break
   }
@@ -848,8 +761,7 @@ function validateConfig(config) {
 ### 3. Ressourcen freigeben
 
 ```typescript
-// Bei Modul-Stop Verbindungen schließen
-function onStop() {
+protected async onShutdown(reason: string): Promise<void> {
   if (wsConnection) {
     wsConnection.close()
   }
@@ -981,7 +893,7 @@ function getPlayerOverride(
 
 #### UI-Integration
 
-Die Hauptanwendung stellt die `/api/players`-API bereit, die im System registrierte Spieler auflistet. Module können dies nutzen, um Spieler für Überschreibungen auszuwählen:
+Der Hub stellt den `GET /api/players`-Endpunkt bereit, der registrierte Spieler auflistet. Module können dies nutzen, um Spieler für Überschreibungen auszuwählen:
 
 ```typescript
 // Verfügbare Spieler laden
@@ -1024,69 +936,34 @@ async function handleEvent(event: GameEvent) {
   "id": "minimal",
   "name": "Minimal Module",
   "version": "1.0.0",
-  "entry": "internal",
+  "entry": "dist/index.js",
   "events": ["throw.detected"]
 }
 ```
 
 ### Modul mit UI
 
-Siehe [Game Display Module](/modules/game-display/) als Referenz für ein Modul mit eigenem Frontend.
+Siehe das [Game Display Modul](../../modules/game-display/) als Referenz für ein mitgeliefertes Modul mit eigenem Vue.js-Frontend.
 
 ### Modul mit externer Hardware
 
-Siehe [WLED Module](/modules/wled/) als Referenz für ein Modul, das externe Hardware steuert mit:
+Siehe das [WLED-Modul](../../modules/wled/) als Referenz für ein Modul, das externe Hardware steuert mit:
 - Dauer-basierte Effekte, die zur Spielerfarbe zurückkehren
 - Konfigurierbare Fade-Zeit (Übergänge)
 - Einzelspieler- und Mehrspieler-Unterstützung
-- Event-basierte Aktionskonfiguration
+- Event-basierte Aktionskonfiguration, inklusive Wurf-Unterschlüsseln auf Modul-Ebene (siehe oben)
 - Intent-System-Unterstützung für Modul-zu-Modul-Kommunikation
 
 ### Modul mit Audio/TTS
 
-Siehe [Darts Caller Module](/modules/darts-caller/) als Referenz für ein Modul, das:
-- Browser-TTS oder Audio-Dateien verwendet
-- Voice Pack Generator mit ElevenLabs enthält
-- Mehrere Ausgabemodi unterstützt (Browser, lokal, Audio-Packs)
+Siehe das [Darts Caller Modul](../../modules/darts-caller/) als Referenz für ein Modul, das:
+- Browser-TTS, ElevenLabs Live-TTS, Voice Packs oder eigene Audiodateien nutzt
+- Einen Voice Pack Generator mit ElevenLabs enthält
+- Mehrere Ausgabemodi unterstützt
 
-## WebSocket Events für Modul-UIs
+### Prozess-Modul-Beispiel
 
-Modul-Frontends können auf spezielle WebSocket-Events lauschen:
-
-### caller Event
-
-Für das Darts Caller Modul - löst Audio-Wiedergabe im Browser aus:
-
-```typescript
-ws.onmessage = (event) => {
-  const msg = JSON.parse(event.data)
-  if (msg.type === 'caller') {
-    const { callType, text, audioFile, priority } = msg.data
-    // Audio abspielen oder TTS verwenden
-    if (audioFile) {
-      playAudio(audioFile)
-    } else {
-      speakText(text)
-    }
-  }
-}
-```
-
-### module_status Event
-
-Benachrichtigt über Modul-Status-Änderungen:
-
-```typescript
-{
-  "type": "module_status",
-  "data": {
-    "moduleId": "wled",
-    "status": "running" // oder "stopped", "error"
-  }
-}
-```
-
----
+Das Autodarts-Trainer-Modul (separat entwickelt, nicht Teil dieses Repositorys) ist ein Beispiel für ein Modul, das als eigener Prozess läuft (`entry: "dist/index.js"`) und eigene REST-Routen (`/api/trainer/*`) direkt registriert, statt über den oben beschriebenen Module-Routes-Mechanismus.
 
 ## Debugging
 
@@ -1095,7 +972,7 @@ Benachrichtigt über Modul-Status-Änderungen:
 Modul-Aktivitäten werden im Hub-Log angezeigt:
 
 1. Öffne das Web-Interface
-2. Gehe zu "Logs"
+2. Gehe zu **Logs** (`/logs`)
 3. Filtere nach deinem Modul
 
 ### Browser DevTools
@@ -1106,127 +983,89 @@ Für Frontend-Module:
 2. Öffne die Browser-Entwicklertools (F12)
 3. Prüfe Console und Network-Tab
 
-## KI-Provider-Integration
+## WebSocket Events für Modul-UIs
 
-Module können das KI-Provider-System des Hubs für erweiterte Funktionen wie TTS, Video-Generierung und mehr nutzen.
+Modul-Frontends können auf spezielle WebSocket-Events lauschen (die vollständige Liste steht in der [API-Dokumentation](api.md#websocket-api)):
+
+### caller Event
+
+Für das Darts Caller Modul, löst Audio-Wiedergabe im Browser aus:
+
+```typescript
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data)
+  if (msg.type === 'caller') {
+    const { text, audioFile } = msg.request
+    // Audio abspielen oder TTS verwenden
+    if (audioFile) {
+      playAudio(audioFile)
+    } else {
+      speakText(text)
+    }
+  }
+}
+```
+
+### module Event
+
+Benachrichtigt über Modul-Status-Änderungen:
+
+```typescript
+{
+  "type": "module",
+  "moduleId": "wled",
+  "status": "running" // oder "stopped", "error"
+}
+```
+
+---
+
+## KI-Funktionen in Modulen
+
+Es gibt derzeit **keine IPC-Nachricht**, mit der ein Prozess-Modul das KI-Provider-System des Hubs direkt aufrufen kann (kein `ai.request`/`ai.response`-Roundtrip existiert im `@autodarts-hub/module-sdk`). Zwei Wege funktionieren heute:
+
+1. **Prozessinterne (mitgelieferte) Module** können den Service direkt importieren, so wie es das Darts-Caller-Modul für ElevenLabs tut:
+
+   ```typescript
+   import { getAIProviderService } from '../../../src/core/ai/index.js';
+
+   const service = getAIProviderService();
+   const result = await service.generateSpeech({ text: 'One hundred and eighty!' }, 'elevenlabs');
+   ```
+
+2. **Prozess-Module** können die eigene REST-API des Hubs über HTTP aufrufen, da es sich einfach um einen lokalen Server handelt:
+
+   ```typescript
+   const response = await fetch('http://localhost:3000/api/ai/generate/speech', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({ providerId: 'elevenlabs', text: 'One hundred and eighty!' }),
+   });
+   ```
+
+   Das funktioniert direkt, solange Web-Auth auf dem Hub deaktiviert ist; ist Web-Auth aktiviert, benötigt jede `/api/ai/*`-Route ein Session-Cookie (siehe [API-Dokumentation](api.md#authentifizierung)), und ein Modul müsste sich selbst einloggen, um eines zu bekommen.
 
 ### Verfügbare KI-Provider
 
 | Provider | Fähigkeiten | Modul-Anwendungsfälle |
 |----------|-------------|------------------------|
 | **ElevenLabs** | Text-to-Speech | Voice Packs, Spielernamen-Synthese, eigene Ansagen |
-| **Runway ML** | Video-Generierung | Eigene Animationen, Spieler-Celebrations, Event-Videos |
-| **OpenAI** | Text/Bilder | Dynamische Inhalte, Bildgenerierung |
+| **Runway ML** | Video-Generierung | Eigene Celebration-Animationen (eine von zwei Engines) |
+| **Higgsfield** | Bild-/Video-Generierung | Eigene Celebration-Animationen (die andere Engine) |
+| **OpenAI** | Text, Bilder | Dynamische Inhalte, Bildgenerierung |
 | **Anthropic** | Text | Inhaltsgenerierung, Analyse |
 | **Stability AI** | Bilder | Eigene Grafiken |
 | **Ollama** | Text (Lokal) | Lokale KI-Inferenz |
+| **Replicate** | Verschiedene | Eigene gehostete Modelle |
 
-### Auf KI-Provider zugreifen
+## Lizenz
 
-Module können über den Hub-KI-Service auf Provider zugreifen:
-
-```typescript
-// KI-Service vom Hub über IPC anfordern
-sendMessage({
-  type: 'ai.request',
-  payload: {
-    provider: 'elevenlabs',
-    action: 'generateSpeech',
-    params: {
-      text: 'One hundred and eighty!',
-      voice: 'Rachel',
-    }
-  }
-});
-
-// Antwort verarbeiten
-onMessage('ai.response', (response) => {
-  if (response.success) {
-    const audioBase64 = response.data.audioBase64;
-    // Das generierte Audio verwenden
-  }
-});
-```
-
-### ElevenLabs TTS-Integration
-
-Sprache für eigene Ansagen generieren:
-
-```typescript
-// Spielernamen-Audio zur Laufzeit generieren
-async function generatePlayerNameAudio(playerName: string): Promise<string> {
-  const response = await requestAI({
-    provider: 'elevenlabs',
-    action: 'generateSpeechToFile',
-    params: {
-      text: playerName,
-      voice: config.selectedVoice,
-      outputPath: `media/caller/players/${playerName.toLowerCase()}.mp3`
-    }
-  });
-  return response.audioPath;
-}
-```
-
-### Runway ML Animations-Generierung
-
-Eigene Animationen für Events erstellen:
-
-```typescript
-// Eine 180 Celebration-Animation generieren
-async function generate180Animation(playerName: string): Promise<void> {
-  const response = await requestAI({
-    provider: 'runway',
-    action: 'generateVideo',
-    params: {
-      prompt: `Darts-Spieler ${playerName} feiert eine perfekte 180, Feuerwerk, dramatische Beleuchtung`,
-      duration: 5,
-      aspectRatio: '16:9'
-    }
-  });
-
-  // Auf Fertigstellung warten
-  const job = await pollJobUntilComplete(response.jobId);
-  if (job.resultUrl) {
-    // Animation herunterladen und verwenden
-    await downloadAnimation(job.resultUrl, `media/animations/${playerName}-180.mp4`);
-  }
-}
-```
-
-### Provider-Verfügbarkeit prüfen
-
-```typescript
-// Prüfen ob ein Provider verfügbar ist, bevor er genutzt wird
-async function checkAIAvailability(): Promise<void> {
-  const response = await requestAI({
-    provider: 'elevenlabs',
-    action: 'getStatus'
-  });
-
-  if (response.available) {
-    console.log('ElevenLabs ist verfügbar');
-    console.log(`Verbleibende Zeichen: ${response.rateLimit?.remaining}`);
-  } else {
-    console.log('ElevenLabs ist nicht verfügbar:', response.error);
-  }
-}
-```
-
-### Beispiel-Modul mit KI-Integration
-
-Siehe das [Darts Caller Modul](/modules/darts-caller/) für ein vollständiges Beispiel der KI-Integration:
-- Voice Pack Generator mit ElevenLabs
-- Dynamische Spielernamen-Synthese zur Laufzeit
-- Stimmenauswahl und Vorschau
-- Zeichenverbrauchs-Tracking
-
----
+IO-Darts-Agent selbst steht unter der PolyForm Noncommercial License 1.0.0. Das Modul-SDK in `module-sdk/` (`@autodarts-hub/module-sdk`) steht unter der MIT-Lizenz ([module-sdk/LICENSE](../../module-sdk/LICENSE)), damit Module von Dritten es frei nutzen können.
 
 ## Support
 
 Bei Fragen oder Problemen:
 
 1. Prüfe die [API-Dokumentation](api.md)
-2. Schaue dir die Beispiel-Module an
+2. Schaue dir die Beispiel-Module unter `/modules/` an
 3. Öffne ein Issue im GitHub-Repository

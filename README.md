@@ -1,340 +1,126 @@
 # IO-Darts-Agent
 
-A modular hub for [Autodarts](https://autodarts.io) that processes real-time events and triggers various actions through extensible modules.
+A local hub for [Autodarts](https://autodarts.io): it listens to your board's live game events and turns them into light shows, a scoreboard on a second screen and spoken score announcements.
 
-**[Deutsche Version / German Version](README.de.md)**
+**[Deutsche Version](README.de.md)**
+
+IO-Darts-Agent is source available and free for private, non-commercial use (see [License](#license)).
+
+![Dashboard](docs/images/03-dashboard.png)
 
 ## Features
 
-- **Autodarts Integration** - Connects to the Autodarts WebSocket and receives all game events in real-time
-- **Modular System** - Extensible plugin system for various actions (WLED control, Game Display, Darts Caller, etc.)
-- **Web Interface** - Modern Vue.js-based configuration interface
-- **Player Management** - Custom player profiles with individual colors for light effects
-- **Voice Pack Generator** - Create custom caller voice packs using ElevenLabs TTS
-- **Real-time Logs** - Live view of all events and module activities
-- **Multi-language** - Interface available in English, German, and Spanish
-- **AI Integration** - Built-in support for AI providers (ElevenLabs, Runway ML, OpenAI, Anthropic, and more)
+- **Autodarts connection**: logs in with your Autodarts account and receives match, throw and takeout events from your board in real time.
+- **Module system**: modules react to game events and talk to each other through intents. Built-in modules can be started, stopped and configured in the web UI; further modules can be installed from a Git URL.
+- **Web interface** (Vue 3): setup wizard, dashboard, module management, players, media library, live console logs, settings and AI provider settings.
+- **Player profiles**: custom players with individual colors used by the light and display modules.
+- **Multi-language UI**: English and German complete, Spanish, French, Italian, Dutch, Russian, Ukrainian, Japanese and Chinese partly translated.
+- **Optional web login** for the configuration interface.
 
----
+### Built-in modules
 
-## Download & Installation
+| Module | What it does |
+|--------|--------------|
+| **WLED Lighting Controller** | Controls WLED LED strips per game event: player colors, effects and presets for 180s, triples, bulls, busts and wins, with durations, fades and color restore. |
+| **Game Display** | Fullscreen scoreboard for a second screen or tablet: scores, checkout suggestions, player colors, animations per event and per player, match start screen and results table. |
+| **Darts Caller** | Announces scores, checkouts, busts, game shot and player changes using browser TTS or audio voice packs. Voice packs and player names can be generated with ElevenLabs. |
 
-### Pre-built Packages (Recommended)
+### AI providers
 
-Download the appropriate package for your system:
+Configured under the sidebar entry **AI Provider** (`/ai-settings`), all optional:
 
-| System | Download | Description |
-|--------|----------|-------------|
-| **Windows** | [`IO-Darts-Agent Setup.exe`](https://github.com/user/io-darts-agent/releases/latest) | One-Click Installer |
-| **macOS** | [`IO-Darts-Agent.dmg`](https://github.com/user/io-darts-agent/releases/latest) | Disk Image |
-| **Ubuntu/Debian** | [`io-darts-agent.deb`](https://github.com/user/io-darts-agent/releases/latest) | Debian Package |
-| **Linux** | [`IO-Darts-Agent.AppImage`](https://github.com/user/io-darts-agent/releases/latest) | Universal Linux |
+| Provider | Used for |
+|----------|----------|
+| ElevenLabs | Voice pack generation and player name synthesis for the Darts Caller |
+| Runway, Higgsfield | Animation generator for the Game Display (selectable engine) |
+| OpenAI, Anthropic, Ollama | Text models available to modules |
+| Stability AI, Replicate | Image and other models available to modules |
 
-> **Node.js is NOT required!** The app contains everything needed.
+The animation generator creates short clips from a text prompt (style and event) and can key out a black background to a transparent WebM (needs `ffmpeg`).
 
-### First Start
+![Game Display demo](docs/images/10-game-display-demo.png)
 
-1. Launch the app (found in Start Menu / Launchpad)
-2. The web interface opens automatically at `http://localhost:3000`
-3. Follow the setup wizard:
-   - Enter your Autodarts credentials
-   - Select your board
-   - Done!
+## Requirements
 
----
-
-## Modules
-
-### Built-in Modules
-
-| Module | Description |
-|--------|-------------|
-| **WLED Lighting Controller** | Controls WLED-compatible LED strips based on game events. Player colors, special effects for 180s, triples, bulls, and more. Supports presets, effects, configurable fade times, and intent-based actions. |
-| **Game Display** | Shows game score on external displays/tablets in real-time. Checkout suggestions, player colors, animations, match started screen, and results table with statistics. |
-| **Darts Caller** | Professional darts caller with TTS or custom audio packs. Announces scores, checkouts, player changes, and special events. Includes Voice Pack Generator with ElevenLabs integration. |
-
-### Module Features
-
-#### WLED Lighting Controller
-- Event-based actions for all game events
-- Player color support with automatic matching
-- Temporary effects with duration and fade time
-- Support for presets, effects, solid colors
-- Multi-color effects (up to 3 colors)
-- Single-player mode support (takeout.finished applies player color)
-- Intent system support for module-to-module communication
-- Automatic player color restore after event animations
-
-#### Game Display
-- Real-time score updates
-- Animated player color backgrounds
-- Checkout suggestions (2-170 points)
-- Dart visualization with animations
-- Multi-player overview
-- Demo mode for testing
-- Configurable animations per event (180, Bull, High Score, Checkout, Bust, Leg/Set/Match Win)
-- **Player-specific animations**: Configure individual animations per player in the "Players" tab
-  - Unique animations for 180, Leg Win, Set Win, Match Win, and Checkout per player
-  - Supports Built-in animations, GIF, Video, and custom sounds
-  - Player animations override global animations when that player is on throw
-- Match started screen (configurable: default or custom image/GIF)
-- Match results table with chalkboard and statistics
-- Configurable results display duration (auto-hide or manual dismiss)
-- Configurable background colors
-
-#### Darts Caller
-- Score announcements after each turn
-- Checkout calls ("You require...")
-- Special calls: 180, bust, game shot, match shot
-- Player change announcements with player names
-- **Dynamic player name generation**: New players are automatically detected at game start and their names are generated via ElevenLabs TTS in real-time
-- Browser TTS or custom audio packs
-- Voice Pack Generator with ElevenLabs TTS
-- Multi-voice-pack support (different voices/languages)
-- Local audio playback (server-side)
-
----
-
-## AI Features
-
-IO-Darts-Agent includes a powerful AI integration system that enables advanced features across modules.
-
-### Supported AI Providers
-
-| Provider | Type | Features |
-|----------|------|----------|
-| **ElevenLabs** | Text-to-Speech | Voice Pack generation, dynamic player name synthesis |
-| **Runway ML** | Video Generation | Custom animations from text/images (Gen-2/Gen-3) |
-| **OpenAI** | LLM / Images | Text generation, image generation (optional) |
-| **Anthropic** | LLM | Text generation (optional) |
-| **Stability AI** | Image Generation | Image generation (optional) |
-| **Ollama** | Local LLM | Local AI models (optional) |
-| **Replicate** | Multi-Model | Various AI models (optional) |
-
-### ElevenLabs Integration
-
-The ElevenLabs integration powers the voice features:
-
-- **Voice Pack Generator**: Generate complete caller voice packs with any ElevenLabs voice
-  - All scores (0-180)
-  - Checkout suggestions ("You require X")
-  - Special calls (180, Game Shot, Match Shot, Bust)
-  - Player-specific phrases
-
-- **Dynamic Player Names**: When a new player joins a game, their name is automatically synthesized using ElevenLabs TTS and cached for future use. This happens in real-time at game start.
-
-### Runway ML Animation Generation
-
-Create custom animations for game events:
-
-- **Text-to-Video**: Generate animations from text prompts (e.g., "Fireworks celebration")
-- **Image-to-Video**: Animate static images for personalized player celebrations
-- **Use Cases**:
-  - 180 celebration animations
-  - Leg/Set/Match win animations
-  - Player-specific victory animations
-  - Custom checkout celebrations
-
-### AI Configuration
-
-Configure AI providers in the web interface under **Settings > AI Providers**:
-
-1. Select a provider (e.g., ElevenLabs)
-2. Enter your API key
-3. Enable the provider
-4. Test the connection
-
-Provider settings are stored in `config/ai-providers.json`.
-
-### Installing Modules from Git
-
-1. Open **Modules** → **Install Module**
-2. Enter the Git URL
-3. Click **Install**
-
----
-
-## Events
-
-The agent processes the following Autodarts events:
-
-| Event | Description |
-|-------|-------------|
-| `match.start` | Match was started |
-| `match.finished` | Match was finished (winner determined) |
-| `match.finish` | Match dismissed (user clicked "Finish" button) |
-| `match.result` | Match result with chalkboard, stats, and scores |
-| `match.delete` | Match was cancelled |
-| `match.state` | Match state update (scores, players, etc.) |
-| `throw.detected` | Throw was detected |
-| `player.change` | Player changed (synthetic event) |
-| `turn.finished` | Turn finished (synthetic event) |
-| `game.finished` | Leg/Set won |
-| `takeout.started` | Darts removal started |
-| `takeout.finished` | Darts removal finished |
-
----
-
-## For Developers
-
-### Prerequisites
-
-- Node.js 18+
-- npm 9+
+- Node.js 22 or newer with npm
 - Git
+- `ffmpeg` on the `PATH` (for generated animations)
+- An Autodarts account and board
+- Optional: WLED controller, a second screen for the Game Display, API keys for the AI providers you want to use
 
-### Development Environment
+## Quick start
+
+Run from source:
 
 ```bash
-# Clone repository
-git clone https://github.com/user/io-darts-agent.git
+git clone https://github.com/Castorio/io-darts-agent.git
 cd io-darts-agent
 
-# Install dependencies
-npm install
-cd web && npm install && cd ..
-cd modules/game-display/web && npm install && cd ../../..
-
-# Start development server
-npm run dev
+npm run setup       # installs all dependencies, builds the module SDK
+npm run build:app   # backend, web interface and Game Display UI
+npm start
 ```
 
-### Build
+Open <http://localhost:3000>. Without a configuration the hub starts in setup mode and the setup wizard asks for your Autodarts login and board.
 
-```bash
-# Build everything (Backend + Frontend + Modules)
-npm run prebuild:dist
+Runtime configuration is stored in `dist/config/` (relative to the compiled `dist/src/main.js`):
 
-# Build desktop app
-npm run dist:mac      # macOS .dmg
-npm run dist:win      # Windows .exe
-npm run dist:linux    # Linux .deb, .AppImage
-npm run dist:all      # All platforms
-```
+| File | Content |
+|------|---------|
+| `dist/config/hub.config.json` | Autodarts login, board, server port, web login |
+| `dist/config/ai-providers.json` | AI provider settings and API keys |
+| `dist/config/players.json` | Player profiles |
+| `dist/config/modules/` | Module settings |
 
-### Project Structure
+The server port defaults to 3000. The `PORT` environment variable only applies before setup (setup mode, no config file yet); the setup wizard writes `server.port: 3000` to `hub.config.json`, and from then on that value is used.
 
-```
-io-darts-agent/
-├── src/                    # Backend source code
-│   ├── core/               # Core services
-│   │   ├── auth/           # Autodarts authentication
-│   │   ├── socket/         # WebSocket & event parsing
-│   │   ├── events/         # Event bus system
-│   │   ├── config/         # Configuration management
-│   │   └── modules/        # Module system (handlers, manager)
-│   ├── api/                # Fastify REST API
-│   └── types/              # TypeScript definitions
-├── web/                    # Vue 3 Frontend
-├── modules/                # Built-in modules
-│   ├── wled/               # WLED Lighting Controller
-│   ├── game-display/       # Game Display (with Vue frontend)
-│   └── darts-caller/       # Darts Caller
-├── media/                  # Media files (audio packs)
-├── config/                 # Runtime configuration
-└── docs/                   # Documentation
-```
+For the full guide, including a dedicated Linux board PC that starts the hub and the Game Display automatically (`scripts/linux/`), see the installation guide: [English](docs/en/installation.md) | [Deutsch](docs/de/installation.md).
 
----
+## Documentation
 
-## Architecture
+| Topic | English | Deutsch |
+|-------|---------|---------|
+| Installation | [installation.md](docs/en/installation.md) | [installation.md](docs/de/installation.md) |
+| User guide | [user-guide.md](docs/en/user-guide.md) | [user-guide.md](docs/de/user-guide.md) |
+| Features | [features.md](docs/en/features.md) | [features.md](docs/de/features.md) |
+| REST and WebSocket API | [api.md](docs/en/api.md) | [api.md](docs/de/api.md) |
+| Developer quick start | [developer-quickstart.md](docs/en/developer-quickstart.md) | [developer-quickstart.md](docs/de/developer-quickstart.md) |
+| Developer guide | [developer-guide.md](docs/en/developer-guide.md) | [developer-guide.md](docs/de/developer-guide.md) |
+| Module SDK | [module-sdk.md](docs/en/module-sdk.md) | [module-sdk.md](docs/de/module-sdk.md) |
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Web Browser (Config UI)                  │
-│                    Vue 3 + Vite + Tailwind                   │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTP REST + WebSocket
-┌──────────────────────────▼──────────────────────────────────┐
-│                    IO-Darts-Agent Backend                    │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │  AuthService │ SocketService │ ConfigService │ Fastify │ │
-│  └──────────────────────────┬─────────────────────────────┘ │
-│                             │                                │
-│  ┌──────────────────────────▼─────────────────────────────┐ │
-│  │           EventBus + EventParser                        │ │
-│  │  (Generates synthetic events: player.change, turn.finished) │
-│  └──────────────────────────┬─────────────────────────────┘ │
-│                             │                                │
-│  ┌──────────────────────────▼─────────────────────────────┐ │
-│  │                   ModuleManager                         │ │
-│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐      │ │
-│  │  │ WledHandler │ │ GameDisplay │ │ DartsCaller │      │ │
-│  │  └─────────────┘ └─────────────┘ └─────────────┘      │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└─────────────────────────────┬───────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                        Autodarts.io                          │
-└─────────────────────────────────────────────────────────────┘
-```
+The module READMEs in `modules/` are in German.
 
----
+Changes are listed in the [changelog](CHANGELOG.md).
 
-## API Reference
+## Tech stack
 
-### REST Endpoints
-
-```
-# Status
-GET    /api/status              # Hub status and connection info
-
-# Authentication
-POST   /api/auth/login          # Web interface login
-POST   /api/auth/logout         # Logout
-GET    /api/auth/session        # Current session
-
-# Autodarts Connection
-POST   /api/autodarts/connect   # Connect to Autodarts
-POST   /api/autodarts/disconnect # Disconnect
-
-# Modules
-GET    /api/modules             # List all modules
-GET    /api/modules/:id         # Module details + config
-POST   /api/modules/:id/start   # Start module
-POST   /api/modules/:id/stop    # Stop module
-PUT    /api/modules/:id/config  # Update config
-DELETE /api/modules/:id         # Uninstall module
-POST   /api/modules/install     # Install from Git URL
-
-# Intents
-GET    /api/intents             # List all available intents (basic)
-GET    /api/intents/available   # List all intents with full payload schema
-GET    /api/modules/:id/intents # Get module intent actions
-PUT    /api/modules/:id/intents # Update module intent subscriptions
-
-# Match
-GET    /api/match/current       # Current match state
-GET    /api/match/current/players # Current players
-GET    /api/match/current/scores  # Current scores
-
-# Live Events
-WS     /api/events              # WebSocket event stream
-```
-
----
-
-## License
-
-MIT License - see [LICENSE](LICENSE)
-
----
+- **Backend**: Node.js, TypeScript, Fastify (REST and WebSocket), Autodarts WebSocket client
+- **Frontend**: Vue 3, Vite, Pinia, Vue Router, vue-i18n, Tailwind CSS
+- **Modules**: built-in modules run inside the hub; modules installed from Git run as separate Node processes connected over IPC; the Game Display has its own Vue UI
+- **Tests**: Vitest, Playwright
+- **Packaging**: Electron builder scripts (not functional yet)
 
 ## Contributing
 
-Contributions are welcome!
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-- **Bug Reports**: Open an [Issue](https://github.com/user/io-darts-agent/issues)
-- **Feature Requests**: Open an [Issue](https://github.com/user/io-darts-agent/issues)
-- **Pull Requests**: Fork & create PR
+## Security
 
----
+IO-Darts-Agent is built for a trusted local network. Do not expose it to the internet and do not set up port forwarding to it. Credentials and API keys are stored in plain JSON on the hub machine. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 
-## Support
+## License
 
-- [GitHub Issues](https://github.com/user/io-darts-agent/issues)
-- [Documentation](docs/)
+IO-Darts-Agent is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). It is source available, not OSI open source.
+
+- Free for private and other non-commercial use.
+- You may modify the code and share it, including modified versions, for non-commercial purposes.
+- Commercial use requires a separate license. Contact: [info@castor.io](mailto:info@castor.io).
+
+The module SDK in `module-sdk/` is licensed under the MIT License ([module-sdk/LICENSE](module-sdk/LICENSE)), so third-party modules can use it freely.
+
+## Disclaimer
+
+IO-Darts-Agent is an unofficial project. It is not affiliated with, endorsed by or supported by Autodarts. "Autodarts" is a trademark of its respective owner.
 
 ---
 

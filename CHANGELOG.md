@@ -5,14 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> Hinweis: Datumsangaben anhand der Git-Historie korrigiert. Die gesamte
-> Repository-Historie liegt zwischen März und Mai 2026 (Initial Commit
-> 2026-03-28), nicht 2024/2025.
-
 ## [Unreleased]
 
 ### Added
 
+- **Linux-Dateien für einen eigenen Board-PC** (`scripts/linux/`): systemd-User-Service für den Hub und Autostart des Game Displays im Firefox-Kioskmodus.
 - **Higgsfield als AI-Provider** mit vollständigem Text-Katalog (20 Video-, 10 Bildmodelle aus docs.higgsfield.ai, Default Kling 3.0 Standard und Soul Standard). Request-Body je Modell aus dem Schema (erlaubte Dauer, Seitenverhältnis, Batch-Größe, Ton aus über `sound` oder `generate_audio`), getrennte Auswahl für Video- und Bildmodell in den AI-Einstellungen. Zugang als `KEY_ID:KEY_SECRET`, kostenfreier Verbindungstest, Idempotency-Key gegen Doppelabrechnung.
 - **Engine-Wahl im Animations-Generator** (Runway oder Higgsfield) in der Game-Display-Konfiguration, gespeichert in `config/animation-settings.json`, Routen `GET/PUT /api/animations/engine`.
 - **Intent System** (`src/core/intents/`): semantische Intent-Schicht über dem
@@ -32,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Lizenz: PolyForm Noncommercial 1.0.0.** Frei für private und andere nicht-kommerzielle Nutzung, Ändern und Weitergeben eingeschlossen. Kommerzielle Nutzung nur mit separater Lizenz (info@castor.io). Das Module SDK steht unter MIT.
+- **Dokumentation überarbeitet** (README, Installation inklusive Board-PC mit Autostart, Benutzerhandbuch, API, Entwickler- und SDK-Doku).
 - Animations-Jobs bleiben bei der Engine, die sie gestartet hat; kurze Fehler beim Abfragen brechen bezahlte Jobs nicht mehr ab, Jobs geben nach 30 Minuten auf, Abbrechen wird bis zur Engine durchgereicht.
 - Bestehende `ai-providers.json` bekommen neu hinzugekommene Provider automatisch ergänzt.
 - **Autodarts-Login auf v2 umgestellt.** Der alte Keycloak-Login (`login.autodarts.io`) ist abgeschaltet. Der Hub meldet sich jetzt über `https://api.autodarts.com/auth/v1/login` an (Client-ID `autodarts-play`, per `AUTODARTS_CLIENT_ID` überschreibbar, kein Client-Secret mehr) und erneuert Tokens über `/auth/v1/refresh` (rotierende Refresh-Tokens, Neu-Login als Fallback).
@@ -43,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Animations-Generator:** Schlägt die Umwandlung in transparentes WebM fehl (z. B. weil ffmpeg fehlt), wird das Original als `.mp4` gespeichert statt als falsch benanntes `.webm`, ohne erneuten Download.
 - Authentifizierung am AI-Provider-Options-Endpoint ergänzt.
 - `timeSpent`-Berechnung in Trainer Pause/Resume korrigiert.
 - Veraltete `substr()`-Aufrufe durch `substring()` ersetzt.
@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Animations-Generator:** Der Event-Typ aus `POST /api/animations/generate` wird gegen die bekannten Typen geprüft, bevor er in einen Dateinamen gelangt; ffmpeg läuft per `execFile` ohne Shell. Vorher war Command Injection und Path Traversal aus dem lokalen Netz möglich.
 - ModuleInstaller nutzt `execFile` ohne Shell; Git-URL und Branch können keine
   Shell-Befehle mehr einschleusen.
 - Modul-IDs und Repository-Namen werden validiert; `uninstall('../..')` kann

@@ -14,6 +14,8 @@ Diese Anleitung ist für Entwickler, die am IO-Darts-Agent mitarbeiten oder eige
 6. [Testing](#testing)
 7. [Build & Release](#build--release)
 8. [Architektur](#architektur)
+9. [Event System](#event-system)
+10. [KI-Provider-System](#ki-provider-system)
 
 ---
 
@@ -23,10 +25,10 @@ Diese Anleitung ist für Entwickler, die am IO-Darts-Agent mitarbeiten oder eige
 
 | Tool | Version | Hinweis |
 |------|---------|---------|
-| **Node.js** | 18+ | [Download](https://nodejs.org/) |
-| **npm** | 9+ | Kommt mit Node.js |
-| **Git** | 2.30+ | [Download](https://git-scm.com/) |
-| **VS Code** | Aktuell | Empfohlener Editor |
+| **Node.js** | 22+ | [Download](https://nodejs.org/) |
+| **npm** | Kommt mit Node.js | |
+| **Git** | Aktuell | [Download](https://git-scm.com/) |
+| **ffmpeg** | Im `PATH` | Nur für den KI-Animations-Generator (transparentes WebM) nötig |
 
 ### Projekt klonen
 
@@ -38,59 +40,82 @@ cd io-darts-agent
 ### Dependencies installieren
 
 ```bash
-# Backend-Dependencies
-npm install
-
-# Frontend-Dependencies
-cd web && npm install && cd ..
-
-# Modul-Dependencies
-cd modules/game-display/web && npm install && cd ../../..
+npm run setup       # installiert alle Abhängigkeiten, baut das Modul-SDK
+npm run build:app   # Backend, Web-UI und Game-Display-UI
+npm start
 ```
+
+Das ist dieselbe Abfolge wie in der [Installationsanleitung](installation.md#installation-aus-dem-quellcode). Zum Entwickeln nimmst du statt `npm start` den Befehl `npm run dev` (siehe unten).
 
 ### Development Server starten
 
 ```bash
-# Option 1: Nur Backend (mit Hot-Reload)
+# Nur Backend (tsx watch, Hot-Reload beim Speichern)
 npm run dev
 
-# Option 2: Backend + Frontend Dev-Server
-npm run dev          # Terminal 1
-cd web && npm run dev   # Terminal 2
+# Backend + Web-UI-Dev-Server (zwei Terminals)
+npm run dev              # Terminal 1 - Backend auf :3000
+cd web && npm run dev     # Terminal 2 - Vite Dev-Server auf :5173, proxied /api und /module-ui zu :3000
 ```
 
-Der Server läuft auf `http://localhost:3000`.
+Das Backend läuft standardmäßig auf `http://localhost:3000`. Die Umgebungsvariable `PORT` gilt nur vor der Einrichtung. Nach dem Setup-Assistenten kommt der Port aus `server.port` in `hub.config.json`.
+
+**Die Datenverzeichnisse unterscheiden sich je nach Startart.** Alle Laufzeitpfade werden relativ zum Verzeichnis von `main` aufgelöst:
+
+| Start | Code läuft aus | Konfiguration und Daten |
+|-------|----------------|-------------------------|
+| `npm run dev` (tsx) | `src/main.ts` | `config/`, `data/`, `media/` und `modules_installed/` im Hauptverzeichnis des Repositorys |
+| `npm start` | `dist/src/main.js` | `dist/config/`, `dist/data/`, `dist/media/` und `dist/modules_installed/` |
+
+Beide Startarten haben also eine eigene Konfiguration und durchlaufen jeweils den Setup-Assistenten. Mit `npm run dev` liefert der Hub keine Web-UI aus. Nutze dafür den Vite-Dev-Server (`cd web && npm run dev`, `http://localhost:5173`).
 
 ---
 
 ## Projekt-Struktur
 
 ```
-io-darts-agent/
+AutodartsClient/
 ├── src/                    # Backend TypeScript Source
-│   ├── main.ts             # Entry Point
-│   ├── server.ts           # Express Server
-│   ├── autodarts/          # Autodarts API & WebSocket
-│   ├── modules/            # Modul-Manager
-│   └── types/              # TypeScript Definitionen
-├── web/                    # Vue.js Frontend
+│   ├── main.ts             # Entry Point: baut den Fastify-Server, verdrahtet Routen und Module
+│   ├── index.ts
+│   ├── api/                 # Fastify-Server, Routen, Auth-Middleware
+│   │   ├── Server.ts        # APIServer-Klasse: Plugins, Local-Origin-Prüfung, Sessions
+│   │   ├── middleware/auth.ts
+│   │   └── routes/          # Eine Datei pro Ressource (siehe docs/de/api.md)
+│   ├── core/
+│   │   ├── auth/            # AuthService - Login bei der offiziellen Autodarts-Account-API
+│   │   ├── socket/           # SocketTicket, SocketService, EventParser (Board-WebSocket)
+│   │   ├── events/           # EventBus, EventSystem (Pub/Sub für geparste Events)
+│   │   ├── intents/           # IntentBus, IntentEmitter, ModuleIntentHandler, templateResolver
+│   │   ├── modules/           # ModuleManager, ModuleBridge, ModuleProtocol, ModuleInstaller,
+│   │   │                      # ModuleHandlerFactory, ModuleRouteRegistry, ModuleI18n, handlers/
+│   │   ├── ai/                # AIProviderService, AIProviderInitializer, providers/
+│   │   ├── media/             # MediaService, AnimationGeneratorService, providers/
+│   │   ├── match/             # MatchStatusService
+│   │   ├── players/           # PlayerService, PlayerRepository
+│   │   ├── config/            # ConfigService (liest/schreibt dist/config/*.json)
+│   │   ├── tts/, audio/       # kleine gemeinsame Hilfsfunktionen
+│   ├── i18n/                 # I18nService + locales/ für die Hub-UI-Übersetzungen
+│   └── types/                 # Gemeinsame TypeScript-Typen (api.ts, index.ts, modules.ts, ...)
+├── web/                     # Vue 3 Web-Interface
 │   ├── src/
-│   │   ├── views/          # Seiten-Komponenten
-│   │   ├── components/     # Wiederverwendbare Komponenten
-│   │   └── stores/         # Pinia Stores
-│   └── dist/               # Kompiliertes Frontend
-├── modules/                # Mitgelieferte Module
-│   ├── wled/               # WLED Modul
-│   └── game-display/       # Game Display Modul
-├── modules_installed/      # Installierte Module (Symlinks)
-├── electron/               # Electron Main Process
-│   └── main.js             # Desktop App Entry
-├── config/                 # Konfigurationsdateien (gitignored)
-├── dist/                   # Kompiliertes Backend & Builds
-├── build/                  # Build-Assets (Icons, etc.)
-├── scripts/                # Build & Release Scripts
-├── docs/                   # Dokumentation
-└── .github/workflows/      # GitHub Actions
+│   ├── dist/                 # Kompiliertes Frontend (wird vom Backend ausgeliefert)
+│   └── vite.config.ts
+├── modules/                 # Mitgelieferte Module (jedes mit eigener package.json)
+│   ├── wled/
+│   ├── game-display/         # Hat ein eigenes Vue-Frontend unter web/
+│   └── darts-caller/
+├── modules_installed/       # Aus Git oder einem lokalen Pfad installierte Module (Symlinks)
+├── module-sdk/              # @autodarts-hub/module-sdk - Basisklasse für Prozess-Module
+├── electron/                 # Electron Main Process (Desktop-App)
+├── config/                   # Lokale Laufzeit-Konfiguration (gitignored)
+├── build/                    # Build-Assets (Icons, etc.)
+├── scripts/
+│   └── linux/                 # systemd-Service + Kiosk-Launcher für einen dedizierten Board-PC
+├── test/                     # Vitest Unit-/Integrationstests (src/**/*.test.ts, test/**/*.test.ts)
+├── tests/                    # Manuelle Playwright-E2E-Specs gegen einen laufenden Hub
+├── dist/                     # Kompiliertes Backend und Laufzeit-Konfiguration unter dist/config/
+└── docs/                     # Diese Dokumentation
 ```
 
 ---
@@ -99,43 +124,55 @@ io-darts-agent/
 
 ### Technologie-Stack
 
-- **Runtime**: Node.js 18+
-- **Sprache**: TypeScript
-- **Framework**: Express.js
-- **WebSocket**: ws
-- **Build**: esbuild
+- **Runtime**: Node.js 22+
+- **Sprache**: TypeScript (Strict Mode), kompiliert mit `tsc`
+- **Framework**: [Fastify](https://fastify.io/) mit `@fastify/cors`, `@fastify/cookie`, `@fastify/static`, `@fastify/websocket`, `@fastify/multipart`
+- **Autodarts-Verbindung**: `ws` (reiner WebSocket-Client) plus ein eigener Auth-/Ticket-Flow gegen die offizielle Autodarts-Account- und Board-API
+- **Logging**: `pino-pretty`
 
 ### Wichtige Dateien
 
 | Datei | Beschreibung |
 |-------|-------------|
-| `src/main.ts` | Entry Point, startet Server |
-| `src/server.ts` | Express Server, API Routes |
-| `src/autodarts/client.ts` | Autodarts API Client |
-| `src/autodarts/websocket.ts` | WebSocket zu Autodarts |
-| `src/modules/manager.ts` | Lädt und verwaltet Module |
-| `src/modules/sandbox.ts` | Sandbox für Modul-Ausführung |
+| `src/main.ts` | Entry Point; baut den Hub, registriert alle Routen und die Modul-Verdrahtung |
+| `src/api/Server.ts` | Fastify-Instanz, CORS-/Local-Origin-Prüfung, Sessions |
+| `src/api/middleware/auth.ts` | Globaler `onRequest`-Auth-Gate (siehe [API-Dokumentation](api.md#authentifizierung)) |
+| `src/core/auth/AuthService.ts` | Login beim Autodarts-Account, hält den Access-Token aktuell |
+| `src/core/socket/SocketTicket.ts`, `SocketService.ts` | Holt ein Board-Socket-Ticket und verbindet sich mit dem Autodarts-Board-WebSocket |
+| `src/core/socket/EventParser.ts` | Wandelt rohe Autodarts-WebSocket-Nachrichten in typisierte `ParsedEvent`s um, inklusive der synthetischen Events |
+| `src/core/events/EventBus.ts` | Prozessinternes Pub/Sub, das `ParsedEvent`s an Module und die WebSocket-API verteilt |
+| `src/core/intents/IntentBus.ts` | Modul-zu-Modul-Kommunikation (siehe [Module SDK](module-sdk.md#intent-system)) |
+| `src/core/modules/ModuleManager.ts` | Lädt Manifeste, startet/stoppt/installiert/aktualisiert Module |
+| `src/core/modules/ModuleBridge.ts`, `ModuleProtocol.ts` | Unix-Socket-IPC-Protokoll für Module, die als eigener Prozess laufen |
+| `src/core/modules/handlers/index.ts` | Re-exportiert die prozessinternen Handler-Klassen aus `modules/wled/src/`, `modules/game-display/src/`, `modules/darts-caller/src/` |
+| `src/core/ai/AIProviderService.ts` | Registry und Dispatch für KI-Provider |
+| `src/core/media/MediaService.ts`, `AnimationGeneratorService.ts` | Speicherung der Medienbibliothek und KI-Animations-Jobs |
 
 ### API Endpoints
 
-| Endpoint | Methode | Beschreibung |
-|----------|---------|-------------|
-| `/api/status` | GET | Verbindungsstatus |
-| `/api/config` | GET/POST | Hub-Konfiguration |
-| `/api/modules` | GET | Liste aller Module |
-| `/api/modules/:id` | GET/POST | Einzelnes Modul |
-| `/api/modules/:id/config` | GET/POST | Modul-Konfiguration |
-| `/api/players` | GET/POST | Spielerverwaltung |
-| `/api/events` | WebSocket | Live Event-Stream |
+Siehe die vollständige [API-Dokumentation](api.md) für jede Route mit Body-/Query-Feldern und Auth-Anforderung. Kurzübersicht:
+
+| Bereich | Basis-Pfad |
+|---------|-----------|
+| Setup & Auth | `/api/setup/*`, `/api/auth/*` |
+| Status & Einstellungen | `/api/status`, `/api/settings`, `/api/autodarts/*` |
+| Match | `/api/match/*` |
+| Module & Intents | `/api/modules/*`, `/api/intents*` |
+| Spieler | `/api/players/*` |
+| KI-Provider | `/api/ai/*` |
+| Animations-Generator | `/api/animations/*` |
+| Medienbibliothek | `/api/media/*` |
+| TTS & Voice Packs | `/api/tts/*` |
+| Darts Caller | `/api/caller/*` |
+| Autodarts Trainer | `/api/trainer/*` |
+| Entwickler/Simulation | `/api/developer/*` |
+| Live-Events & Logs | `/api/events` (WebSocket), `/api/logs` |
 
 ### Build
 
 ```bash
-# TypeScript kompilieren
+# TypeScript kompilieren (src/ -> dist/)
 npm run build
-
-# Mit Source Maps (für Debugging)
-npm run build -- --sourcemap
 ```
 
 ---
@@ -144,24 +181,26 @@ npm run build -- --sourcemap
 
 ### Technologie-Stack
 
-- **Framework**: Vue 3
+- **Framework**: Vue 3 (Composition API, `<script setup>`)
 - **Build**: Vite
 - **Styling**: Tailwind CSS
 - **State**: Pinia
 - **Router**: Vue Router
+- **i18n**: vue-i18n, 10 Sprachen (`de`, `en`, `es`, `fr`, `it`, `ja`, `nl`, `ru`, `uk`, `zh`); Deutsch und Englisch sind vollständig, der Rest teilweise übersetzt
+- **Icons**: Inline-SVG, keine Icon-Bibliothek
 
 ### Development
 
 ```bash
 cd web
 
-# Dev-Server mit Hot-Reload
+# Dev-Server mit Hot-Reload auf :5173, proxied /api und /module-ui zu :3000
 npm run dev
 
 # Produktions-Build
 npm run build
 
-# Type-Check
+# Type-Check (vue-tsc)
 npm run type-check
 ```
 
@@ -172,20 +211,19 @@ web/src/
 ├── App.vue                 # Root-Komponente
 ├── main.ts                 # Vue App Entry
 ├── router/                 # Vue Router Konfiguration
-├── stores/                 # Pinia State Management
-│   ├── connection.ts       # Verbindungsstatus
-│   ├── modules.ts          # Module
-│   └── players.ts          # Spieler
-├── views/                  # Seiten
-│   ├── DashboardView.vue
-│   ├── ModulesView.vue
-│   ├── PlayersView.vue
-│   └── ...
-├── components/             # Wiederverwendbar
-│   ├── BaseCard.vue
-│   ├── ModuleCard.vue
-│   └── ...
-└── assets/                 # Statische Assets
+├── api/                    # Typisierte fetch-Wrapper für die Hub-API
+├── stores/                 # Pinia Stores: app.ts, events.ts, modules.ts, players.ts, index.ts
+├── views/                  # Seiten, z.B. DashboardView.vue, ModulesView.vue, PlayersView.vue,
+│                            # SetupView.vue, SettingsView.vue, AISettingsView.vue,
+│                            # AnimationGeneratorView.vue, MediaLibraryView.vue, LogsView.vue
+├── components/              # Wiederverwendbare Komponenten (BaseCard.vue, ModuleConfigCard.vue, ...)
+│   └── config/               # Renderer für Config-Felder (DynamicConfigForm.vue und Co.)
+├── i18n/
+│   ├── index.ts
+│   └── locales/              # de.ts, en.ts, es.ts, fr.ts, it.ts, ja.ts, nl.ts, ru.ts, uk.ts, zh.ts
+├── types/
+├── utils/
+└── assets/                  # Statische Assets
 ```
 
 ---
@@ -198,38 +236,58 @@ Siehe [Module SDK](module-sdk.md) für die vollständige API-Dokumentation.
 
 ### Modul-Typen
 
-| Typ | Beschreibung |
-|-----|-------------|
-| `internal` | Kein eigener Prozess, nur Events |
-| `process` | Eigener Node.js Prozess (Sandbox) |
-| `external` | Externer Prozess/Service |
+Die `module.json` eines Moduls deklariert einen `entry`:
+
+| `entry`-Wert | Verhalten |
+|--------------|-----------|
+| `"internal"` | Kein eigener Prozess. Das Manifest steuert nur die UI (Konfigurationsformular, Event-/Intent-Auswahl). Das Verhalten muss direkt im Hub verdrahtet werden. |
+| ein Dateipfad, z.B. `"dist/index.js"` | Der Hub startet `node <pfad>` als Child-Prozess und spricht mit ihm über einen Unix-Domain-Socket, mit der `AutodartsModule`-Basisklasse aus dem `@autodarts-hub/module-sdk`-Paket. |
+
+**Ausnahme:** Die drei mitgelieferten Module WLED, Game Display und Darts Caller werden immer anhand ihrer Modul-ID prozessintern geladen, unabhängig davon, was ihr `entry` sagt (ihre Manifeste sagen aus einer früheren Architektur noch `"dist/index.js"`, dieser Pfad wird aber nie tatsächlich gestartet). Ihre Handler-Klassen liegen im jeweils eigenen `src/`-Ordner des Moduls und werden über `src/core/modules/handlers/index.ts` re-exportiert. Ein neu installiertes Modul erhält diese Sonderbehandlung nicht. Setze `entry: "internal"` nur, wenn du den Hub selbst forken willst, sonst einen Prozess-Entry-Point mit dem Module SDK.
+
+### Mitgelieferte Module
+
+| Modul | Beschreibung | Funktionen |
+|-------|-------------|------------|
+| **WLED** (`modules/wled/`) | LED-Beleuchtungssteuerung | Spielerfarben, Effekte/Presets, Fade-Zeit, dauerbasierte Aktionen mit Farbwiederherstellung, Intent-Aktionen |
+| **Game Display** (`modules/game-display/`) | Punkteanzeige | Eigenes Vue.js-Frontend, Checkout-Vorschläge, Animationen pro Event und pro Spieler |
+| **Darts Caller** (`modules/darts-caller/`) | Sprachansagen | Browser-TTS, ElevenLabs Live-TTS, Voice Packs, Audio-Pack-Dateien, Voice Pack Generator |
+| **Autodarts Trainer** (separates Repository, nicht enthalten) | Übungsroutinen | Eigene REST-Endpunkte unter `/api/trainer/*`, mitgelieferte und eigene Routinen, Historie/Statistik |
 
 ### Beispiel-Module
 
-- **WLED** (`modules/wled/`) - Einfaches Modul ohne UI
-- **Game Display** (`modules/game-display/`) - Modul mit eigenem Frontend
+- **WLED** (`modules/wled/`): steuert externe Hardware über HTTP
+- **Game Display** (`modules/game-display/`): eigenes Vue.js-Frontend unter `/module-ui/game-display/`
+- **Darts Caller** (`modules/darts-caller/`): Voice Pack Generator und mehrere Ausgabe-Backends
 
 ---
 
 ## Testing
 
-### Unit Tests
+### Unit- & Integrationstests (Vitest)
+
+Testdateien liegen unter `src/**/*.test.ts` und `test/**/*.test.ts` (siehe `vitest.config.ts`); `test/` spiegelt die Source-Struktur mit den Unterordnern `api/`, `core/`, `integration/`, `mocks/`, `modules/` und `packaging/`.
 
 ```bash
-# Alle Tests
+# Watch-Mode
 npm test
 
-# Watch-Mode
-npm run test:watch
+# Einmalig ausführen (CI-Modus)
+npm run test:unit
+# entspricht:
+npx vitest run
 
-# Coverage
+# Mit Coverage (v8-Provider, 80% Schwelle für lines/functions/branches/statements)
 npm run test:coverage
 ```
 
-### E2E Tests (TODO)
+### End-to-End-Specs (Playwright)
+
+`tests/*.spec.ts` sind Playwright-Specs, die einen laufenden Hub unter `http://localhost:3000` über den Browser steuern (z.B. prüfen, ob der Intent-Abschnitt eines Moduls angezeigt wird). Es gibt keine eingecheckte `playwright.config.ts` und kein `npm`-Script dafür; eine einzelne Spec manuell gegen einen laufenden Dev-Server ausführen:
 
 ```bash
-npm run test:e2e
+npm run dev            # in einem Terminal
+npx playwright test tests/test-intents.spec.ts
 ```
 
 ---
@@ -242,56 +300,49 @@ npm run test:e2e
 # Backend kompilieren
 npm run build
 
-# Frontend bauen
+# Web-UI bauen
 npm run build:frontend
 
-# Module bauen
+# Game-Display-UI bauen
 npm run build:modules
 
-# Alles zusammen
-npm run prebuild:dist
+# Alle drei zusammen
+npm run build:app
 ```
 
-### Desktop-App bauen (Electron)
+### Standalone-Binaries (pkg)
+
+**Derzeit nicht funktionsfähig.** Die pkg- und Electron-Skripte erwarten den Server-Einstieg unter `dist/main.js`, der Build erzeugt jedoch `dist/src/main.js`. Siehe [Desktop-Pakete](installation.md#desktop-pakete) in der Installationsanleitung.
 
 ```bash
-# Alle Plattformen
-npm run dist:all
-
-# Einzelne Plattformen
-npm run dist:mac      # macOS .dmg
-npm run dist:win      # Windows .exe
-npm run dist:linux    # Linux .deb, .AppImage, .rpm
+npm run build:linux       # releases/io-darts-agent-linux-x64
+npm run build:linux-arm   # releases/io-darts-agent-linux-arm64
+npm run build:macos
+npm run build:macos-arm
+npm run build:windows
+npm run build:all         # prebuild:dist + jede Plattform oben
 ```
 
-Die Builds landen in `dist/`.
+### Desktop-App (Electron)
 
-### Release erstellen
-
-**Option 1: Automatisch via GitHub Actions**
+**Derzeit nicht funktionsfähig** (siehe [Desktop-Pakete](installation.md#desktop-pakete)).
 
 ```bash
-# Release-Script verwenden
-./scripts/create-release.sh 1.2.0
+npm run electron:dev        # bauen + Electron lokal starten
+npm run electron:build      # prebuild:dist + electron-builder (aktuelle Plattform)
+npm run electron:build:win
+npm run electron:build:mac
+npm run electron:build:linux
+npm run electron:build:all
+# npm run dist / dist:win / dist:mac / dist:linux sind Aliase für die electron:build*-Scripts
 ```
 
-**Option 2: Manuell mit Git Tag**
+### Linting
 
 ```bash
-git tag -a v1.2.0 -m "Release v1.2.0"
-git push origin v1.2.0
+npm run lint       # eslint src --ext .ts
+npm run lint:fix
 ```
-
-GitHub Actions baut automatisch alle Plattformen und erstellt ein Release.
-
-### CI/CD Pipeline
-
-Die `.github/workflows/release.yml` definiert:
-
-1. **Build Linux** (Ubuntu Runner) → `.deb`, `.rpm`, `.AppImage`
-2. **Build Windows** (Windows Runner) → `.exe`
-3. **Build macOS** (macOS Runner) → `.dmg`, `.zip`
-4. **Create Release** → Alle Artifacts hochladen
 
 ---
 
@@ -301,63 +352,89 @@ Die `.github/workflows/release.yml` definiert:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        Electron                              │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │                     Main Process                        │ │
-│  │  - Startet Backend als Child Process                    │ │
-│  │  - Zeigt Fenster mit Web-UI                            │ │
-│  │  - System Tray Integration                              │ │
-│  └────────────────────────────────────────────────────────┘ │
+│                     Electron (optional)                      │
+│  Startet das Backend als Child-Prozess, zeigt es in einem    │
+│  Fenster mit System-Tray-Icon. `npm start` bzw.               │
+│  `node dist/src/main.js` starten das Backend direkt genauso.  │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Node.js Backend                           │
+│                  Node.js Backend (Fastify)                   │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ Express API  │  │  WebSocket   │  │  Module Manager  │  │
-│  │  /api/*      │  │  /api/events │  │  Sandbox         │  │
+│  │ REST API     │  │  WebSocket   │  │  Module Manager   │  │
+│  │ /api/*       │  │  /api/events │  │  + IPC-Bridge      │  │
 │  └──────────────┘  └──────────────┘  └──────────────────┘  │
 │         │                  │                   │            │
 │         └──────────────────┼───────────────────┘            │
-│                            │                                 │
 │                            ▼                                 │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │                   Autodarts Client                      │ │
-│  │  - API Authentifizierung                                │ │
-│  │  - WebSocket Verbindung                                 │ │
-│  │  - Event Parsing & Weiterleitung                        │ │
+│  │       AuthService + SocketService + EventParser          │ │
+│  │  Loggt sich beim Autodarts-Account ein, öffnet den        │ │
+│  │  Board-WebSocket, wandelt rohe Nachrichten in typisierte  │ │
+│  │  Events um                                                │ │
 │  └────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                        Autodarts.io                          │
+│                        Autodarts.io                           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Event-Flow
 
 ```
-Autodarts → WebSocket → Backend → Module Manager → Module
-                            │
-                            └──→ WebSocket → Frontend
+Autodarts -> Board-WebSocket -> EventParser -> EventBus -> Module Manager -> Module
+                                     │                            │
+                                     │ generiert synthetische      └──> prozessinterne Handler
+                                     │ Events (player.change,           oder IPC zu Modul-Prozessen
+                                     │ turn.finished, game.finished,
+                                     │ match.finished)
+                                     └──> WebSocket API -> Hub-UI, Modul-UIs
 ```
+
+### Native vs. Synthetische Events
+
+Der `EventParser` leitet manche Autodarts-Nachrichten weitgehend unverändert weiter ("nativ") und leitet andere aus `match.state`-Updates ab ("synthetisch"):
+
+| Event-Typ | Quelle | Beschreibung |
+|-----------|--------|--------------|
+| `board.state`, `board.event` | Nativ | Board-Verbindung und andere rohe Board-Events |
+| `match.start`, `match.delete`, `match.finish` | Nativ | Match-Lifecycle-Nachrichten von Autodarts |
+| `match.state` | Nativ | Jedes Match-Status-Update |
+| `throw.detected` | Nativ | Ein Wurf wird gewertet |
+| `takeout.started`, `takeout.finished` | Nativ | Pfeile werden gerade/wurden gezogen |
+| `player.change` | Synthetisch | Generiert, wenn der Index des aktiven Spielers sich ändert |
+| `turn.finished` | Synthetisch | Generiert nach 3 Darts, einem Bust oder einem Rundenwechsel |
+| `game.finished`, `match.finished`, `match.result` | Synthetisch | Generiert, wenn ein Leg/Match endet |
+
+Dies ermöglicht Modulen, auf logische Events zu reagieren, ohne den rohen `match.state` parsen zu müssen. Siehe [API-Dokumentation](api.md#autodarts-events) für die vollständige Liste mit Payload-Feldern.
 
 ### Modul-Sandbox
 
-Module laufen in isolierten Prozessen:
+Prozess-Module laufen als isolierte Child-Prozesse, jeweils mit eigenem Unix-Domain-Socket:
 
 ```
 Backend
    │
-   ├── Module 1 (Subprocess)
-   │      └── IPC Socket
+   ├── Modul 1 (Subprozess, Module-SDK-IPC)
+   │      └── Unix-Socket
    │
-   ├── Module 2 (Subprocess)
-   │      └── IPC Socket
+   ├── Modul 2 (Subprozess, Module-SDK-IPC)
+   │      └── Unix-Socket
    │
-   └── ...
+   └── WLED / Game Display / Darts Caller (prozessinterne Handler, kein Subprozess)
 ```
+
+### Authentifizierung
+
+Zwei unabhängige Ebenen (siehe [API-Dokumentation](api.md#authentifizierung) für das genaue Verhalten pro Route):
+
+1. **Standardmäßig nur lokal.** `src/api/Server.ts` lehnt jede Anfrage ab, deren `Origin`-Header nicht zu einer lokalen/privaten Adresse auflöst, sowohl auf CORS-Ebene als auch mit einer expliziten `onRequest`-Prüfung. Der Hub ist nicht dafür gedacht, von außerhalb des LANs erreichbar zu sein.
+2. **Optionaler Web-Login.** Ein globaler `onRequest`-Hook (`src/api/middleware/auth.ts`) blockiert den Setup-Wizard, bis das Setup abgeschlossen ist, und verlangt danach, falls "Web-Auth" in den Einstellungen aktiviert ist, für alles außer einer kurzen Liste immer öffentlicher Routen (`/health`, `/api/auth/session`, `/api/auth/login`, `/api/setup/status`) ein gültiges `autodarts_session`-Cookie.
+
+Die Autodarts-Verbindung selbst ist vom Web-Login getrennt: `AuthService` loggt sich bei der offiziellen Autodarts-Account-API mit der im Setup-Wizard erfassten E-Mail/Passwort/Board-ID ein, unabhängig davon, ob der eigene Web-Login des Hubs aktiviert ist.
 
 ---
 
@@ -366,8 +443,8 @@ Backend
 ### TypeScript
 
 - **Strict Mode** aktiviert
-- **ESLint** + **Prettier** für Formatting
-- Keine `any` Types (wenn vermeidbar)
+- **ESLint** für Linting (`npm run lint`)
+- Keine `any`-Types, wenn vermeidbar
 
 ### Vue
 
@@ -388,24 +465,11 @@ chore: upgrade dependencies
 
 ---
 
-## Nützliche Befehle
+## Hilfe & Support
 
-```bash
-# Lint
-npm run lint
-
-# Type-Check
-npm run type-check
-
-# Clean Build
-rm -rf dist && npm run build
-
-# Update Dependencies
-npm update
-
-# Check for outdated packages
-npm outdated
-```
+- **Issues**: GitHub Issues für Bugs und Features
+- **Discussions**: GitHub Discussions für Fragen
+- **Code Reviews**: PRs werden reviewed, bevor sie gemergt werden
 
 ---
 
@@ -413,81 +477,22 @@ npm outdated
 
 ### EventParser
 
-Die `EventParser`-Klasse analysiert `match.state` Updates und generiert synthetische Events:
+`src/core/socket/EventParser.ts` liest rohe Nachrichten vom Autodarts-Board-WebSocket und:
 
-```typescript
-// EventParser erkennt:
-// 1. Spielerwechsel (Player-Index hat sich geändert)
-// 2. Aufnahme-Ende (3 Darts geworfen, Bust, oder Rundenwechsel)
-// 3. Spezielle Würfe (180, etc.)
-```
-
-### MatchStateTracker
-
-Verfolgt den Match-Zustand zwischen Events für präzise Event-Generierung:
-
-- Speichert vorherigen Match-Zustand
-- Erkennt Änderungen zwischen Zuständen
-- Liefert Spielerfarben-Informationen
+1. Gibt native Events weitgehend unverändert weiter (`board.state`, `match.start`, `throw.detected`, ...).
+2. Analysiert jedes `match.state`-Update, um zusätzlich die synthetischen Events (`player.change`, `turn.finished`, `game.finished`, `match.finished`, `match.result`) oben zu generieren.
 
 ### Module Handlers
 
-Jedes Modul hat eine Handler-Klasse in `src/core/modules/handlers/`:
+Die drei prozessinternen mitgelieferten Module haben jeweils eine Handler-Klasse, die im eigenen Ordner des Moduls liegt und über `src/core/modules/handlers/index.ts` re-exportiert wird:
 
-| Handler | Modul | Funktionen |
-|---------|-------|------------|
-| `WledHandler.ts` | WLED | HTTP API Aufrufe, Spielerfarben, Fade-Zeit, Dauer-basierte Wiederherstellung |
-| `DartsCallerHandler.ts` | Darts Caller | TTS, Audio-Wiedergabe, Voice Pack Generator |
+| Handler | Modul | Kernfunktionen |
+|---------|-------|-----------------|
+| `modules/wled/src/WledHandler.ts` | WLED | HTTP-Aufrufe an die WLED-JSON-API, Spielerfarben, Fade-Zeit, dauerbasierte Farbwiederherstellung, leitet Wurf-Unterschlüssel (`throw.triple`, `throw.180`, ...) aus `throw.detected` ab |
+| `modules/game-display/src/GameDisplayHandler.ts` | Game Display | Liefert Konfiguration/Zustand an das Vue-Frontend unter `/module-ui/game-display/` |
+| `modules/darts-caller/src/DartsCallerHandler.ts` | Darts Caller | Dispatch für TTS/Audio-Wiedergabe, Voice Pack Generator, ElevenLabs-Integration |
 
-### Neuen Handler erstellen
-
-```typescript
-// src/core/modules/handlers/MyHandler.ts
-export class MyHandler {
-  private config: MyModuleConfig;
-  private currentMatchState: MatchState | null = null;
-
-  constructor(config: MyModuleConfig) {
-    this.config = config;
-  }
-
-  async handleEvent(event: AutodartsEvent): Promise<void> {
-    switch (event.type) {
-      case 'match.state':
-        this.currentMatchState = event.data;
-        break;
-      case 'player.change':
-        await this.handlePlayerChange(event);
-        break;
-      case 'throw.detected':
-        await this.handleThrow(event);
-        break;
-    }
-  }
-
-  private async handlePlayerChange(event: AutodartsEvent): Promise<void> {
-    // Auf Spielerwechsel reagieren
-  }
-
-  private async handleThrow(event: AutodartsEvent): Promise<void> {
-    // Auf Wurf reagieren
-  }
-}
-```
-
-### Native vs. Synthetische Events
-
-Der EventParser generiert **synthetische Events** aus `match.state` Updates:
-
-| Event-Typ | Quelle | Beschreibung |
-|-----------|--------|--------------|
-| `match.start` | Nativ | Von Autodarts |
-| `match.state` | Nativ | Von Autodarts |
-| `throw.detected` | Nativ | Von Autodarts |
-| `player.change` | Synthetisch | Generiert bei Spielerwechsel |
-| `turn.finished` | Synthetisch | Generiert bei Aufnahme-Ende (3 Darts, Bust, Rundenwechsel) |
-
-Dies ermöglicht Modulen, auf logische Events zu reagieren, ohne den rohen Zustand parsen zu müssen.
+Prozess-Module erweitern stattdessen `AutodartsModule` aus `@autodarts-hub/module-sdk` und implementieren `onInit`/`onEvent`/`onConfigUpdate`/`onShutdown` (siehe [Module SDK](module-sdk.md)).
 
 ### Autodarts Array-Rotation bei Leg-Wechseln
 
@@ -507,7 +512,7 @@ Nach Leg 1 (Max gewinnt, Anna beginnt Leg 2):
 
 #### Der stabile `player.index`
 
-Der `player.index` Wert bleibt über das gesamte Match hinweg stabil und sollte für Zuordnungen verwendet werden:
+Der `player.index`-Wert bleibt über das gesamte Match hinweg stabil und sollte für Zuordnungen verwendet werden:
 
 ```typescript
 // Falsch: Array-Position verwenden
@@ -520,49 +525,42 @@ const player = players.find(p => p.index === playerIndex);
 
 #### Event-Daten bei Leg-Wechsel
 
-Die synthetischen Events (`player.change`, `turn.finished`, `game.finished`) enthalten zusätzliche Informationen:
+Die synthetischen Events (`player.change`, `turn.finished`, `game.finished`) enthalten dafür zusätzliche Felder:
 
 | Feld | Beschreibung | Zuverlässigkeit |
 |------|-------------|-----------------|
 | `playerName` | Spielername zum Zeitpunkt des Events | Hoch |
-| `winnerName` | Gewinner-Name (bei game.finished) | Hoch |
-| `playerIndex` | Stabiler player.index | Hoch |
+| `winnerName` | Gewinner-Name (bei `game.finished`) | Hoch |
+| `playerIndex` | Stabiler `player.index` | Hoch |
 | `winnerPlayerIndex` | Stabiler Gewinner-Index | Hoch |
 | `currentPlayer` | Array-Position | Niedrig (nach Rotation) |
 | `winner` | Array-Position des Gewinners | Niedrig (nach Rotation) |
 
-**Best Practice:** Verwende immer zuerst `playerName`/`winnerName` oder `playerIndex`/`winnerPlayerIndex` für Lookups.
+**Best Practice:** Verwende immer zuerst `playerName`/`winnerName` oder `playerIndex`/`winnerPlayerIndex` für Zuordnungen.
 
 ### Spielerfarben-Auflösung
 
 Module können Spielerfarben über das Spielerverwaltungssystem auflösen:
 
 ```typescript
-// Spielerfarbe aus Event-Daten
+// Farbe aus Event-Daten
 const color = event.data.color || '#ffffff';
 
-// Oder aus Match-Zustand auflösen
-async resolvePlayerColor(playerIndex: number): Promise<string> {
-  const player = this.currentMatchState?.players[playerIndex];
-  if (player) {
-    const profile = await this.playerManager.findByName(player.name);
-    return profile?.color || '#ffffff';
-  }
-  return '#ffffff';
-}
+// Oder über die lokale Spielerdatenbank
+const players = await fetch('/api/players').then(r => r.json());
 ```
 
 ### PlayerResolver Pattern (Frontend-Module)
 
-Für Frontend-Module wie das Game Display, die mit Array-Rotation umgehen müssen, gibt es das PlayerResolver-Pattern:
+Frontend-Module wie Game Display, die im Browser mit Array-Rotation umgehen müssen, nutzen ein PlayerResolver-Pattern:
 
 ```typescript
 class PlayerResolver {
-  // Persistente Maps: Match-Start Zuordnungen
+  // Persistente Map: Match-Start-Zuordnungen
   private originalIndexByName: Map<string, number> = new Map()
 
   updatePlayers(autodartsPlayers: Player[]): void {
-    // Beim ERSTEN Aufruf die originalen Zuordnungen speichern
+    // Nur beim ERSTEN Aufruf die originalen Zuordnungen speichern
     if (!this.isInitialized) {
       autodartsPlayers.forEach(p => {
         this.originalIndexByName.set(p.name.toLowerCase(), p.index)
@@ -590,52 +588,41 @@ class PlayerResolver {
 
 **Wichtig:** Der Resolver muss bei `match.start` zurückgesetzt werden, damit die neuen Spielerzuordnungen korrekt erfasst werden.
 
-### Modul-Sandbox
-
-Module laufen in isolierten Prozessen:
-
-```
-Backend
-   │
-   ├── Module 1 (Subprocess)
-   │      └── IPC Socket
-   │
-   ├── Module 2 (Subprocess)
-   │      └── IPC Socket
-   │
-   └── ...
-```
-
 ---
 
 ## KI-Provider-System
 
-IO-Darts-Agent enthält ein flexibles KI-Provider-System, das Module für verschiedene KI-gestützte Funktionen nutzen können.
+Der IO-Darts-Agent enthält ein flexibles KI-Provider-System (`src/core/ai/`), das Module für verschiedene KI-gestützte Funktionen nutzen können.
 
 ### Architektur
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    AI Provider Manager                        │
+│                     AI Provider Service                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │  ElevenLabs  │  │   Runway ML  │  │   Andere Provider │  │
-│  │  (TTS)       │  │  (Video)     │  │   (LLM, Bilder)   │  │
+│  │  ElevenLabs  │  │ Runway /     │  │   OpenAI /         │  │
+│  │  (TTS)       │  │ Higgsfield   │  │   Anthropic /      │  │
+│  │              │  │ (Video/Bild) │  │   Ollama (Text)    │  │
 │  └──────────────┘  └──────────────┘  └──────────────────┘  │
+│  ┌──────────────┐  ┌──────────────┐                        │
+│  │ Stability AI │  │  Replicate   │                        │
+│  │ (Bilder)     │  │  (Verschied.)│                        │
+│  └──────────────┘  └──────────────┘                        │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                          Module                               │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐   │
-│  │DartsCaller  │ │Game Display │ │   Eigene Module     │   │
-│  │(TTS)        │ │(Animationen)│ │  (KI-Funktionen)    │   │
+│  │ Darts Caller│ │ Game Display│ │   Eigene Module     │   │
+│  │ (TTS)       │ │ (Animationen)│ │  (KI-Funktionen)    │   │
 │  └─────────────┘ └─────────────┘ └─────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Provider-Konfiguration
 
-Provider werden in `config/ai-providers.json` konfiguriert:
+Provider werden in `dist/config/ai-providers.json` konfiguriert (oder über den Menüpunkt **AI Provider** (`/ai-settings`) in der UI, bzw. `PUT /api/ai/providers/:id`):
 
 ```json
 [
@@ -663,79 +650,33 @@ Provider werden in `config/ai-providers.json` konfiguriert:
 
 | Provider | Typ | Fähigkeiten | Anwendungsfälle |
 |----------|-----|-------------|-----------------|
-| **ElevenLabs** | `elevenlabs` | `audio-tts` | Voice Packs, Spielernamen |
-| **Runway ML** | `runway` | `video-generation` | Animationen, Celebrations |
+| **ElevenLabs** | `elevenlabs` | `audio-tts` | Voice Packs, Spielernamen-Synthese |
+| **Runway ML** | `runway` | `video-generation` | Animations-Generator (eine von zwei wählbaren Engines) |
+| **Higgsfield** | `higgsfield` | `image-generation`, `video-generation` | Animations-Generator (die andere wählbare Engine) |
 | **OpenAI** | `openai` | `text`, `image-generation` | Chat, Bildgenerierung |
 | **Anthropic** | `anthropic` | `text` | Chat, Analyse |
 | **Stability AI** | `stability` | `image-generation` | Bildgenerierung |
 | **Ollama** | `ollama` | `text` | Lokale LLM-Inferenz |
-| **Replicate** | `replicate` | Verschiedene | Eigene Modelle |
+| **Replicate** | `replicate` | Verschiedene | Eigene gehostete Modelle |
 
 ### KI-Provider im Code verwenden
 
 ```typescript
-import { getAIProvider, getEnabledProviders } from '../core/ai/index.js';
+import { getAIProviderService } from '../core/ai/index.js';
+
+const service = getAIProviderService();
 
 // Einen bestimmten Provider abrufen
-const elevenlabs = getAIProvider('elevenlabs');
+const elevenlabs = service.getProvider('elevenlabs');
 if (elevenlabs?.isAvailable()) {
-  // Sprache generieren
-  const response = await elevenlabs.generateSpeech({
-    text: 'One hundred and eighty!',
-    voice: 'voice-id-oder-name',
-  });
+  const audio = await service.generateSpeech(
+    { text: 'One hundred and eighty!', voice: 'voice-id-oder-name' },
+    'elevenlabs'
+  );
 }
 
-// Alle aktivierten Provider mit einer Fähigkeit abrufen
-const ttsProviders = getEnabledProviders('audio-tts');
-```
-
-### ElevenLabs Provider
-
-```typescript
-import { ElevenLabsProvider } from '../core/ai/providers/ElevenLabsProvider.js';
-
-// Stimmen abrufen
-const voices = await elevenlabs.getVoices();
-
-// Sprache generieren
-const result = await elevenlabs.generateSpeech({
-  text: 'Player one, you require 40!',
-  voice: 'Rachel',  // Name oder ID
-  model: 'eleven_multilingual_v2',
-  stability: 0.5,
-  similarityBoost: 0.75,
-});
-
-// In Datei speichern
-await elevenlabs.generateSpeechToFile(
-  { text: '180!', voice: 'voice-id' },
-  '/pfad/zu/ausgabe.mp3'
-);
-```
-
-### Runway ML Provider
-
-```typescript
-import { RunwayProvider } from '../core/ai/providers/RunwayProvider.js';
-
-// Text-zu-Video
-const result = await runway.generateVideo({
-  prompt: 'Feuerwerk-Celebration, Darts-Thema',
-  duration: 5,
-  aspectRatio: '16:9',
-});
-
-// Bild-zu-Video
-const result = await runway.generateVideo({
-  imageUrl: 'https://example.com/spieler-foto.jpg',
-  prompt: 'Feiernd, Arme erhoben',
-  duration: 5,
-});
-
-// Auf Fertigstellung warten (asynchroner Job)
-const job = await runway.waitForCompletion(result.jobId);
-console.log('Video URL:', job.resultUrl);
+// Welche Provider aktuell eine Fähigkeit anbieten
+const capabilities = service.getAvailableCapabilities();
 ```
 
 ### Einen eigenen Provider erstellen
@@ -768,10 +709,4 @@ export class MyProvider extends BaseAIProvider {
 }
 ```
 
----
-
-## Hilfe & Support
-
-- **Issues**: GitHub Issues für Bugs und Features
-- **Discussions**: GitHub Discussions für Fragen
-- **Code Reviews**: PRs werden reviewed bevor sie gemergt werden
+Registriere ihn mit `aiService.registerProviderFactory('my-provider', (config) => new MyProvider(config))` in `src/core/ai/AIProviderInitializer.ts`.

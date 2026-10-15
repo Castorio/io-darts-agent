@@ -1,6 +1,8 @@
-# IO-Darts-Agent - Benutzerhandbuch
+# IO-Darts-Agent: Benutzerhandbuch
 
-Dieses Handbuch führt dich Schritt für Schritt durch die Einrichtung und Nutzung des IO-Darts-Agent. Vom ersten Start bis zum fertigen System mit allen Modulen.
+Dieses Handbuch führt dich durch Einrichtung und Nutzung des IO-Darts-Agent, vom ersten Start bis zum fertigen System mit allen Modulen.
+
+> **Hinweis**: IO-Darts-Agent ist ein inoffizielles Projekt. Es steht in keiner Verbindung zu Autodarts und wird von Autodarts weder unterstützt noch empfohlen. Der Hub ist ausschließlich für den Betrieb im lokalen Netzwerk gedacht. Stelle ihn nicht ins Internet und richte keine Portweiterleitung auf ihn ein.
 
 ---
 
@@ -10,612 +12,649 @@ Dieses Handbuch führt dich Schritt für Schritt durch die Einrichtung und Nutzu
 2. [Systemvoraussetzungen](#systemvoraussetzungen)
 3. [Installation](#installation)
 4. [Erste Einrichtung](#erste-einrichtung)
-5. [Das Dashboard](#das-dashboard)
-6. [Module verwalten](#module-verwalten)
-7. [WLED Modul - LED-Beleuchtung](#wled-modul)
-8. [Game Display Modul - Punkteanzeige](#game-display-modul)
-9. [Spielerverwaltung](#spielerverwaltung)
-10. [Live-Logs](#live-logs)
-11. [Einstellungen](#einstellungen)
-12. [Neue Module installieren](#neue-module-installieren)
-13. [Häufige Fragen (FAQ)](#faq)
-14. [Problemlösung](#problemlösung)
+5. [Anmeldung am Web-Interface](#anmeldung-am-web-interface)
+6. [Das Dashboard](#das-dashboard)
+7. [Module verwalten](#module-verwalten)
+8. [WLED Modul](#wled-modul)
+9. [Game Display Modul](#game-display-modul)
+10. [Darts Caller Modul](#darts-caller-modul)
+11. [AI Provider](#ai-provider)
+12. [Animations-Generator](#animations-generator)
+13. [Mediathek](#mediathek)
+14. [Spielerverwaltung](#spielerverwaltung)
+15. [Konsole](#konsole)
+16. [Einstellungen](#einstellungen)
+17. [Entwickler-Tools](#entwickler-tools)
+18. [Neue Module installieren](#neue-module-installieren)
+19. [Häufige Fragen (FAQ)](#faq)
+20. [Problemlösung](#problemlösung)
 
 ---
 
 ## Was ist IO-Darts-Agent?
 
-IO-Darts-Agent ist eine Software, die sich mit deinem Autodarts-System verbindet und bei verschiedenen Spielereignissen Aktionen auslösen kann:
+IO-Darts-Agent ist ein lokaler Hub für dein Autodarts-Board. Er empfängt die Live-Ereignisse deines Boards (Würfe, Aufnahmen, Legs, Matches) und löst damit Aktionen aus:
 
-- **🎨 LED-Beleuchtung steuern** - Bei einem Triple blinkt deine WLED-Beleuchtung
-- **📺 Punktestand anzeigen** - Zeige den Spielstand auf einem zweiten Bildschirm
-- **🎙️ Sprach-Ansagen** - Professioneller Darts-Caller für Scores und Checkouts
-- **🔔 Benachrichtigungen senden** - Erhalte Meldungen bei besonderen Ereignissen
-- **Und vieles mehr** - Das System ist erweiterbar!
+- **LED-Beleuchtung steuern**: Deine WLED-Beleuchtung reagiert auf Triple, 180, Bust oder Spielerwechsel
+- **Punktestand anzeigen**: Der Spielstand erscheint als Vollbild auf einem zweiten Bildschirm oder Tablet
+- **Sprachansagen**: Ein Darts Caller sagt Scores, Checkouts, Bust und Game Shot an
+- **KI-Funktionen (optional)**: Voice Packs mit ElevenLabs, Animationen mit Runway oder Higgsfield
+- **Erweiterbar**: Weitere Module lassen sich aus Git-Repositories installieren
+
+IO-Darts-Agent steht unter der PolyForm Noncommercial License 1.0.0 und ist für private, nicht kommerzielle Nutzung kostenlos.
 
 ---
 
 ## Systemvoraussetzungen
 
-### Mindestanforderungen
-
 | Komponente | Anforderung |
 |------------|-------------|
-| **Computer** | Windows 10+, macOS 10.15+, oder Linux (Ubuntu 20.04+) |
-| **Browser** | Chrome, Firefox, Safari oder Edge (aktuell) |
-| **Netzwerk** | Gleiches Netzwerk wie dein Autodarts-Board |
-| **Autodarts** | Account mit API-Zugang (kostenlos) |
+| **Computer** | Windows, macOS oder Linux |
+| **Node.js** | Version 22 oder neuer (nur beim Betrieb aus dem Quellcode) |
+| **Browser** | Aktueller Chrome, Firefox, Safari oder Edge |
+| **Netzwerk** | Der Hub und alle Anzeigegeräte und WLED-Controller im selben lokalen Netzwerk |
+| **Autodarts** | Autodarts-Konto mit E-Mail und Passwort sowie ein Board |
+| **ffmpeg** | Optional, für transparente KI-Animationen |
 
-> **Hinweis**: Node.js ist **nicht** erforderlich! Die App bringt alles mit.
+### Für das WLED-Modul zusätzlich
 
-### Für WLED-Modul zusätzlich
+- WLED-kompatibler LED-Controller (z.B. ESP8266 oder ESP32 mit WLED-Firmware)
+- LED-Strip (z.B. WS2812B, SK6812)
 
-- WLED-kompatibler LED-Controller (z.B. ESP8266/ESP32)
-- WLED-Firmware Version 0.13+
+### Für KI-Funktionen zusätzlich
+
+- API-Schlüssel des jeweiligen Anbieters (z.B. ElevenLabs, Runway, Higgsfield). Generierungen kosten beim Anbieter Guthaben bzw. Credits.
 
 ---
 
 ## Installation
 
-### Download
+Die Installation aus dem Quellcode, inklusive eines eigenen Linux-Board-PCs, ist in der [Installationsanleitung](installation.md) beschrieben.
 
-Lade die passende Version für dein System herunter:
-👉 [GitHub Releases](https://github.com/Castorio/io-darts-agent/releases)
+Kurzfassung für den Betrieb aus dem Quellcode:
 
-| System | Datei |
-|--------|-------|
-| **Windows** | `io-darts-agent Setup X.X.X.exe` |
-| **macOS** | `io-darts-agent-X.X.X.dmg` |
-| **Ubuntu/Debian** | `io-darts-agent_X.X.X_amd64.deb` |
-| **Linux (Universal)** | `io-darts-agent-X.X.X.AppImage` |
+```bash
+git clone https://github.com/Castorio/io-darts-agent.git
+cd io-darts-agent
+npm run setup       # installiert alle Abhängigkeiten
+npm run build:app   # baut Hub, Web-Interface und Module
+npm start
+```
 
-### Installation
-
-**Windows:** Doppelklick auf die `.exe` → Installer folgen
-
-**macOS:** `.dmg` öffnen → App in Applications ziehen
-
-**Ubuntu:** `sudo dpkg -i io-darts-agent_X.X.X_amd64.deb`
-
-**Linux:** `chmod +x *.AppImage && ./io-darts-agent-X.X.X.AppImage`
-
-Detaillierte Anleitungen: [Installation](installation.md)
-
-### App starten
-
-Nach der Installation startet die App automatisch. Du findest sie:
-- **Windows**: Start-Menü → "IO-Darts-Agent"
-- **macOS**: Launchpad → "IO-Darts-Agent"
-- **Linux**: Anwendungsmenü oder Terminal: `io-darts-agent`
-
-Die App läuft im System Tray / der Menüleiste
+Danach ist das Web-Interface unter `http://localhost:3000` erreichbar.
 
 ---
 
 ## Erste Einrichtung
 
-### Schritt 1: Browser öffnen
+Ohne Konfiguration startet der Hub im Setup-Modus. Öffne im Browser:
 
-Öffne deinen Browser und gehe zu:
 ```
 http://localhost:3000
 ```
 
-Du siehst den Setup-Wizard:
+Von einem anderen Gerät im Netzwerk erreichst du den Hub über die IP des Hub-Rechners, z.B. `http://192.168.1.100:3000`.
 
-![Setup Wizard](images/setup-wizard.png)
-*(Falls du bereits eingerichtet hast, siehst du das Dashboard)*
+Der Setup-Wizard hat drei Schritte.
 
-### Schritt 2: Autodarts-Anmeldung
+### Schritt 1: Sicherheit
+
+Unter **Web-Interface absichern?** legst du fest, ob das Web-Interface ein Login verlangt:
+
+- **Aus**: Kein Login erforderlich (nur im lokalen Netzwerk empfohlen)
+- **An**: Benutzername (mindestens 3 Zeichen) und Passwort (mindestens 6 Zeichen) festlegen und bestätigen
+
+### Schritt 2: Autodarts Verbindung
 
 Gib deine Autodarts-Zugangsdaten ein:
 
-1. **E-Mail**: Deine Autodarts E-Mail-Adresse
+1. **E-Mail**: Die E-Mail-Adresse deines Autodarts-Kontos
 2. **Passwort**: Dein Autodarts-Passwort
+3. **Board-ID**: Die ID deines Boards (Format `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+4. Klicke auf **Verbindung testen**
 
-> 💡 **Hinweis**: Die Daten werden nur lokal auf deinem Computer gespeichert und direkt an Autodarts gesendet.
+So funktioniert die Anmeldung:
 
-### Schritt 3: Board auswählen
+- Der Hub meldet sich mit E-Mail und Passwort an der offiziellen Autodarts-API an (Auth-Dienst v1).
+- Das Zugriffstoken wird automatisch vor Ablauf erneuert. Schlägt die Erneuerung fehl, meldet sich der Hub mit dem gespeicherten Passwort neu an.
+- **Zwei-Faktor-Authentifizierung (2FA) wird nicht unterstützt.** Ein Konto mit aktivierter 2FA kann sich nicht verbinden.
+- Die Zugangsdaten werden nur auf dem Hub-Rechner gespeichert (`dist/config/hub.config.json`, im Klartext) und nur an Autodarts gesendet.
 
-Nach erfolgreicher Anmeldung siehst du deine Boards. Wähle das Board aus, das du verwenden möchtest.
+### Schritt 3: Abschluss
 
-### Schritt 4: Fertig!
+Die Zusammenfassung zeigt Web-Authentifizierung, Autodarts E-Mail und Board-ID. Klicke auf **Setup abschließen**. Der Hub verbindet sich mit Autodarts. Mit aktiver Web-Authentifizierung wirst du zur Anmeldeseite weitergeleitet, sonst direkt zum Dashboard.
 
-Klicke auf "Einrichtung abschließen". Der Hub verbindet sich automatisch mit Autodarts.
+E-Mail, Passwort und Board-ID kannst du später unter **Einstellungen > Autodarts** ändern.
+
+---
+
+## Anmeldung am Web-Interface
+
+Ist die Web-Authentifizierung aktiv, fragt die Anmeldeseite nach **Benutzername** und **Passwort** des Web-Interfaces (nicht nach den Autodarts-Daten). Abmelden kannst du dich über den Button unten in der Seitenleiste.
 
 ---
 
 ## Das Dashboard
 
-Nach der Einrichtung siehst du das Dashboard:
-
-![Dashboard](images/03-dashboard.png)
-
-### Bereiche des Dashboards
+![Dashboard](../images/03-dashboard.png)
 
 | Bereich | Beschreibung |
 |---------|-------------|
-| **Verbindungsstatus** | Zeigt ob die Verbindung zu Autodarts aktiv ist |
-| **Module** | Übersicht der installierten und aktiven Module |
-| **Aktivität** | Letzte Events und Aktionen |
-| **Schnellzugriff** | Links zu wichtigen Funktionen |
+| **Aktive Module** | Anzahl der laufenden Module |
+| **Laufzeit** | Laufzeit des Hubs |
+| **Events heute** | Anzahl der empfangenen Ereignisse |
+| **Autodarts Verbindung** | Verbindungsstatus mit Button zum Trennen bzw. Verbinden, dazu das aktive Match |
+| **Module** | Installierte Module mit Status, Link zur Modulinstallation |
+| **Letzte Events** | Live-Events von Autodarts |
 
 ### Navigation
 
-Die Seitenleiste links führt zu allen Bereichen:
+Die Seitenleiste zeigt oben den Autodarts-Verbindungsstatus und führt zu allen Bereichen:
 
-- 🏠 **Dashboard** - Übersicht
-- 📦 **Module** - Module verwalten
-- 👥 **Spieler** - Spielerprofile
-- 📜 **Logs** - Live-Events
-- ⚙️ **Einstellungen** - Konfiguration
+- **Dashboard**: Übersicht
+- **Module**: Module verwalten und konfigurieren
+- **Spieler**: Spielerprofile mit Farben
+- **Mediathek**: Bilder, Sounds und Animationen
+- **Konsole**: Live-Logs
+- **AI Provider**: API-Schlüssel und Modelle der KI-Anbieter
+- **Einstellungen**: Sprache, Server, Web-Login, Autodarts-Zugang, Entwickler-Modus
 
 ---
 
 ## Module verwalten
 
-Module sind Erweiterungen, die verschiedene Funktionen hinzufügen.
+Module erweitern den Hub um Funktionen. Eingebaut sind **WLED**, **Game Display** und **Darts Caller**.
 
-### Module-Übersicht öffnen
+![Module-Liste](../images/04-modules-list.png)
 
-Klicke in der Seitenleiste auf **Module**:
+### Module-Übersicht
 
-![Module-Liste](images/04-modules-list.png)
+Unter **Module** siehst du alle installierten Module mit Status und den Buttons **Konfigurieren**, **Starten** bzw. **Stoppen**. Eingebaute Module, die noch nicht installiert sind, erscheinen unter **Verfügbare Module** und lassen sich mit **Installieren** hinzufügen.
 
-### Modul-Status
+### Modul-Detailseite
 
-| Symbol | Bedeutung |
-|--------|-----------|
-| 🟢 **Running** | Modul ist aktiv und verarbeitet Events |
-| 🔴 **Stopped** | Modul ist gestoppt |
-| ⚠️ **Error** | Modul hat einen Fehler |
+Ein Klick auf ein Modul öffnet die Detailseite:
 
-### Modul starten/stoppen
-
-1. Klicke auf ein Modul in der Liste
-2. Nutze die **Start** oder **Stop** Buttons
+- **Starten**, **Stoppen**, **Neustarten**
+- **Autostart**: Modul startet automatisch mit dem Hub
+- Link zur modulspezifischen Konfiguration (WLED, Game Display, Darts Caller)
+- **Konfiguration**: Allgemeine Moduleinstellungen (bei Modulen ohne eigene Konfigurationsseite und beim Darts Caller)
+- **Intent-Reaktionen**: Wie das Modul auf Intents anderer Module reagiert (falls unterstützt)
+- **Statistiken**: Neustarts, Startzeit, verarbeitete Events, letzter Fehler
+- **Gefahrenzone**: **Modul deinstallieren** (löscht das Modul und seine Daten)
 
 ---
 
 ## WLED Modul
 
-Das WLED-Modul steuert LED-Strips basierend auf Spielereignissen.
+Das WLED-Modul steuert LED-Strips mit WLED-Firmware abhängig von Spielereignissen.
 
-### Was du brauchst
+### WLED-Konfiguration öffnen
 
-- WLED-Controller (z.B. ESP8266/ESP32 mit WLED-Firmware)
-- LED-Strip (WS2812B, SK6812, etc.)
-- Der Controller muss im selben Netzwerk sein
+1. Gehe zu **Module** und öffne **WLED Lichtsteuerung**
+2. Klicke auf **Event-Aktionen konfigurieren**
 
-### WLED-Modul öffnen
+![WLED Konfiguration](../images/06-wled-config.png)
 
-1. Gehe zu **Module**
-2. Klicke auf **WLED Lighting Controller**
+### Verbindung
 
-![WLED Modul](images/05-wled-module.png)
-
-### WLED konfigurieren
-
-Klicke auf **WLED konfigurieren**:
-
-![WLED Konfiguration](images/06-wled-config.png)
-
-### Grundeinstellungen
-
-1. **WLED IP-Adresse**: Gib die IP deines WLED-Controllers ein (z.B. `192.168.1.100`)
+1. **WLED IP-Adresse**: IP des Controllers, z.B. `192.168.1.100`
 2. **Port**: Normalerweise `80`
-3. **Fade-Zeit**: Übergangszeit in Millisekunden für sanfte Farbwechsel (optional)
-4. Klicke auf **Speichern**
+3. Klicke auf **Verbinden**. Bei Erfolg lädt der Hub die Presets und Effekte direkt vom Controller. Ohne Verbindung steht eine eingebaute Effektliste zur Verfügung.
 
-### Event-Aktionen einrichten
+Oben rechts kannst du das Modul starten oder stoppen.
 
-Für jedes Ereignis kannst du eine Aktion festlegen:
+### Event-Aktionen
 
-#### Beispiel: Triple-Treffer
+Die Ereignisse sind in Gruppen sortiert:
 
-1. Scrolle zu **Wurf Events**
-2. Bei **Triple** wähle:
-   - **Aktionstyp**: `Effekt`
-   - **Effekt**: `Blink` oder `Rainbow`
-   - **Helligkeit**: `255` (Maximum)
-   - **Dauer**: `500` (0.5 Sekunden, dann zurück zur Spielerfarbe)
-3. Aktiviere **Spielerfarbe verwenden** (optional)
+| Gruppe | Ereignisse |
+|--------|-----------|
+| **Match Events** | Match gestartet, Match beendet, Match verlassen, Match abgebrochen |
+| **Wurf Events** | Wurf erkannt, Triple getroffen, Double getroffen, Single Bull, Bullseye!, 180!, High Finish, Fehlwurf |
+| **Spieler Events** | Spielerwechsel, Aufnahme gestartet, Aufnahme beendet |
+| **Board Events** | Pfeile ziehen, Pfeile gezogen |
 
-#### Beliebte Konfigurationen
+**Hinweis:** "High Finish" ist in `module.json` als Event gelistet, wird vom WLED-Modul aktuell aber nie ausgelöst: Es gibt keine Checkout-Erkennung in der Wurf-Zuordnung. Eine dafür konfigurierte Aktion bleibt wirkungslos, bis das implementiert ist.
 
-| Event | Empfohlene Aktion |
-|-------|-------------------|
-| **Match Start** | Effekt "Rainbow", Dauer 2000ms |
-| **Spielerwechsel** | Solid-Farbe mit Spielerfarbe |
-| **Triple** | Kurzer Blink (500ms) |
-| **Bullseye** | Goldener Flash (500ms) |
-| **180** | Feuerwerk-Effekt (3s) |
-| **Bust** | Roter Alarm (1s) |
-| **Takeout beendet** | Spielerfarbe wiederherstellen |
+Für jedes Ereignis wählst du einen Aktionstyp:
+
+| Aktionstyp | Beschreibung |
+|------------|-------------|
+| **Preset** | Ein auf dem Controller gespeichertes WLED-Preset aktivieren |
+| **Effekt** | Einen WLED-Effekt abspielen, mit bis zu drei Farben, Geschwindigkeit und Intensität |
+| **Farbe** | Eine feste Farbe setzen |
+| **Aus** | LEDs ausschalten |
+| **Keine** | Keine Aktion |
+
+Zusätzlich je Aktion:
+
+- **Spielerfarbe verwenden** bzw. **Spielerfarbe für Farbe 1**: Statt einer festen Farbe wird die Farbe des aktuellen Spielers genutzt
+- **Helligkeit**
+- **Dauer**: Aus, 0.5s, 1s, 2s, 3s oder 5s. Nach Ablauf stellt das Modul die Farbe des aktuellen Spielers wieder her. Bei "Aus" bleibt der Effekt bis zum nächsten Ereignis aktiv. Für Match-Start, Match-Ende und Match-Abbruch gibt es keine Wiederherstellung.
+- **Übergangszeit (Fade)**: Weicher Übergang zwischen Lichtzuständen
+- **Testen**: Die Aktion sofort auf dem Controller ausprobieren
+
+Speichere mit **Konfiguration speichern**.
+
+#### Beispiel-Konfigurationen
+
+| Ereignis | Mögliche Aktion |
+|----------|-----------------|
+| **Match gestartet** | Effekt "Rainbow", Dauer 2s |
+| **Spielerwechsel** | Farbe mit Spielerfarbe |
+| **Triple getroffen** | Effekt "Blink", Dauer 0.5s |
+| **Bullseye!** | Goldene Farbe, Dauer 1s |
+| **180!** | Effekt "Fireworks", Dauer 3s |
+| **Pfeile gezogen** | Farbe mit Spielerfarbe |
 
 ### Spielerfarben
 
-Wenn du **Spielerfarbe verwenden** aktivierst, nimmt der Effekt automatisch die Farbe des aktuellen Spielers. Dafür musst du:
+Die Farbe eines Spielers wird so bestimmt:
 
-1. In der **Spielerverwaltung** Spielerprofile anlegen
-2. Jedem Spieler eine Farbe zuweisen
-3. Der Name muss mit dem Autodarts-Namen übereinstimmen
+1. Farbe aus dem passenden Spielerprofil unter **Spieler** (der Profilname muss dem Autodarts-Namen entsprechen, Groß- und Kleinschreibung egal)
+2. Sonst die Farbe der Spielerposition aus dem Bereich **Spielerfarben** der WLED-Konfiguration (bis zu 6 Spieler)
 
-### Einzelspieler-Modus
+Unter **Spielerfarben testen** kannst du jede Positionsfarbe direkt auf den LEDs anzeigen.
 
-Das WLED-Modul unterstützt auch Einzelspieler-Spiele:
-- Spielerfarbe wird nach Match-Start angewendet (nach optionaler Start-Animation)
-- Spielerfarbe wird nach jedem Takeout wiederhergestellt
-- Kein Spielerwechsel-Event nötig
+### Einzelspieler-Spiele
 
-### Dauer und Fade-Zeit
+- Nach dem Match-Start (und einer eventuellen Start-Animation) wird die Spielerfarbe gesetzt
+- Nach jedem "Pfeile gezogen" wird die Spielerfarbe wiederhergestellt
+- Dafür wird die Aktion von **Spielerwechsel** verwendet, sie sollte also eine Farbe mit Spielerfarbe sein
 
-- **Dauer**: Wie lange ein Effekt dauert bevor zur Spielerfarbe zurückgekehrt wird
-- **Fade-Zeit**: Wie sanft der Übergang geschieht (global oder pro Aktion)
+### Schnellaktionen
+
+Unten auf der Seite: **Rainbow Test**, **LEDs aus**, **Grün** und **Rot** zum schnellen Prüfen der Verbindung.
 
 ---
 
 ## Game Display Modul
 
-Zeigt den Spielstand auf einem separaten Bildschirm an.
-
-### Perfekt für
-
-- Zweiten Monitor neben dem Board
-- Tablet an der Wand
-- Smart-TV als Zuschauer-Display
-
-### Game Display öffnen
-
-1. Gehe zu **Module**
-2. Klicke auf **Game Display**
-
-![Game Display Modul](images/07-game-display-module.png)
+Zeigt den Spielstand im Vollbild auf einem zweiten Bildschirm, Tablet oder Smart-TV.
 
 ### Konfiguration öffnen
 
-Klicke auf **Display konfigurieren**:
+1. Gehe zu **Module** und öffne **Game Display**
+2. Klicke auf **Display konfigurieren**
 
-![Game Display Konfiguration](images/08-game-display-config.png)
+![Game Display Konfiguration](../images/08-game-display-config.png)
 
-### Display auf anderem Gerät öffnen
+Die Konfiguration hat drei Tabs: **Display**, **Animationen** und **Spieler**.
 
-1. Klicke auf **URL kopieren**
-2. Öffne die URL auf dem Zielgerät:
-   ```
-   http://DEINE-IP:3000/module-ui/game-display/
-   ```
-   (Ersetze `DEINE-IP` mit der IP deines Computers)
-3. Aktiviere den Vollbildmodus (F11)
+### Display auf einem anderen Gerät öffnen
 
-### Das Display
+Im Tab **Display** findest du eine Vorschau sowie die Buttons **Display öffnen** und **URL kopieren**. Die Display-URL lautet:
 
-So sieht das Display während eines Spiels aus:
+```
+http://192.168.1.100:3000/module-ui/game-display/
+```
 
-![Game Display Warte-Ansicht](images/09-game-display-ui.png)
+Ersetze `192.168.1.100` durch die IP deines Hub-Rechners. Das Gerät muss im selben Netzwerk sein. Aktiviere im Browser den Vollbildmodus (F11). Auch `http://192.168.1.100:3000/display` leitet auf das Display weiter.
 
-*Warte-Ansicht ohne aktives Spiel*
-
-![Game Display Demo](images/10-game-display-demo.png)
-
-*Demo-Modus mit Beispieldaten*
+![Game Display Warte-Ansicht](../images/09-game-display-ui.png)
 
 ### Display-Elemente
 
 | Element | Beschreibung |
 |---------|-------------|
-| **Spielername** | Groß oben angezeigt |
-| **Status** | Leg, Set, "Am Zug" |
-| **Punktestand** | Sehr große Restpunkte |
-| **Checkout** | Vorschlag wenn Finish möglich |
-| **Dart-Boxen** | Zeigt alle 3 Würfe der Aufnahme |
+| **Spielername** | Groß oben, Hintergrund in der Spielerfarbe |
+| **Punktestand** | Restpunkte, sehr groß |
+| **Checkout** | Vorschlag, sobald ein Finish möglich ist |
+| **Dart-Boxen** | Die drei Würfe der aktuellen Aufnahme |
 | **Aufnahme** | Summe der aktuellen Aufnahme |
 | **Andere Spieler** | Leiste unten mit allen Mitspielern |
+| **Spielinfo** | Optional: Spielmodus, Legs, Double-In/Out |
 
-### Demo-Modus testen
+![Game Display mit Spielstand](../images/10-game-display-demo.png)
 
-Wenn kein Spiel läuft, kannst du den Demo-Modus nutzen:
+### Display-Einstellungen
 
-1. Klicke oben rechts auf **Demo starten**
-2. Das Display zeigt Beispieldaten
-3. Klicke auf **Demo beenden** zum Zurücksetzen
+| Einstellung | Beschreibung |
+|-------------|-------------|
+| **Anzeigename** | Name des Displays |
+| **Idle-Modus** | Anzeige ohne aktives Spiel: Letzten Spielstand anzeigen (Standard), Schwarzer Bildschirm oder Eigenes Bild |
+| **Idle-Bild URL** | Bild für den Idle-Modus "Eigenes Bild" |
+| **Match-Start-Modus** | Standard (Game On! Anzeige) oder Eigenes Bild/GIF |
+| **Match-Start Bild URL**, **Match-Start Anzeigedauer**, **Game On Hintergrundfarbe** | Darstellung des Match-Start-Bildschirms |
+| **Anzeigedauer Ergebnistabelle** | Wie lange die Ergebnisse nach Match-Ende stehen bleiben (0 = bis manuell geschlossen) |
+| **Hintergrundfarbe Ergebnistabelle** | Farbe des Ergebnisbildschirms |
+| **Checkout-Vorschläge anzeigen**, **Checkout ab Punktzahl** | Checkout-Wege ein- oder ausblenden, Standard ab 170 |
+| **Andere Spieler anzeigen** | Leiste mit Mitspielern |
+| **Spielinfo anzeigen**, **Position**, **Größe**, **Versatz** | Spielinfo-Overlay in einer Ecke |
 
-### Idle-Modus Optionen
-
-Konfiguriere was angezeigt wird, wenn kein Spiel läuft:
-- **Wartebildschirm**: Standard "Warte auf Spiel..."
-- **Letztes Spiel**: Zeige Ergebnisse des letzten Spiels
-- **Schwarzer Bildschirm**: Display wird komplett schwarz
-- **Eigenes Bild**: Zeige dein eigenes Bild
-
-### Match-Start Bildschirm
-
-Konfiguriere was beim Match-Start angezeigt wird:
-- **Standard**: Zeigt Standard-Match-Start-Animation
-- **Eigenes Bild/GIF**: Zeige dein eigenes Bild oder animiertes GIF
-
-### Match-Ergebnisse
-
-Nach Match-Ende zeigt das Display eine Ergebnistabelle mit:
-- Chalkboard mit allen Würfen
-- Match-Statistiken (Durchschnitte, geworfene Darts, etc.)
-- Finale Punktestände
-
-Konfiguriere die Ergebnisanzeige:
-- **Anzeigedauer**: Wie lange die Ergebnisse angezeigt werden (0 = bis manuell geschlossen)
-- **Hintergrundfarbe**: Eigene Hintergrundfarbe für den Ergebnisbildschirm
+Nach Match-Ende zeigt das Display eine Ergebnistabelle mit Chalkboard, Statistiken (z.B. Durchschnitt, geworfene Darts) und finalen Punkteständen.
 
 ### Animationen
 
-Das Game Display unterstützt konfigurierbare Animationen für verschiedene Events:
+Im Tab **Animationen** schaltest du **Animationen aktivieren** ein und legst eine **Standard-Animationsdauer** fest. Für jedes Ereignis gibt es eine eigene Animation:
 
-| Event | Beschreibung |
-|-------|-------------|
-| **180** | Animation wenn ein Spieler 180 wirft |
-| **Bull** | Animation für Single-Bull (25 Punkte) |
-| **Double Bull** | Animation für Double-Bull (50 Punkte) |
-| **High Score** | Animation für hohe Scores (konfigurierbarer Schwellenwert, Standard 140) |
-| **Bust** | Animation wenn ein Spieler überworfen hat |
-| **Checkout** | Animation für erfolgreiche Checkouts |
-| **Leg Win** | Animation wenn ein Spieler ein Leg gewinnt |
-| **Set Win** | Animation wenn ein Spieler ein Set gewinnt |
-| **Match Win** | Animation wenn ein Spieler das Match gewinnt |
+| Animation | Auslöser |
+|-----------|----------|
+| **180 Animation** | 180 geworfen |
+| **Bull Animation** | Single Bull (25) |
+| **Double Bull Animation** | Bullseye (50) |
+| **High Score Animation** | Aufnahme ab einer Punktzahl (Einstellung **Ab Punktzahl**) |
+| **Checkout Animation** | Erfolgreicher Checkout |
+| **Leg-Sieg Animation** | Leg gewonnen |
+| **Match-Sieg Animation** | Match gewonnen |
+| **Überworfen Animation** | Bust |
 
-Jede Animation unterstützt:
-- **Built-in**: Vordefinierte Animationen
-- **GIF**: Eigene animierte GIFs (URL)
-- **Video**: Eigene Videos (URL)
-- **Sound**: Optionaler Ton bei jeder Animation
+Pro Animation:
+
+- **Typ**: Deaktiviert, Built-in, GIF oder Video
+- **Medien-URL**: GIF oder Video (Upload, Auswahl aus der Mediathek oder externe URL)
+- **Sound-URL**: Optionaler Ton
+- **Dauer**
+- Bei Leg- und Match-Sieg zusätzlich: Gewinnernamen anzeigen, Statistiken anzeigen, Effekt (Keiner, Konfetti, Feuerwerk, Funken), Hintergrund- und Textfarbe
+
+Unter den Animationen findest du den [Animations-Generator](#animations-generator), mit dem du Animationen per KI erzeugen kannst.
 
 ### Spieler-spezifische Animationen
 
-Du kannst individuelle Animationen für jeden Spieler konfigurieren:
+Im Tab **Spieler** legst du für einzelne Spieler eigene Animationen fest. Die Liste zeigt alle Spieler aus der [Spielerverwaltung](#spielerverwaltung).
 
-1. Öffne die **Game Display Konfiguration**
-2. Wechsle zum **Spieler**-Tab
-3. Wähle einen Spieler aus oder füge einen neuen Eintrag hinzu
-4. Konfiguriere die gewünschten Animationen:
-   - **180 Animation**: Wird angezeigt wenn dieser Spieler eine 180 wirft
-   - **Leg Win**: Wird angezeigt wenn dieser Spieler ein Leg gewinnt
-   - **Set Win**: Wird angezeigt wenn dieser Spieler ein Set gewinnt
-   - **Match Win**: Wird angezeigt wenn dieser Spieler das Match gewinnt
-   - **Checkout**: Wird angezeigt wenn dieser Spieler auscheckt
+1. Klicke bei einem Spieler auf **Konfigurieren**
+2. Wähle die Animation: **180 Animation**, **Leg Gewonnen**, **Match Gewonnen** oder **Checkout**
+3. Wähle den **Animationstyp** (Standard, GIF, Video, Keine) und gib **GIF/Video URL** und **Sound URL** an
+4. Speichern
 
-**So funktioniert es:**
-- Spieler-spezifische Animationen überschreiben die globalen Animationen
-- Wenn "Max" eine 180 wirft, wird seine persönliche 180-Animation abgespielt statt der globalen
-- Ist keine Spieler-Animation konfiguriert, wird die globale Animation als Fallback verwendet
-- Jede Animation kann eine eigene GIF/Video-URL und einen Sound haben
+So funktioniert es:
 
-**Beispiel-Anwendungen:**
-- Spieler "Max" hat ein persönliches Siegestanz-GIF für seine 180er
-- Spieler "Anna" hat ihren Lieblingssong, der abgespielt wird wenn sie ein Match gewinnt
-- Jeder Spieler bekommt ein einzigartiges Feier-Erlebnis
+- Eine Spieler-Animation ersetzt die globale Animation, wenn dieser Spieler das Ereignis auslöst
+- Ist für den Spieler nichts hinterlegt, wird die globale Animation verwendet
+- Spieler mit eigenen Animationen sind mit **Individuelle Animationen aktiv** markiert
 
 ---
 
 ## Darts Caller Modul
 
-Professioneller Darts-Caller mit Sprach-Ansagen.
+Der Darts Caller sagt Scores, Checkouts und Spielereignisse an.
 
-### Was es macht
+### Was er ansagt
 
-- Sagt Scores nach jeder Aufnahme an
-- Sagt Checkout-Anforderungen an ("You require...")
-- Spezial-Ansagen für 180, Bust, Game Shot, Match Shot
-- Sagt Spielernamen beim Spielerwechsel an
+- Scores nach jeder Aufnahme
+- Checkout-Anforderungen ("You require ...")
+- Spezial-Ansagen: 180, Bust, No Score, Game Shot, Match Shot, Game On
+- Spielernamen beim Spielerwechsel
 
-### Darts Caller öffnen
+### Konfiguration
 
-1. Gehe zu **Module**
-2. Klicke auf **Darts Caller**
+Die Einstellungen verteilen sich auf zwei Stellen.
 
-### Caller konfigurieren
+**1. Modul-Detailseite, Bereich Konfiguration** (unter **Module > Darts Caller**). Hier legst du fest, wie und was angesagt wird:
 
-Klicke auf **Konfigurieren**:
+| Einstellung | Beschreibung |
+|-------------|-------------|
+| **Caller aktivieren** | Caller ein- oder ausschalten |
+| **Caller-Typ** | Audioquelle der Ansagen (siehe unten) |
+| **Sprache** | Deutsch oder Englisch |
+| **Lautstärke** | 0 bis 100 |
+| **Verzögerung** | Wartezeit vor der Ansage in Millisekunden |
+| **Browser TTS Einstellungen** | Stimme, Geschwindigkeit, Tonhöhe |
+| **Voice Pack Einstellungen** | Voice Pack (alternativ auf der Caller-Seite auswählen) |
+| **ElevenLabs Einstellungen** | Voice-ID, Stability, Similarity Boost für den Live-Modus |
+| **Eigene Audio Einstellungen** | Pfad zu einem eigenen Audio-Pack |
+| **Ansage-Einstellungen** | Was angesagt wird: Scores, nur hohe Scores, Checkouts, Spielerwechsel, Spielstart, Spielende, 180, Busts, Bulls, Double Bulls |
 
-### Ausgabe-Modi
+**2. Caller-Seite** (Button **Caller konfigurieren**, Tabs **Stimme**, **Events**, **Spieler**). Hier verwaltest du Voice Packs, wählst ElevenLabs-Stimmen und testest die Stimme.
 
-| Modus | Beschreibung |
-|-------|-------------|
-| **Browser TTS** | Verwendet die eingebaute Text-to-Speech des Browsers |
-| **Audio Pack** | Verwendet voraufgenommene Audio-Dateien (MP3) |
-| **Lokale Wiedergabe** | Spielt Audio direkt auf dem Server ab |
+### Caller-Typen
 
-### Browser TTS verwenden
+| Caller-Typ | Wiedergabe |
+|------------|-----------|
+| **Browser TTS** | Text-to-Speech des Browsers. Die Ansage erklingt in einem geöffneten Tab des Hub-Web-Interfaces. |
+| **KI Voice Pack** | Vorab erzeugte MP3-Dateien eines Voice Packs. Wiedergabe über die Lautsprecher des Hub-Rechners. |
+| **ElevenLabs Live KI** | Jede Ansage wird live bei ElevenLabs erzeugt. Wiedergabe über die Lautsprecher des Hub-Rechners. |
+| **Eigene Audiodateien** | Eigene MP3-Dateien aus einem Ordner. Wiedergabe über die Lautsprecher des Hub-Rechners. |
 
-1. Wähle **TTS** als Ausgabetyp
-2. Konfiguriere Stimme, Geschwindigkeit und Tonhöhe
-3. Halte einen Browser-Tab mit dem Hub offen
+Für die Wiedergabe auf dem Hub-Rechner nutzt der Hub `afplay` (macOS), PowerShell (Windows) oder `mpg123`, `aplay`, `paplay` bzw. `ffplay` (Linux).
 
-### Audio Packs verwenden
+### ElevenLabs einrichten
 
-1. Wähle **Audio** als Ausgabetyp
-2. Wähle ein Audio Pack (oder nutze den Voice Pack Generator)
-3. Audio-Dateien werden im Browser abgespielt
+Der Darts Caller verwendet den ElevenLabs-Schlüssel aus den [AI Provider](#ai-provider)-Einstellungen. Ein eigenes Schlüsselfeld im Caller gibt es nicht.
 
-### Voice Pack Generator
+1. Trage unter **AI Provider > ElevenLabs** deinen API-Schlüssel ein und aktiviere den Anbieter
+2. Starte das Modul Darts Caller neu, damit es den Schlüssel übernimmt
+3. Auf der Caller-Seite wählst du unter **Stimm-Typ** "ElevenLabs". Die Liste deiner ElevenLabs-Stimmen wird geladen.
 
-Erstelle eigene Voice Packs mit ElevenLabs TTS:
+Ist kein Schlüssel hinterlegt, zeigt die Caller-Seite **ElevenLabs nicht konfiguriert** mit einem Link zu den Einstellungen.
 
-1. Hole dir einen API-Key von [elevenlabs.io](https://elevenlabs.io)
-2. Gib deinen API-Key ein
-3. Wähle eine Stimme
-4. Konfiguriere Stabilität und Klarheit
-5. Klicke auf **Voice Pack generieren**
+### Voice Packs
 
-Der Generator erstellt alle benötigten Dateien:
-- Score-Ansagen (0-180)
-- Checkout-Ansagen (2-170)
-- Spezial-Ansagen (game on, game shot, bust, etc.)
+Ein Voice Pack enthält alle Ansagen als vorab erzeugte Audio-Dateien. Dadurch gibt es keine Verzögerung und keine laufenden Kosten pro Ansage.
 
-### Ansage-Optionen
+Im Bereich **Voice Packs** der Caller-Seite (sichtbar bei Stimm-Typ ElevenLabs mit konfiguriertem Schlüssel):
 
-| Option | Beschreibung |
-|--------|-------------|
-| **Scores ansagen** | Sagt Scores nach jeder Aufnahme an |
-| **Nur hohe Scores** | Sagt nur Scores ≥100 an |
-| **Checkouts ansagen** | Sagt Checkout-Anforderungen an |
-| **Spielerwechsel ansagen** | Sagt Spielernamen an |
-| **180 ansagen** | Spezielle 180-Ansage |
-| **Busts ansagen** | Sagt Busts an |
+- **Neues Voice Pack erstellen**: Erzeugt mit der gewählten Stimme und Sprache alle Dateien: Scores 0 bis 180, alle möglichen Checkouts 2 bis 170 und Spezial-Ansagen. Der Fortschritt wird angezeigt, die Generierung lässt sich abbrechen.
+- **Voice Pack hochladen**: Ein bestehendes Voice Pack als ZIP-Datei importieren
+- **Verfügbare Voice Packs**: Pack auswählen (wird sofort gespeichert) oder löschen
+
+Damit das Pack genutzt wird, stelle auf der Modul-Detailseite den **Caller-Typ** auf **KI Voice Pack**.
+
+**Spielernamen**: Ist ein Voice Pack aktiv und ElevenLabs eingerichtet, erkennt der Caller beim Match-Start neue Spieler und erzeugt deren Namen automatisch mit der Stimme des Packs.
+
+### TTS-Cache
+
+Im Modus **ElevenLabs Live KI** speichert der Hub erzeugte Ansagen in einem Cache (`dist/data/tts-cache`). Wiederholte Sätze werden aus dem Cache abgespielt und nicht erneut bei ElevenLabs angefragt.
+
+---
+
+## AI Provider
+
+Unter **AI Provider** in der Seitenleiste verwaltest du die KI-Anbieter. Alle sind optional.
+
+| Anbieter | Verwendung im Hub |
+|----------|-------------------|
+| **OpenAI** | Textmodelle für Module |
+| **Anthropic** | Textmodelle für Module |
+| **Ollama (Lokal)** | Lokale Textmodelle, ohne API-Schlüssel, Standard-URL `http://localhost:11434` |
+| **ElevenLabs** | Sprachsynthese für den Darts Caller |
+| **Stability AI** | Bildmodelle für Module |
+| **Runway ML** | Videos für den Animations-Generator |
+| **Higgsfield** | Videos für den Animations-Generator, dazu Bildmodelle |
+| **Replicate** | Verschiedene Modelle für Module |
+
+Die eingebauten Module nutzen ElevenLabs (Darts Caller) sowie Runway und Higgsfield (Animations-Generator). Die übrigen Anbieter stehen Modulen über die Hub-Schnittstelle zur Verfügung.
+
+### Anbieter einrichten
+
+1. Klicke auf einen Anbieter, um ihn aufzuklappen
+2. Trage den **API-Schlüssel** ein (bei Ollama stattdessen die **Base URL**). Ein bereits gespeicherter Schlüssel wird nicht angezeigt, ein leeres Feld behält ihn.
+3. Wähle das **Standard-Modell**
+4. Klicke auf **Speichern** und anschließend auf **Verbindung testen**
+5. Schalte den Anbieter mit dem Schalter rechts ein oder aus (erst möglich, wenn er konfiguriert ist)
+
+Die Schlüssel werden auf dem Hub-Rechner in `dist/config/ai-providers.json` gespeichert, im Klartext. Sie verlassen den Hub nur in Richtung des jeweiligen Anbieters.
+
+### Modelllisten
+
+- **OpenAI** und **Anthropic**: Sobald ein Schlüssel gespeichert ist, lädt der Hub die Modelle live beim Anbieter, die dieser Schlüssel nutzen darf. Bis dahin gilt eine eingebaute Liste. Ist ein gespeichertes Modell nicht mehr verfügbar, erscheint ein Hinweis und das erste angebotene Modell wird vorausgewählt.
+- **Higgsfield**: Fester Katalog mit 20 Text-zu-Video- und 10 Text-zu-Bild-Modellen. Es gibt zwei Auswahlfelder: **Standard-Modell** für Video (Standard: Kling 3.0 Standard) und **Bildmodell** (Standard: Soul Standard, im Katalog "SOUL").
+- Die übrigen Anbieter nutzen eine eingebaute Liste.
+
+### Higgsfield
+
+- Den Schlüssel trägst du im Format `KEY_ID:KEY_SECRET` ein (Key-ID und Secret aus der Higgsfield Console, getrennt durch einen Doppelpunkt).
+- Der Hub passt jede Anfrage an das gewählte Modell an: erlaubte Dauer, unterstütztes Seitenverhältnis (das nächstliegende wird gewählt) und Ton aus. Die Animationen laufen stumm, nativer Ton würde nur Kosten verursachen.
+
+> **Kosten**: Jede Generierung bei Runway, Higgsfield, ElevenLabs oder anderen Anbietern verbraucht dort Guthaben bzw. Credits.
+
+---
+
+## Animations-Generator
+
+Der Animations-Generator erzeugt per KI kurze Animationen für das Game Display. Du findest ihn in der Game Display Konfiguration im Tab **Animationen** (sichtbar, wenn **Animationen aktivieren** an ist).
+
+### Ablauf
+
+1. **Engine** wählen: **Runway** oder **Higgsfield**. Eine Engine ohne Schlüssel ist mit "nicht eingerichtet" markiert. Den Schlüssel trägst du unter [AI Provider](#ai-provider) ein.
+2. **Stil wählen**: Fire, Ice, Neon, Gold, Cartoon, Minimal, Electric, Confetti, Smoke oder Stars. Alternativ **Eigener Stil** mit Name und Beschreibung.
+3. **Ereignisse wählen**: 180, Bull, Double Bull, High Score (160+), Checkout, Leg Gewinn, Match Gewinn, Bust. Mit **Alle** bzw. **Keine** wählst du alle oder keine aus.
+4. **Animationen generieren**: Für jedes gewählte Ereignis entsteht ein eigener Job (Batch).
+
+### Jobs
+
+Unter **Generierungs-Jobs** siehst du jeden Auftrag mit Status (Wartend, In Warteschlange, Wird generiert..., Fertig, Fehlgeschlagen, Abgebrochen) und Fortschritt.
+
+- Laufende Jobs lassen sich **abbrechen**
+- Fertige Jobs haben eine **Vorschau** und den Button **Verwenden**, der die Animation für das jeweilige Ereignis im Tab Animationen einträgt
+- **Abgeschlossene löschen** räumt die Liste auf
+
+### Ergebnis
+
+- Das Video wird mit `ffmpeg` in ein transparentes WebM umgewandelt (schwarzer Hintergrund wird ausgestanzt), damit die Animation über dem Spielstand liegt.
+- Ist `ffmpeg` nicht installiert oder schlägt die Umwandlung fehl, bleibt das Original als MP4 erhalten.
+- Die Dateien landen in der [Mediathek](#mediathek) unter **Animationen** im Ordner `ai-generated/<Stil>`.
+
+Eine Video-Generierung kann je nach Anbieter einige Minuten dauern und kostet beim Anbieter Credits.
+
+---
+
+## Mediathek
+
+Unter **Mediathek** verwaltest du Bilder, Sounds und Animationen für die Module.
+
+- Tabs **Animationen** (GIF, MP4, WebM, MOV), **Sounds** (MP3, WAV, OGG, WebM-Audio) und **Bilder** (PNG, JPG, WebP, SVG)
+- **Hochladen** per Button oder Drag and Drop, maximal 50 MB pro Datei
+- **Neuer Ordner** zum Strukturieren (nur leere Ordner lassen sich löschen)
+- **Dateien suchen**
+- **URL kopieren**, um eine Datei in einem Modul zu verwenden
+- Dateien löschen
+
+In den Animations- und Sound-Feldern der Module kannst du direkt hochladen, aus der Mediathek wählen oder eine externe URL angeben.
 
 ---
 
 ## Spielerverwaltung
 
-Hier legst du Spielerprofile mit individuellen Farben an.
+Unter **Spieler** legst du lokale Spielerprofile an.
 
-### Spieler öffnen
-
-Klicke in der Seitenleiste auf **Spieler**:
-
-![Spielerverwaltung](images/11-players.png)
+![Spielerverwaltung](../images/11-players.png)
 
 ### Neuen Spieler anlegen
 
 1. Klicke auf **Spieler hinzufügen**
-2. Fülle die Felder aus:
-   - **Name**: Der Haupt-Name
-   - **Aliase**: Alternative Namen (z.B. für unterschiedliche Autodarts-Profile)
-   - **Farbe**: Klicke auf das Farbfeld und wähle eine Farbe
-3. Klicke auf **Speichern**
+2. **Spielername**: Muss dem Namen in Autodarts entsprechen (Groß- und Kleinschreibung egal)
+3. **Farbe**: Aus der Palette wählen oder mit **Eigene Farbe wählen** einen Hex-Farbcode eingeben
+4. **Avatar**: Ein Symbol für den Spieler
+5. **Autodarts Benutzer-ID (optional)**: Wird mit dem Profil gespeichert
+6. Klicke auf **Erstellen**
 
-### Wozu Spielerfarben?
+### Wofür die Profile genutzt werden
 
-Die Farben werden von Modulen verwendet:
 - **WLED**: LEDs leuchten in der Spielerfarbe
-- **Game Display**: Hintergrund in der Spielerfarbe
-- **Darts Caller**: Kann spielerspezifische Sounds abspielen
-
-### Aliase verstehen
-
-Wenn dein Autodarts-Name "MaxDarts2024" ist, du aber als "Max" angezeigt werden willst:
-
-1. Name: `Max`
-2. Aliase: `MaxDarts2024`
-
-Der Hub erkennt "MaxDarts2024" und verwendet das Profil "Max".
+- **Game Display**: Spielerfarbe im Display, spieler-spezifische Animationen
+- **Darts Caller**: Spielerliste auf der Caller-Seite
 
 ---
 
-## Live-Logs
+## Konsole
 
-Hier siehst du alle Events und Modul-Aktivitäten in Echtzeit.
+Die **Konsole** zeigt alle Ereignisse und Modul-Aktivitäten in Echtzeit.
 
-### Logs öffnen
+![Konsole](../images/12-logs.png)
 
-Klicke in der Seitenleiste auf **Logs**:
+| Typ | Bedeutung |
+|-----|-----------|
+| **Event** | Ereignis von Autodarts an den Hub |
+| **Modul** | Aktion eines Moduls (Hub an Geräte) |
+| **System** | System-Meldung |
 
-![Live-Logs](images/12-logs.png)
+Funktionen: Zähler pro Typ, Filter, **Logs durchsuchen**, **Pausieren**/**Fortsetzen**, **Auto-Scroll**, **Logs exportieren**, **Logs löschen** und **Max. Einträge**.
 
-### Log-Einträge verstehen
-
-| Typ | Farbe | Bedeutung |
-|-----|-------|-----------|
-| **event** | 🔵 Blau | Autodarts-Event empfangen |
-| **module** | 🟣 Lila | Modul-Aktivität |
-| **system** | ⚪ Grau | System-Meldung |
-
-### Nützlich für
-
-- **Debugging**: Prüfen ob Events ankommen
-- **WLED-Test**: Sehen ob Befehle gesendet werden
-- **Problembehebung**: Fehler identifizieren
+Nützlich, um zu prüfen, ob Ereignisse ankommen und ob Module Befehle senden.
 
 ---
 
 ## Einstellungen
 
-Hier kannst du die Hub-Konfiguration ändern.
+![Einstellungen](../images/13-settings.png)
 
-### Einstellungen öffnen
+| Bereich | Inhalt |
+|---------|--------|
+| **Unterstützung** | Spende über PayPal |
+| **Darstellung** | **Sprache** des Interfaces: Deutsch, English, Español, Français, Italiano, 日本語, Nederlands, Русский, Українська, 中文. Deutsch und Englisch sind vollständig übersetzt, die übrigen teilweise. |
+| **Server** | **Host** (Standard `0.0.0.0`) und **Port** (Standard 3000). Änderungen erfordern einen Neustart des Hubs. Der Host wird gespeichert, aber derzeit ignoriert: Der Hub bindet immer an `0.0.0.0`. |
+| **Web-Authentifizierung** | Login für das Web-Interface ein- oder ausschalten, Benutzername und neues Passwort |
+| **Autodarts** | E-Mail, neues Passwort und Board-ID. Ein leeres Passwortfeld behält das gespeicherte Passwort. |
+| **Entwickler-Modus** | Schaltet die Entwickler-Tools frei |
 
-Klicke in der Seitenleiste auf **Einstellungen**:
+Speichere mit **Speichern**.
 
-![Einstellungen](images/13-settings.png)
+---
 
-### Verfügbare Einstellungen
+## Entwickler-Tools
 
-| Einstellung | Beschreibung |
-|-------------|-------------|
-| **Server-Port** | Port auf dem der Hub läuft (Standard: 3000) |
-| **Autodarts-Zugangsdaten** | E-Mail/Passwort ändern |
-| **Board** | Anderes Board auswählen |
-| **Sprache** | Interface-Sprache wählen (DE, EN, ES) |
+Nach dem Aktivieren des **Entwickler-Modus** in den Einstellungen öffnest du über **Entwickler-Tools öffnen** eine Seite, auf der du Autodarts-Ereignisse ohne echtes Board simulierst:
 
-> ⚠️ **Hinweis**: Nach Änderungen muss der Server möglicherweise neu gestartet werden.
+- **Match starten** mit zwei Spielern (Name, Farbe, Startwert), **Match beenden**, **Match abbrechen**
+- **Wurf-Simulator**: Zahl und Multiplikator wählen und **Werfen**
+- **Aufnahme beenden (Spielerwechsel)**
+- **Test-Szenarien**: Vordefinierte Abläufe ausführen
+
+So kannst du WLED, Game Display und Caller testen, ohne zu werfen.
 
 ---
 
 ## Neue Module installieren
 
-Du kannst zusätzliche Module aus Git-Repositories installieren.
+1. Gehe zu **Module** und klicke auf **Modul installieren**
 
-### Modul-Installation öffnen
-
-1. Gehe zu **Module**
-2. Klicke auf **Modul installieren**
-
-![Modul Installation](images/14-module-install.png)
+![Modul Installation](../images/14-module-install.png)
 
 ### Aus Git installieren
 
 1. Wähle **Git Repository**
-2. Gib die Git-URL ein, z.B.:
-   ```
-   https://github.com/user/autodarts-module.git
-   ```
-3. Optional: Gib einen Branch an (Standard: main)
-4. Klicke auf **Installieren**
+2. Gib die **Repository URL** ein, z.B. `https://github.com/user/autodarts-module.git`
+3. Optional: **Branch (optional)**
+4. Klicke auf **Installieren**. Das Repository wird geklont und die Abhängigkeiten werden installiert.
 
 ### Lokales Modul installieren
 
 1. Wähle **Lokaler Pfad**
-2. Gib den Pfad zum Modul-Ordner ein
+2. Gib unter **Pfad zum Modul** den absoluten Pfad zum Modul-Ordner an
 3. Klicke auf **Installieren**
+
+Installiere nur Module aus Quellen, denen du vertraust. Ein Modul läuft mit den Rechten des Hubs.
 
 ---
 
 ## FAQ
 
-### ❓ Muss der Hub immer laufen?
+### Muss der Hub immer laufen?
 
-Ja, der Hub muss laufen, damit Events verarbeitet werden. Am besten richtest du ihn als Autostart ein.
+Ja, nur ein laufender Hub verarbeitet Ereignisse.
 
-### ❓ Kann ich mehrere Boards nutzen?
+### Kann ich mehrere Boards nutzen?
 
-Nein, ein Hub ist immer einem Board zugeordnet. Für mehrere Boards brauchst du mehrere Hub-Instanzen.
+Ein Hub ist einem Board zugeordnet. Für mehrere Boards brauchst du mehrere Hub-Instanzen.
 
-### ❓ Werden meine Daten irgendwo hochgeladen?
+### Werden meine Daten irgendwo hochgeladen?
 
-Nein! Alle Daten bleiben lokal auf deinem Computer. Es werden nur Verbindungen zu Autodarts und deinen eigenen Geräten (z.B. WLED) hergestellt.
+Der Hub verbindet sich mit Autodarts, mit deinen eigenen Geräten im Netzwerk (z.B. WLED) und nur dann mit KI-Anbietern, wenn du sie eingerichtet hast. Zugangsdaten und API-Schlüssel liegen im Klartext auf dem Hub-Rechner.
 
-### ❓ Kann ich das Display auf einem Tablet öffnen?
+### Kann ich das Display auf einem Tablet öffnen?
 
-Ja! Öffne einfach die Display-URL im Browser des Tablets. Das Tablet muss im selben Netzwerk sein.
+Ja, öffne die Display-URL im Browser des Tablets. Das Tablet muss im selben Netzwerk sein.
 
-### ❓ Meine LEDs reagieren nicht - was tun?
+### Mein Autodarts-Konto nutzt 2FA. Was nun?
 
-1. Prüfe die IP-Adresse deines WLED-Controllers
-2. Teste die Verbindung: Öffne `http://WLED-IP/json/state` im Browser
-3. Prüfe im Log, ob Events ankommen
-4. Stelle sicher, dass das WLED-Modul gestartet ist
+Konten mit Zwei-Faktor-Authentifizierung werden nicht unterstützt. Die Anmeldung schlägt fehl.
 
-### ❓ Das Display zeigt "Warte auf Spiel..."
+### Meine LEDs reagieren nicht
 
-Das ist normal! Das Display aktualisiert sich automatisch, sobald ein Spiel in Autodarts startet.
+1. Prüfe die IP-Adresse des WLED-Controllers
+2. Öffne `http://192.168.1.100/json/state` im Browser (mit der IP deines Controllers)
+3. Prüfe in der Konsole, ob Ereignisse ankommen
+4. Stelle sicher, dass das WLED-Modul läuft
 
-### ❓ Das Display zeigt falsche Daten bei Spielstart?
+### Die Ansagen funktionieren nicht
 
-Das Display sollte automatisch vollständige Match-Daten via API abrufen. Prüfe die Browser-Konsole auf "Match started, fetching full match data...".
-
-### ❓ Sprach-Ansagen funktionieren nicht?
-
-1. Für Browser TTS: Halte einen Browser-Tab offen
-2. Für Audio Packs: Prüfe ob die Dateien existieren
-3. Prüfe die Lautstärke-Einstellungen
-4. Prüfe die Browser-Konsole auf Fehler
+1. Prüfe den **Caller-Typ** auf der Modul-Detailseite
+2. Bei **Browser TTS** muss ein Tab des Hub-Web-Interfaces geöffnet sein
+3. Bei Voice Pack, ElevenLabs und eigenen Audiodateien kommt der Ton aus den Lautsprechern des Hub-Rechners
+4. Prüfe Lautstärke und die Konsole auf Fehler
 
 ---
 
@@ -624,58 +663,62 @@ Das Display sollte automatisch vollständige Match-Daten via API abrufen. Prüfe
 ### Server startet nicht
 
 ```
-Error: EADDRINUSE :::3000
+Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
 ```
 
-**Lösung**: Port 3000 ist belegt. Ändere den Port in den Einstellungen oder beende das andere Programm.
+Port 3000 ist belegt. Beende das andere Programm oder ändere den Port in den Einstellungen bzw. in `dist/config/hub.config.json`.
 
 ### Keine Verbindung zu Autodarts
 
-1. Prüfe deine Zugangsdaten
-2. Prüfe deine Internetverbindung
-3. Versuche dich auf autodarts.io anzumelden
+1. Prüfe E-Mail und Passwort unter **Einstellungen > Autodarts** (die Fehlermeldung "invalid email or password" weist auf falsche Zugangsdaten hin)
+2. Prüfe, ob 2FA aktiv ist (nicht unterstützt)
+3. Prüfe die Board-ID
+4. Prüfe die Internetverbindung des Hub-Rechners
 
 ### WLED reagiert nicht
 
 1. Prüfe die IP-Adresse
 2. Ping den Controller: `ping 192.168.1.100`
-3. Öffne WLED direkt im Browser
-4. Prüfe die Logs im Hub
+3. Öffne die WLED-Oberfläche direkt im Browser
+4. Prüfe die Konsole
 
 ### Display lädt nicht
 
-1. Prüfe ob der Hub läuft
-2. Prüfe die URL (muss `/module-ui/game-display/` sein)
-3. Lösche den Browser-Cache
-4. Versuche einen anderen Browser
+1. Prüfe, ob der Hub läuft
+2. Prüfe die URL (muss auf `/module-ui/game-display/` enden)
+3. Lösche den Browser-Cache oder versuche einen anderen Browser
 
-### Spielerfarben funktionieren nicht
+### Spielerfarben werden nicht verwendet
 
-1. Prüfe ob Spielerprofile angelegt sind
-2. Der Name muss exakt mit Autodarts übereinstimmen (oder als Alias)
-3. Starte das Modul neu
+1. Prüfe, ob ein Spielerprofil angelegt ist
+2. Der Spielername muss dem Autodarts-Namen entsprechen
+3. Prüfe, ob bei der Aktion **Spielerfarbe verwenden** aktiv ist
 
-### WLED Farbe zeigt nicht im Einzelspieler-Modus
+### WLED-Farbe fehlt im Einzelspieler-Spiel
 
-1. Stelle sicher, dass `player.change` eine Aktion mit **Spielerfarbe verwenden** aktiviert hat
-2. Diese Aktion wird auch für Einzelspieler-Spiele verwendet
-3. Prüfe die Konsolen-Logs auf 🎨 WLED Meldungen
+1. Die Aktion von **Spielerwechsel** muss eine Farbe mit **Spielerfarbe verwenden** sein
+2. Diese Aktion wird auch im Einzelspieler-Spiel genutzt
 
-### Voice Pack Generator funktioniert nicht
+### Voice Pack Generierung schlägt fehl
 
-1. Prüfe deinen ElevenLabs API-Key
+1. Prüfe den ElevenLabs-Schlüssel unter **AI Provider**
 2. Prüfe dein Zeichen-Kontingent bei ElevenLabs
-3. Stelle sicher, dass du eine Internetverbindung hast
-4. Prüfe die Server-Logs auf Fehler
+3. Starte das Modul Darts Caller neu, nachdem du den Schlüssel geändert hast
+4. Prüfe die Server-Logs
+
+### Animations-Generator zeigt "KI-Generierung nicht verfügbar"
+
+1. Die gewählte Engine (Runway oder Higgsfield) braucht einen Schlüssel unter **AI Provider**
+2. Bei Higgsfield das Format `KEY_ID:KEY_SECRET` beachten
+3. Animationen sind nicht transparent: `ffmpeg` installieren und im `PATH` verfügbar machen
 
 ---
 
-## Hilfe & Support
+## Hilfe und Support
 
-- **Logs prüfen**: Die meisten Probleme sind in den Logs erkennbar
-- **GitHub Issues**: Melde Bugs oder stelle Fragen
-- **Community**: Tausche dich mit anderen Nutzern aus
+- **Konsole prüfen**: Die meisten Probleme sind dort erkennbar
+- **GitHub Issues**: Fehler melden oder Fragen stellen unter [github.com/Castorio/io-darts-agent](https://github.com/Castorio/io-darts-agent)
 
 ---
 
-*Viel Spaß mit deinem IO-Darts-Agent! 🎯*
+*IO-Darts-Agent ist ein inoffizielles Projekt und steht in keiner Verbindung zu Autodarts.*

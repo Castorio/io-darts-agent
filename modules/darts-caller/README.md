@@ -4,80 +4,108 @@ Professioneller Darts-Caller für IO-Darts-Agent. Sagt Scores, Checkouts und Spi
 
 ## Features
 
-- **Score-Ansagen** - Sagt geworfene Punktzahlen nach jeder Aufnahme an
-- **Checkout-Ansagen** - "You require..." mit verbleibender Punktzahl
-- **Spezial-Ansagen** - 180er, Bust, Game Shot, Match Shot
-- **Spielerwechsel** - Sagt Spielernamen bei Wechsel an
-- **Flexible Ausgabe** - Browser-TTS oder eigene Audio-Dateien
-- **Voice Pack Generator** - Erstelle eigene Voice Packs mit ElevenLabs TTS
-- **Lokale Wiedergabe** - Audio kann Server-seitig abgespielt werden
-- **Konfigurierbar** - Einzelne Ansagetypen aktivieren/deaktivieren
-- **Dynamische Spielernamen** - Neue Spieler werden automatisch erkannt und deren Namen via ElevenLabs TTS generiert
-- **Multi-Voice-Pack** - Unterstützung für verschiedene Stimmen/Sprachen
+- **Score-Ansagen**: Sagt geworfene Punktzahlen nach jeder Aufnahme an
+- **Checkout-Ansagen**: "You require..." mit verbleibender Punktzahl
+- **Spezial-Ansagen**: 180er, Bust, Game Shot, Match Shot
+- **Spielerwechsel**: Sagt Spielernamen bei Wechsel an
+- **Flexible Ausgabe**: Browser-TTS oder eigene Audio-Dateien
+- **Voice Pack Generator**: Erstelle eigene Voice Packs mit ElevenLabs TTS
+- **Lokale Wiedergabe**: Audio kann Server-seitig abgespielt werden
+- **Konfigurierbar**: Einzelne Ansagetypen aktivieren/deaktivieren
+- **Dynamische Spielernamen**: Neue Spieler werden automatisch erkannt und deren Namen via ElevenLabs TTS generiert
+- **Multi-Voice-Pack**: Unterstützung für verschiedene Stimmen/Sprachen
 
 ## Konfiguration
+
+Die folgenden Feldnamen entsprechen `modules/darts-caller/module.json` (nicht frei erfunden, das ist wichtig, falls du die Konfiguration direkt über `PUT /api/modules/darts-caller/config` setzt).
 
 ### Allgemeine Einstellungen
 
 | Option | Typ | Standard | Beschreibung |
 |--------|-----|----------|-------------|
 | `enabled` | boolean | `true` | Modul aktivieren/deaktivieren |
-| `callerType` | string | `"tts"` | Ausgabe-Typ: `"tts"`, `"audio"` oder `"local"` |
+| `callerType` | select | `"tts"` | Ausgabe-Typ: `"tts"`, `"voicepack"`, `"elevenlabs"` oder `"audio"` |
+| `language` | select | `"en"` | Sprache der Ansage: `"en"` oder `"de"` |
 | `volume` | number | `80` | Lautstärke (0-100) |
-| `delayMs` | number | `200` | Verzögerung vor Ansage in ms |
+| `delayMs` | number | `200` | Verzögerung vor Ansage in ms (0-2000) |
 
-### TTS-Einstellungen (Text-to-Speech)
-
-| Option | Typ | Standard | Beschreibung |
-|--------|-----|----------|-------------|
-| `ttsVoice` | string | `""` | TTS-Stimme (Browser-abhängig) |
-| `ttsRate` | number | `1.0` | Sprechgeschwindigkeit (0.5-2.0) |
-| `ttsPitch` | number | `1.0` | Tonhöhe (0.5-2.0) |
-
-### Audio-Pack-Einstellungen
+### Browser-TTS-Einstellungen (Gruppe `ttsSettings`, sichtbar wenn `callerType = "tts"`)
 
 | Option | Typ | Standard | Beschreibung |
 |--------|-----|----------|-------------|
-| `audioPackPath` | string | `""` | Pfad zum Audio-Pack-Ordner |
+| `ttsSettings.voice` | string | `""` | Stimmen-Identifier (Browser-abhängig) |
+| `ttsSettings.rate` | number | `1.0` | Sprechgeschwindigkeit (0.5-2.0) |
+| `ttsSettings.pitch` | number | `1.0` | Tonhöhe (0.5-2.0) |
 
-### Ansage-Optionen
+### Voice-Pack-Einstellungen (Gruppe `voicepackSettings`, sichtbar wenn `callerType = "voicepack"`)
 
 | Option | Typ | Standard | Beschreibung |
 |--------|-----|----------|-------------|
-| `callScores` | boolean | `true` | Scores ansagen |
-| `callHighScoresOnly` | boolean | `false` | Nur Scores ≥100 ansagen |
-| `callCheckouts` | boolean | `true` | Checkout-Möglichkeiten ansagen |
-| `callPlayerChange` | boolean | `true` | Spielerwechsel ansagen |
-| `callGameStart` | boolean | `true` | Spielstart ansagen |
-| `callGameOver` | boolean | `true` | Spielende ansagen |
-| `call180` | boolean | `true` | Spezielle 180-Ansage |
-| `callBusts` | boolean | `true` | Bust ansagen |
+| `voicepackSettings.packId` | string | `""` | ID des zu verwendenden generierten Voice Packs |
+
+### ElevenLabs-Einstellungen (Gruppe `elevenlabsSettings`, sichtbar wenn `callerType = "elevenlabs"`)
+
+| Option | Typ | Standard | Beschreibung |
+|--------|-----|----------|-------------|
+| `elevenlabsSettings.voiceId` | string | `""` | Stimmen-ID von ElevenLabs |
+| `elevenlabsSettings.stability` | number | `0.5` | Stabilität der Stimme (0.0-1.0) |
+| `elevenlabsSettings.similarity` | number | `0.75` | Similarity Boost (0.0-1.0) |
+
+### Audio-Pack-Einstellungen (Gruppe `audioSettings`, sichtbar wenn `callerType = "audio"`)
+
+| Option | Typ | Standard | Beschreibung |
+|--------|-----|----------|-------------|
+| `audioSettings.packPath` | string | `""` | Pfad zum Audio-Pack-Ordner relativ zum Medienverzeichnis |
+
+### Ansage-Optionen (Gruppe `callSettings`)
+
+| Option | Typ | Standard | Beschreibung |
+|--------|-----|----------|-------------|
+| `callSettings.scores` | boolean | `true` | Geworfene Scores ansagen |
+| `callSettings.highScoresOnly` | boolean | `false` | Nur Scores ≥100 ansagen |
+| `callSettings.checkouts` | boolean | `true` | Checkout-Möglichkeiten ansagen |
+| `callSettings.playerChange` | boolean | `true` | Spielerwechsel ansagen |
+| `callSettings.gameStart` | boolean | `true` | Spiel- und Match-Start ansagen |
+| `callSettings.gameOver` | boolean | `true` | Spiel- und Match-Ende ansagen |
+| `callSettings.special180` | boolean | `true` | Spezielle 180-Ansage |
+| `callSettings.busts` | boolean | `true` | Bust ansagen |
+| `callSettings.bulls` | boolean | `true` | Single Bull (25) ansagen |
+| `callSettings.doubleBulls` | boolean | `true` | Double Bull / Bullseye (50) ansagen |
 
 ## Ausgabe-Modi
 
+Es gibt vier wählbare `callerType`-Werte. Es gibt **keinen** separaten `"local"`-Modus. Die serverseitige Wiedergabe (`LocalAudioPlayer`) ist der Mechanismus, über den `"voicepack"`, `"elevenlabs"` und `"audio"` ihr Audio abspielen, keine eigene Konfigurationsoption.
+
 ### Browser TTS (`callerType: "tts"`)
 
-Verwendet die eingebaute Text-to-Speech des Browsers. Keine zusätzliche Software nötig.
+Verwendet die eingebaute Text-to-Speech des Browsers. Keine zusätzliche Software nötig; die Ansage wird als WebSocket-Nachricht (`caller`-Event) an die offenen Browser-Tabs geschickt, nicht server-seitig abgespielt.
 
 - Funktioniert in allen modernen Browsern
 - Stimmen abhängig vom Betriebssystem
 - Konfigurierbare Geschwindigkeit und Tonhöhe
 
-### Audio-Pack (`callerType: "audio"`)
+### Voice Pack (`callerType: "voicepack"`)
 
-Verwendet voraufgenommene Audio-Dateien für professionellen Klang.
+Spielt vorgenerierte MP3-Dateien aus einem mit dem Voice Pack Generator erstellten Pack **server-seitig** ab (über `LocalAudioPlayer`).
 
-- Professionelle Caller-Stimmen möglich
-- Voice Pack Generator für eigene Stimmen
-- Höhere Qualität als TTS
+- Professioneller Klang, einmal mit ElevenLabs generiert
+- Benötigt `voicepackSettings.packId`
 
-### Lokale Wiedergabe (`callerType: "local"`)
+### ElevenLabs Live (`callerType: "elevenlabs"`)
 
-Spielt Audio direkt auf dem Server ab (z.B. über angeschlossene Lautsprecher).
+Generiert die Sprache bei jeder Ansage live über die ElevenLabs-API und spielt sie server-seitig ab.
 
-- Ideal für dedizierte Darts-Setups
-- Keine Browser-Wiedergabe nötig
-- Funktioniert auch ohne offenes Display
+- Höchste Flexibilität (jeder Text, nicht nur vorgenerierte Scores)
+- Benötigt einen konfigurierten ElevenLabs-API-Key und laufende Internetverbindung
+- Verbraucht laufend ElevenLabs-Zeichenkontingent
+
+### Eigene Audiodateien (`callerType: "audio"`)
+
+Verwendet voraufgenommene Audio-Dateien aus `audioSettings.packPath`, server-seitig abgespielt.
+
+- Eigene, einmal erstellte Aufnahmen
+- Keine laufenden API-Kosten
+- Funktioniert auch ohne offenes Display, da server-seitig abgespielt
 
 ## Audio Packs
 
@@ -107,11 +135,13 @@ media/
 
 | Datei | Verwendung |
 |-------|-----------|
-| `game_on.mp3` | Spielstart |
+| `game_on.mp3` | Spiel gestartet |
+| `match_on.mp3` | Match gestartet |
 | `game_shot.mp3` | Leg gewonnen |
 | `match_shot.mp3` | Match gewonnen |
 | `bust.mp3` | Überworfen |
 | `180.mp3` | 180 Punkte |
+| `171.mp3` | 171 Punkte |
 | `no_score.mp3` | 0 Punkte |
 | `score_X.mp3` | Score X (1-180) |
 | `require_X.mp3` | "You require X" (2-170) |
@@ -155,6 +185,17 @@ Wenn neue Spieler erkannt werden und ElevenLabs konfiguriert ist:
 2. Fehlende Audio-Dateien werden automatisch via ElevenLabs generiert
 3. Die generierten Dateien werden im aktiven Voice Pack gespeichert
 4. Bei zukünftigen Spielen sind die Namen sofort verfügbar
+
+## Intent-Aktionen
+
+Das Darts Caller Modul bietet diese Aktionen für das Intent-System an (siehe [Module SDK](../../docs/de/module-sdk.md#intent-system)), sodass andere Module gezielt eine Ansage auslösen können:
+
+| Aktion | Beschreibung | Konfiguration |
+|--------|-------------|----------------|
+| `playPhrase` | Spielt eine vordefinierte Phrase aus dem Voice Pack | `phrase`: `oneEighty`, `oneSeventyOne`, `gameShot`, `matchShot`, `bust`, `noScore`, `gameOn` oder `matchOn` |
+| `sayText` | Spricht einen eigenen Text per TTS, mit Platzhaltern | `text` mit Variablen wie `{{playerName}}`, `{{score}}`, `{{checkout}}`, `{{remaining}}`, `{{dartsThrown}}`, `{{average}}`, `{{legsWon}}`, `{{setsWon}}`, `{{turnScore}}` |
+| `playScore` | Sagt einen Score aus dem Intent-Payload an | `field`: Name des Payload-Felds (Standard `score`) |
+| `playFile` | Spielt eine bestimmte Audiodatei ab | `file`: Dateipfad |
 
 ## Events
 
@@ -204,11 +245,11 @@ Das Modul verwendet synthetische Events vom EventParser:
 3. Stelle sicher, dass eine Internetverbindung besteht
 4. Prüfe die Server-Logs auf Fehler
 
-### Lokale Wiedergabe funktioniert nicht
+### Server-seitige Wiedergabe (`voicepack`, `elevenlabs`, `audio`) funktioniert nicht
 
-1. Prüfe, ob ein Audio-Ausgabegerät am Server angeschlossen ist
+1. Prüfe, ob ein Audio-Ausgabegerät am Server (dem Rechner, auf dem der Hub läuft) angeschlossen ist
 2. Prüfe die System-Lautstärke des Servers
-3. Der LocalAudioPlayer benötigt ggf. zusätzliche Pakete (je nach OS)
+3. Der `LocalAudioPlayer` benötigt ggf. zusätzliche Pakete (je nach Betriebssystem)
 
 ## Entwicklung
 
@@ -230,18 +271,15 @@ npm run dev
 
 ```
 DartsCallerHandler
-├── handleEvent()         # Verarbeitet Autodarts-Events
-├── generateCall()        # Generiert Ansage-Aufruf
-├── handleTurnFinished()  # Score-Ansage
-├── handlePlayerChange()  # Spielerwechsel + Checkout
-└── handleSpecialEvents() # 180, Bust, Game Shot, etc.
+├── handleEvent()         # Verarbeitet Autodarts-Events (match.start, game.finished, ...)
+├── handleTurnFinished()  # Score- und Checkout-Ansage
+├── handlePlayerChange()  # Spielerwechsel-Ansage
+├── generateCall()        # Baut den Ansage-Request und dispatcht an das Backend
+└── executeIntentAction() # playPhrase / sayText / playScore / playFile
 
-Ausgabe-Backends:
-├── Browser TTS           # Web Speech API
-├── Audio Pack            # Voraufgenommene MP3s
-└── LocalAudioPlayer      # Server-seitige Wiedergabe
+Ausgabe-Backends (ausgewählt über callerType):
+├── tts         # Browser Web Speech API (über das caller-WebSocket-Event)
+├── voicepack   # Vorgenerierte MP3s, server-seitig über LocalAudioPlayer
+├── elevenlabs  # Live-TTS über die ElevenLabs-API, server-seitig über LocalAudioPlayer
+└── audio       # Eigene MP3-Dateien, server-seitig über LocalAudioPlayer
 ```
-
-## Lizenz
-
-MIT

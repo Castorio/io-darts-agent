@@ -4,19 +4,19 @@ Zeigt den aktuellen Spielstand auf einem separaten Display in Echtzeit an. Perfe
 
 ## Features
 
-- **Echtzeit-Updates** - Punktestand wird sofort bei jedem Wurf aktualisiert
-- **Spielerfarben** - Animierter Gradient-Hintergrund in der Farbe des aktiven Spielers
-- **Checkout-Vorschläge** - Zeigt mögliche Finish-Wege (2-170 Punkte)
-- **Wurf-Anzeige** - Drei Boxen für Dart 1, 2 und 3 mit Animationen
-- **Andere Spieler** - Horizontale Leiste mit allen anderen Spielern und deren Punkteständen
-- **Animationen** - Konfigurierbare Animationen pro Event (180, Bust, Game Shot, etc.)
-- **Idle-Modus** - Verschiedene Optionen wenn kein Spiel läuft
-- **Premium Design** - Dunkler, moderner Look mit sanften Animationen
-- **Responsive** - Passt sich verschiedenen Bildschirmgrößen an
-- **Demo-Modus** - Zum Testen ohne aktives Spiel
-- **Match-Start Bildschirm** - Konfigurierbarer Bildschirm bei Spielstart (Standard-Animation oder eigenes Bild/GIF)
-- **Match-Ergebnisse** - Ergebnistabelle mit Chalkboard und Statistiken nach Spielende
-- **Konfigurierbare Hintergrundfarben** - Anpassbare Farben für verschiedene Anzeigen
+- **Echtzeit-Updates**: Punktestand wird sofort bei jedem Wurf aktualisiert
+- **Spielerfarben**: Animierter Gradient-Hintergrund in der Farbe des aktiven Spielers
+- **Checkout-Vorschläge**: Zeigt mögliche Finish-Wege (2-170 Punkte)
+- **Wurf-Anzeige**: Drei Boxen für Dart 1, 2 und 3 mit Animationen
+- **Andere Spieler**: Horizontale Leiste mit allen anderen Spielern und deren Punkteständen
+- **Animationen**: Konfigurierbare Animationen pro Event (180, Bust, Game Shot, etc.)
+- **Idle-Modus**: Verschiedene Optionen wenn kein Spiel läuft
+- **Premium Design**: Dunkler, moderner Look mit sanften Animationen
+- **Responsive**: Passt sich verschiedenen Bildschirmgrößen an
+- **Demo-Modus**: Zum Testen ohne aktives Spiel
+- **Match-Start Bildschirm**: Konfigurierbarer Bildschirm bei Spielstart (Standard-Animation oder eigenes Bild/GIF)
+- **Match-Ergebnisse**: Ergebnistabelle mit Chalkboard und Statistiken nach Spielende
+- **Konfigurierbare Hintergrundfarben**: Anpassbare Farben für verschiedene Anzeigen
 
 ## Screenshot
 
@@ -39,7 +39,7 @@ Zeigt den aktuellen Spielstand auf einem separaten Display in Echtzeit an. Perfe
 │                      Aufnahme: 120                           │
 │                                                              │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │  🔴 Anna: 245 (1 Leg)  │  🟢 Tom: 180 (0 Legs)         │ │
+│  │  Anna: 245 (1 Leg)     │  Tom: 180 (0 Legs)              │ │
 │  └────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -116,8 +116,8 @@ Nach Match-Ende zeigt das Display eine Ergebnistabelle mit:
 
 | Einstellung | Beschreibung | Standard |
 |-------------|-------------|----------|
-| **Anzeigedauer** | Wie lange Ergebnisse angezeigt werden (0 = manuell schließen) | 0 |
-| **Hintergrundfarbe** | Hintergrundfarbe für den Ergebnisbildschirm | #1a1a2e |
+| **Anzeigedauer** | Wie lange Ergebnisse angezeigt werden (0 = manuell schließen) | 30000 (30 Sekunden) |
+| **Hintergrundfarbe** | Hintergrundfarbe für den Ergebnisbildschirm | #0a0a0f |
 
 ### Animationen
 
@@ -132,7 +132,6 @@ Für bestimmte Events können Animationen konfiguriert werden:
 | **Bust** | Rote "BUST" Animation |
 | **Checkout** | Checkout-Animation |
 | **Leg Win** | Gewinner-Animation für Leg |
-| **Set Win** | Gewinner-Animation für Set |
 | **Match Win** | Große Feier-Animation |
 
 Animationen unterstützen verschiedene Medientypen:
@@ -149,7 +148,6 @@ Im **Spieler-Tab** der Konfiguration können individuelle Animationen pro Spiele
 |-------|-------------|
 | **180** | Eigene Animation wenn dieser Spieler eine 180 wirft |
 | **Leg Win** | Eigene Animation wenn dieser Spieler ein Leg gewinnt |
-| **Set Win** | Eigene Animation wenn dieser Spieler ein Set gewinnt |
 | **Match Win** | Eigene Animation wenn dieser Spieler das Match gewinnt |
 | **Checkout** | Eigene Animation wenn dieser Spieler auscheckt |
 
@@ -222,7 +220,7 @@ Das Display verbindet sich mit dem Hub-WebSocket unter `/api/events` und empfän
 
 Bei `match.start` wird automatisch die vollständige Match-Konfiguration über die API abgerufen (`/api/match/current`), da das Event selbst nur die Match-ID enthält. So werden die echten Spielerdaten und Scores angezeigt, nicht die Standardwerte.
 
-### PlayerResolver - Robuste Spieler-Erkennung
+### PlayerResolver: Robuste Spieler-Erkennung
 
 Das Game Display verwendet einen **PlayerResolver** zur stabilen Spieler-Erkennung trotz Array-Rotation bei Leg-Wechseln.
 
@@ -256,10 +254,10 @@ Bei `game.finished` (Leg-Gewinn) und `match.finished` werden mehrere Strategien 
 
 | Priorität | Strategie | Zuverlässigkeit |
 |-----------|-----------|-----------------|
-| 1 | `winnerName` aus Event | Höchste - vom Backend zum Zeitpunkt des Gewinns erfasst |
-| 2 | `winnerPlayerIndex` aus Event | Hoch - stabiler player.index |
-| 3 | Spieler mit `score === 0` | Mittel - wenn Leg noch nicht gewechselt hat |
-| 4 | `winner` Array-Position | Niedrig - kann nach Rotation falsch sein |
+| 1 | `winnerName` aus Event | Höchste: vom Backend zum Zeitpunkt des Gewinns erfasst |
+| 2 | `winnerPlayerIndex` aus Event | Hoch: stabiler player.index |
+| 3 | Spieler mit `score === 0` | Mittel: wenn Leg noch nicht gewechselt hat |
+| 4 | `winner` Array-Position | Niedrig: kann nach Rotation falsch sein |
 
 #### Wichtig: Leg-Wechsel
 
@@ -267,7 +265,7 @@ Bei einem neuen Leg:
 1. Der Winner wird zurückgesetzt
 2. Das Dart-Tracking wird zurückgesetzt
 3. Die Scores werden aktualisiert (auf Startwert zurückgesetzt)
-4. Der **aktive Spieler wird NICHT** aus `match.state` gesetzt - stattdessen wartet das Display auf das `player.change` Event
+4. Der **aktive Spieler wird NICHT** aus `match.state` gesetzt, stattdessen wartet das Display auf das `player.change` Event
 
 Dies ist wichtig, da Autodarts nach einem Leg-Wechsel das Spieler-Array rotiert und `data.player` (die Array-Position) nicht mehr zuverlässig den korrekten aktiven Spieler anzeigt.
 
@@ -347,14 +345,14 @@ Das Display verwendet folgende CSS-Variablen für die Spielerfarbe:
 **Lösung:**
 1. Stelle sicher, dass du die aktuelle Version des Game Display Moduls verwendest (mit PlayerResolver)
 2. Prüfe die Browser-Konsole auf `[PlayerResolver]` Log-Einträge
-3. Beim Leg-Wechsel solltest du `🔄 [PlayerResolver] New leg started` sehen
+3. Beim Leg-Wechsel solltest du `[PlayerResolver] New leg started` sehen
 4. Das Display sollte auf das `player.change` Event warten, nicht auf `match.state`
 
 **Debug-Informationen in der Browser-Konsole:**
 ```
-🎯 [PlayerResolver] First init - saved original mappings
-🎯 [PlayerResolver] Building player list, activePlayerIndex: X
-🔄 [PlayerResolver] New leg - updating scores only, waiting for player.change event
+[PlayerResolver] First init - saved original mappings
+[PlayerResolver] Building player list, activePlayerIndex: X
+[PlayerResolver] New leg - updating scores only, waiting for player.change event
 ```
 
 ### Gewinner wird nach Leg-Gewinn falsch angezeigt
@@ -364,7 +362,7 @@ Das Display verwendet folgende CSS-Variablen für die Spielerfarbe:
 **Lösung:**
 1. Prüfe, ob das Backend `winnerName` im `game.finished` Event sendet
 2. Der PlayerResolver sucht den Gewinner nach: Name → playerIndex → score=0 → arrayPosition
-3. Prüfe die Browser-Konsole auf `🏆 [GameFinished] Winner by...` Einträge
+3. Prüfe die Browser-Konsole auf `[GameFinished] Winner by...` Einträge
 
 ### Display lädt nicht
 
@@ -401,7 +399,7 @@ Der Build-Output landet in `modules/game-display/web/dist/` und wird automatisch
 
 Das Display unterstützt mehrere Sprachen:
 
-- **Deutsch (de)** - Standard
+- **Deutsch (de)**: Standard
 - **English (en)**
 - **Español (es)**
 

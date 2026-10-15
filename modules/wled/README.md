@@ -4,14 +4,14 @@ Steuert WLED-kompatible LED-Controller basierend auf Autodarts-Spielevents.
 
 ## Features
 
-- **Event-basierte Aktionen** - Verschiedene Lichteffekte für unterschiedliche Spielsituationen
-- **Spielerfarben** - Automatische Verwendung der Spielerfarben aus der Spielerverwaltung
-- **Temporäre Effekte** - Effekte mit Dauer und automatischer Rückkehr zur Spielerfarbe
-- **Fade Time (Übergangszeit)** - Sanfte Übergänge zwischen Lichtzuständen
-- **Presets & Effekte** - Unterstützung für WLED-Presets und alle WLED-Effekte
-- **Multi-Color** - Bis zu 3 Farben pro Effekt
-- **Einzelspieler-Modus** - Spielerfarbe wird auch ohne Spielerwechsel korrekt angezeigt
-- **Intent-System** - Reagiert auf Intents von anderen Modulen (z.B. Caller-Ansagen lösen Lichteffekte aus)
+- **Event-basierte Aktionen**: Verschiedene Lichteffekte für unterschiedliche Spielsituationen
+- **Spielerfarben**: Automatische Verwendung der Spielerfarben aus der Spielerverwaltung
+- **Temporäre Effekte**: Effekte mit Dauer und automatischer Rückkehr zur Spielerfarbe
+- **Fade Time (Übergangszeit)**: Sanfte Übergänge zwischen Lichtzuständen
+- **Presets & Effekte**: Unterstützung für WLED-Presets und alle WLED-Effekte
+- **Multi-Color**: Bis zu 3 Farben pro Effekt
+- **Einzelspieler-Modus**: Spielerfarbe wird auch ohne Spielerwechsel korrekt angezeigt
+- **Intent-System**: Reagiert auf Intents von anderen Modulen (z.B. Caller-Ansagen lösen Lichteffekte aus)
 
 ## Voraussetzungen
 
@@ -73,6 +73,8 @@ Für jedes Ereignis kann eine Aktion konfiguriert werden:
 | **Miss** | Außerhalb des Boards |
 | **Wurf** | Jeder erkannte Wurf |
 | **Pfeile gezogen (Takeout)** | Nach dem Entfernen der Pfeile |
+
+**Hinweis:** "High Finish" ist in `module.json` als Event gelistet, wird aber vom WLED-Modul aktuell nicht ausgelöst: Es gibt keine Checkout-Erkennung in der Wurf-Zuordnung. Die Zeile wurde hier bewusst weggelassen; bis das implementiert ist, bleibt eine dafür konfigurierte Aktion wirkungslos.
 
 ### Erweiterte Optionen
 
@@ -207,7 +209,7 @@ Eine vollständige Liste findest du in der [WLED-Dokumentation](https://kno.wled
 
 1. Stelle sicher, dass für `player.change` eine Aktion mit **Spielerfarbe verwenden** konfiguriert ist
 2. Diese Aktion wird auch für Einzelspieler-Spiele verwendet
-3. Prüfe die Konsolen-Logs auf 🎨 WLED-Meldungen
+3. Prüfe die Konsolen-Logs auf WLED-Meldungen
 
 ### Falsche Farben
 
@@ -234,9 +236,9 @@ WLED-Aktivitäten werden im Hub-Log aufgezeichnet:
 
 Zusätzliche Debug-Logs (in der Konsole):
 ```
-🎨 WLED [match.start]: Will apply player color after 2000ms
-🎨 WLED [takeout.finished]: Applying player color for Max
-🎨 WLED [throw.detected]: Restoring to player color RGB(255, 128, 0)
+WLED [match.start]: Will apply player color after 2000ms
+WLED [takeout.finished]: Applying player color for Max
+WLED [throw.detected]: Restoring to player color RGB(255, 128, 0)
 ```
 
 ## Weitere Ressourcen

@@ -43,9 +43,31 @@ describe('buildHiggsfieldBody', () => {
     expect(buildHiggsfieldBody('lightricks/ltx-2.5/text-to-video/fast', { prompt: 'x' }).duration).toBe(6);
   });
 
-  it('mutes models that support sound and leaves others alone', () => {
+  it('mutes models with a sound switch', () => {
     expect(buildHiggsfieldBody('kling-video/v3.0/std/text-to-video', { prompt: 'x' }).sound).toBe('off');
-    expect(buildHiggsfieldBody('bytedance/seedance-2.0/text-to-video', { prompt: 'x' })).not.toHaveProperty('sound');
+  });
+
+  it('mutes models with a generate_audio switch', () => {
+    for (const id of [
+      'bytedance/seedance-2.0/text-to-video',
+      'bytedance/seedance-2.5/text-to-video',
+      'pixverse/v6/text-to-video',
+      'alibaba/wan-3.0/text-to-video',
+      'alibaba/wan-3.0-prime/text-to-video',
+      'lightricks/ltx-2.5/text-to-video/fast',
+      'lightricks/ltx-2.5/text-to-video/pro',
+      'higgsfield/cinema-studio/4.0',
+    ]) {
+      const body = buildHiggsfieldBody(id, { prompt: 'x' });
+      expect(body.generate_audio, id).toBe(false);
+      expect(body, id).not.toHaveProperty('sound');
+    }
+  });
+
+  it('sends no audio field to models without audio', () => {
+    const body = buildHiggsfieldBody('wan/v2.7/text-to-video', { prompt: 'x' });
+    expect(body).not.toHaveProperty('sound');
+    expect(body).not.toHaveProperty('generate_audio');
   });
 
   it('uses the closest supported aspect ratio', () => {

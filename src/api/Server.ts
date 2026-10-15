@@ -25,6 +25,40 @@ const DEFAULT_OPTIONS: ServerOptions = {
 };
 
 /**
+ * Whether a browser Origin belongs to the local network.
+ *
+ * The hub only runs in the LAN. Restricting CORS to local origins keeps an
+ * arbitrary internet page opened in a LAN browser from calling the API with
+ * the user's session. Requests without Origin (same-origin, curl) pass.
+ */
+export function isLocalOrigin(origin: string | undefined): boolean {
+  if (origin === undefined) return true;
+
+  let hostname: string;
+  try {
+    hostname = new URL(origin).hostname;
+  } catch {
+    return false;
+  }
+
+  if (hostname === 'localhost' || hostname === '[::1]' || hostname.endsWith('.local')) {
+    return true;
+  }
+
+  const octets = hostname.split('.');
+  if (octets.length !== 4 || !octets.every((o) => /^\d{1,3}$/.test(o))) {
+    return false;
+  }
+  const [a, b] = octets.map(Number);
+  return (
+    a === 127 ||
+    a === 10 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
+/**
  * API Server - Fastify-based HTTP/WebSocket server
  */
 export class APIServer extends EventEmitter {
@@ -71,7 +105,7 @@ export class APIServer extends EventEmitter {
 
     // Register CORS
     await this.fastify.register(fastifyCors, {
-      origin: true,
+      origin: (origin, callback) => callback(null, isLocalOrigin(origin)),
       credentials: true,
     });
 

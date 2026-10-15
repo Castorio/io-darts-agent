@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { APIServer } from '../../src/api/Server.js';
+import { APIServer, isLocalOrigin } from '../../src/api/Server.js';
 
 describe('APIServer', () => {
   let server: APIServer;
@@ -173,6 +173,54 @@ describe('APIServer', () => {
 
       const data = await response.json();
       expect(data).toEqual({ status: 'ok' });
+    });
+  });
+
+  describe('CORS', () => {
+    it.each([
+      [undefined],
+      ['http://localhost:5173'],
+      ['http://127.0.0.1:3000'],
+      ['http://[::1]:3000'],
+      ['http://192.168.1.20:3000'],
+      ['http://10.0.0.5'],
+      ['http://172.20.1.1'],
+      ['http://darts.local:3000'],
+    ])('accepts local origin %s', (origin) => {
+      expect(isLocalOrigin(origin)).toBe(true);
+    });
+
+    it.each([
+      ['https://evil.com'],
+      ['http://172.32.0.1'],
+      ['http://192.168.1.20.evil.com'],
+      ['http://8.8.8.8'],
+      ['null'],
+      ['not a url'],
+    ])('rejects non-local origin %s', (origin) => {
+      expect(isLocalOrigin(origin)).toBe(false);
+    });
+
+    it('does not grant CORS access to internet origins', async () => {
+      await server.initialize(null);
+      const response = await server.getInstance().inject({
+        method: 'GET',
+        url: '/health',
+        headers: { origin: 'https://evil.com' },
+      });
+
+      expect(response.headers['access-control-allow-origin']).toBeUndefined();
+    });
+
+    it('grants CORS access to LAN origins', async () => {
+      await server.initialize(null);
+      const response = await server.getInstance().inject({
+        method: 'GET',
+        url: '/health',
+        headers: { origin: 'http://192.168.1.20:3000' },
+      });
+
+      expect(response.headers['access-control-allow-origin']).toBe('http://192.168.1.20:3000');
     });
   });
 });

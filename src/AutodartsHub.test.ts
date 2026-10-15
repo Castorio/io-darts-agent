@@ -44,6 +44,31 @@ describe('AutodartsHub.start()', () => {
     expect(hub.isActive()).toBe(true);
   });
 
+  it('connects with a ticket provider backed by the auth service', async () => {
+    socket.waitUntilConnected.mockResolvedValue(undefined);
+    auth.getToken.mockResolvedValue('access-1');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ code: 'ticket-1' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const hub = new AutodartsHub(config);
+    await hub.start();
+
+    const provider = socket.connect.mock.calls[0][0] as () => Promise<string>;
+    try {
+      await expect(provider()).resolves.toBe('ticket-1');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(auth.getToken).toHaveBeenCalled();
+    expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toEqual({
+      Authorization: 'Bearer access-1',
+    });
+  });
+
   it('cleans up socket and token refresh when the connection times out', async () => {
     socket.waitUntilConnected.mockRejectedValue(new Error('Connection timeout'));
     const hub = new AutodartsHub(config);

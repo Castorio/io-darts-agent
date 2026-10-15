@@ -214,16 +214,22 @@ const ENV_CLIENT_ID = process.env.AUTODARTS_CLIENT_ID || undefined;
 
 /**
  * Remove credentials of the retired Keycloak login from a loaded config.
+ * Returns whether anything was removed.
  */
-function migrateLegacyClient(config: HubConfiguration): HubConfiguration {
+function migrateLegacyClient(config: HubConfiguration): boolean {
   const autodarts = config.autodarts;
-  if (!autodarts) return config;
+  if (!autodarts) return false;
 
-  delete autodarts.clientSecret;
-  if (autodarts.clientId && RETIRED_CLIENT_IDS.has(autodarts.clientId)) {
-    delete autodarts.clientId;
+  let changed = false;
+  if ('clientSecret' in autodarts) {
+    delete autodarts.clientSecret;
+    changed = true;
   }
-  return config;
+  if (autodarts.clientId !== undefined && (!autodarts.clientId || RETIRED_CLIENT_IDS.has(autodarts.clientId))) {
+    delete autodarts.clientId;
+    changed = true;
+  }
+  return changed;
 }
 
 /**
@@ -254,7 +260,12 @@ export class APIConfigService {
    */
   async loadConfig(): Promise<HubConfiguration> {
     const content = await readFile(this.configPath, 'utf-8');
-    this.config = migrateLegacyClient(JSON.parse(content) as HubConfiguration);
+    const config = JSON.parse(content) as HubConfiguration;
+    if (migrateLegacyClient(config)) {
+      // Remove the retired secret from disk, not only from memory
+      await this.saveConfig(config);
+    }
+    this.config = config;
     return this.config;
   }
 

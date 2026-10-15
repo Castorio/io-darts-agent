@@ -10,6 +10,9 @@ export const RETIRED_CLIENT_IDS: ReadonlySet<string> = new Set(['developer-darts
 
 const DEFAULT_EXPIRES_IN_SECONDS = 900;
 const REQUEST_TIMEOUT_MS = 10000;
+// Lower bound between automatic refreshes, so short-lived tokens cannot cause a hot loop
+const MIN_REFRESH_DELAY_MS = 5000;
+const REFRESH_RETRY_MS = 30000;
 
 export interface AuthServiceOptions {
   authBaseUrl?: string;
@@ -201,31 +204,30 @@ export class AuthService {
 
     if (!this.expiresAt) return;
 
-    const onRefreshed = (token: string): void => {
-      if (generation !== this.autoRefreshGeneration) return;
-      onRefresh?.(token);
-      this.startAutoRefresh(onRefresh);
-    };
+    const dueIn = this.expiresAt.getTime() - this.tokenRefreshBuffer * 1000 - Date.now();
+    this.scheduleAutoRefresh(Math.max(dueIn, MIN_REFRESH_DELAY_MS), generation, onRefresh);
+  }
 
-    const refreshTime = this.expiresAt.getTime() - this.tokenRefreshBuffer * 1000 - Date.now();
-
-    if (refreshTime <= 0) {
-      // Token already expired or about to, refresh immediately
-      void this.refresh()
-        .then(onRefreshed)
-        .catch((err) => {
-          console.error('Auto-refresh failed:', err instanceof Error ? err.message : err);
-        });
-      return;
-    }
-
+  private scheduleAutoRefresh(
+    delayMs: number,
+    generation: number,
+    onRefresh?: (token: string) => void
+  ): void {
     this.refreshTimeout = setTimeout(() => {
       void this.refresh()
-        .then(onRefreshed)
+        .then((token) => {
+          if (generation !== this.autoRefreshGeneration) return;
+          onRefresh?.(token);
+          this.startAutoRefresh(onRefresh);
+        })
         .catch((err) => {
           console.error('Auto-refresh failed:', err instanceof Error ? err.message : err);
+          // Transient failures (outage, timeout) must not end the refresh cycle
+          if (generation === this.autoRefreshGeneration) {
+            this.scheduleAutoRefresh(REFRESH_RETRY_MS, generation, onRefresh);
+          }
         });
-    }, refreshTime);
+    }, delayMs);
   }
 
   /**

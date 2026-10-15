@@ -86,7 +86,7 @@ describe('AuthService', () => {
       expect(requestBody(fetchMock.mock.calls[0]).client_id).toBe('my-client');
     });
 
-    it('aborts the request after a timeout', async () => {
+    it('passes an abort signal so a hanging request times out', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
 
       await authService.login();
@@ -256,17 +256,59 @@ describe('AuthService', () => {
   });
 
   describe('startAutoRefresh()', () => {
+    it('waits between refreshes even when tokens expire within the refresh buffer', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, createMockTokenResponse(30)));
+      await authService.login();
+      vi.useFakeTimers();
+      try {
+        authService.startAutoRefresh();
+        await vi.advanceTimersByTimeAsync(1000);
+
+        // login + at most one refresh within the first second
+        expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(2);
+      } finally {
+        authService.stopAutoRefresh();
+        vi.useRealTimers();
+      }
+    });
+
+    it('retries after a transient refresh failure', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse(120)));
+      await authService.login();
+      vi.useFakeTimers();
+      try {
+        fetchMock.mockResolvedValueOnce(jsonResponse(503, {}));
+        fetchMock.mockResolvedValue(jsonResponse(200, createMockTokenResponse(120)));
+        const onRefresh = vi.fn();
+
+        authService.startAutoRefresh(onRefresh);
+        await vi.advanceTimersByTimeAsync(60_000 + 100); // first refresh fails
+        expect(onRefresh).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(31_000); // retry
+
+        expect(onRefresh).toHaveBeenCalledTimes(1);
+      } finally {
+        authService.stopAutoRefresh();
+        vi.useRealTimers();
+      }
+    });
+
     it('does not re-arm the timer when stopped while a refresh is in flight', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse(1)));
       await authService.login();
       let resolveRefresh!: (r: Response) => void;
       fetchMock.mockReturnValueOnce(new Promise<Response>((r) => (resolveRefresh = r)));
       const onRefresh = vi.fn();
-
-      authService.startAutoRefresh(onRefresh);
-      authService.stopAutoRefresh();
-      resolveRefresh(jsonResponse(200, createMockTokenResponse(1)));
-      await new Promise((r) => setTimeout(r, 20));
+      vi.useFakeTimers();
+      try {
+        authService.startAutoRefresh(onRefresh);
+        await vi.advanceTimersByTimeAsync(5100); // refresh is now in flight
+        authService.stopAutoRefresh();
+        resolveRefresh(jsonResponse(200, createMockTokenResponse(1)));
+        await vi.advanceTimersByTimeAsync(60_000);
+      } finally {
+        vi.useRealTimers();
+      }
 
       expect(onRefresh).not.toHaveBeenCalled();
       expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -428,8 +470,7 @@ describe('AuthService', () => {
       });
 
       // Fast forward past refresh time
-      vi.advanceTimersByTime(10000);
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(10000);
 
       expect(onRefresh).toHaveBeenCalled();
 

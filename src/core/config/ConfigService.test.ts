@@ -332,6 +332,29 @@ describe('APIConfigService legacy client migration', () => {
     expect(service.toHubConfig(config).auth.clientId).toBeUndefined();
   });
 
+  it('persists the migration so the retired secret leaves the disk', async () => {
+    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    vi.mocked(fs.access).mockResolvedValue(undefined);
+    const service = new APIConfigService('/test/hub.config.json');
+
+    await service.loadConfig();
+
+    expect(fs.writeFile).toHaveBeenCalledTimes(1);
+    const written = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
+    expect(written.autodarts).not.toHaveProperty('clientSecret');
+    expect(written.autodarts.email).toBe('test@example.com');
+  });
+
+  it('does not rewrite a config that needs no migration', async () => {
+    const { clientId: _id, clientSecret: _secret, ...clean } = legacyFile.autodarts;
+    vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify({ ...legacyFile, autodarts: clean }));
+    const service = new APIConfigService('/test/hub.config.json');
+
+    await service.loadConfig();
+
+    expect(fs.writeFile).not.toHaveBeenCalled();
+  });
+
   it('keeps a custom client id', async () => {
     vi.mocked(fs.readFile).mockResolvedValue(
       JSON.stringify({ ...legacyFile, autodarts: { ...legacyFile.autodarts, clientId: 'my-client' } })

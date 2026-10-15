@@ -55,6 +55,8 @@ const engine = ref('runway')
 const engines = ref<Array<{ id: string; name: string; available: boolean }>>([])
 const engineMessage = ref<string | null>(null)
 const isSwitchingEngine = ref(false)
+// Shown next to the select: the main error area is hidden while no engine is set up
+const engineError = ref<string | null>(null)
 const isLoading = ref(true)
 const styles = ref<AnimationStyle[]>([])
 const jobs = ref<AnimationJob[]>([])
@@ -86,7 +88,8 @@ const failedJobs = computed(() => jobs.value.filter((j) => j.status === 'failed'
 
 // Methods
 async function changeEngine() {
-  error.value = null
+  engineError.value = null
+  engineMessage.value = null
   isSwitchingEngine.value = true
   try {
     const info = await api.setAnimationEngine(engine.value)
@@ -95,7 +98,7 @@ async function changeEngine() {
     engineMessage.value = t('animationGen.engineChanged', { name })
     setTimeout(() => (engineMessage.value = null), 4000)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    engineError.value = e instanceof Error ? e.message : String(e)
   }
   await loadData()
   isSwitchingEngine.value = false
@@ -317,6 +320,7 @@ onUnmounted(() => {
         </option>
       </select>
       <span v-if="engineMessage" class="text-sm text-green-400">{{ engineMessage }}</span>
+      <span v-if="engineError" class="text-sm text-red-400">{{ engineError }}</span>
     </div>
 
     <!-- Loading State -->

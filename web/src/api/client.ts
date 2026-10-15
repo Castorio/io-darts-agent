@@ -369,6 +369,7 @@ export const api = {
       brightness?: number
       speed?: number
       intensity?: number
+      fadeTime?: number // ms
     }
   ) {
     return request<{ success: boolean; message?: string; error?: string }>(
@@ -479,6 +480,10 @@ export const api = {
   },
 
   // Settings
+  async restartHub() {
+    return request<{ success: boolean; message?: string }>('/settings/restart', { method: 'POST', body: '{}' })
+  },
+
   async getSettings() {
     return request<{
       server: { port: number; host: string }
@@ -487,7 +492,7 @@ export const api = {
       aiProviders?: {
         runway?: {
           configured: boolean
-          model: 'gen3a_turbo' | 'gen3a'
+          model?: string
         }
         elevenlabs?: {
           configured: boolean
@@ -538,6 +543,14 @@ export const api = {
         preview_url?: string
       }>
     }>('/tts/elevenlabs/voices')
+  },
+
+  // Darts Caller: trigger a test call through the running handler (saved settings)
+  async testCaller(score = 180) {
+    return request<{ success: boolean; message?: string; error?: string }>('/caller/test', {
+      method: 'POST',
+      body: JSON.stringify({ score }),
+    })
   },
 
   // Voice Pack Generation

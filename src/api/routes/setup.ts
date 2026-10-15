@@ -135,7 +135,8 @@ export function registerSetupRoutes(
           boardId: autodarts.boardId,
         },
         server: {
-          port: 3000,
+          // Keep the port the hub was started on (PORT, desktop app)
+          port: server.getPort(),
           host: '0.0.0.0',
         },
       };

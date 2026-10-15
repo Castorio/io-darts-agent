@@ -2,8 +2,7 @@
   "name": "io-darts-agent",
   "version": "1.0.0",
   "description": "Modular Agent for Autodarts with WebSocket connection and module system",
-  "main": "electron/main.js",
-  "bin": "dist/main.js",
+  "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
     "build": "tsc",
@@ -16,17 +15,10 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "setup": "npm ci && npm run setup:sub",
     "setup:sub": "npm --prefix module-sdk ci && npm --prefix module-sdk run build && npm --prefix modules/wled ci && npm --prefix modules/darts-caller ci && npm --prefix web ci && npm --prefix modules/game-display/web ci",
-    "build:app": "npm run build && npm run build:frontend && npm run build:modules",
+    "build:app": "npm run clean:build && npm run build && npm run build:frontend && npm run build:modules",
     "prebuild:dist": "npm run build:app",
     "build:frontend": "cd web && npm run build",
     "build:modules": "npm --prefix modules/game-display/web run build",
-    "build:linux": "pkg . --targets node18-linux-x64 --output releases/io-darts-agent-linux-x64",
-    "build:linux-arm": "pkg . --targets node18-linux-arm64 --output releases/io-darts-agent-linux-arm64",
-    "build:macos": "pkg . --targets node18-macos-x64 --output releases/io-darts-agent-macos-x64",
-    "build:macos-arm": "pkg . --targets node18-macos-arm64 --output releases/io-darts-agent-macos-arm64",
-    "build:windows": "pkg . --targets node18-win-x64 --output releases/io-darts-agent-win-x64.exe",
-    "build:all": "npm run prebuild:dist && npm run build:linux && npm run build:linux-arm && npm run build:macos && npm run build:macos-arm && npm run build:windows",
-    "package": "node scripts/package.js",
     "electron:dev": "npm run build && electron .",
     "electron:start": "electron .",
     "electron:build": "npm run prebuild:dist && electron-builder",
@@ -38,20 +30,8 @@
     "dist:win": "npm run electron:build:win",
     "dist:mac": "npm run electron:build:mac",
     "dist:linux": "npm run electron:build:linux",
-    "dist:all": "npm run electron:build:all"
-  },
-  "pkg": {
-    "scripts": "dist/**/*.js",
-    "assets": [
-      "web/dist/**/*",
-      "modules/*/module.json",
-      "modules/*/web/dist/**/*",
-      "modules_installed/*/module.json"
-    ],
-    "outputPath": "releases"
-  },
-  "build": {
-    "extends": null
+    "dist:all": "npm run electron:build:all",
+    "clean:build": "node -e \"for (const d of ['dist/src','dist/modules']) require('fs').rmSync(d,{recursive:true,force:true})\""
   },
   "keywords": [
     "autodarts",
@@ -74,7 +54,6 @@
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "@vitest/coverage-v8": "^1.2.0",
-    "@yao-pkg/pkg": "^6.14.1",
     "electron": "^41.1.0",
     "electron-builder": "^26.8.1",
     "eslint": "^8.56.0",

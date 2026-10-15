@@ -162,6 +162,20 @@ describe('Setup Routes', () => {
       expect(savedConfig.webAuth.passwordHash).not.toBe('secretpassword'); // Hashed
     });
 
+    it('keeps the port the hub is running on', async () => {
+      const response = await fetch('http://127.0.0.1:3098/api/setup/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          webAuth: { enabled: false },
+          autodarts: { email: 'test@test.com', password: 'password123', boardId: 'board-id' },
+        }),
+      });
+
+      expect((await response.json()).success).toBe(true);
+      expect(saveConfig.mock.calls[0][0].server.port).toBe(3098);
+    });
+
     it('should reject if setup already completed', async () => {
       server.setConfig({
         setupCompleted: true,

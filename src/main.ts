@@ -33,6 +33,8 @@ import { AuthService } from './core/auth/AuthService.js';
 import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
 import { ModuleBridge } from './core/modules/ModuleBridge.js';
 import { resolveBuiltinModulesDir } from './core/modules/BuiltinModuleInstaller.js';
+import { runtimePath } from './core/runtimePaths.js';
+import { restartProcess } from './core/system/restart.js';
 import { getModuleRouteRegistry, type ModuleRouteRequest, type ModuleRouteResponse } from './core/modules/ModuleRouteRegistry.js';
 import type { RoutesRegisterPayload } from './types/modules.js';
 import { spawn, ChildProcess } from 'child_process';
@@ -43,6 +45,7 @@ import {
   createWledHandler,
   createGameDisplayHandler,
   createDartsCallerHandler,
+  normalizeDartsCallerConfig,
 } from './core/modules/handlers/index.js';
 // Note: BuiltinModuleInstaller is available but we use local implementations
 // that integrate with the local state (installedModules map, config loading, etc.)
@@ -55,7 +58,7 @@ import { AutodartsHub } from './index.js';
 import { getIntentBus, createEmitterFromManifest, IntentEmitter } from './core/intents/index.js';
 import { getMatchStatusService } from './core/match/index.js';
 import { getAIProviderService } from './core/ai/AIProviderService.js';
-import { resolveProviderApiKey } from './core/ai/providerCredentials.js';
+import { resolveProviderApiKey, resolveProviderDefaultModel } from './core/ai/providerCredentials.js';
 import type { HubConfiguration } from './types/api.js';
 import type { ModuleListItem, ModuleDetailResponse } from './types/api.js';
 import type { ParsedEvent, ModuleStatus, ModuleManifest } from './types/index.js';
@@ -253,7 +256,8 @@ async function startExternalModule(mod: InstalledModule): Promise<void> {
   console.log(`🔌 Started IPC bridge for ${mod.id} at ${socketPath}`);
 
   // Spawn the module process
-  const proc = spawn('node', [entryPoint], {
+  // The hub's own runtime: also works inside the desktop app, which has no system Node
+  const proc = spawn(process.execPath, [entryPoint], {
     cwd: mod.path,
     env: {
       ...process.env,
@@ -578,11 +582,7 @@ function setupExternalModuleBridgeHandlers(mod: InstalledModule, bridge: ModuleB
 }
 
 // Module config storage directory
-const getConfigDir = () => {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  return path.join(__dirname, '..', 'config', 'modules');
-};
+const getConfigDir = () => runtimePath('config', 'modules');
 
 /**
  * Get default config values from manifest
@@ -926,7 +926,7 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
             };
           } else if (mod.id === 'darts-caller') {
             // Create Darts Caller handler with voice packs directory
-            const callerVoicePacksDir = path.join(__dirname, '..', 'data', 'voicepacks');
+            const callerVoicePacksDir = runtimePath('data', 'voicepacks');
             mod.dartsCallerHandler = createDartsCallerHandler({
               ...mod.configValues,
               voicePacksDir: callerVoicePacksDir,
@@ -945,7 +945,7 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
             if (elevenLabsApiKey) {
               const service = new ElevenLabsService({
                 apiKey: elevenLabsApiKey,
-                cacheDir: path.join(__dirname, '..', 'data', 'tts-cache'),
+                cacheDir: runtimePath('data', 'tts-cache'),
                 enableCache: true,
               });
               service.init().catch((err) => {
@@ -1003,12 +1003,12 @@ async function main(): Promise<void> {
   console.log('🚀 Starting IO-Darts-Agent Server...\n');
 
   // AI providers first: modules (darts caller, animations) read their keys from them
-  const aiConfigDir = path.join(__dirname, '..', 'config');
+  const aiConfigDir = runtimePath('config');
   initializeAIProviders({ configDir: aiConfigDir });
   console.log('🤖 AI providers initialized');
 
   // Paths
-  const configPath = path.join(__dirname, '..', 'config', 'hub.config.json');
+  const configPath = runtimePath('config', 'hub.config.json');
   const webDistPath = path.join(__dirname, '..', '..', 'web', 'dist');
 
   // Load config
@@ -1084,7 +1084,7 @@ async function main(): Promise<void> {
   });
 
   // Module Installer
-  const modulesDir = path.join(__dirname, '..', 'modules_installed');
+  const modulesDir = runtimePath('modules_installed');
   const builtinModulesDir = resolveBuiltinModulesDir(path.join(__dirname, '..'));
   const moduleInstaller = new ModuleInstaller({ modulesDir });
 
@@ -1196,7 +1196,10 @@ async function main(): Promise<void> {
                 manifest,
                 path: path.join(modulesDir, entry.name),
                 status: 'stopped',
-                configValues: { ...defaultConfig, ...savedConfig },
+                // Darts caller: migrate older stored shapes into the current one
+                configValues: manifest.id === 'darts-caller'
+                  ? normalizeDartsCallerConfig({ ...defaultConfig, ...savedConfig })
+                  : { ...defaultConfig, ...savedConfig },
               });
               console.log(`📦 Found installed module: ${manifest.name} (${manifest.id})`);
             } catch (e) {
@@ -1297,10 +1300,19 @@ async function main(): Promise<void> {
 
       // Merge with existing config
       mod.configValues = { ...mod.configValues, ...newConfig };
+      if (id === 'darts-caller') {
+        // One shape for page, generic form and handler; drops legacy keys
+        mod.configValues = normalizeDartsCallerConfig(mod.configValues);
+      }
 
       // Save to disk
       saveModuleConfig(id, mod.configValues);
       console.log(`💾 Saved config for module: ${mod.manifest.name}`);
+
+      // Darts caller: apply the new settings to the running handler right away
+      if (id === 'darts-caller' && mod.dartsCallerHandler) {
+        mod.dartsCallerHandler.updateConfig(mod.configValues);
+      }
     },
     startModule: async (id: string): Promise<void> => {
       const mod = installedModules.get(id);
@@ -1329,7 +1341,7 @@ async function main(): Promise<void> {
         };
         console.log(`▶️  Started module: ${mod.manifest.name}`);
       } else if (id === 'darts-caller') {
-        const callerVoicePacksDir = path.join(__dirname, '..', 'data', 'voicepacks');
+        const callerVoicePacksDir = runtimePath('data', 'voicepacks');
         mod.dartsCallerHandler = createDartsCallerHandler({
           ...mod.configValues,
           voicePacksDir: callerVoicePacksDir,
@@ -1345,7 +1357,7 @@ async function main(): Promise<void> {
         if (elevenLabsApiKey) {
           const service = new ElevenLabsService({
             apiKey: elevenLabsApiKey,
-            cacheDir: path.join(__dirname, '..', 'data', 'tts-cache'),
+            cacheDir: runtimePath('data', 'tts-cache'),
             enableCache: true,
           });
           service.init().catch((err) => {
@@ -1429,7 +1441,7 @@ async function main(): Promise<void> {
       } else if (id === 'darts-caller') {
         const callerConfig = {
           ...mod.configValues,
-          voicePacksDir: path.join(__dirname, '..', 'data', 'voicepacks'),
+          voicePacksDir: runtimePath('data', 'voicepacks'),
         };
         if (mod.dartsCallerHandler) {
           mod.dartsCallerHandler.updateConfig(callerConfig as any);
@@ -1629,7 +1641,7 @@ async function main(): Promise<void> {
   });
 
   // Register Player Routes
-  const playersFilePath = path.join(__dirname, '..', 'config', 'players.json');
+  const playersFilePath = runtimePath('config', 'players.json');
   const playerRepository = new PlayerRepository({ filePath: playersFilePath });
   // Use the global playerService variable so handleWledEvent can access it
   playerService = new PlayerService({ repository: playerRepository });
@@ -1646,7 +1658,7 @@ async function main(): Promise<void> {
   });
 
   // Register Media Routes (core media library for all modules)
-  const mediaDir = path.join(__dirname, '..', 'media');
+  const mediaDir = runtimePath('media');
   const mediaService = new MediaService({ mediaPath: mediaDir });
   await mediaService.init();
 
@@ -1663,13 +1675,18 @@ async function main(): Promise<void> {
   await animationService.init();
 
   const animationEngineSettings = new AnimationEngineSettings(
-    path.join(__dirname, '..', 'config', 'animation-settings.json')
+    runtimePath('config', 'animation-settings.json')
   );
 
   // Runway key from the AI settings, legacy hub config as fallback
+  // Model from the AI settings; the provider replaces retired or unknown ids with its default
   function runwayAnimationConfig() {
     const legacy = server.getConfig()?.aiProviders?.runway;
-    return { ...legacy, apiKey: resolveProviderApiKey(getAIProviderService(), 'runway', legacy) };
+    const aiService = getAIProviderService();
+    return {
+      apiKey: resolveProviderApiKey(aiService, 'runway', legacy),
+      model: resolveProviderDefaultModel(aiService, 'runway', legacy),
+    };
   }
 
   // Higgsfield uses the access configured in the AI settings
@@ -1736,7 +1753,7 @@ async function main(): Promise<void> {
   // ElevenLabs TTS Service
   let elevenLabsService: ElevenLabsService | null = null;
   let voicePackGenerator: VoicePackGenerator | null = null;
-  const voicePacksDir = path.join(__dirname, '..', 'data', 'voicepacks');
+  const voicePacksDir = runtimePath('data', 'voicepacks');
 
   function getOrCreateElevenLabsService(): ElevenLabsService | null {
     const config = server.getConfig();
@@ -1756,7 +1773,7 @@ async function main(): Promise<void> {
     if (!elevenLabsService || elevenLabsService.getApiKey() !== apiKey) {
       elevenLabsService = new ElevenLabsService({
         apiKey,
-        cacheDir: path.join(__dirname, '..', 'data', 'tts-cache'),
+        cacheDir: runtimePath('data', 'tts-cache'),
         enableCache: true,
       });
 
@@ -1912,7 +1929,7 @@ async function main(): Promise<void> {
   // Each module can have a /web/dist folder with its built frontend
   // Check both /modules/ (builtin) and /modules_installed/ (external)
   const modulesSourceDir = resolveBuiltinModulesDir(path.join(__dirname, '..'));
-  const modulesInstalledDir = path.join(__dirname, '..', 'modules_installed');
+  const modulesInstalledDir = runtimePath('modules_installed');
   fastify.register(async (instance) => {
     instance.get('/module-ui/:moduleId/*', async (request, reply) => {
       const { moduleId } = request.params as { moduleId: string };
@@ -2032,6 +2049,23 @@ async function main(): Promise<void> {
       process.exit(0);
     });
   };
+
+  // Restart from the settings page: answer the request first, free the port, then restart
+  server.on('restartRequested', () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log('\n🔄 Restarting hub...');
+    setTimeout(async () => {
+      try {
+        wsManager.stop();
+        stopHub();
+        await server.stop();
+      } catch (error) {
+        console.error('Error while stopping for restart:', error);
+      }
+      restartProcess();
+    }, 300);
+  });
 
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));

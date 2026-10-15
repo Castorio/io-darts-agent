@@ -255,6 +255,13 @@ export class APIServer extends EventEmitter {
   }
 
   /**
+   * Port the server listens on
+   */
+  getPort(): number {
+    return this.options.port;
+  }
+
+  /**
    * Get server address
    */
   getAddress(): string {

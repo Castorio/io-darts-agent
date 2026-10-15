@@ -324,7 +324,7 @@ export class ModuleManager extends EventEmitter {
       AUTODARTS_SOCKET_PATH: managed.bridge.getSocketPath(),
     };
 
-    const proc = spawn('node', [entryPath], {
+    const proc = spawn(process.execPath, [entryPath], {
       cwd: options.cwd || managed.path,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],

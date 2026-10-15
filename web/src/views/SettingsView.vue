@@ -28,9 +28,43 @@ const settings = ref<Settings | null>(null)
 const isLoading = ref(true)
 const isSaving = ref(false)
 const message = ref<{ type: 'success' | 'error'; text: string } | null>(null)
+const isRestarting = ref(false)
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Restart the hub and reload the page once it answers again (on the new port, if it changed)
+async function restartHub() {
+  isRestarting.value = true
+  message.value = null
+  const savedPort = settings.value?.server.port
+  const portChanged = !!savedPort && savedPort !== serverPortAtLoad
+  const target = portChanged ? `${location.protocol}//${location.hostname}:${savedPort}` : ''
+  try {
+    await api.restartHub()
+  } catch {
+    // The connection may drop while the hub goes down
+  }
+  await sleep(2000)
+  for (let attempt = 0; attempt < 60; attempt++) {
+    try {
+      const res = await fetch(`${target}/api/setup/status`, { cache: 'no-store' })
+      if (res.ok) {
+        location.href = `${target}${location.pathname}`
+        return
+      }
+    } catch {
+      // Not back yet
+    }
+    await sleep(1000)
+  }
+  isRestarting.value = false
+  message.value = { type: 'error', text: t('settings.restartFailed') }
+}
 
 // Form values
 const serverPort = ref(3000)
+// Port the hub was running on when the page loaded
+let serverPortAtLoad: number | undefined
 const serverHost = ref('0.0.0.0')
 const webAuthEnabled = ref(false)
 const webAuthUsername = ref('')
@@ -47,6 +81,7 @@ async function loadSettings() {
   try {
     settings.value = await api.getSettings()
     serverPort.value = settings.value.server.port
+    if (serverPortAtLoad === undefined) serverPortAtLoad = settings.value.server.port
     serverHost.value = settings.value.server.host
     webAuthEnabled.value = settings.value.webAuth.enabled
     webAuthUsername.value = settings.value.webAuth.username
@@ -245,9 +280,14 @@ onMounted(loadSettings)
               />
             </div>
           </div>
-          <p class="text-sm text-dark-400 mt-4">
-            {{ t('settings.serverRestartRequired') }}
-          </p>
+          <div class="flex items-center justify-between gap-4 mt-4">
+            <p class="text-sm text-dark-400">
+              {{ t('settings.serverRestartRequired') }}
+            </p>
+            <BaseButton size="sm" variant="secondary" :loading="isRestarting" :disabled="isRestarting" @click="restartHub">
+              {{ isRestarting ? t('settings.restarting') : t('settings.restartHub') }}
+            </BaseButton>
+          </div>
         </BaseCard>
 
         <!-- Web Auth Settings -->

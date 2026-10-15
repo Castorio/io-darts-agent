@@ -5,19 +5,27 @@ appId: "io.castor.darts-agent"
 productName: "IO-Darts-Agent"
 copyright: "Copyright 2025 castor.io"
 
-# Directories
+# No preset (electron-builder would otherwise guess one from dependencies)
+extends: null
+
+# Directories (tsc writes to dist/, so packages go to releases/)
 directories:
-  output: dist
+  output: releases
   buildResources: build
 
-# Files to include in the app
+# Files to include in the app.
+# Built-in module handlers are compiled by the root tsc into dist/modules/*/src,
+# so only their manifests and the game-display web build are needed from modules/.
+# Runtime data (config, data, media, modules_installed) is not shipped: the
+# desktop app keeps it in the per-user app data folder (IO_DARTS_DATA_DIR).
+# Production dependencies from node_modules are added by electron-builder.
 files:
   - "dist/**/*"
+  - "!dist/{config,data,media,modules_installed}{,/**/*}"
+  - "!dist/**/*.{map,d.ts}"
   - "web/dist/**/*"
   - "modules/*/module.json"
-  - "modules/*/web/dist/**/*"
-  - "modules_installed/*/module.json"
-  - "config/**/*"
+  - "modules/game-display/web/dist/**/*"
   - "electron/**/*"
   - "package.json"
   - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
@@ -38,21 +46,19 @@ extraResources:
       - "*.ico"
       - "*.icns"
 
-# ASAR archive settings
-asar: true
-asarUnpack:
-  - "dist/**/*"
-  - "node_modules/**/*"
-
-# Include Node.js runtime for backend
-includeNodeRuntime: false
+# No asar archive: the backend runs as a separate Node process (Electron in
+# ELECTRON_RUN_AS_NODE mode) with the ESM loader, resolves web/dist and the
+# built-in modules through plain fs paths and symlinks modules into the data
+# folder. A plain app folder keeps all of that working without asarUnpack
+# special cases.
+asar: false
 
 # =====================
 # macOS Configuration
 # =====================
 mac:
   category: "public.app-category.utilities"
-  icon: "build/icon.png"
+  icon: "build/icon.icns"
   target:
     - target: dmg
       arch:
@@ -68,7 +74,7 @@ mac:
   entitlementsInherit: "build/entitlements.mac.plist"
 
 dmg:
-  icon: "build/icon.png"
+  icon: "build/icon.icns"
   iconSize: 100
   contents:
     - x: 130
@@ -85,7 +91,7 @@ dmg:
 # Windows Configuration
 # =====================
 win:
-  icon: "build/icon.png"
+  icon: "build/icon.ico"
   target:
     - target: nsis
       arch:
@@ -102,9 +108,9 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: "IO-Darts-Agent"
-  installerIcon: "build/icon.png"
-  uninstallerIcon: "build/icon.png"
-  installerHeaderIcon: "build/icon.png"
+  installerIcon: "build/icon.ico"
+  uninstallerIcon: "build/icon.ico"
+  installerHeaderIcon: "build/icon.ico"
   license: "LICENSE"
 
 # =====================

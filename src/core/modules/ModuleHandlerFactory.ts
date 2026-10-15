@@ -5,8 +5,7 @@
  * for internal/builtin modules (WLED, Game Display, Darts Caller)
  */
 
-import * as path from 'path';
-import { fileURLToPath } from 'url';
+import { runtimePath } from '../runtimePaths.js';
 import type { ParsedEvent } from '../../types/index.js';
 import type { PlayerService } from '../players/PlayerService.js';
 import {
@@ -19,9 +18,6 @@ import {
   type GameDisplayHandler,
   type DartsCallerHandler,
 } from './handlers/index.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export interface ModuleHandlerContext {
   playerService: PlayerService | null;
@@ -98,7 +94,7 @@ export function createDartsCallerModuleHandler(
   configValues: Record<string, unknown>,
   context: ModuleHandlerContext
 ): CreatedHandler & { service?: ElevenLabsService; generator?: VoicePackGenerator } {
-  const voicePacksDir = path.join(__dirname, '..', '..', '..', 'data', 'voicepacks');
+  const voicePacksDir = runtimePath('data', 'voicepacks');
 
   const handler = createDartsCallerHandler({
     ...configValues,
@@ -120,7 +116,7 @@ export function createDartsCallerModuleHandler(
   if (context.elevenLabsApiKey) {
     service = new ElevenLabsService({
       apiKey: context.elevenLabsApiKey,
-      cacheDir: path.join(__dirname, '..', '..', '..', 'data', 'tts-cache'),
+      cacheDir: runtimePath('data', 'tts-cache'),
       enableCache: true,
     });
     service.init().catch((err) => {

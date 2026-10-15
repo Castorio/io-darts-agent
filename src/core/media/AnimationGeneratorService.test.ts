@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
 import { AnimationGeneratorService } from './AnimationGeneratorService.js';
@@ -48,9 +48,53 @@ describe('AnimationGeneratorService job lifecycle', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  function service(provider: AIProvider, extra: Record<string, number> = {}) {
+  function service(provider: AIProvider, extra: Record<string, unknown> = {}) {
     return new AnimationGeneratorService({ outputDir: dir, provider, pollInterval: 5, ...extra });
   }
+
+  it('rejects an unknown event type before it reaches the engine or a file name', async () => {
+    const provider = fakeProvider('higgsfield', [{ status: 'pending', progress: 0 }]);
+    const s = service(provider);
+    await s.init();
+
+    for (const eventType of ['"; touch /tmp/pwned; "', '../../etc/x']) {
+      await expect(s.generateSingle({ eventType: eventType as never, style })).rejects.toThrow('Unknown event type');
+    }
+    expect(provider.generate).not.toHaveBeenCalled();
+    expect(s.getJobs()).toHaveLength(0);
+  });
+
+  it('keeps the original video as mp4 when the transparency step fails', async () => {
+    const provider = fakeProvider('higgsfield', [{ status: 'completed', progress: 100, resultUrl: 'https://cdn/a.mp4' }]);
+    const s = service(provider, { postProcess: vi.fn().mockResolvedValue(false) });
+    await s.init();
+
+    const job = await s.generateSingle({ eventType: 'bull' as never, style });
+    const done = await settle(s, job.id);
+
+    expect(done.status).toBe('completed');
+    expect(done.resultFilename).toBe(`bull_${job.id}.mp4`);
+    expect(done.resultUrl).toBe(`/api/media/files/animation/ai-generated/neon/bull_${job.id}.mp4`);
+    expect(readFileSync(path.join(dir, 'ai-generated/neon', done.resultFilename!), 'utf8')).toBe('video');
+    expect(existsSync(path.join(dir, 'ai-generated/neon', `bull_${job.id}.webm`))).toBe(false);
+    expect(provider.downloadResult).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores a transparent webm when the transparency step succeeds', async () => {
+    const provider = fakeProvider('higgsfield', [{ status: 'completed', progress: 100, resultUrl: 'https://cdn/a.mp4' }]);
+    const postProcess = vi.fn(async (_input: string, output: string) => {
+      writeFileSync(output, 'webm');
+      return true;
+    });
+    const s = service(provider, { postProcess });
+    await s.init();
+
+    const job = await s.generateSingle({ eventType: 'bull' as never, style });
+    const done = await settle(s, job.id);
+
+    expect(done.resultFilename).toBe(`bull_${job.id}.webm`);
+    expect(existsSync(path.join(dir, 'ai-generated/neon', `bull_${job.id}_temp.mp4`))).toBe(false);
+  });
 
   it('keeps polling and downloading with the engine that started the job', async () => {
     const runway = fakeProvider('runway', [

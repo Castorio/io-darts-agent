@@ -109,6 +109,8 @@ export interface AnimationGeneratorConfig {
   maxPollErrors?: number;
   /** Time after which a job that is still running is given up (default 30 min) */
   jobTimeoutMs?: number;
+  /** Turns the downloaded video into a transparent WebM; false keeps the original (default FFmpeg) */
+  postProcess?: (inputPath: string, outputPath: string) => Promise<boolean>;
 }
 
 /**
@@ -188,6 +190,10 @@ export class AnimationGeneratorService {
   async generateSingle(request: SingleGenerationRequest): Promise<AnimationJob> {
     if (!this.provider) {
       throw new Error('No AI provider configured');
+    }
+    // The event type ends up in file names, so only known values pass
+    if (!DART_EVENT_TYPES.includes(request.eventType)) {
+      throw new Error(`Unknown event type: ${String(request.eventType).slice(0, 40)}`);
     }
 
     // Create job
@@ -463,27 +469,25 @@ export class AnimationGeneratorService {
       }
 
       // Generate filenames with event type for easy identification
-      const tempFilename = `${job.eventType}_${job.id}_temp.mp4`;
-      const filename = `${job.eventType}_${job.id}.webm`;
-      const tempPath = path.join(folderPath, tempFilename);
-      const outputPath = path.join(folderPath, filename);
+      const baseName = `${job.eventType}_${job.id}`;
+      const tempPath = path.join(folderPath, `${baseName}_temp.mp4`);
+      const webmPath = path.join(folderPath, `${baseName}.webm`);
 
       // Download result to temp file
       await provider.downloadResult(resultUrl, tempPath);
 
       // Post-process: Remove black background and create transparent WebM
-      const transparentSuccess = await this.removeBlackBackground(tempPath, outputPath);
-
-      // Clean up temp file
-      if (fs.existsSync(tempPath)) {
-        fs.unlinkSync(tempPath);
-      }
-
-      if (!transparentSuccess) {
-        // If FFmpeg failed, try to use the original file
+      const postProcess = this.config.postProcess ?? removeBlackBackground;
+      let filename: string;
+      if (await postProcess(tempPath, webmPath)) {
+        filename = `${baseName}.webm`;
+        fs.rmSync(tempPath, { force: true });
+      } else {
+        // Keep the original under its real container, not as .webm
         console.warn('[AnimationGenerator] FFmpeg post-processing failed, using original');
-        // Re-download to final path
-        await provider.downloadResult(resultUrl, outputPath);
+        fs.rmSync(webmPath, { force: true });
+        filename = `${baseName}.mp4`;
+        fs.renameSync(tempPath, path.join(folderPath, filename));
       }
 
       job.status = 'completed';
@@ -498,41 +502,6 @@ export class AnimationGeneratorService {
       job.error = error instanceof Error ? error.message : 'Download failed';
       job.completedAt = new Date();
       await this.saveJobs();
-    }
-  }
-
-  /**
-   * Remove black background from video using FFmpeg
-   * Creates a WebM with alpha channel transparency
-   */
-  private async removeBlackBackground(inputPath: string, outputPath: string): Promise<boolean> {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
-
-    try {
-      // Use FFmpeg to convert black pixels to transparent
-      // colorkey filter: makes the specified color transparent
-      // - color: black (0x000000)
-      // - similarity: how close colors need to be (0.1 = 10% tolerance)
-      // - blend: edge blending (0.1 for smooth edges)
-      const ffmpegCommand = `ffmpeg -y -i "${inputPath}" -vf "colorkey=0x000000:0.15:0.1" -c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 "${outputPath}"`;
-
-      await execAsync(ffmpegCommand, { timeout: 60000 });
-
-      // Verify output exists
-      if (fs.existsSync(outputPath)) {
-        const stats = fs.statSync(outputPath);
-        if (stats.size > 0) {
-          console.log('[AnimationGenerator] Successfully created transparent WebM:', outputPath);
-          return true;
-        }
-      }
-
-      return false;
-    } catch (error) {
-      console.error('[AnimationGenerator] FFmpeg error:', error);
-      return false;
     }
   }
 
@@ -593,5 +562,33 @@ export class AnimationGeneratorService {
     } catch (error) {
       console.error('Failed to save animation jobs:', error);
     }
+  }
+}
+
+/**
+ * Remove black background from video using FFmpeg
+ * Creates a WebM with alpha channel transparency
+ */
+async function removeBlackBackground(inputPath: string, outputPath: string): Promise<boolean> {
+  const { execFile } = await import('child_process');
+  const { promisify } = await import('util');
+
+  try {
+    // colorkey: black becomes transparent (similarity 0.15, edge blend 0.1).
+    // execFile passes the paths as arguments, no shell involved
+    await promisify(execFile)(
+      'ffmpeg',
+      ['-y', '-i', inputPath, '-vf', 'colorkey=0x000000:0.15:0.1', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-auto-alt-ref', '0', outputPath],
+      { timeout: 60000 }
+    );
+
+    if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+      console.log('[AnimationGenerator] Successfully created transparent WebM:', outputPath);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[AnimationGenerator] FFmpeg error:', error instanceof Error ? error.message : error);
+    return false;
   }
 }

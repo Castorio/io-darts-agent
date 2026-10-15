@@ -56,6 +56,10 @@ const DEPRECATED_TEXT_MODELS = [
 const DEPRECATED_IMAGE_MODELS = [/^dall-e-/];
 const DEPRECATED_TTS_MODELS = [/^tts-1/];
 
+// Reasoning models spend completion tokens on thinking first; small budgets would end
+// before any answer, so they get a floor and low effort
+const MIN_REASONING_COMPLETION_TOKENS = 1024;
+
 // Non-reasoning models that still accept temperature, top_p and stop
 const SAMPLING_TEXT_MODELS = [/^gpt-4\.1/, /^gpt-4o/];
 
@@ -183,6 +187,13 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   /**
+   * Drop the cached model list; it belongs to the previous key
+   */
+  onConfigUpdated(): void {
+    this.availableModels = null;
+  }
+
+  /**
    * Chat models the API key can use, preferred models first
    */
   async listTextModels(): Promise<AIModelInfo[]> {
@@ -223,7 +234,7 @@ export class OpenAIProvider extends BaseAIProvider {
    */
   async generateText(request: TextGenerationRequest): Promise<TextGenerationResponse> {
     const options = (this.config as OpenAIProviderConfig).options;
-    const configured = request.model || options?.textModel || options?.defaultModel;
+    const configured = request.model || options?.defaultModel || options?.textModel;
     const model = isUsable(configured, DEPRECATED_TEXT_MODELS)
       ? configured
       : await this.pickAvailable(
@@ -264,15 +275,24 @@ export class OpenAIProvider extends BaseAIProvider {
       body: {
         model,
         messages,
-        max_completion_tokens: request.maxTokens,
+        max_completion_tokens:
+          sampling || request.maxTokens === undefined
+            ? request.maxTokens
+            : Math.max(request.maxTokens, MIN_REASONING_COMPLETION_TOKENS),
+        reasoning_effort: sampling ? undefined : 'low',
         temperature: sampling ? request.temperature : undefined,
         top_p: sampling ? request.topP : undefined,
         stop: sampling ? request.stop : undefined,
       },
     });
 
+    const text = response.choices[0]?.message.content || '';
+    if (!text && response.choices[0]?.finish_reason === 'length') {
+      throw new Error(`${response.model} reached the token limit before answering`);
+    }
+
     return {
-      text: response.choices[0]?.message.content || '',
+      text,
       model: response.model,
       usage: {
         promptTokens: response.usage.prompt_tokens,

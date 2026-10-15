@@ -144,7 +144,7 @@ describe('OpenAIProvider', () => {
     });
 
     it('sends max_completion_tokens instead of max_tokens', async () => {
-      await provider().generateText({ prompt: 'Tip?', maxTokens: 100 });
+      await provider().generateText({ prompt: 'Tip?', model: 'gpt-4.1-mini', maxTokens: 100 });
 
       const body = bodyFor(fetchMock, '/chat/completions');
       expect(body.max_completion_tokens).toBe(100);
@@ -158,6 +158,54 @@ describe('OpenAIProvider', () => {
       expect(body).not.toHaveProperty('temperature');
       expect(body).not.toHaveProperty('top_p');
       expect(body).not.toHaveProperty('stop');
+    });
+
+    it('gives reasoning models low effort and enough room to answer', async () => {
+      await provider().generateText({ prompt: 'Tip?', model: 'o4-mini', maxTokens: 100 });
+
+      const body = bodyFor(fetchMock, '/chat/completions');
+      expect(body.reasoning_effort).toBe('low');
+      expect(body.max_completion_tokens).toBe(1024);
+    });
+
+    it('does not send reasoning_effort to gpt-4.1 models', async () => {
+      await provider().generateText({ prompt: 'Tip?', model: 'gpt-4.1-mini', maxTokens: 100 });
+
+      const body = bodyFor(fetchMock, '/chat/completions');
+      expect(body).not.toHaveProperty('reasoning_effort');
+      expect(body.max_completion_tokens).toBe(100);
+    });
+
+    it('fails instead of returning an empty answer cut off by the token limit', async () => {
+      fetchMock = routedFetch(ACCOUNT_MODELS, {
+        '/chat/completions': {
+          choices: [{ message: { content: '' }, finish_reason: 'length' }],
+          model: 'o4-mini',
+          usage: { prompt_tokens: 10, completion_tokens: 1024, total_tokens: 1034 },
+        },
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(provider().generateText({ prompt: 'Tip?', model: 'o4-mini' })).rejects.toThrow(
+        'token limit'
+      );
+    });
+
+    it('prefers the model chosen in the UI over a legacy textModel option', async () => {
+      await provider({ defaultModel: 'gpt-4.1', textModel: 'gpt-4.1-nano' }).generateText({ prompt: 'Tip?' });
+
+      expect(bodyFor(fetchMock, '/chat/completions').model).toBe('gpt-4.1');
+    });
+
+    it('reloads the model list after the configuration changed', async () => {
+      const p = provider();
+      await p.listTextModels();
+      fetchMock = routedFetch(['gpt-4.1-nano']);
+      vi.stubGlobal('fetch', fetchMock);
+
+      p.onConfigUpdated();
+
+      expect((await p.listTextModels()).map((m) => m.id)).toEqual(['gpt-4.1-nano']);
     });
 
     it('keeps sampling parameters for gpt-4.1 models', async () => {

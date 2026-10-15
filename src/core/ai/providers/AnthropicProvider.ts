@@ -32,8 +32,13 @@ const RETIRED_MODEL_PATTERNS = [
 const SAMPLING_MODEL_PATTERNS = [/^claude-haiku-4-5/, /^claude-(sonnet|opus)-4-[56]/];
 
 // Models that support server-side refusal fallbacks with fallbacks: "default"
-const FALLBACK_MODELS = new Set(['claude-opus-5', 'claude-fable-5-1']);
+// (Claude API only, so not through custom base URLs)
+const FALLBACK_MODEL_PATTERN = /^claude-(opus-5|fable-5-1)(-\d{8})?$/;
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
+const ANTHROPIC_API_URL = 'https://api.anthropic.com';
+
+// Current models think before answering; small budgets would end before any text
+const MIN_THINKING_MAX_TOKENS = 1024;
 
 export type AnthropicEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -105,7 +110,7 @@ export class AnthropicProvider extends BaseAIProvider {
 
   constructor(config: AnthropicProviderConfig) {
     super(config);
-    this.baseUrl = config.baseUrl ?? 'https://api.anthropic.com';
+    this.baseUrl = config.baseUrl ?? ANTHROPIC_API_URL;
     this.apiVersion = config.options?.apiVersion ?? '2023-06-01';
     this.defaultModel = resolveModel(config.options?.defaultModel);
     this.effort = config.options?.effort ?? 'low';
@@ -195,7 +200,8 @@ export class AnthropicProvider extends BaseAIProvider {
   async generateText(request: TextGenerationRequest): Promise<TextGenerationResponse> {
     const model = request.model ? resolveModel(request.model) : this.defaultModel;
     const sampling = acceptsSampling(model);
-    const fallback = FALLBACK_MODELS.has(model);
+    const fallback = FALLBACK_MODEL_PATTERN.test(model) && this.baseUrl === ANTHROPIC_API_URL;
+    const maxTokens = request.maxTokens ?? 4096;
 
     // Convert prompt to messages format
     const { system, messages } = this.convertToMessages(request.prompt, request.system);
@@ -207,7 +213,7 @@ export class AnthropicProvider extends BaseAIProvider {
         headers: fallback ? { 'anthropic-beta': FALLBACK_BETA } : undefined,
         body: {
           model,
-          max_tokens: request.maxTokens ?? 4096,
+          max_tokens: sampling ? maxTokens : Math.max(maxTokens, MIN_THINKING_MAX_TOKENS),
           system: system || undefined,
           messages,
           temperature: sampling ? request.temperature : undefined,
@@ -226,6 +232,10 @@ export class AnthropicProvider extends BaseAIProvider {
       .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
       .map((block) => block.text)
       .join('');
+
+    if (!text && response.stop_reason === 'max_tokens') {
+      throw new Error(`${response.model} reached the token limit before answering`);
+    }
 
     return {
       text,

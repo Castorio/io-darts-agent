@@ -92,6 +92,37 @@ describe('AnthropicProvider', () => {
     expect(sentBody(fetchMock)).not.toHaveProperty('output_config');
   });
 
+  it('gives current models enough room so thinking does not use up a short budget', async () => {
+    await createAnthropicProvider('key').generateText({ prompt: 'Tip?', maxTokens: 100 });
+
+    expect(sentBody(fetchMock).max_tokens).toBe(1024);
+  });
+
+  it('fails instead of returning an empty answer cut off by the token limit', async () => {
+    fetchMock.mockResolvedValue(
+      messageResponse({ content: [{ type: 'thinking', thinking: '' }], stop_reason: 'max_tokens' })
+    );
+
+    await expect(createAnthropicProvider('key').generateText({ prompt: 'Tip?' })).rejects.toThrow(
+      'token limit'
+    );
+  });
+
+  it('opts into fallbacks for dated Claude Opus 5 ids too', async () => {
+    await createAnthropicProvider('key').generateText({ prompt: 'Tip?', model: 'claude-opus-5-20260901' });
+
+    expect(sentBody(fetchMock).fallbacks).toBe('default');
+  });
+
+  it('does not send the fallback beta through a custom base URL', async () => {
+    const provider = createAnthropicProvider('key', { baseUrl: 'https://proxy.example.com' });
+
+    await provider.generateText({ prompt: 'Tip?' });
+
+    expect(sentBody(fetchMock)).not.toHaveProperty('fallbacks');
+    expect(sentHeaders(fetchMock)['anthropic-beta']).toBeUndefined();
+  });
+
   it('opts into server-side refusal fallbacks on Claude Opus 5', async () => {
     await createAnthropicProvider('key').generateText({ prompt: 'Tip?' });
 

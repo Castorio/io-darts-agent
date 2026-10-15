@@ -154,6 +154,9 @@ export class AIProviderService extends EventEmitter {
       };
     }
 
+    // Let the provider drop data cached for the previous key or endpoint
+    provider.onConfigUpdated?.();
+
     this.emit('provider:status', {
       providerId,
       status: {

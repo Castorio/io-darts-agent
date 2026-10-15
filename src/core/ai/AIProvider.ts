@@ -59,6 +59,11 @@ export interface IAIProvider {
   listTextModels?(): Promise<AIModelInfo[]>;
 
   /**
+   * Called after the configuration (key, base URL, options) changed
+   */
+  onConfigUpdated?(): void;
+
+  /**
    * Image generation (if supported)
    */
   generateImage?(request: ImageGenerationRequest): Promise<ImageGenerationResponse>;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ConfigService, loadConfigFromEnv } from './ConfigService.js';
+import { ConfigService, APIConfigService, loadConfigFromEnv } from './ConfigService.js';
 import type { HubConfig } from '../../types/index.js';
 import * as fs from 'fs/promises';
 
@@ -301,5 +301,46 @@ describe('loadConfigFromEnv()', () => {
 
     expect(config.server?.port).toBe(8080);
     expect(config.server?.host).toBe('localhost');
+  });
+});
+
+describe('APIConfigService legacy client migration', () => {
+  const legacyFile = {
+    setupCompleted: true,
+    autodarts: {
+      email: 'test@example.com',
+      password: 'password123',
+      boardId: 'board-1',
+      clientId: 'developer-darts-caller',
+      clientSecret: 'legacy-secret',
+    },
+    server: { port: 3000, host: '0.0.0.0' },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(legacyFile));
+  });
+
+  it('drops the retired Keycloak client id and the client secret on load', async () => {
+    const service = new APIConfigService('/test/hub.config.json');
+
+    const config = await service.loadConfig();
+
+    expect(config.autodarts).not.toHaveProperty('clientId');
+    expect(config.autodarts).not.toHaveProperty('clientSecret');
+    expect(service.toHubConfig(config).auth.clientId).toBeUndefined();
+  });
+
+  it('keeps a custom client id', async () => {
+    vi.mocked(fs.readFile).mockResolvedValue(
+      JSON.stringify({ ...legacyFile, autodarts: { ...legacyFile.autodarts, clientId: 'my-client' } })
+    );
+    const service = new APIConfigService('/test/hub.config.json');
+
+    const config = await service.loadConfig();
+
+    expect(config.autodarts.clientId).toBe('my-client');
+    expect(config.autodarts).not.toHaveProperty('clientSecret');
   });
 });

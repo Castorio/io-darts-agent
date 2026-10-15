@@ -210,6 +210,23 @@ import type { HubConfiguration } from '../../types/api.js';
 // Optional OAuth client id override; AuthService falls back to the web app client
 const ENV_CLIENT_ID = process.env.AUTODARTS_CLIENT_ID || undefined;
 
+// Client of the retired Keycloak login; older versions persisted it into the config
+const RETIRED_CLIENT_IDS = new Set(['developer-darts-caller']);
+
+/**
+ * Remove credentials of the retired Keycloak login from a loaded config.
+ */
+function migrateLegacyClient(config: HubConfiguration): HubConfiguration {
+  const autodarts = config.autodarts;
+  if (!autodarts) return config;
+
+  delete autodarts.clientSecret;
+  if (autodarts.clientId && RETIRED_CLIENT_IDS.has(autodarts.clientId)) {
+    delete autodarts.clientId;
+  }
+  return config;
+}
+
 /**
  * Extended ConfigService for API (with Setup Wizard support)
  */
@@ -238,7 +255,7 @@ export class APIConfigService {
    */
   async loadConfig(): Promise<HubConfiguration> {
     const content = await readFile(this.configPath, 'utf-8');
-    this.config = JSON.parse(content) as HubConfiguration;
+    this.config = migrateLegacyClient(JSON.parse(content) as HubConfiguration);
     return this.config;
   }
 

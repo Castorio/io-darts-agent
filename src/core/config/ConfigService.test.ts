@@ -54,8 +54,9 @@ describe('ConfigService', () => {
       const config = await configService.load();
       vi.unstubAllEnvs();
 
-      expect(config.auth.clientId).toBe('test-client');
-      expect(config.auth.clientSecret).toBe('test-secret');
+      // Client credentials from the environment are not persisted to the file
+      expect(config.auth).not.toHaveProperty('clientId');
+      expect(config.auth).not.toHaveProperty('clientSecret');
       expect(fs.writeFile).toHaveBeenCalled();
     });
 
@@ -77,6 +78,18 @@ describe('ConfigService', () => {
       vi.mocked(fs.readFile).mockResolvedValue('invalid json');
 
       await expect(configService.load()).rejects.toThrow();
+    });
+  });
+
+  describe('client credentials', () => {
+    it('loads a config file without clientId and clientSecret', async () => {
+      const { clientId: _id, clientSecret: _secret, ...auth } = mockConfig.auth;
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify({ ...mockConfig, auth }));
+
+      const config = await configService.load();
+
+      expect(config.auth.email).toBe(mockConfig.auth.email);
     });
   });
 
@@ -230,19 +243,23 @@ describe('loadConfigFromEnv()', () => {
     expect(config.auth.password).toBe('password123');
     expect(config.boardId).toBe('test-board-id');
     expect(config.auth.clientId).toBe('test-client');
-    expect(config.auth.clientSecret).toBe('test-secret');
+    expect(config.auth).not.toHaveProperty('clientSecret');
   });
 
-  it('should throw if client credentials are missing', () => {
+  it('does not require client credentials', () => {
     process.env.AUTODARTS_EMAIL = 'test@example.com';
     process.env.AUTODARTS_PASSWORD = 'password123';
     process.env.AUTODARTS_BOARD_ID = 'test-board-id';
     delete process.env.AUTODARTS_CLIENT_ID;
+    delete process.env.AUTODARTS_CLIENT_SECRET;
 
-    expect(() => loadConfigFromEnv()).toThrow('AUTODARTS_CLIENT_ID');
+    const config = loadConfigFromEnv();
+
+    expect(config.auth.clientId).toBeUndefined();
+    expect(config.auth).not.toHaveProperty('clientSecret');
   });
 
-  it('should use custom client credentials from env', () => {
+  it('should use a custom client id from env', () => {
     process.env.AUTODARTS_EMAIL = 'test@example.com';
     process.env.AUTODARTS_PASSWORD = 'password123';
     process.env.AUTODARTS_BOARD_ID = 'test-board-id';
@@ -252,7 +269,6 @@ describe('loadConfigFromEnv()', () => {
     const config = loadConfigFromEnv();
 
     expect(config.auth.clientId).toBe('custom-client');
-    expect(config.auth.clientSecret).toBe('custom-secret');
   });
 
   it('should throw if required env vars are missing', () => {

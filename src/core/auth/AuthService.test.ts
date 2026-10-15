@@ -215,6 +215,25 @@ describe('AuthService', () => {
     });
   });
 
+  describe('startAutoRefresh()', () => {
+    it('does not leave an unhandled rejection when an immediate refresh fails', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse(1)));
+      await authService.login();
+      fetchMock.mockResolvedValue(jsonResponse(503, {}));
+      const unhandled = vi.fn();
+      process.on('unhandledRejection', unhandled);
+
+      try {
+        authService.startAutoRefresh();
+        await new Promise((r) => setTimeout(r, 20));
+      } finally {
+        process.off('unhandledRejection', unhandled);
+      }
+
+      expect(unhandled).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getToken()', () => {
     it('should return token if valid', async () => {
       fetchMock.mockResolvedValueOnce({

@@ -135,12 +135,6 @@ export class ConfigService {
     if (typeof config.auth.password !== 'string') {
       throw new Error('Configuration missing "auth.password"');
     }
-    if (!config.auth.clientId) {
-      throw new Error('Configuration missing "auth.clientId"');
-    }
-    if (!config.auth.clientSecret) {
-      throw new Error('Configuration missing "auth.clientSecret"');
-    }
     if (typeof config.boardId !== 'string') {
       throw new Error('Configuration missing "boardId"');
     }
@@ -167,8 +161,6 @@ export class ConfigService {
       auth: {
         email: '',
         password: '',
-        clientId: process.env.AUTODARTS_CLIENT_ID || '',
-        clientSecret: process.env.AUTODARTS_CLIENT_SECRET || '',
       },
       boardId: '',
       server: {
@@ -185,15 +177,8 @@ export class ConfigService {
 export function loadConfigFromEnv(): HubConfig {
   const email = process.env.AUTODARTS_EMAIL;
   const password = process.env.AUTODARTS_PASSWORD;
-  const clientId = process.env.AUTODARTS_CLIENT_ID;
-  const clientSecret = process.env.AUTODARTS_CLIENT_SECRET;
+  const clientId = process.env.AUTODARTS_CLIENT_ID || undefined;
   const boardId = process.env.AUTODARTS_BOARD_ID;
-
-  if (!clientId || !clientSecret) {
-    throw new Error(
-      'Missing required environment variables: AUTODARTS_CLIENT_ID, AUTODARTS_CLIENT_SECRET'
-    );
-  }
 
   if (!email || !password || !boardId) {
     throw new Error(
@@ -206,7 +191,6 @@ export function loadConfigFromEnv(): HubConfig {
       email,
       password,
       clientId,
-      clientSecret,
     },
     boardId,
     server: {
@@ -223,10 +207,8 @@ export function loadConfigFromEnv(): HubConfig {
 
 import type { HubConfiguration } from '../../types/api.js';
 
-// Client credentials are injected via environment variables during build
-// or can be set at runtime via AUTODARTS_CLIENT_ID and AUTODARTS_CLIENT_SECRET
-const DEFAULT_CLIENT_ID = process.env.AUTODARTS_CLIENT_ID || '';
-const DEFAULT_CLIENT_SECRET = process.env.AUTODARTS_CLIENT_SECRET || '';
+// Optional OAuth client id override; AuthService falls back to the web app client
+const ENV_CLIENT_ID = process.env.AUTODARTS_CLIENT_ID || undefined;
 
 /**
  * Extended ConfigService for API (with Setup Wizard support)
@@ -257,13 +239,6 @@ export class APIConfigService {
   async loadConfig(): Promise<HubConfiguration> {
     const content = await readFile(this.configPath, 'utf-8');
     this.config = JSON.parse(content) as HubConfiguration;
-
-    // Ensure default values for clientId and clientSecret
-    if (this.config.autodarts) {
-      this.config.autodarts.clientId = this.config.autodarts.clientId || DEFAULT_CLIENT_ID;
-      this.config.autodarts.clientSecret = this.config.autodarts.clientSecret || DEFAULT_CLIENT_SECRET;
-    }
-
     return this.config;
   }
 
@@ -271,10 +246,6 @@ export class APIConfigService {
    * Save configuration to file
    */
   async saveConfig(config: HubConfiguration): Promise<void> {
-    // Ensure default values
-    config.autodarts.clientId = config.autodarts.clientId || DEFAULT_CLIENT_ID;
-    config.autodarts.clientSecret = config.autodarts.clientSecret || DEFAULT_CLIENT_SECRET;
-
     // Ensure directory exists
     const dir = dirname(this.configPath);
     try {
@@ -316,8 +287,7 @@ export class APIConfigService {
       auth: {
         email: apiConfig.autodarts.email,
         password: apiConfig.autodarts.password,
-        clientId: apiConfig.autodarts.clientId || DEFAULT_CLIENT_ID,
-        clientSecret: apiConfig.autodarts.clientSecret || DEFAULT_CLIENT_SECRET,
+        clientId: apiConfig.autodarts.clientId || ENV_CLIENT_ID,
       },
       boardId: apiConfig.autodarts.boardId,
       server: apiConfig.server,

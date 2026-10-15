@@ -179,7 +179,14 @@ export class AuthService {
 
     if (refreshTime <= 0) {
       // Token already expired or about to, refresh immediately
-      void this.refresh().then((token) => onRefresh?.(token));
+      void this.refresh()
+        .then((token) => {
+          onRefresh?.(token);
+          this.startAutoRefresh(onRefresh);
+        })
+        .catch((err) => {
+          console.error('Auto-refresh failed:', err instanceof Error ? err.message : err);
+        });
       return;
     }
 
@@ -190,7 +197,7 @@ export class AuthService {
           this.startAutoRefresh(onRefresh);
         })
         .catch((err) => {
-          console.error('Auto-refresh failed:', err);
+          console.error('Auto-refresh failed:', err instanceof Error ? err.message : err);
         });
     }, refreshTime);
   }

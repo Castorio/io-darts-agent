@@ -38,8 +38,10 @@ export interface AutodartsConfig {
   email: string;
   password: string;
   boardId: string;
-  clientId: string;
-  clientSecret: string;
+  /** OAuth client id override, defaults to the Autodarts web app client */
+  clientId?: string;
+  /** @deprecated Not used by the v1 auth service */
+  clientSecret?: string;
 }
 
 export interface ServerConfig {

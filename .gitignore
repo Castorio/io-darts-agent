@@ -172,3 +172,9 @@ temp/
 
 # pkg cache
 .pkg-cache/
+
+# Compiled test output
+test/**/*.js
+test/**/*.js.map
+test/**/*.d.ts
+test/**/*.d.ts.map

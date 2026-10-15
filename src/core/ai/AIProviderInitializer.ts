@@ -16,6 +16,7 @@ import {
   RunwayProvider,
   ReplicateProvider,
   OllamaProvider,
+  HiggsfieldProvider,
 } from './providers/index.js';
 
 export interface AIProviderInitializerOptions {
@@ -77,6 +78,13 @@ export const DEFAULT_AI_PROVIDER_CONFIGS: AIProviderConfig[] = [
     apiKey: '',
     enabled: false,
   },
+  {
+    id: 'higgsfield',
+    type: 'higgsfield',
+    name: 'Higgsfield',
+    apiKey: '',
+    enabled: false,
+  },
 ];
 
 /**
@@ -101,6 +109,7 @@ export function registerProviderFactories(): void {
   aiService.registerProviderFactory('replicate', (config) => new ReplicateProvider(config as any));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   aiService.registerProviderFactory('ollama', (config) => new OllamaProvider(config as any));
+  aiService.registerProviderFactory('higgsfield', (config) => new HiggsfieldProvider(config as any));
 }
 
 /**
@@ -117,7 +126,9 @@ export function loadAIProviderConfigs(options: AIProviderInitializerOptions): AI
   if (fs.existsSync(configPath)) {
     try {
       const configs = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as AIProviderConfig[];
-      return configs;
+      // Providers added in newer versions are missing from older config files
+      const missing = DEFAULT_AI_PROVIDER_CONFIGS.filter((d) => !configs.some((c) => c.id === d.id));
+      return [...configs, ...missing.map((d) => ({ ...d }))];
     } catch (err) {
       console.warn('⚠️ Failed to parse AI providers config:', err);
       return DEFAULT_AI_PROVIDER_CONFIGS;

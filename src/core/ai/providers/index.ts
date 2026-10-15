@@ -25,4 +25,6 @@ export { ReplicateProvider, createReplicateProvider } from './ReplicateProvider.
 export type { ReplicateProviderConfig } from './ReplicateProvider.js';
 
 export { OllamaProvider, createOllamaProvider } from './OllamaProvider.js';
+export { HiggsfieldProvider, createHiggsfieldProvider } from './HiggsfieldProvider.js';
+export type { HiggsfieldProviderConfig } from './HiggsfieldProvider.js';
 export type { OllamaProviderConfig, OllamaModel } from './OllamaProvider.js';

@@ -24,6 +24,7 @@ export type AIProviderType =
   | 'elevenlabs'
   | 'stability'
   | 'ollama'
+  | 'higgsfield'
   | 'custom';
 
 /**

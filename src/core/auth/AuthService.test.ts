@@ -8,9 +8,31 @@ const MOCK_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQiLCJleHAiOjE3M
 const mockConfig: AuthConfig = {
   email: 'test@example.com',
   password: 'password123',
-  clientId: 'test-client',
-  clientSecret: 'test-secret',
 };
+
+const AUTH_BASE = 'https://api.autodarts.com/auth/v1';
+
+function jsonResponse(status: number, body: unknown): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(body),
+    text: () => Promise.resolve(JSON.stringify(body)),
+  } as unknown as Response;
+}
+
+function htmlResponse(status: number): Response {
+  return {
+    ok: false,
+    status,
+    json: () => Promise.reject(new SyntaxError('Unexpected token <')),
+    text: () => Promise.resolve('<!DOCTYPE html><html><title>522</title></html>'),
+  } as unknown as Response;
+}
+
+function requestBody(call: unknown[]): Record<string, unknown> {
+  return JSON.parse((call[1] as RequestInit).body as string) as Record<string, unknown>;
+}
 
 function createMockTokenResponse(expiresIn = 300): TokenResponse {
   return {
@@ -38,108 +60,158 @@ describe('AuthService', () => {
   });
 
   describe('login()', () => {
-    it('should login successfully and return access token', async () => {
-      const tokenResponse = createMockTokenResponse();
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(tokenResponse),
-      });
+    it('posts username, password and default client id as JSON to the v1 login endpoint', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
 
       const token = await authService.login();
 
       expect(token).toBe(MOCK_JWT);
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        })
+      const call = fetchMock.mock.calls[0];
+      expect(call[0]).toBe(`${AUTH_BASE}/login`);
+      expect((call[1] as RequestInit).method).toBe('POST');
+      expect((call[1] as RequestInit).headers).toEqual({ 'Content-Type': 'application/json' });
+      expect(requestBody(call)).toEqual({
+        username: 'test@example.com',
+        password: 'password123',
+        client_id: 'autodarts-play',
+      });
+    });
+
+    it('uses the configured client id instead of the default', async () => {
+      authService = new AuthService({ ...mockConfig, clientId: 'my-client' });
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+
+      await authService.login();
+
+      expect(requestBody(fetchMock.mock.calls[0]).client_id).toBe('my-client');
+    });
+
+    it('reports invalid credentials in plain words', async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(401, { statusCode: 401, error: { code: 'invalid_credentials' } })
       );
+
+      await expect(authService.login()).rejects.toThrow('Login failed: invalid email or password');
     });
 
-    it('should throw error on login failure', async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: () => Promise.resolve('Invalid credentials'),
-      });
+    it('reports the status but not an HTML error page', async () => {
+      fetchMock.mockResolvedValueOnce(htmlResponse(522));
 
-      await expect(authService.login()).rejects.toThrow('Login failed: 401');
+      const error = await authService.login().catch((e: Error) => e);
+
+      expect(error.message).toContain('522');
+      expect(error.message).not.toContain('<html');
     });
 
-    it('should extract userId from JWT', async () => {
-      const tokenResponse = createMockTokenResponse();
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(tokenResponse),
-      });
+    it('extracts the user id from the JWT', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
 
       await authService.login();
 
       expect(authService.getUserId()).toBe('test-user-id');
     });
 
-    it('should set expiry time', async () => {
-      const tokenResponse = createMockTokenResponse(300); // 5 minutes
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(tokenResponse),
-      });
+    it('sets the expiry time from expires_in', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse(300)));
 
       const before = Date.now();
       await authService.login();
       const after = Date.now();
 
       const expiresAt = authService.getExpiresAt();
-      expect(expiresAt).not.toBeNull();
       expect(expiresAt!.getTime()).toBeGreaterThanOrEqual(before + 300000);
       expect(expiresAt!.getTime()).toBeLessThanOrEqual(after + 300000);
+    });
+
+    it('defaults to 900 seconds when expires_in is missing', async () => {
+      const { expires_in: _unused, ...withoutExpiry } = createMockTokenResponse();
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, withoutExpiry));
+
+      const before = Date.now();
+      await authService.login();
+
+      expect(authService.getExpiresAt()!.getTime()).toBeGreaterThanOrEqual(before + 900000);
     });
   });
 
   describe('refresh()', () => {
-    it('should refresh token successfully', async () => {
-      // First login
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(createMockTokenResponse()),
-      });
+    it('posts the refresh token and client id to the v1 refresh endpoint', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
       await authService.login();
-
-      // Then refresh
-      const newTokenResponse = createMockTokenResponse();
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(newTokenResponse),
-      });
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
 
       const token = await authService.refresh();
 
       expect(token).toBe(MOCK_JWT);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const call = fetchMock.mock.calls[1];
+      expect(call[0]).toBe(`${AUTH_BASE}/refresh`);
+      expect(requestBody(call)).toEqual({
+        refresh_token: 'mock-refresh-token',
+        client_id: 'autodarts-play',
+      });
     });
 
-    it('should throw error if not logged in', async () => {
+    it('uses the rotated refresh token on the next refresh', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+      await authService.login();
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(200, { ...createMockTokenResponse(), refresh_token: 'rotated-token' })
+      );
+      await authService.refresh();
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+
+      await authService.refresh();
+
+      expect(requestBody(fetchMock.mock.calls[2]).refresh_token).toBe('rotated-token');
+    });
+
+    it('keeps the old refresh token when the response has none', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+      await authService.login();
+      const { refresh_token: _unused, ...withoutRefresh } = createMockTokenResponse();
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, withoutRefresh));
+      await authService.refresh();
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+
+      await authService.refresh();
+
+      expect(requestBody(fetchMock.mock.calls[2]).refresh_token).toBe('mock-refresh-token');
+    });
+
+    it('logs in again with the password when the refresh is rejected', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+      await authService.login();
+      fetchMock.mockResolvedValueOnce(jsonResponse(401, { error: { code: 'invalid_token' } }));
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+
+      const token = await authService.refresh();
+
+      expect(token).toBe(MOCK_JWT);
+      expect(fetchMock.mock.calls[2][0]).toBe(`${AUTH_BASE}/login`);
+    });
+
+    it('throws and clears tokens when refresh and re-login both fail', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
+      await authService.login();
+      fetchMock.mockResolvedValueOnce(jsonResponse(401, { error: { code: 'invalid_token' } }));
+      fetchMock.mockResolvedValueOnce(jsonResponse(401, { error: { code: 'invalid_credentials' } }));
+
+      await expect(authService.refresh()).rejects.toThrow('invalid email or password');
+      expect(authService.isAuthenticated()).toBe(false);
+    });
+
+    it('throws if not logged in', async () => {
       await expect(authService.refresh()).rejects.toThrow('No refresh token available');
     });
 
-    it('should clear tokens on refresh failure', async () => {
-      // First login
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(createMockTokenResponse()),
-      });
+    it('shares one request between concurrent refreshes', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
       await authService.login();
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, createMockTokenResponse()));
 
-      // Refresh fails
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: () => Promise.resolve('Refresh token expired'),
-      });
+      await Promise.all([authService.refresh(), authService.refresh()]);
 
-      await expect(authService.refresh()).rejects.toThrow('Token refresh failed');
-      expect(authService.isAuthenticated()).toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 

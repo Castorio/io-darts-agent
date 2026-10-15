@@ -6,15 +6,17 @@
 export interface AuthConfig {
   email: string;
   password: string;
-  clientId: string;
-  clientSecret: string;
+  /** OAuth client id, defaults to the Autodarts web app client */
+  clientId?: string;
+  /** @deprecated Not used by the v1 auth service */
+  clientSecret?: string;
 }
 
 export interface TokenResponse {
   access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  token_type: string;
+  refresh_token?: string;
+  expires_in?: number;
+  token_type?: string;
 }
 
 export interface DecodedToken {

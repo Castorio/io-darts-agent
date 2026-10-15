@@ -1,15 +1,36 @@
 import type { AuthConfig, TokenResponse, DecodedToken } from '../../types/index.js';
 
-const AUTH_URL = 'https://login.autodarts.io/realms/autodarts/protocol/openid-connect/token';
+const AUTH_BASE_URL = 'https://api.autodarts.com/auth/v1';
+
+/** Client id of the Autodarts web app; the v1 auth service accepts password logins for it */
+export const DEFAULT_CLIENT_ID = 'autodarts-play';
+
+const DEFAULT_EXPIRES_IN_SECONDS = 900;
 
 export interface AuthServiceOptions {
-  authUrl?: string;
+  authBaseUrl?: string;
   tokenRefreshBuffer?: number; // Seconds before expiry to refresh
+}
+
+/**
+ * Turn an error response into a message without echoing HTML error pages
+ * or token material.
+ */
+async function describeError(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { error?: { code?: string } | string };
+    const code = typeof body.error === 'string' ? body.error : body.error?.code;
+    if (code === 'invalid_credentials') return 'invalid email or password';
+    if (code) return `${response.status} ${code}`;
+  } catch {
+    // Not JSON (e.g. a Cloudflare error page)
+  }
+  return `${response.status}`;
 }
 
 export class AuthService {
   private config: AuthConfig;
-  private authUrl: string;
+  private authBaseUrl: string;
   private tokenRefreshBuffer: number;
 
   private accessToken: string | null = null;
@@ -17,10 +38,11 @@ export class AuthService {
   private expiresAt: Date | null = null;
   private userId: string | null = null;
   private refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+  private pendingRefresh: Promise<string> | null = null;
 
   constructor(config: AuthConfig, options: AuthServiceOptions = {}) {
     this.config = config;
-    this.authUrl = options.authUrl ?? AUTH_URL;
+    this.authBaseUrl = options.authBaseUrl ?? AUTH_BASE_URL;
     this.tokenRefreshBuffer = options.tokenRefreshBuffer ?? 60; // Default: refresh 60s before expiry
   }
 
@@ -42,61 +64,61 @@ export class AuthService {
    * Login with username/password
    */
   async login(): Promise<string> {
-    const params = new URLSearchParams();
-    params.append('grant_type', 'password');
-    params.append('client_id', this.config.clientId);
-    params.append('client_secret', this.config.clientSecret);
-    params.append('username', this.config.email);
-    params.append('password', this.config.password);
-
-    const response = await fetch(this.authUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+    const response = await this.post('/login', {
+      username: this.config.email,
+      password: this.config.password,
+      client_id: this.clientId(),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Login failed: ${response.status} - ${errorText}`);
+      this.clearTokens();
+      throw new Error(`Login failed: ${await describeError(response)}`);
     }
 
-    const data = (await response.json()) as TokenResponse;
-    this.setTokens(data);
-
+    this.setTokens((await response.json()) as TokenResponse);
     return this.accessToken!;
   }
 
   /**
-   * Refresh the access token using refresh token
+   * Refresh the access token. The service rotates refresh tokens, so the
+   * new one replaces the old. If the refresh is rejected, log in again.
    */
   async refresh(): Promise<string> {
     if (!this.refreshToken) {
       throw new Error('No refresh token available. Please login first.');
     }
 
-    const params = new URLSearchParams();
-    params.append('grant_type', 'refresh_token');
-    params.append('client_id', this.config.clientId);
-    params.append('client_secret', this.config.clientSecret);
-    params.append('refresh_token', this.refreshToken);
+    // A rotated refresh token is single use, so concurrent callers share one request
+    this.pendingRefresh ??= this.doRefresh(this.refreshToken).finally(() => {
+      this.pendingRefresh = null;
+    });
+    return this.pendingRefresh;
+  }
 
-    const response = await fetch(this.authUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+  private async doRefresh(refreshToken: string): Promise<string> {
+    const response = await this.post('/refresh', {
+      refresh_token: refreshToken,
+      client_id: this.clientId(),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      // If refresh fails, clear tokens and require re-login
-      this.clearTokens();
-      throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
+      return this.login();
     }
 
-    const data = (await response.json()) as TokenResponse;
-    this.setTokens(data);
-
+    this.setTokens((await response.json()) as TokenResponse);
     return this.accessToken!;
+  }
+
+  private clientId(): string {
+    return this.config.clientId || DEFAULT_CLIENT_ID;
+  }
+
+  private post(path: string, body: Record<string, string>): Promise<Response> {
+    return fetch(`${this.authBaseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
   }
 
   /**
@@ -196,8 +218,9 @@ export class AuthService {
    */
   private setTokens(data: TokenResponse): void {
     this.accessToken = data.access_token;
-    this.refreshToken = data.refresh_token;
-    this.expiresAt = new Date(Date.now() + data.expires_in * 1000);
+    this.refreshToken = data.refresh_token || this.refreshToken;
+    const expiresIn = data.expires_in && data.expires_in > 0 ? data.expires_in : DEFAULT_EXPIRES_IN_SECONDS;
+    this.expiresAt = new Date(Date.now() + expiresIn * 1000);
 
     const decoded = this.parseJwt(data.access_token);
     this.userId = decoded.sub;

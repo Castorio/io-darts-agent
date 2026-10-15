@@ -5,7 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2025-04-03
+> Hinweis: Datumsangaben anhand der Git-Historie korrigiert. Die gesamte
+> Repository-Historie liegt zwischen März und Mai 2026 (Initial Commit
+> 2026-03-28), nicht 2024/2025.
+
+## [Unreleased]
+
+### Added
+
+- **Intent System** (`src/core/intents/`): semantische Intent-Schicht über dem
+  EventBus für lose gekoppelte Inter-Modul-Kommunikation. Module emittieren
+  Intents, andere reagieren konfigurierbar. Die abgeleiteten/analytischen
+  Intents lagen im Player-Analytics-Modul und sind mit diesem entfernt.
+- **AI-Subsystem** (`src/core/ai/`): Provider-Abstraktion für Anthropic, OpenAI,
+  Ollama, Replicate, Runway, Stability AI und ElevenLabs.
+- **Media Library & Animation Generator** (`src/core/media/`): Medienverwaltung,
+  Upload und AI-gestützte Animationsgenerierung.
+- **Autodarts Trainer**: Trainingscoach mit Echtzeit-Empfehlungen und
+  Performance-Analyse (eigenes Repo `autodarts-trainer-module`).
+- **MQTT-Modul**: publiziert Spielereignisse an einen MQTT-Broker
+  (Home Assistant, Node-RED), eigenes Repo `autodarts-mqtt-module`.
+- **Developer-Modus** mit Event-Simulation.
+- **Module SDK** (`module-sdk/`): eigenes Paket für SDK-konforme Module.
+
+### Changed
+
+- Modul-spezifischer Code in die jeweiligen Modul-Verzeichnisse verschoben.
+- Trennung `modules/` (Entwicklung) und `modules_installed/` (Laufzeit).
+
+### Fixed
+
+- Authentifizierung am AI-Provider-Options-Endpoint ergänzt.
+- `timeSpent`-Berechnung in Trainer Pause/Resume korrigiert.
+- Veraltete `substr()`-Aufrufe durch `substring()` ersetzt.
+- Veraltete Tests für ConfigService (ENV-Credentials) und ModuleInstaller
+  repariert; Testsuite wieder vollständig grün.
+- ESLint lintet Testdateien über `tsconfig.eslint.json` (keine Parse-Fehler mehr).
+
+### Security
+
+- ModuleInstaller nutzt `execFile` ohne Shell; Git-URL und Branch können keine
+  Shell-Befehle mehr einschleusen.
+- Modul-IDs und Repository-Namen werden validiert; `uninstall('../..')` kann
+  nicht mehr außerhalb des Modulverzeichnisses löschen.
+- CORS nur noch für lokale Origins (localhost, private IPv4-Netze, `*.local`).
+
+### Removed
+
+- Player-Analytics-Modul (bereits in `834a14d`), toter Autostart-Eintrag dazu.
+- Ungenutzte WLED-Zweitimplementierung (`EventMapper`, `WledClient`).
+- Legacy-Beispielmodule `example-caller` und `ai-coach-backup-old`.
+- Prototyp `index.js` (enthielt Klartext-Zugangsdaten) und Ad-hoc-Playwright-Skripte im Root.
+- Versehentlich committete Build-Artefakte in `src/types/` und `test/`.
+
+## [1.1.0] - 2026-04-03
 
 ### Added
 
@@ -63,7 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.0] - 2024-03-30
+## [1.0.0] - 2026-03-30
 
 ### Added
 

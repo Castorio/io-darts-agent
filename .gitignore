@@ -144,6 +144,8 @@ data/tts-cache/*
 *.webp
 *.svg
 *.ico
+# Documentation screenshots are part of the repository
+!docs/images/*.png
 
 # ===================
 # Misc

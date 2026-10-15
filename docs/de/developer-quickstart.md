@@ -132,7 +132,7 @@ Dein Modul kann auf diese Events reagieren. `type` ist einer aus einer festen Me
 | `match.start` | Match startet | `matchId`, `boardId` |
 | `match.state` | Status-Update | `players`, `gameScores`, `player`, `round`, `settings` |
 | `match.delete`, `match.finish` | Match abgebrochen / Ergebnis geschlossen | `matchId`, `boardId` |
-| `throw.detected` | Wurf erkannt | `segment`, `points` *(abgeleitetes Feld, siehe Hinweis)*, `remaining`, `throwNumber` |
+| `throw.detected` | Wurf erkannt | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted` (die letzten beiden nur bei Würfen aus `match.state`) |
 | `takeout.started`, `takeout.finished` | Darts werden gerade/wurden gezogen | `boardId` |
 
 #### Synthetische Events (vom `EventParser` des Hubs aus `match.state` abgeleitet)

@@ -132,7 +132,7 @@ Your module can react to these events. `type` is one of a fixed set (`AutodartsE
 | `match.start` | Match starts | `matchId`, `boardId` |
 | `match.state` | State update | `players`, `gameScores`, `player`, `round`, `settings` |
 | `match.delete`, `match.finish` | Match cancelled / results dismissed | `matchId`, `boardId` |
-| `throw.detected` | Throw detected | `segment`, `points` *(derived field, see note)*, `remaining`, `throwNumber` |
+| `throw.detected` | Throw detected | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted` (the last two only for throws taken from `match.state`) |
 | `takeout.started`, `takeout.finished` | Darts being/just removed | `boardId` |
 
 #### Synthetic Events (derived by the hub's `EventParser` from `match.state`)

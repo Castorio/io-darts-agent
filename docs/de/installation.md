@@ -97,7 +97,7 @@ Solange keine Konfiguration existiert, öffnet die Weboberfläche den Einrichtun
 2. **Autodarts:** Trage deine Autodarts-E-Mail, dein Passwort und die Board-ID ein und teste die Verbindung.
 3. **Abschluss:** Der Hub speichert die Konfiguration und verbindet sich mit Autodarts.
 
-Danach meldet der Hub bei jedem Start `Configuration loaded - connecting to Autodarts...` und verbindet sich mit deinem Board. Zugangsdaten, Board-ID, Port und die Anmeldung der Weboberfläche kannst du später unter **Einstellungen** in der Weboberfläche ändern. Die Änderungen greifen nach einem Neustart des Hubs. Der Neustart-Knopf in den Einstellungen startet den Hub derzeit nicht neu. Starte ihn selbst neu (`Strg+C` und `npm start`, auf dem Board-PC `systemctl --user restart io-darts-agent`).
+Danach meldet der Hub bei jedem Start `Configuration loaded - connecting to Autodarts...` und verbindet sich mit deinem Board. Zugangsdaten, Board-ID, Port und die Anmeldung der Weboberfläche kannst du später unter **Einstellungen** in der Weboberfläche ändern. Die Änderungen greifen nach einem Neustart des Hubs: Klicke im Bereich Server der Einstellungen auf **Hub neu starten**. Mit `npm start` gestartet, startet der Hub eine neue Instanz von sich selbst. Als systemd-Dienst oder in der Desktop-App beendet er sich mit Code 75, und Dienst oder App starten ihn wieder. Die Seite lädt neu, sobald der Hub antwortet, bei geändertem Port auf dem neuen Port.
 
 ### Konfigurationsdatei
 
@@ -132,6 +132,7 @@ Der Hub lädt eine `.env`-Datei aus dem aktuellen Arbeitsverzeichnis. Für den n
 | Variable | Wirkung |
 |----------|---------|
 | `PORT` | Port, der nur ohne Konfigurationsdatei (Einrichtungsmodus) gilt. |
+| `IO_DARTS_DATA_DIR` | Ordner für Laufzeitdaten (`config/`, `data/`, `media/`, `modules_installed/`). Standard: `dist/`. Die Desktop-App setzt ihn auf den App-Datenordner des Benutzers. |
 | `AUTODARTS_CLIENT_ID` | Überschreibt die OAuth-Client-ID. Nicht nötig. |
 | `NODE_ENV` | `production` schaltet die Debug-Ausgabe des Intent-Bus ab. Auf das Session-Cookie wirkt es sich nicht aus: Das Cookie bekommt das `Secure`-Flag nur bei HTTPS-Anfragen, deshalb funktioniert die Web-Anmeldung auch über einfaches HTTP im LAN. |
 
@@ -367,4 +368,26 @@ Auf anderen Systemen beendest du den Hub und löschst das geklonte Verzeichnis.
 
 ## Desktop-Pakete
 
-Es gibt keine veröffentlichten Installer oder Desktop-Downloads. Das Repository enthält zwar Build-Skripte für Electron und pkg (`npm run dist:*`, `npm run build:linux` und weitere), sie funktionieren im aktuellen Stand aber nicht: Sie erwarten den Server-Einstieg unter `dist/main.js`, der Build erzeugt jedoch `dist/src/main.js`. Installiere aus dem Quellcode wie oben beschrieben.
+Es gibt noch keine veröffentlichten Installer oder Desktop-Downloads. Die Electron-Desktop-App kannst du selbst aus dem Quellcode bauen. Sie enthält den Hub, die Weboberfläche und die eingebauten Module und braucht auf dem Zielrechner keine eigene Node.js-Installation. Der macOS-Build ist getestet, die Builds für Windows und Linux nicht.
+
+Gebaut wird auf der Plattform, für die das Paket gedacht ist (auf dem Build-Rechner ist Node.js 22 nötig):
+
+```bash
+npm run setup        # Abhängigkeiten installieren (Hauptprojekt und Unterpakete)
+npm run build:app    # Backend, Weboberfläche und Game-Display-UI bauen
+npm run dist:mac     # oder: npm run dist:linux / npm run dist:win
+```
+
+Die Pakete landen in `releases/` (macOS: `.dmg` und `.zip`, Windows: NSIS-Installer und portable `.exe`, Linux: `.deb`, `.rpm` und AppImage). `npm run dist:*` führt `build:app` selbst noch einmal aus.
+
+Die Desktop-App startet den Hub im Hintergrund, öffnet die Weboberfläche in einem eigenen Fenster und zeigt ein Tray-Symbol. Schließt du das Fenster, läuft der Hub weiter. **Quit** im Tray-Menü beendet ihn. Die App schreibt nicht in ihren Installationsordner. Konfiguration, Daten, Medien und installierte Module liegen im App-Datenordner des Benutzers:
+
+| System | Datenordner |
+|--------|-------------|
+| macOS | `~/Library/Application Support/io-darts-agent/hub` |
+| Windows | `%APPDATA%\io-darts-agent\hub` |
+| Linux | `~/.config/io-darts-agent/hub` |
+
+Die App nutzt Port 3000. Ist der Port belegt, starte sie mit der Umgebungsvariable `IO_DARTS_PORT` auf einem anderen Port. Der Einrichtungsassistent speichert den Port, auf dem der Hub läuft, der Wert bleibt also nach dem Setup erhalten. Halte `IO_DARTS_PORT` und den Port in den Einstellungen gleich, denn die App öffnet den Port aus `IO_DARTS_PORT`.
+
+Der macOS-Build ist nur ad hoc signiert und nicht notarisiert. Gatekeeper warnt deshalb beim ersten Start (mit Rechtsklick und **Öffnen** starten). Die früheren eigenständigen Binaries aus pkg sind entfernt.

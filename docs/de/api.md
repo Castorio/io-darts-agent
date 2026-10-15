@@ -62,7 +62,7 @@ Mit **Public** markierte Routen in den Tabellen unten haben keine zusätzliche, 
 |---------|------|------|---------------|
 | GET | `/api/settings` | Session | Gibt die Hub-Einstellungen zurück, Geheimnisse sind maskiert (Passwörter und API-Keys werden nie zurückgegeben, nur ob sie `configured` sind). |
 | PUT | `/api/settings` | Session | Teilweise Aktualisierung. Body kann beliebige der Felder `language`, `server: { port, host }`, `webAuth: { enabled, username, password }`, `autodarts: { email, password, boardId }`, `aiProviders: { runway: { apiKey, model }, elevenlabs: { apiKey } }`, `developerMode` enthalten. Löst ein `settingsChanged`-Event auf dem Hub aus. |
-| POST | `/api/settings/restart` | Session | Signalisiert dem Hub einen Neustart (nach einer Port-Änderung). |
+| POST | `/api/settings/restart` | Session | Startet den Hub neu. Unter systemd oder in der Desktop-App beendet er sich mit Code 75 und wird wieder gestartet, sonst startet er eine abgelöste Kopie von sich selbst. |
 
 ### Match
 
@@ -318,7 +318,7 @@ Alle Nachrichten sind JSON-kodiert und haben jeweils ein `type`-Feld.
 | `match.delete` | Ein Match wird abgebrochen | `matchId`, `boardId` |
 | `match.finish` | Benutzer schließt die Ergebnisanzeige | `matchId`, `boardId` |
 | `match.state` | Jedes Match-Status-Update | `matchId`, `player`, `gameScores`, `round`, `leg`, `set`, `players`, `settings`, ... |
-| `throw.detected` | Ein Wurf wird gewertet | `segment`, `coords?`, `throwNumber`, `boardId` |
+| `throw.detected` | Ein Wurf wird gewertet | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted` (die letzten beiden nur bei Würfen aus `match.state`) |
 | `takeout.started` | Die Pfeile werden gezogen | `boardId` |
 | `takeout.finished` | Die Pfeile wurden gezogen | `boardId` |
 

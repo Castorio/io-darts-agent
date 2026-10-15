@@ -145,8 +145,8 @@ Controls WLED-compatible LED controllers based on game events.
 - Presets and effects are loaded straight from the controller, with a built-in effect list as fallback
 - Effects with up to 3 colors, speed, intensity and brightness
 - "Use player color" option per action
-- Duration per action, afterwards the current player color is restored
-- Fade time per action
+- Duration per action, afterwards the active player's color is set again (not the previous WLED state)
+- Fade time per action in milliseconds, plus a global fade time in the connection settings
 - Single-player support: player color after match start and after every takeout
 - Player colors for up to 6 positions as fallback
 - Test button per action and quick actions (Rainbow Test, LEDs off, Green, Red)
@@ -157,11 +157,11 @@ Controls WLED-compatible LED controllers based on game events.
 | Group | Events |
 |-------|--------|
 | Match Events | Match started, Match finished, Match left, Match cancelled |
-| Throw Events | Throw detected, Triple hit, Double hit, Single Bull, Bullseye!, 180!, High Finish, Miss |
+| Throw Events | Throw detected, Triple hit, Double hit, Single Bull, Bullseye!, 180!, Miss |
 | Player Events | Player changed, Turn started, Turn finished |
 | Board Events | Pulling darts, Darts pulled |
 
-**Note:** "High Finish" is listed as an event in `module.json`, but the WLED module currently never triggers it: there is no checkout detection in the throw mapping. An action configured for it has no effect until this is implemented.
+There is no "High Finish" event: the hub does not report a checkout value, so the module cannot detect it.
 
 ### Game Display Module
 
@@ -202,8 +202,9 @@ Darts caller with browser TTS, voice packs, ElevenLabs or custom audio files.
 - Player change calls with player names
 - Languages: English, German
 - Caller types: Browser TTS (played in the browser), AI Voice Pack, ElevenLabs Live AI, Custom Audio Files (played on the speakers of the hub machine)
-- Call settings: scores, high scores only, checkouts, player change, game start, game over, 180, busts, bulls, double bulls
-- Volume and delay adjustable
+- Call settings: scores, high scores only, checkouts with an upper limit for "You require ...", player change, game start, game over, 180, busts, bulls, double bulls
+- Volume and delay adjustable, browser voice, pitch and speed for Browser TTS
+- One configuration for the caller page and the generic module form; changes apply without a module restart, older stored settings are migrated automatically
 
 **ElevenLabs:**
 - Uses the ElevenLabs key from the AI provider settings
@@ -236,6 +237,9 @@ Providers are set up under **AI Provider** in the sidebar. All of them are optio
 - OpenAI and Anthropic: the model list is loaded live from the provider with the saved key. Models that are no longer offered are reported and replaced.
 - Higgsfield: key in the format `KEY_ID:KEY_SECRET`, fixed catalog with 20 text-to-video and 10 text-to-image models, separate selects for video and image model (defaults: Kling 3.0 Standard and Soul Standard)
 - Higgsfield requests are adapted per model: allowed duration, supported aspect ratio, audio off
+- Runway: fixed catalog with 23 text-to-video models from the Runway API (default: Gen-4.5), visible without a key. Retired models such as Gen-3 are reported and replaced by Gen-4.5.
+- Runway requests are adapted per model: allowed aspect ratio matching the orientation, allowed duration, audio off, prompt cut to the maximum length. Generations are sent exactly once (no automatic retry that could bill twice), status requests are retried.
+- Paid requests of all cloud providers (text, image, speech, video, embeddings) are sent exactly once. After a server error or timeout the provider may already have billed them, so the hub does not repeat them. Requests such as model lists and status are retried.
 
 > Generations cost credits at the respective provider.
 
@@ -244,6 +248,7 @@ Providers are set up under **AI Provider** in the sidebar. All of them are optio
 Creates animations for the Game Display with AI. Found in the Game Display configuration in the **Animations** tab.
 
 - **Engine**: Runway or Higgsfield, switchable, the choice is stored in `dist/config/animation-settings.json`
+- **Model**: the provider's default model from the AI settings. Runway generates text-to-video, without a placeholder image.
 - **Styles**: Fire, Ice, Neon, Gold, Cartoon, Minimal, Electric, Confetti, Smoke, Stars or a custom style with name and description
 - **Events**: 180, Bull, Double Bull, High Score (160+), Checkout, Leg Win, Match Win, Bust
 - **Batch generation**: one job per selected event

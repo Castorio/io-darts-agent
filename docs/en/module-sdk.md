@@ -515,7 +515,7 @@ Modules can react to the following Autodarts events. `type` is one of a fixed `A
 | `match.state` | Match status update | `players`, `gameScores`, `player`, `round`, `settings` |
 | `match.delete` | Match cancelled | `matchId`, `boardId` |
 | `match.finish` | User dismisses the results screen | `matchId`, `boardId` |
-| `throw.detected` | Throw detected | `segment`, `coords?`, `throwNumber`, `boardId` |
+| `throw.detected` | Throw detected | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted` (the last two only for throws taken from `match.state`) |
 | `takeout.started` | Dart removal started | `boardId` |
 | `takeout.finished` | Dart removal finished | `boardId` |
 
@@ -549,6 +549,8 @@ function getThrowEventKey(data: { turnPoints?: number; busted?: boolean; segment
   return 'throw.detected';
 }
 ```
+
+In the `throw.detected` payload `points` is the value of the dart, `turnPoints` the running turn total including this dart (180 on the third T20), and `busted` is true only on the dart that caused a bust.
 
 If your module's UI should offer per-throw-type actions, implement the same kind of derivation yourself; there is no hub-provided helper for it today.
 
@@ -798,11 +800,13 @@ async function flashEffect(duration = 1000, playerColor: string) {
 async function setColorWithFade(color: string, fadeTimeMs: number) {
   const payload = {
     seg: [{ col: [[r, g, b]] }],
-    transition: Math.round(fadeTimeMs / 100) // WLED uses 100ms units
+    tt: Math.round(fadeTimeMs / 100) // WLED uses 100ms units; tt applies to this call only
   }
   await sendToDevice(payload)
 }
 ```
+
+> **Note:** Use `tt` for a per-command fade. `transition` changes the controller's default transition for every later command.
 
 ### 7. Single-Player Support
 

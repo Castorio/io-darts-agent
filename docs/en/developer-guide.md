@@ -310,32 +310,26 @@ npm run build:modules
 npm run build:app
 ```
 
-### Standalone Binaries (pkg)
-
-**Not functional at the moment.** The pkg and Electron scripts expect the server entry at `dist/main.js`, while the build produces `dist/src/main.js`. See [Desktop packages](installation.md#desktop-packages) in the installation guide.
-
-```bash
-npm run build:linux       # releases/io-darts-agent-linux-x64
-npm run build:linux-arm   # releases/io-darts-agent-linux-arm64
-npm run build:macos
-npm run build:macos-arm
-npm run build:windows
-npm run build:all         # prebuild:dist + every platform above
-```
-
 ### Desktop App (Electron)
 
-**Not functional at the moment** (see [Desktop packages](installation.md#desktop-packages)).
+`electron/main.cjs` starts the hub (`dist/src/main.js`) as a child process with the Electron binary in Node mode (`ELECTRON_RUN_AS_NODE=1`), so the package needs no system Node.js. It passes `IO_DARTS_DATA_DIR` (per-user app data folder), `IO_DARTS_SUPERVISED=1` and `PORT` (from `IO_DARTS_PORT`, default 3000). If the hub exits with code 75 (restart request), Electron starts it again; any other exit shows an error and closes the app.
+
+Runtime data paths come from `src/core/runtimePaths.ts` (`runtimePath()`): `IO_DARTS_DATA_DIR` if set, otherwise `dist/` as before. Read-only assets (`web/dist`, the built-in modules in `modules/`) stay resolved relative to the code.
+
+The app is packaged without asar (`asar: false` in `electron-builder.yml`): the backend runs as a separate Node process with the ESM loader, reads `web/dist` and `modules/*/module.json` through plain file paths and symlinks the built-in modules into the data folder. Runtime data from a local `dist/` (`dist/config` and others) is excluded from the package.
 
 ```bash
+npm run setup               # once: dependencies
+npm run build:app           # backend, web UI, Game Display UI
 npm run electron:dev        # build + run Electron locally
-npm run electron:build      # prebuild:dist + electron-builder (current platform)
-npm run electron:build:win
-npm run electron:build:mac
-npm run electron:build:linux
-npm run electron:build:all
-# npm run dist / dist:win / dist:mac / dist:linux are aliases for the electron:build* scripts
+npm run dist:mac            # build:app + electron-builder --mac   -> releases/
+npm run dist:linux          # build:app + electron-builder --linux -> releases/
+npm run dist:win            # build:app + electron-builder --win   -> releases/
+npm run dist:all            # all three
+npx electron-builder --mac --dir   # unpacked app only, faster for testing
 ```
+
+The `dist*` scripts are aliases for the `electron:build*` scripts. Only the macOS build has been tested. Code signing and notarization are not configured (macOS falls back to an ad hoc signature). The former pkg scripts (`build:linux`, `build:macos`, `build:windows`, `build:all`) have been removed; pkg does not support Node.js 22.
 
 ### Linting
 

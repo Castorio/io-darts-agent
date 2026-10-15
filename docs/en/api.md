@@ -62,7 +62,7 @@ Routes marked **Public** in the tables below have no additional, route-specific 
 |--------|------|------|-------------|
 | GET | `/api/settings` | Session | Returns hub settings with secrets masked (passwords and API keys are never returned, only whether they are `configured`). |
 | PUT | `/api/settings` | Session | Partial update. Body may contain any of `language`, `server: { port, host }`, `webAuth: { enabled, username, password }`, `autodarts: { email, password, boardId }`, `aiProviders: { runway: { apiKey, model }, elevenlabs: { apiKey } }`, `developerMode`. Emits a `settingsChanged` event on the hub. |
-| POST | `/api/settings/restart` | Session | Signals the hub to restart (used after a port change). |
+| POST | `/api/settings/restart` | Session | Restarts the hub. Under systemd or the desktop app it exits with code 75 and is started again, otherwise it launches a detached copy of itself. |
 
 ### Match
 
@@ -318,7 +318,7 @@ All messages are JSON-encoded, each with a `type` field.
 | `match.delete` | A match is cancelled | `matchId`, `boardId` |
 | `match.finish` | User dismisses the results screen | `matchId`, `boardId` |
 | `match.state` | Any match state update | `matchId`, `player`, `gameScores`, `round`, `leg`, `set`, `players`, `settings`, ... |
-| `throw.detected` | A dart is scored | `segment`, `coords?`, `throwNumber`, `boardId` |
+| `throw.detected` | A dart is scored | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted` (the last two only for throws taken from `match.state`) |
 | `takeout.started` | Darts are being pulled | `boardId` |
 | `takeout.finished` | Darts have been pulled | `boardId` |
 

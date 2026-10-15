@@ -72,7 +72,7 @@ Die Laufzeitkonfiguration liegt in `dist/config/` (relativ zum kompilierten `dis
 | `dist/config/players.json` | Spielerprofile |
 | `dist/config/modules/` | Moduleinstellungen |
 
-Der Server-Port ist standardmäßig 3000. Die Umgebungsvariable `PORT` gilt nur vor der Einrichtung (Setup-Modus, noch keine Konfigurationsdatei). Der Setup-Assistent schreibt `server.port: 3000` in `hub.config.json`, danach gilt dieser Wert.
+Der Server-Port ist standardmäßig 3000. Die Umgebungsvariable `PORT` gilt nur vor der Einrichtung (Setup-Modus, noch keine Konfigurationsdatei). Der Setup-Assistent speichert den laufenden Port als `server.port` in `hub.config.json`, danach gilt dieser Wert.
 
 Die vollständige Anleitung, auch für einen eigenen Linux-Board-PC, der Hub und Game Display automatisch startet (`scripts/linux/`), steht in der Installationsanleitung: [Deutsch](docs/de/installation.md) | [English](docs/en/installation.md).
 
@@ -98,7 +98,7 @@ Die Modul-READMEs in `modules/` sind auf Deutsch.
 - **Frontend**: Vue 3, Vite, Pinia, Vue Router, vue-i18n, Tailwind CSS
 - **Module**: eingebaute Module laufen im Hub; über Git installierte Module laufen als eigene Node-Prozesse, per IPC angebunden; das Game Display hat eine eigene Vue-Oberfläche
 - **Tests**: Vitest, Playwright
-- **Paketierung**: Electron-Builder-Skripte (noch nicht funktionsfähig)
+- **Paketierung**: Electron-Desktop-App über electron-builder (macOS getestet)
 
 ## Mitwirken
 

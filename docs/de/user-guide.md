@@ -178,7 +178,7 @@ Ein Klick auf ein Modul öffnet die Detailseite:
 - **Starten**, **Stoppen**, **Neustarten**
 - **Autostart**: Modul startet automatisch mit dem Hub
 - Link zur modulspezifischen Konfiguration (WLED, Game Display, Darts Caller)
-- **Konfiguration**: Allgemeine Moduleinstellungen (bei Modulen ohne eigene Konfigurationsseite und beim Darts Caller)
+- **Konfiguration**: Allgemeine Moduleinstellungen (bei Modulen ohne eigene Konfigurationsseite; beim Darts Caller dieselben Werte wie auf der Caller-Seite)
 - **Intent-Reaktionen**: Wie das Modul auf Intents anderer Module reagiert (falls unterstützt)
 - **Statistiken**: Neustarts, Startzeit, verarbeitete Events, letzter Fehler
 - **Gefahrenzone**: **Modul deinstallieren** (löscht das Modul und seine Daten)
@@ -200,7 +200,8 @@ Das WLED-Modul steuert LED-Strips mit WLED-Firmware abhängig von Spielereigniss
 
 1. **WLED IP-Adresse**: IP des Controllers, z.B. `192.168.1.100`
 2. **Port**: Normalerweise `80`
-3. Klicke auf **Verbinden**. Bei Erfolg lädt der Hub die Presets und Effekte direkt vom Controller. Ohne Verbindung steht eine eingebaute Effektliste zur Verfügung.
+3. **Übergangszeit (ms)**: Globale Übergangszeit in Millisekunden, gilt für jede Aktion, deren Übergangszeit auf "Global" steht. Leer (Standard) behält die eigene Standard-Übergangszeit des Controllers, `0` bedeutet sofortiger Wechsel.
+4. Klicke auf **Verbinden**. Bei Erfolg lädt der Hub die Presets und Effekte direkt vom Controller. Ohne Verbindung steht eine eingebaute Effektliste zur Verfügung.
 
 Oben rechts kannst du das Modul starten oder stoppen.
 
@@ -211,11 +212,11 @@ Die Ereignisse sind in Gruppen sortiert:
 | Gruppe | Ereignisse |
 |--------|-----------|
 | **Match Events** | Match gestartet, Match beendet, Match verlassen, Match abgebrochen |
-| **Wurf Events** | Wurf erkannt, Triple getroffen, Double getroffen, Single Bull, Bullseye!, 180!, High Finish, Fehlwurf |
+| **Wurf Events** | Wurf erkannt, Triple getroffen, Double getroffen, Single Bull, Bullseye!, 180!, Fehlwurf |
 | **Spieler Events** | Spielerwechsel, Aufnahme gestartet, Aufnahme beendet |
 | **Board Events** | Pfeile ziehen, Pfeile gezogen |
 
-**Hinweis:** "High Finish" ist in `module.json` als Event gelistet, wird vom WLED-Modul aktuell aber nie ausgelöst: Es gibt keine Checkout-Erkennung in der Wurf-Zuordnung. Eine dafür konfigurierte Aktion bleibt wirkungslos, bis das implementiert ist.
+Ein Event "High Finish" gibt es nicht: Der Hub liefert keinen Checkout-Wert, deshalb kann das Modul ihn nicht erkennen.
 
 Für jedes Ereignis wählst du einen Aktionstyp:
 
@@ -231,8 +232,8 @@ Zusätzlich je Aktion:
 
 - **Spielerfarbe verwenden** bzw. **Spielerfarbe für Farbe 1**: Statt einer festen Farbe wird die Farbe des aktuellen Spielers genutzt
 - **Helligkeit**
-- **Dauer**: Aus, 0.5s, 1s, 2s, 3s oder 5s. Nach Ablauf stellt das Modul die Farbe des aktuellen Spielers wieder her. Bei "Aus" bleibt der Effekt bis zum nächsten Ereignis aktiv. Für Match-Start, Match-Ende und Match-Abbruch gibt es keine Wiederherstellung.
-- **Übergangszeit (Fade)**: Weicher Übergang zwischen Lichtzuständen
+- **Dauer**: Aus, 0.5s, 1s, 2s, 3s oder 5s. Nach Ablauf setzt das Modul wieder die Farbe des aktiven Spielers, mit der Aktion, die für **Spielerwechsel** eingestellt ist. Der vorherige WLED-Zustand wird nicht wiederhergestellt. Ohne Aktion für Spielerwechsel oder außerhalb eines Matches bleibt das Licht so, wie es ist. Bei "Aus" bleibt der Effekt bis zum nächsten Ereignis aktiv. Beim Match-Start ist die Dauer die Wartezeit, bis die Spielerfarbe gesetzt wird; nach Match-Ende, Match verlassen und Match-Abbruch wird nichts gesetzt.
+- **Übergangszeit (Fade)**: Global, Sofort, 0.2s, 0.5s, 1s, 2s oder 5s. "Global" nutzt die Übergangszeit aus den Verbindungseinstellungen. Der Wert wird in Millisekunden gespeichert und nur für diesen Befehl an WLED geschickt, die Standard-Übergangszeit des Controllers bleibt unverändert.
 - **Testen**: Die Aktion sofort auf dem Controller ausprobieren
 
 Speichere mit **Konfiguration speichern**.
@@ -380,24 +381,25 @@ Der Darts Caller sagt Scores, Checkouts und Spielereignisse an.
 
 ### Konfiguration
 
-Die Einstellungen verteilen sich auf zwei Stellen.
-
-**1. Modul-Detailseite, Bereich Konfiguration** (unter **Module > Darts Caller**). Hier legst du fest, wie und was angesagt wird:
+Alle Einstellungen nimmst du auf der **Caller-Seite** vor (unter **Module > Darts Caller**, Button **Caller konfigurieren**). Klicke auf **Speichern**. Die Änderungen gelten sofort, auch bei laufendem Modul, ein Neustart ist nicht nötig.
 
 | Einstellung | Beschreibung |
 |-------------|-------------|
-| **Caller aktivieren** | Caller ein- oder ausschalten |
 | **Caller-Typ** | Audioquelle der Ansagen (siehe unten) |
-| **Sprache** | Deutsch oder Englisch |
-| **Lautstärke** | 0 bis 100 |
-| **Verzögerung** | Wartezeit vor der Ansage in Millisekunden |
-| **Browser TTS Einstellungen** | Stimme, Geschwindigkeit, Tonhöhe |
-| **Voice Pack Einstellungen** | Voice Pack (alternativ auf der Caller-Seite auswählen) |
-| **ElevenLabs Einstellungen** | Voice-ID, Stability, Similarity Boost für den Live-Modus |
-| **Eigene Audio Einstellungen** | Pfad zu einem eigenen Audio-Pack |
-| **Ansage-Einstellungen** | Was angesagt wird: Scores, nur hohe Scores, Checkouts, Spielerwechsel, Spielstart, Spielende, 180, Busts, Bulls, Double Bulls |
+| **Sprache** | Deutsch oder Englisch. Gilt für die Browser-Stimme und für neue Voice Packs. Browser TTS und ElevenLabs Live KI sprechen englische Ansagetexte. |
+| **Stimme, Tonhöhe, Geschwindigkeit** | Nur bei Browser TTS: Systemstimme des Browsers, Tonhöhe und Tempo (50 bis 200 %) |
+| **ElevenLabs-Stimme** | Bei ElevenLabs Live KI die Stimme der Live-Ansagen, bei KI Voice Pack die Stimme für neue Voice Packs |
+| **Stabilität, Ähnlichkeit** | Nur bei ElevenLabs Live KI |
+| **Audio-Ordner** | Nur bei Eigene Audiodateien: Ordner mit den MP3-Dateien (Standard `caller/default`) |
+| **Lautstärke** | 0 bis 100 % |
+| **Verzögerung** | Wartezeit vor der Ansage, 0 bis 2000 ms |
+| **Caller-Verhalten** | Was angesagt wird: Punkte, nur hohe Punktzahlen (ab 100), 180, Bust, Bull, Bullseye, Spielernamen, Restpunkte ("You require ...") mit Obergrenze, Game on, Game shot |
 
-**2. Caller-Seite** (Button **Caller konfigurieren**, Tabs **Stimme**, **Events**, **Spieler**). Hier verwaltest du Voice Packs, wählst ElevenLabs-Stimmen und testest die Stimme.
+**Stimme testen** spricht bei Browser TTS sofort mit den aktuellen, noch nicht gespeicherten Einstellungen. Bei den anderen Caller-Typen löst der Test eine 180 über das laufende Modul aus und nutzt die gespeicherten Einstellungen. Speichere also vorher.
+
+Die Modul-Detailseite zeigt im Bereich **Konfiguration** dieselben Einstellungen als allgemeines Formular. Beide Stellen speichern in dieselbe Konfiguration. Dort findest du zusätzlich **Caller aktivieren**.
+
+**Ältere Konfigurationen**: Hast du den Caller mit einer älteren Version eingerichtet, übernimmt der Hub die Werte beim Start automatisch in das aktuelle Format (zum Beispiel Stimm-Typ, Systemstimme, ElevenLabs-Stimme, ausgewähltes Voice Pack, Ansage-Schalter und Checkout-Grenze). Die Datei `dist/config/modules/darts-caller.json` wird beim nächsten Speichern im neuen Format geschrieben. Einstellungen, die der Caller nicht umsetzen kann, entfallen: eigene TTS-Server-URL, Event-Sounds, Text-Vorlagen und spielerspezifische Einstellungen.
 
 ### Caller-Typen
 
@@ -406,7 +408,7 @@ Die Einstellungen verteilen sich auf zwei Stellen.
 | **Browser TTS** | Text-to-Speech des Browsers. Die Ansage erklingt in einem geöffneten Tab des Hub-Web-Interfaces. |
 | **KI Voice Pack** | Vorab erzeugte MP3-Dateien eines Voice Packs. Wiedergabe über die Lautsprecher des Hub-Rechners. |
 | **ElevenLabs Live KI** | Jede Ansage wird live bei ElevenLabs erzeugt. Wiedergabe über die Lautsprecher des Hub-Rechners. |
-| **Eigene Audiodateien** | Eigene MP3-Dateien aus einem Ordner. Wiedergabe über die Lautsprecher des Hub-Rechners. |
+| **Eigene Audiodateien** | Eigene MP3-Dateien aus einem Ordner (zum Beispiel `score_60.mp3`, `180.mp3`, `game_on.mp3`, `bust.mp3`). Wiedergabe über die Lautsprecher des Hub-Rechners. |
 
 Für die Wiedergabe auf dem Hub-Rechner nutzt der Hub `afplay` (macOS), PowerShell (Windows) oder `mpg123`, `aplay`, `paplay` bzw. `ffplay` (Linux).
 
@@ -416,7 +418,7 @@ Der Darts Caller verwendet den ElevenLabs-Schlüssel aus den [AI Provider](#ai-p
 
 1. Trage unter **AI Provider > ElevenLabs** deinen API-Schlüssel ein und aktiviere den Anbieter
 2. Starte das Modul Darts Caller neu, damit es den Schlüssel übernimmt
-3. Auf der Caller-Seite wählst du unter **Stimm-Typ** "ElevenLabs". Die Liste deiner ElevenLabs-Stimmen wird geladen.
+3. Wähle auf der Caller-Seite den **Caller-Typ** **ElevenLabs Live KI** oder **KI Voice Pack**. Die Liste deiner ElevenLabs-Stimmen wird geladen.
 
 Ist kein Schlüssel hinterlegt, zeigt die Caller-Seite **ElevenLabs nicht konfiguriert** mit einem Link zu den Einstellungen.
 
@@ -424,13 +426,11 @@ Ist kein Schlüssel hinterlegt, zeigt die Caller-Seite **ElevenLabs nicht konfig
 
 Ein Voice Pack enthält alle Ansagen als vorab erzeugte Audio-Dateien. Dadurch gibt es keine Verzögerung und keine laufenden Kosten pro Ansage.
 
-Im Bereich **Voice Packs** der Caller-Seite (sichtbar bei Stimm-Typ ElevenLabs mit konfiguriertem Schlüssel):
+Der Bereich **Voice Packs** erscheint auf der Caller-Seite beim Caller-Typ **KI Voice Pack**:
 
-- **Neues Voice Pack erstellen**: Erzeugt mit der gewählten Stimme und Sprache alle Dateien: Scores 0 bis 180, alle möglichen Checkouts 2 bis 170 und Spezial-Ansagen. Der Fortschritt wird angezeigt, die Generierung lässt sich abbrechen.
-- **Voice Pack hochladen**: Ein bestehendes Voice Pack als ZIP-Datei importieren
-- **Verfügbare Voice Packs**: Pack auswählen (wird sofort gespeichert) oder löschen
-
-Damit das Pack genutzt wird, stelle auf der Modul-Detailseite den **Caller-Typ** auf **KI Voice Pack**.
+- **Neues Voice Pack erstellen** (nur mit ElevenLabs): Erzeugt mit der gewählten ElevenLabs-Stimme und Sprache alle Dateien: Scores 0 bis 180, alle möglichen Checkouts 2 bis 170 und Spezial-Ansagen. Der Fortschritt wird angezeigt, die Generierung lässt sich abbrechen.
+- **Voice Pack hochladen**: Ein bestehendes Voice Pack als ZIP-Datei importieren (auch ohne ElevenLabs)
+- **Verfügbare Voice Packs**: Pack auswählen (wird sofort gespeichert und genutzt) oder löschen
 
 **Spielernamen**: Ist ein Voice Pack aktiv und ElevenLabs eingerichtet, erkennt der Caller beim Match-Start neue Spieler und erzeugt deren Namen automatisch mit der Stimme des Packs.
 
@@ -471,7 +471,14 @@ Die Schlüssel werden auf dem Hub-Rechner in `dist/config/ai-providers.json` ges
 
 - **OpenAI** und **Anthropic**: Sobald ein Schlüssel gespeichert ist, lädt der Hub die Modelle live beim Anbieter, die dieser Schlüssel nutzen darf. Bis dahin gilt eine eingebaute Liste. Ist ein gespeichertes Modell nicht mehr verfügbar, erscheint ein Hinweis und das erste angebotene Modell wird vorausgewählt.
 - **Higgsfield**: Fester Katalog mit 20 Text-zu-Video- und 10 Text-zu-Bild-Modellen. Es gibt zwei Auswahlfelder: **Standard-Modell** für Video (Standard: Kling 3.0 Standard) und **Bildmodell** (Standard: Soul Standard, im Katalog "SOUL").
+- **Runway**: Fester Katalog mit 23 Text-zu-Video-Modellen aus der Runway-API (Standard: Gen-4.5), auch ohne gespeicherten Schlüssel sichtbar. Ist ein gespeichertes Modell nicht mehr verfügbar (z.B. Gen-3 Alpha Turbo), erscheint ein Hinweis und Gen-4.5 wird vorausgewählt. Bis zum Speichern nutzt der Hub ebenfalls Gen-4.5.
 - Die übrigen Anbieter nutzen eine eingebaute Liste.
+
+### Runway
+
+- Das **Standard-Modell** bestimmt, mit welchem Modell der Animations-Generator arbeitet. Gen-4.5 ist das eigene Modell von Runway und kostet 12 Credits pro Sekunde. Die Preise der anderen Modelle stehen unter [docs.dev.runwayml.com/guides/pricing](https://docs.dev.runwayml.com/guides/pricing).
+- Animationen entstehen per Text-zu-Video, ohne Platzhalterbild. Der Hub passt jede Anfrage an das gewählte Modell an: erlaubtes Seitenverhältnis passend zur Ausrichtung (bevorzugt 720p), erlaubte Dauer (nächstliegender Wert), Ton aus und Prompt auf die Höchstlänge des Modells gekürzt.
+- Eine Generierung wird genau einmal gesendet. Antwortet Runway mit einem Serverfehler oder gar nicht, kann der Auftrag trotzdem gestartet und berechnet worden sein. Der Hub wiederholt ihn deshalb nicht automatisch, der Job wird als fehlgeschlagen gemeldet. Prüfe vor einem neuen Versuch das Runway-Dashboard. Statusabfragen werden weiterhin wiederholt.
 
 ### Higgsfield
 
@@ -545,7 +552,6 @@ Unter **Spieler** legst du lokale Spielerprofile an.
 
 - **WLED**: LEDs leuchten in der Spielerfarbe
 - **Game Display**: Spielerfarbe im Display, spieler-spezifische Animationen
-- **Darts Caller**: Spielerliste auf der Caller-Seite
 
 ---
 
@@ -575,7 +581,7 @@ Nützlich, um zu prüfen, ob Ereignisse ankommen und ob Module Befehle senden.
 |---------|--------|
 | **Unterstützung** | Spende über PayPal |
 | **Darstellung** | **Sprache** des Interfaces: Deutsch, English, Español, Français, Italiano, 日本語, Nederlands, Русский, Українська, 中文. Deutsch und Englisch sind vollständig übersetzt, die übrigen teilweise. |
-| **Server** | **Host** (Standard `0.0.0.0`) und **Port** (Standard 3000). Änderungen erfordern einen Neustart des Hubs. Der Host wird gespeichert, aber derzeit ignoriert: Der Hub bindet immer an `0.0.0.0`. |
+| **Server** | **Host** (Standard `0.0.0.0`) und **Port** (Standard 3000). Änderungen erfordern einen Neustart des Hubs: Nutze **Hub neu starten** neben dem Hinweis, die Seite lädt neu, sobald der Hub zurück ist. Der Host wird gespeichert, aber derzeit ignoriert: Der Hub bindet immer an `0.0.0.0`. |
 | **Web-Authentifizierung** | Login für das Web-Interface ein- oder ausschalten, Benutzername und neues Passwort |
 | **Autodarts** | E-Mail, neues Passwort und Board-ID. Ein leeres Passwortfeld behält das gespeicherte Passwort. |
 | **Entwickler-Modus** | Schaltet die Entwickler-Tools frei |
@@ -651,7 +657,7 @@ Konten mit Zwei-Faktor-Authentifizierung werden nicht unterstützt. Die Anmeldun
 
 ### Die Ansagen funktionieren nicht
 
-1. Prüfe den **Caller-Typ** auf der Modul-Detailseite
+1. Prüfe den **Caller-Typ** auf der Caller-Seite und ob **Caller aktivieren** eingeschaltet ist
 2. Bei **Browser TTS** muss ein Tab des Hub-Web-Interfaces geöffnet sein
 3. Bei Voice Pack, ElevenLabs und eigenen Audiodateien kommt der Ton aus den Lautsprechern des Hub-Rechners
 4. Prüfe Lautstärke und die Konsole auf Fehler

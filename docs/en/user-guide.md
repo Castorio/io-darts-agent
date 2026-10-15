@@ -178,7 +178,7 @@ Clicking a module opens its detail page:
 - **Start**, **Stop**, **Restart**
 - **Autostart**: the module starts together with the hub
 - Link to the module's own configuration page (WLED, Game Display, Darts Caller)
-- **Configuration**: general module settings (for modules without their own configuration page and for the Darts Caller)
+- **Configuration**: general module settings (for modules without their own configuration page; for the Darts Caller the same values as on the caller page)
 - **Intent Reactions**: how the module reacts to intents from other modules (if supported)
 - **Statistics**: restarts, start time, processed events, last error
 - **Danger Zone**: **Uninstall Module** (deletes the module and its data)
@@ -200,7 +200,8 @@ The WLED module controls LED strips running WLED firmware based on game events.
 
 1. **WLED IP address**: IP of the controller, e.g. `192.168.1.100`
 2. **Port**: usually `80`
-3. Click **Connect**. On success the hub loads presets and effects straight from the controller. Without a connection a built-in effect list is available.
+3. **Fade Time (ms)**: global transition time in milliseconds, used by every action whose fade time is set to "Global". Empty (the default) keeps the controller's own default transition, `0` means an instant change.
+4. Click **Connect**. On success the hub loads presets and effects straight from the controller. Without a connection a built-in effect list is available.
 
 You can start or stop the module at the top right.
 
@@ -211,11 +212,11 @@ Events are grouped:
 | Group | Events |
 |-------|--------|
 | **Match Events** | Match started, Match finished, Match left, Match cancelled |
-| **Throw Events** | Throw detected, Triple hit, Double hit, Single Bull, Bullseye!, 180!, High Finish, Miss |
+| **Throw Events** | Throw detected, Triple hit, Double hit, Single Bull, Bullseye!, 180!, Miss |
 | **Player Events** | Player changed, Turn started, Turn finished |
 | **Board Events** | Pulling darts, Darts pulled |
 
-**Note:** "High Finish" is listed as an event in `module.json`, but the WLED module currently never triggers it: there is no checkout detection in the throw mapping. An action configured for it has no effect until this is implemented.
+There is no "High Finish" event: the hub does not report a checkout value, so the module cannot detect it.
 
 For each event you choose an action type. The action editor is currently labeled in German only; the German label is given in brackets.
 
@@ -231,8 +232,8 @@ Per action you can also set:
 
 - **Use player color** (Spielerfarbe verwenden): use the current player's color instead of a fixed color
 - **Brightness** (Helligkeit)
-- **Duration** (Dauer): off, 0.5s, 1s, 2s, 3s or 5s. When it ends, the module restores the current player's color. With "off" the effect stays until the next event. Match start, match end and match cancel are never restored.
-- **Fade time** (Übergangszeit): smooth transition between light states
+- **Duration** (Dauer): off, 0.5s, 1s, 2s, 3s or 5s. When it ends, the module sets the active player's color again, using the action configured for **Player changed**. It does not restore the previous WLED state. Without a Player changed action, or outside a match, the light stays as it is. With "off" the effect stays until the next event. For match start the duration is the delay before the player color is set; match end, match left and match cancel set nothing afterwards.
+- **Fade time** (Übergangszeit): Global, instant (Sofort), 0.2s, 0.5s, 1s, 2s or 5s. "Global" uses the fade time from the connection settings. The value is stored in milliseconds and sent to WLED for this command only, so the controller's own default transition is not changed.
 - **Test** (Testen): try the action on the controller right away
 
 Save with **Save Configuration**.
@@ -380,24 +381,25 @@ The Darts Caller announces scores, checkouts and game events.
 
 ### Configuration
 
-The settings live in two places.
-
-**1. Module detail page, section Configuration** (under **Modules > Darts Caller**). This is where you set how and what is announced:
+All settings are on the **caller page** (under **Modules > Darts Caller**, button **Configure caller**). Click **Save**. Changes apply right away, also while the module is running; no restart is needed.
 
 | Setting | Description |
 |---------|-------------|
-| **Enable Caller** | Switch the caller on or off |
 | **Caller Type** | Audio source of the calls (see below) |
-| **Language** | English or German |
-| **Volume** | 0 to 100 |
-| **Delay (ms)** | Wait time before a call |
-| **Browser TTS Settings** | Voice, speed, pitch |
-| **Voice Pack Settings** | Voice pack (alternatively selected on the caller page) |
-| **ElevenLabs Settings** | Voice ID, stability, similarity boost for live mode |
-| **Custom Audio Settings** | Path to your own audio pack |
-| **Call Settings** | What is announced: scores, high scores only, checkouts, player change, game start, game over, 180, busts, bulls, double bulls |
+| **Language** | German or English. Used for the browser voice and for new voice packs. Browser TTS and ElevenLabs Live AI speak English announcement texts. |
+| **Voice, pitch, speed** | Browser TTS only: system voice of the browser, pitch and speed (50 to 200 %) |
+| **ElevenLabs voice** | With ElevenLabs Live AI the voice of the live calls, with AI Voice Pack the voice for new voice packs |
+| **Stability, similarity** | ElevenLabs Live AI only |
+| **Audio folder** | Custom Audio Files only: folder with the MP3 files (default `caller/default`) |
+| **Volume** | 0 to 100 % |
+| **Delay** | Wait time before a call, 0 to 2000 ms |
+| **Caller behavior** | What is announced: scores, high scores only (100 and more), 180, bust, bull, bullseye, player names, required score ("You require ...") with an upper limit, game on, game shot |
 
-**2. Caller page** (button **Configure caller**, tabs **Voice**, **Events**, **Players**). This is where you manage voice packs, choose ElevenLabs voices and test the voice.
+**Test Voice** speaks right away with the current, unsaved settings for Browser TTS. For the other caller types the test triggers a 180 through the running module and uses the saved settings, so save first.
+
+The module detail page shows the same settings as a generic form in the **Configuration** section. Both places save to the same configuration. There you also find **Enable Caller**.
+
+**Older configurations**: if you set up the caller with an older version, the hub moves the values into the current format automatically at startup (for example voice type, system voice, ElevenLabs voice, selected voice pack, announcement switches and checkout limit). The file `dist/config/modules/darts-caller.json` is written in the new format the next time you save. Settings the caller cannot implement are dropped: custom TTS server URL, event sounds, text templates and player specific settings.
 
 ### Caller types
 
@@ -406,7 +408,7 @@ The settings live in two places.
 | **Browser TTS** | The browser's text-to-speech. The call plays in an open tab of the hub web interface. |
 | **AI Voice Pack** | Pre-generated MP3 files of a voice pack. Played on the speakers of the hub machine. |
 | **ElevenLabs Live AI** | Every call is generated live at ElevenLabs. Played on the speakers of the hub machine. |
-| **Custom Audio Files** | Your own MP3 files from a folder. Played on the speakers of the hub machine. |
+| **Custom Audio Files** | Your own MP3 files from a folder (for example `score_60.mp3`, `180.mp3`, `game_on.mp3`, `bust.mp3`). Played on the speakers of the hub machine. |
 
 For playback on the hub machine the hub uses `afplay` (macOS), PowerShell (Windows) or `mpg123`, `aplay`, `paplay` or `ffplay` (Linux).
 
@@ -416,7 +418,7 @@ The Darts Caller uses the ElevenLabs key from the [AI Providers](#ai-providers) 
 
 1. Enter your API key under **AI Provider > ElevenLabs** and enable the provider
 2. Restart the Darts Caller module so it picks up the key
-3. On the caller page set **Voice Type** to "ElevenLabs". The list of your ElevenLabs voices is loaded.
+3. On the caller page choose the **Caller Type** **ElevenLabs Live AI** or **AI Voice Pack**. The list of your ElevenLabs voices is loaded.
 
 Without a key the caller page shows **ElevenLabs not configured** with a link to the settings.
 
@@ -424,13 +426,11 @@ Without a key the caller page shows **ElevenLabs not configured** with a link to
 
 A voice pack contains all calls as pre-generated audio files. That means no delay and no running cost per call.
 
-In the **Voice Packs** section of the caller page (visible with voice type ElevenLabs and a configured key):
+The **Voice Packs** section appears on the caller page with caller type **AI Voice Pack**:
 
-- **Create New Voice Pack**: generates all files with the selected voice and language: scores 0 to 180, all possible checkouts 2 to 170 and special calls. Progress is shown, and generation can be cancelled.
-- **Upload Voice Pack**: import an existing voice pack as a ZIP file
-- **Available Voice Packs**: select a pack (saved immediately) or delete it
-
-To use the pack, set **Caller Type** on the module detail page to **AI Voice Pack**.
+- **Create New Voice Pack** (ElevenLabs only): generates all files with the selected ElevenLabs voice and language: scores 0 to 180, all possible checkouts 2 to 170 and special calls. Progress is shown, and generation can be cancelled.
+- **Upload Voice Pack**: import an existing voice pack as a ZIP file (also without ElevenLabs)
+- **Available Voice Packs**: select a pack (saved and used immediately) or delete it
 
 **Player names**: with a voice pack active and ElevenLabs set up, the caller detects new players at match start and generates their names automatically with the pack's voice.
 
@@ -471,7 +471,14 @@ Keys are stored on the hub machine in `dist/config/ai-providers.json`, in plain 
 
 - **OpenAI** and **Anthropic**: as soon as a key is saved, the hub loads the models this key may use live from the provider. Until then a built-in list applies. If a saved model is no longer offered, a hint appears and the first offered model is preselected.
 - **Higgsfield**: fixed catalog with 20 text-to-video and 10 text-to-image models. There are two selects: **Default Model** for video (default: Kling 3.0 Standard) and **Image model** (default: Soul Standard, listed as "SOUL").
+- **Runway**: fixed catalog with 23 text-to-video models from the Runway API (default: Gen-4.5), visible even without a saved key. If a saved model is no longer offered (e.g. Gen-3 Alpha Turbo), a hint appears and Gen-4.5 is preselected. Until you save, the hub uses Gen-4.5 as well.
 - The other providers use a built-in list.
+
+### Runway
+
+- The **Default Model** decides which model the animation generator uses. Gen-4.5 is Runway's own model and costs 12 credits per second. Prices of the other models are listed at [docs.dev.runwayml.com/guides/pricing](https://docs.dev.runwayml.com/guides/pricing).
+- Animations are made with text-to-video, without a placeholder image. The hub adapts every request to the selected model: allowed aspect ratio matching the orientation (720p preferred), allowed duration (closest value), audio switched off and the prompt cut to the model's maximum length.
+- A generation is sent exactly once. If Runway answers with a server error or not at all, the task may still have been started and billed. The hub therefore does not repeat it automatically, the job is reported as failed. Check the Runway dashboard before trying again. Status requests are still retried.
 
 ### Higgsfield
 
@@ -545,7 +552,6 @@ In the animation and sound fields of the modules you can upload directly, pick f
 
 - **WLED**: LEDs light up in the player color
 - **Game Display**: player color on the display, player-specific animations
-- **Darts Caller**: player list on the caller page
 
 ---
 
@@ -575,7 +581,7 @@ Useful to check whether events arrive and whether modules send commands.
 |---------|---------|
 | **Support** | Donate via PayPal |
 | **Appearance** | Interface **Language**: Deutsch, English, Español, Français, Italiano, 日本語, Nederlands, Русский, Українська, 中文. German and English are complete, the others partly translated. |
-| **Server** | **Host** (default `0.0.0.0`) and **Port** (default 3000). Changes require a hub restart. The host is stored but currently ignored: the hub always binds to `0.0.0.0`. |
+| **Server** | **Host** (default `0.0.0.0`) and **Port** (default 3000). Changes require a hub restart: use **Restart hub** next to the hint; the page reloads when the hub is back. The host is stored but currently ignored: the hub always binds to `0.0.0.0`. |
 | **Web Authentication** | Switch the web interface login on or off, username and new password |
 | **Autodarts** | Email, new password and board ID. An empty password field keeps the stored password. |
 | **Developer Mode** | Unlocks the developer tools |
@@ -651,7 +657,7 @@ Accounts with two-factor authentication are not supported. The login fails.
 
 ### Voice announcements don't work
 
-1. Check the **Caller Type** on the module detail page
+1. Check the **Caller Type** on the caller page and that **Enable Caller** is switched on
 2. With **Browser TTS** a tab of the hub web interface must be open
 3. With voice pack, ElevenLabs and custom audio files the sound comes from the speakers of the hub machine
 4. Check the volume and the console for errors

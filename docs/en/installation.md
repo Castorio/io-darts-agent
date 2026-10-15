@@ -97,7 +97,7 @@ As long as no configuration exists, the web UI opens the setup wizard (`/setup`)
 2. **Autodarts:** enter your Autodarts email, password and board ID and test the connection.
 3. **Finish:** the hub saves the configuration and connects to Autodarts.
 
-After that the hub logs `Configuration loaded - connecting to Autodarts...` on every start and connects to your board. You can change the Autodarts credentials, the board ID, the port and the web UI login later under **Settings** in the web UI. These changes take effect after a restart of the hub. The restart button in the settings does not restart the hub at the moment; restart it yourself (`Ctrl+C` and `npm start`, or `systemctl --user restart io-darts-agent` on the board PC).
+After that the hub logs `Configuration loaded - connecting to Autodarts...` on every start and connects to your board. You can change the Autodarts credentials, the board ID, the port and the web UI login later under **Settings** in the web UI. These changes take effect after a restart of the hub: click **Restart hub** in the server section of the settings. Started with `npm start`, the hub launches a new copy of itself; as a systemd service or in the desktop app it exits with code 75 and the service or app starts it again. The page reloads once the hub answers, on the new port if you changed it.
 
 ### Config file
 
@@ -132,6 +132,7 @@ The hub loads a `.env` file from the current working directory. For normal opera
 | Variable | Effect |
 |----------|--------|
 | `PORT` | Port used only when no config file exists (setup mode). |
+| `IO_DARTS_DATA_DIR` | Folder for runtime data (`config/`, `data/`, `media/`, `modules_installed/`). Default: `dist/`. The desktop app sets it to the per-user app data folder. |
 | `AUTODARTS_CLIENT_ID` | Overrides the OAuth client id. Not needed. |
 | `NODE_ENV` | `production` turns off debug output of the intent bus. It does not affect the session cookie: the cookie gets the `Secure` flag only for HTTPS requests, so the web login also works over plain HTTP in the LAN. |
 
@@ -367,4 +368,26 @@ On other systems stop the hub and delete the cloned directory.
 
 ## Desktop packages
 
-There are no published installers or desktop downloads. The repository contains Electron and pkg build scripts (`npm run dist:*`, `npm run build:linux` and others), but they are not functional in the current state: they expect the server entry at `dist/main.js`, while the build produces `dist/src/main.js`. Install from source as described above.
+There are no published installers or desktop downloads yet. You can build the Electron desktop app yourself from the source code. It bundles the hub, the web UI and the built-in modules and needs no separate Node.js installation on the target machine. The macOS build has been tested, the Windows and Linux builds have not.
+
+Build on the platform you are building for (Node.js 22 required on the build machine):
+
+```bash
+npm run setup        # install dependencies (root and sub-packages)
+npm run build:app    # compile the backend, the web UI and the Game Display UI
+npm run dist:mac     # or: npm run dist:linux / npm run dist:win
+```
+
+The packages end up in `releases/` (macOS: `.dmg` and `.zip`, Windows: NSIS installer and portable `.exe`, Linux: `.deb`, `.rpm` and AppImage). `npm run dist:*` runs `build:app` again by itself.
+
+The desktop app starts the hub in the background, opens the web UI in its own window and keeps a tray icon. Closing the window keeps the hub running; **Quit** in the tray menu stops it. The app does not write into its install folder. Configuration, data, media and installed modules live in the per-user app data folder:
+
+| System | Data folder |
+|--------|-------------|
+| macOS | `~/Library/Application Support/io-darts-agent/hub` |
+| Windows | `%APPDATA%\io-darts-agent\hub` |
+| Linux | `~/.config/io-darts-agent/hub` |
+
+The app uses port 3000. If that port is taken, start it with the environment variable `IO_DARTS_PORT` set to another port. The setup wizard stores the port the hub runs on, so the value stays after setup. Keep `IO_DARTS_PORT` and the port in the settings the same, because the app opens the port from `IO_DARTS_PORT`.
+
+The macOS build is signed ad hoc only and not notarized, so Gatekeeper warns on first start (open it with right click, **Open**). The former standalone binaries built with pkg have been removed.

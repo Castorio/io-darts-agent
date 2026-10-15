@@ -72,7 +72,7 @@ Runtime configuration is stored in `dist/config/` (relative to the compiled `dis
 | `dist/config/players.json` | Player profiles |
 | `dist/config/modules/` | Module settings |
 
-The server port defaults to 3000. The `PORT` environment variable only applies before setup (setup mode, no config file yet); the setup wizard writes `server.port: 3000` to `hub.config.json`, and from then on that value is used.
+The server port defaults to 3000. The `PORT` environment variable only applies before setup (setup mode, no config file yet); the setup wizard stores the port the hub runs on as `server.port` in `hub.config.json`, and from then on that value is used.
 
 For the full guide, including a dedicated Linux board PC that starts the hub and the Game Display automatically (`scripts/linux/`), see the installation guide: [English](docs/en/installation.md) | [Deutsch](docs/de/installation.md).
 
@@ -98,7 +98,7 @@ Changes are listed in the [changelog](CHANGELOG.md).
 - **Frontend**: Vue 3, Vite, Pinia, Vue Router, vue-i18n, Tailwind CSS
 - **Modules**: built-in modules run inside the hub; modules installed from Git run as separate Node processes connected over IPC; the Game Display has its own Vue UI
 - **Tests**: Vitest, Playwright
-- **Packaging**: Electron builder scripts (not functional yet)
+- **Packaging**: Electron desktop app via electron-builder (macOS tested)
 
 ## Contributing
 

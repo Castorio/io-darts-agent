@@ -145,8 +145,8 @@ Steuert WLED-kompatible LED-Controller abhängig von Spiel-Events.
 - Presets und Effekte werden direkt vom Controller geladen, mit eingebauter Effektliste als Fallback
 - Effekte mit bis zu 3 Farben, Geschwindigkeit, Intensität und Helligkeit
 - Option "Spielerfarbe verwenden" pro Aktion
-- Dauer pro Aktion, danach Wiederherstellung der aktuellen Spielerfarbe
-- Übergangszeit (Fade) pro Aktion
+- Dauer pro Aktion, danach wird wieder die Farbe des aktiven Spielers gesetzt (nicht der vorherige WLED-Zustand)
+- Übergangszeit (Fade) pro Aktion in Millisekunden, dazu eine globale Übergangszeit in den Verbindungseinstellungen
 - Einzelspieler-Unterstützung: Spielerfarbe nach Match-Start und nach jedem Takeout
 - Spielerfarben für bis zu 6 Positionen als Fallback
 - Test-Button pro Aktion und Schnellaktionen (Rainbow Test, LEDs aus, Grün, Rot)
@@ -157,11 +157,11 @@ Steuert WLED-kompatible LED-Controller abhängig von Spiel-Events.
 | Gruppe | Events |
 |--------|--------|
 | Match Events | Match gestartet, Match beendet, Match verlassen, Match abgebrochen |
-| Wurf Events | Wurf erkannt, Triple getroffen, Double getroffen, Single Bull, Bullseye!, 180!, High Finish, Fehlwurf |
+| Wurf Events | Wurf erkannt, Triple getroffen, Double getroffen, Single Bull, Bullseye!, 180!, Fehlwurf |
 | Spieler Events | Spielerwechsel, Aufnahme gestartet, Aufnahme beendet |
 | Board Events | Pfeile ziehen, Pfeile gezogen |
 
-**Hinweis:** "High Finish" ist in `module.json` als Event gelistet, wird vom WLED-Modul aktuell aber nie ausgelöst: Es gibt keine Checkout-Erkennung in der Wurf-Zuordnung. Eine dafür konfigurierte Aktion bleibt wirkungslos, bis das implementiert ist.
+Ein Event "High Finish" gibt es nicht: Der Hub liefert keinen Checkout-Wert, deshalb kann das Modul ihn nicht erkennen.
 
 ### Game Display Modul
 
@@ -202,8 +202,9 @@ Darts-Caller mit Browser-TTS, Voice Packs, ElevenLabs oder eigenen Audiodateien.
 - Spielerwechsel-Ansagen mit Spielernamen
 - Sprachen: Deutsch, Englisch
 - Caller-Typen: Browser TTS (Wiedergabe im Browser), KI Voice Pack, ElevenLabs Live KI, Eigene Audiodateien (Wiedergabe über die Lautsprecher des Hub-Rechners)
-- Ansage-Einstellungen: Scores, nur hohe Scores, Checkouts, Spielerwechsel, Spielstart, Spielende, 180, Busts, Bulls, Double Bulls
-- Lautstärke und Verzögerung einstellbar
+- Ansage-Einstellungen: Scores, nur hohe Scores, Checkouts mit Obergrenze für "You require ...", Spielerwechsel, Spielstart, Spielende, 180, Busts, Bulls, Double Bulls
+- Lautstärke und Verzögerung einstellbar, bei Browser TTS auch Stimme, Tonhöhe und Geschwindigkeit
+- Eine gemeinsame Konfiguration für Caller-Seite und allgemeines Modulformular; Änderungen gelten ohne Modul-Neustart, ältere gespeicherte Einstellungen werden automatisch übernommen
 
 **ElevenLabs:**
 - Nutzt den ElevenLabs-Schlüssel aus den AI Provider-Einstellungen
@@ -236,6 +237,9 @@ Die Anbieter werden unter **AI Provider** in der Seitenleiste eingerichtet. Alle
 - OpenAI und Anthropic: Modellliste wird live mit dem jeweiligen Schlüssel beim Anbieter geladen. Nicht mehr angebotene Modelle werden gemeldet und ersetzt.
 - Higgsfield: Schlüssel im Format `KEY_ID:KEY_SECRET`, fester Katalog mit 20 Text-zu-Video- und 10 Text-zu-Bild-Modellen, getrennte Auswahl für Video- und Bildmodell (Standard: Kling 3.0 Standard und Soul Standard)
 - Higgsfield-Anfragen werden pro Modell angepasst: erlaubte Dauer, unterstütztes Seitenverhältnis, Ton aus
+- Runway: fester Katalog mit 23 Text-zu-Video-Modellen aus der Runway-API (Standard: Gen-4.5), auch ohne Schlüssel sichtbar. Abgeschaltete Modelle wie Gen-3 werden gemeldet und durch Gen-4.5 ersetzt.
+- Runway-Anfragen werden pro Modell angepasst: erlaubtes Seitenverhältnis passend zur Ausrichtung, erlaubte Dauer, Ton aus, Prompt auf die Höchstlänge gekürzt. Generierungen werden genau einmal gesendet (keine automatische Wiederholung, die doppelt kosten könnte), Statusabfragen werden wiederholt.
+- Kostenpflichtige Anfragen aller Cloud-Anbieter (Text, Bild, Sprache, Video, Embeddings) werden genau einmal gesendet. Nach einem Serverfehler oder Timeout kann der Anbieter sie bereits berechnet haben, deshalb wiederholt der Hub sie nicht. Abfragen wie Modelllisten und Status werden wiederholt.
 
 > Generierungen kosten beim jeweiligen Anbieter Guthaben bzw. Credits.
 
@@ -244,6 +248,7 @@ Die Anbieter werden unter **AI Provider** in der Seitenleiste eingerichtet. Alle
 Erzeugt per KI Animationen für das Game Display. Zu finden in der Game Display Konfiguration im Tab **Animationen**.
 
 - **Engine**: Runway oder Higgsfield, umschaltbar, Auswahl wird in `dist/config/animation-settings.json` gespeichert
+- **Modell**: das Standard-Modell des Anbieters aus den AI-Einstellungen. Runway erzeugt per Text-zu-Video, ohne Platzhalterbild.
 - **Stile**: Fire, Ice, Neon, Gold, Cartoon, Minimal, Electric, Confetti, Smoke, Stars oder ein eigener Stil mit Name und Beschreibung
 - **Events**: 180, Bull, Double Bull, High Score (160+), Checkout, Leg Gewinn, Match Gewinn, Bust
 - **Batch-Generierung**: Ein Job pro gewähltem Event

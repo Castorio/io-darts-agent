@@ -310,32 +310,26 @@ npm run build:modules
 npm run build:app
 ```
 
-### Standalone-Binaries (pkg)
-
-**Derzeit nicht funktionsfähig.** Die pkg- und Electron-Skripte erwarten den Server-Einstieg unter `dist/main.js`, der Build erzeugt jedoch `dist/src/main.js`. Siehe [Desktop-Pakete](installation.md#desktop-pakete) in der Installationsanleitung.
-
-```bash
-npm run build:linux       # releases/io-darts-agent-linux-x64
-npm run build:linux-arm   # releases/io-darts-agent-linux-arm64
-npm run build:macos
-npm run build:macos-arm
-npm run build:windows
-npm run build:all         # prebuild:dist + jede Plattform oben
-```
-
 ### Desktop-App (Electron)
 
-**Derzeit nicht funktionsfähig** (siehe [Desktop-Pakete](installation.md#desktop-pakete)).
+`electron/main.cjs` startet den Hub (`dist/src/main.js`) als Kindprozess mit dem Electron-Binary im Node-Modus (`ELECTRON_RUN_AS_NODE=1`). Das Paket braucht deshalb kein Node.js auf dem System. Übergeben werden `IO_DARTS_DATA_DIR` (App-Datenordner des Benutzers), `IO_DARTS_SUPERVISED=1` und `PORT` (aus `IO_DARTS_PORT`, Standard 3000). Beendet sich der Hub mit Code 75 (Neustart-Anforderung), startet Electron ihn neu. Jedes andere Ende zeigt einen Fehler und schließt die App.
+
+Die Pfade für Laufzeitdaten kommen aus `src/core/runtimePaths.ts` (`runtimePath()`): `IO_DARTS_DATA_DIR`, wenn gesetzt, sonst wie bisher `dist/`. Schreibgeschützte Assets (`web/dist`, die eingebauten Module in `modules/`) werden weiter relativ zum Code aufgelöst.
+
+Die App wird ohne asar gepackt (`asar: false` in `electron-builder.yml`): Das Backend läuft als eigener Node-Prozess mit dem ESM-Loader, liest `web/dist` und `modules/*/module.json` über normale Dateipfade und verlinkt die eingebauten Module per Symlink in den Datenordner. Laufzeitdaten aus einem lokalen `dist/` (`dist/config` und weitere) kommen nicht ins Paket.
 
 ```bash
+npm run setup               # einmalig: Abhängigkeiten
+npm run build:app           # Backend, Weboberfläche, Game-Display-UI
 npm run electron:dev        # bauen + Electron lokal starten
-npm run electron:build      # prebuild:dist + electron-builder (aktuelle Plattform)
-npm run electron:build:win
-npm run electron:build:mac
-npm run electron:build:linux
-npm run electron:build:all
-# npm run dist / dist:win / dist:mac / dist:linux sind Aliase für die electron:build*-Scripts
+npm run dist:mac            # build:app + electron-builder --mac   -> releases/
+npm run dist:linux          # build:app + electron-builder --linux -> releases/
+npm run dist:win            # build:app + electron-builder --win   -> releases/
+npm run dist:all            # alle drei
+npx electron-builder --mac --dir   # nur die entpackte App, schneller zum Testen
 ```
+
+Die `dist*`-Scripts sind Aliase für die `electron:build*`-Scripts. Getestet ist nur der macOS-Build. Codesignierung und Notarisierung sind nicht eingerichtet (macOS nutzt ersatzweise eine Ad-hoc-Signatur). Die früheren pkg-Scripts (`build:linux`, `build:macos`, `build:windows`, `build:all`) sind entfernt, pkg unterstützt Node.js 22 nicht.
 
 ### Linting
 

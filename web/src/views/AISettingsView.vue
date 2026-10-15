@@ -192,8 +192,11 @@ const replacedModels = ref<Record<string, string>>({})
 // Model the server falls back to when the saved one is retired
 const SERVER_FALLBACK_MODEL: Record<string, string> = {
   anthropic: 'claude-opus-5',
+  // Only used when nothing is saved; a saved Higgsfield id is kept (see below)
   higgsfield: 'kling-video/v3.0/std/text-to-video',
 }
+// Higgsfield sends any saved model id as is, so the UI keeps it too
+const KEEP_SAVED_MODEL_TYPES = ['higgsfield']
 const HIGGSFIELD_DEFAULT_IMAGE_MODEL = 'higgsfield-ai/soul/standard'
 
 // Models for the default model select; Higgsfield lists its video models here
@@ -201,13 +204,22 @@ function modelsFor(provider: AIProvider): ModelOption[] | undefined {
   const models = liveModels.value[provider.id] ?? providerConfigs[provider.type]?.models
   if (provider.type !== 'higgsfield') return models
   // Only video models here, so the category label would be noise
-  return models?.filter(m => m.category !== 'image').map(m => ({ id: m.id, name: m.name }))
+  return withSavedModel(
+    models?.filter(m => m.category !== 'image').map(m => ({ id: m.id, name: m.name })) ?? [],
+    savedModels.value[provider.id]
+  )
+}
+
+// A saved id outside the catalog stays selectable instead of showing a blank select
+function withSavedModel(models: ModelOption[], saved?: string): ModelOption[] {
+  return saved && !models.some(m => m.id === saved) ? [...models, { id: saved, name: saved }] : models
 }
 
 // Higgsfield image models for the second select
 function imageModelsFor(provider: AIProvider): ModelOption[] {
   if (provider.type !== 'higgsfield') return []
-  return (liveModels.value[provider.id] ?? []).filter(m => m.category === 'image')
+  const images = (liveModels.value[provider.id] ?? []).filter(m => m.category === 'image')
+  return images.length ? withSavedModel(images, provider.options?.imageModel as string | undefined) : []
 }
 
 // Cloud providers retire models; a saved model that is no longer offered is replaced
@@ -218,6 +230,7 @@ function ensureOfferedModel(provider: AIProvider) {
   const form = providerForms.value[provider.id]
   const models = modelsFor(provider)
   if (!form || !LIVE_MODEL_TYPES.includes(provider.type) || !models?.length) return
+  if (KEEP_SAVED_MODEL_TYPES.includes(provider.type) && savedModels.value[provider.id]) return
   const saved = savedModels.value[provider.id]
   // Keep a model the user picked while the live list was loading
   if (form.defaultModel !== initialModels.value[provider.id] &&

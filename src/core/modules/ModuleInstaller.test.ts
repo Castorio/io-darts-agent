@@ -284,6 +284,20 @@ describe('ModuleInstaller', () => {
       expect((gitCall![2] as { shell?: boolean }).shell).toBeFalsy();
     });
 
+    it('runs npm through cmd.exe on Windows without a shell option', async () => {
+      const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      try {
+        await installer.install({ type: 'git', url: 'https://github.com/user/repo.git' });
+      } finally {
+        Object.defineProperty(process, 'platform', platform);
+      }
+
+      const npmCall = vi.mocked(execFile).mock.calls.find((c) => c[0] === 'cmd.exe');
+      expect(npmCall![1]).toEqual(['/d', '/s', '/c', 'npm', 'install']);
+      expect((npmCall![2] as { shell?: boolean }).shell).toBeFalsy();
+    });
+
     it('rejects a git url whose repository name escapes the modules dir', async () => {
       const result = await installer.install({ type: 'git', url: 'https://example.com/..' });
 

@@ -474,15 +474,18 @@ export class ModuleInstaller extends EventEmitter {
    */
   private async execCommand(file: string, args: string[], cwd: string): Promise<string> {
     // execFile runs without a shell, so arguments are never interpreted.
-    // On Windows npm is a .cmd script that Node only starts through a shell;
-    // npm is only ever called with constant arguments.
-    const isWindowsNpm = file === 'npm' && process.platform === 'win32';
+    // On Windows npm is a .cmd script, which Node cannot start directly;
+    // run it through cmd.exe instead of shell:true (DEP0190). npm is only
+    // ever called with constant arguments.
+    const [command, commandArgs] =
+      file === 'npm' && process.platform === 'win32'
+        ? ['cmd.exe', ['/d', '/s', '/c', 'npm', ...args]]
+        : [file, args];
     try {
-      const { stdout, stderr } = await execFileAsync(isWindowsNpm ? 'npm.cmd' : file, args, {
+      const { stdout, stderr } = await execFileAsync(command, commandArgs, {
         cwd,
         timeout: this.options.timeout,
         maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-        shell: isWindowsNpm,
       });
 
       if (stderr) {

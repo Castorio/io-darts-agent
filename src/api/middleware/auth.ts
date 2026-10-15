@@ -20,9 +20,13 @@ export function createAuthMiddleware(server: APIServer) {
     request: FastifyRequest,
     reply: FastifyReply
   ): Promise<void> {
-    // If setup not completed, allow access to setup routes only
+    // If setup not completed, the web UI loads but the API only answers setup routes
     if (server.isSetupRequired()) {
-      if (!request.url.startsWith('/api/setup')) {
+      // Resolve dot segments so /x/../api/... cannot pass as a UI path
+      const pathname = new URL(request.url, 'http://localhost').pathname;
+      const isApi = pathname === '/api' || pathname.startsWith('/api/');
+      const isSetupApi = pathname === '/api/setup' || pathname.startsWith('/api/setup/');
+      if (isApi && !isSetupApi) {
         reply.code(403).send({
           statusCode: 403,
           error: 'Forbidden',

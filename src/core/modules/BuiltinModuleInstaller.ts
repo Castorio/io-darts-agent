@@ -15,6 +15,27 @@ export interface BuiltinModuleInstallerOptions {
 
 const DEFAULT_BUILTIN_MODULES = ['wled', 'darts-caller', 'game-display'];
 
+function hasManifests(dir: string): boolean {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .some((e) => e.isDirectory() && fs.existsSync(path.join(dir, e.name, 'module.json')));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Directory holding the built-in modules with their module.json
+ *
+ * tsc only compiles module sources into dist/modules, so a build from
+ * source keeps the manifests (and the modules' own builds) in ../modules.
+ */
+export function resolveBuiltinModulesDir(distDir: string): string {
+  const sourceDir = path.join(distDir, '..', 'modules');
+  return hasManifests(sourceDir) ? path.resolve(sourceDir) : path.join(distDir, 'modules');
+}
+
 /**
  * Recursively copy a directory
  */

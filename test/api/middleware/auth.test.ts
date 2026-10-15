@@ -42,6 +42,32 @@ describe('Auth Middleware', () => {
       expect(mockReply.send).not.toHaveBeenCalled();
     });
 
+    it.each(['/', '/setup', '/assets/index-abc.js', '/favicon.ico'])(
+      'serves the web UI at %s while setup is required so the wizard can load',
+      async (url) => {
+        (mockServer.isSetupRequired as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        mockRequest.url = url;
+
+        const middleware = createAuthMiddleware(mockServer as APIServer);
+        await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+
+        expect(mockReply.code).not.toHaveBeenCalled();
+      }
+    );
+
+    it.each(['/api/settings', '/api', '/api/setupx', '/module-ui/../api/status'])(
+      'still blocks the API at %s while setup is required',
+      async (url) => {
+        (mockServer.isSetupRequired as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        mockRequest.url = url;
+
+        const middleware = createAuthMiddleware(mockServer as APIServer);
+        await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+
+        expect(mockReply.code).toHaveBeenCalledWith(403);
+      }
+    );
+
     it('should block non-setup routes when setup is required', async () => {
       (mockServer.isSetupRequired as ReturnType<typeof vi.fn>).mockReturnValue(true);
       mockRequest.url = '/api/status';

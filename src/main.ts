@@ -32,6 +32,7 @@ import { APIConfigService } from './core/config/ConfigService.js';
 import { AuthService } from './core/auth/AuthService.js';
 import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
 import { ModuleBridge } from './core/modules/ModuleBridge.js';
+import { resolveBuiltinModulesDir } from './core/modules/BuiltinModuleInstaller.js';
 import { getModuleRouteRegistry, type ModuleRouteRequest, type ModuleRouteResponse } from './core/modules/ModuleRouteRegistry.js';
 import type { RoutesRegisterPayload } from './types/modules.js';
 import { spawn, ChildProcess } from 'child_process';
@@ -1084,7 +1085,7 @@ async function main(): Promise<void> {
 
   // Module Installer
   const modulesDir = path.join(__dirname, '..', 'modules_installed');
-  const builtinModulesDir = path.join(__dirname, '..', 'modules');
+  const builtinModulesDir = resolveBuiltinModulesDir(path.join(__dirname, '..'));
   const moduleInstaller = new ModuleInstaller({ modulesDir });
 
   // Built-in modules that should be auto-installed on first run
@@ -1910,7 +1911,7 @@ async function main(): Promise<void> {
   // Serve module UIs from their own folders
   // Each module can have a /web/dist folder with its built frontend
   // Check both /modules/ (builtin) and /modules_installed/ (external)
-  const modulesSourceDir = path.join(__dirname, '..', 'modules');
+  const modulesSourceDir = resolveBuiltinModulesDir(path.join(__dirname, '..'));
   const modulesInstalledDir = path.join(__dirname, '..', 'modules_installed');
   fastify.register(async (instance) => {
     instance.get('/module-ui/:moduleId/*', async (request, reply) => {

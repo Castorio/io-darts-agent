@@ -54,6 +54,7 @@ const isAvailable = ref(false)
 const engine = ref('runway')
 const engines = ref<Array<{ id: string; name: string; available: boolean }>>([])
 const engineMessage = ref<string | null>(null)
+const isSwitchingEngine = ref(false)
 const isLoading = ref(true)
 const styles = ref<AnimationStyle[]>([])
 const jobs = ref<AnimationJob[]>([])
@@ -86,15 +87,18 @@ const failedJobs = computed(() => jobs.value.filter((j) => j.status === 'failed'
 // Methods
 async function changeEngine() {
   error.value = null
+  isSwitchingEngine.value = true
   try {
     const info = await api.setAnimationEngine(engine.value)
     engines.value = info.engines
     const name = info.engines.find((e) => e.id === info.engine)?.name ?? info.engine
     engineMessage.value = t('animationGen.engineChanged', { name })
+    setTimeout(() => (engineMessage.value = null), 4000)
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
   await loadData()
+  isSwitchingEngine.value = false
 }
 
 async function loadData() {
@@ -304,7 +308,8 @@ onUnmounted(() => {
       <select
         id="animation-engine"
         v-model="engine"
-        class="px-3 py-2 rounded-lg bg-dark-700 border border-dark-600 text-white focus:border-autodarts-500 outline-none"
+        :disabled="isSwitchingEngine"
+        class="px-3 py-2 rounded-lg bg-dark-700 border border-dark-600 text-white focus:border-autodarts-500 outline-none disabled:opacity-50"
         @change="changeEngine"
       >
         <option v-for="e in engines" :key="e.id" :value="e.id">

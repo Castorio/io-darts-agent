@@ -881,7 +881,7 @@ export default {
     loadError: 'Error loading',
     generateError: 'Error generating',
     notAvailable: 'AI Generation not available',
-    notAvailableDesc: 'To generate AI animations, the selected engine (Runway or Higgsfield) must be set up; Higgsfield in the',
+    notAvailableDesc: 'To generate AI animations, the selected engine (Runway or Higgsfield) must be set up. Set up Higgsfield in the',
     aiSettings: 'AI Settings',
     engine: 'Engine',
     engineNotConfigured: 'not set up',

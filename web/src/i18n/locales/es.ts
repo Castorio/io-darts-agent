@@ -463,7 +463,7 @@ export default {
     loadError: 'Error al cargar',
     generateError: 'Error al generar',
     notAvailable: 'Generación IA no disponible',
-    notAvailableDesc: 'Para generar animaciones con IA, el motor elegido (Runway o Higgsfield) debe estar configurado; Higgsfield en la',
+    notAvailableDesc: 'Para generar animaciones con IA, el motor elegido (Runway o Higgsfield) debe estar configurado. Configura Higgsfield en la',
     aiSettings: 'Configuración de IA',
     engine: 'Motor',
     engineNotConfigured: 'sin configurar',

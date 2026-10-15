@@ -881,7 +881,7 @@ export default {
     loadError: 'Fehler beim Laden',
     generateError: 'Fehler beim Generieren',
     notAvailable: 'KI-Generierung nicht verfügbar',
-    notAvailableDesc: 'Um KI-Animationen zu generieren, muss die gewählte Engine (Runway oder Higgsfield) eingerichtet sein, Higgsfield in den',
+    notAvailableDesc: 'Um KI-Animationen zu generieren, muss die gewählte Engine (Runway oder Higgsfield) eingerichtet sein. Higgsfield richtest du ein unter',
     aiSettings: 'AI Einstellungen',
     engine: 'Engine',
     engineNotConfigured: 'nicht eingerichtet',

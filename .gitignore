@@ -104,15 +104,6 @@ Desktop.ini
 *.ipr
 *.iws
 
-# Local working files (notes, plans, assistant config)
-.claudeclaw.json
-.claude/
-CLAUDE.md
-AGENTS.md
-.planning/
-docs/superpowers/
-PROJEKTPLAN.md
-autodarts_websocket_doku.md
 
 # Vim
 *.swp
@@ -184,5 +175,3 @@ test/**/*.js
 test/**/*.js.map
 test/**/*.d.ts
 test/**/*.d.ts.map
-# Local symlink to a separately developed module
-modules/autodarts-trainer

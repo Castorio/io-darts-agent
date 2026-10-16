@@ -266,7 +266,13 @@ export class ModuleBridge extends EventEmitter {
     });
 
     socket.on('error', (err) => {
-      this.emit('error', err);
+      // A module that dies mid-connection resets the socket (ECONNRESET on
+      // Linux); close follows and reports the disconnect. An 'error' event
+      // without a listener would throw and take the hub down.
+      console.warn(`[ModuleBridge] ${this.moduleId}: socket error: ${err.message}`);
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', err);
+      }
     });
   }
 

@@ -708,7 +708,9 @@ export abstract class AutodartsModule extends EventEmitter {
       this.socket.on('error', (err) => {
         if (!this.connected) {
           reject(err);
-        } else {
+        } else if (this.listenerCount('error') > 0) {
+          // Without a listener an 'error' event would end the module process;
+          // close follows and starts the reconnect
           this.emit('error', err);
         }
       });

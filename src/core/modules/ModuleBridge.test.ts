@@ -379,4 +379,21 @@ describe('ModuleBridge', () => {
       client.destroy();
     });
   });
+
+  describe('connection reset by the module', () => {
+    it('does not throw when nobody listens for errors and reports the disconnect', async () => {
+      await bridge.start();
+      const socket = net.createConnection(socketPath);
+      await new Promise<void>((resolve) => socket.on('connect', resolve));
+      await new Promise((r) => setTimeout(r, 20));
+
+      const disconnected = new Promise<void>((resolve) => bridge.once('disconnected', () => resolve()));
+      // What Linux reports when the module process dies mid-connection
+      const serverSide = (bridge as unknown as { client: net.Socket }).client;
+      expect(() => serverSide.emit('error', Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }))).not.toThrow();
+      socket.destroy();
+
+      await disconnected;
+    });
+  });
 });

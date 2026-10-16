@@ -33,6 +33,8 @@ function assertValidModuleId(moduleId: string): void {
 interface InstallerOptions {
   modulesDir: string;
   timeout: number;
+  /** The hub's module SDK, linked into modules that cannot resolve their own */
+  sdkPath?: string;
 }
 
 const DEFAULT_OPTIONS: InstallerOptions = {
@@ -235,18 +237,25 @@ export class ModuleInstaller extends EventEmitter {
     this.emit('progress', { step: 'git-clone', message: `Cloning ${source.url}...` });
     await this.execCommand('git', cloneArgs, this.options.modulesDir);
 
-    // Run npm install (including devDependencies for build)
-    this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
-    await this.execCommand('npm', NPM_INSTALL_WITH_DEV, targetPath);
+    let manifest: ModuleManifest;
+    try {
+      // Run npm install (including devDependencies for build)
+      this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
+      await this.execCommand('npm', NPM_INSTALL_WITH_DEV, targetPath);
 
-    // Fix SDK symlink if it uses relative path
-    await this.fixSdkLink(targetPath);
+      // Fix SDK symlink if it uses relative path
+      await this.fixSdkLink(targetPath);
 
-    // Build the module if it has a build script
-    await this.buildModule(targetPath);
+      // Build the module if it has a build script
+      await this.buildModule(targetPath);
 
-    // Read and validate manifest
-    const manifest = await this.readManifest(targetPath);
+      // Read and validate manifest
+      manifest = await this.readManifest(targetPath);
+    } catch (err) {
+      // A half installed clone would show up as a broken module and block a retry
+      await fs.rm(targetPath, { recursive: true, force: true });
+      throw err;
+    }
 
     return {
       success: true,
@@ -335,54 +344,45 @@ export class ModuleInstaller extends EventEmitter {
    * After git clone, the relative path in package.json may point to wrong location
    */
   private async fixSdkLink(modulePath: string): Promise<void> {
-    const sdkLinkPath = path.join(modulePath, 'node_modules', '@autodarts-hub', 'module-sdk');
-
+    const SDK_PACKAGE = '@autodarts-hub/module-sdk';
+    let declared = false;
     try {
-      // Check if the SDK link exists
-      const stats = await fs.lstat(sdkLinkPath);
+      const pkg = JSON.parse(await fs.readFile(path.join(modulePath, 'package.json'), 'utf-8')) as {
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      } | null;
+      declared = !!(pkg?.dependencies?.[SDK_PACKAGE] ?? pkg?.devDependencies?.[SDK_PACKAGE]);
+    } catch {
+      return; // no readable package.json, nothing to link
+    }
+    if (!declared) return;
 
-      if (stats.isSymbolicLink()) {
-        // Check if the symlink target actually exists
-        try {
-          await fs.access(sdkLinkPath);
-          // Link is valid, nothing to do
-          return;
-        } catch {
-          // Broken symlink - need to fix it
-        }
+    // Modules often point to the SDK with a file: path of their author's
+    // machine; npm then leaves a missing link, a broken one or an empty folder
+    const sdkLinkPath = path.join(modulePath, 'node_modules', '@autodarts-hub', 'module-sdk');
+    if (await this.exists(path.join(sdkLinkPath, 'package.json'))) return;
 
-        // Remove broken symlink
-        await fs.unlink(sdkLinkPath);
+    const sdkPath = this.options.sdkPath ?? path.resolve(this.options.modulesDir, '..', 'module-sdk');
+    if (!(await this.exists(path.join(sdkPath, 'package.json')))) {
+      this.emit('progress', {
+        step: 'fix-sdk-warning',
+        message: `Warning: module-sdk not found at ${sdkPath}, module may not build correctly`,
+      });
+      return;
+    }
 
-        // Get the correct SDK path (relative to project root)
-        // modulesDir is typically ./modules_installed, SDK is in ./module-sdk
-        const projectRoot = path.resolve(this.options.modulesDir, '..');
-        const sdkPath = path.join(projectRoot, 'module-sdk');
+    await fs.rm(sdkLinkPath, { recursive: true, force: true });
+    await fs.mkdir(path.dirname(sdkLinkPath), { recursive: true });
+    await fs.symlink(sdkPath, sdkLinkPath, 'dir');
+    this.emit('progress', { step: 'fix-sdk', message: 'Linked the hub module SDK' });
+  }
 
-        // Check if SDK exists at project root
-        try {
-          await fs.access(sdkPath);
-
-          // Create the @autodarts-hub directory if needed
-          await fs.mkdir(path.dirname(sdkLinkPath), { recursive: true });
-
-          // Create new symlink with absolute path
-          await fs.symlink(sdkPath, sdkLinkPath, 'dir');
-
-          this.emit('progress', { step: 'fix-sdk', message: 'Fixed SDK symlink' });
-        } catch {
-          // SDK not found at project root, module may need manual configuration
-          this.emit('progress', {
-            step: 'fix-sdk-warning',
-            message: 'Warning: Could not locate module-sdk, module may not build correctly'
-          });
-        }
-      }
-    } catch (err) {
-      // SDK link doesn't exist (no @autodarts-hub dependency), that's fine
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw err;
-      }
+  private async exists(file: string): Promise<boolean> {
+    try {
+      await fs.access(file);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -505,8 +505,10 @@ export class ModuleInstaller extends EventEmitter {
 
       return stdout;
     } catch (err) {
-      const error = err as Error & { stderr?: string };
-      throw new Error(`Command failed: ${file} ${args.join(' ')}\n${error.stderr || error.message}`);
+      const error = err as Error & { stderr?: string; stdout?: string };
+      // tsc reports its errors on stdout, so include the end of it
+      const output = [error.stderr, error.stdout?.slice(-2000)].filter((part) => part && part.trim()).join('\n');
+      throw new Error(`Command failed: ${file} ${args.join(' ')}\n${output || error.message}`);
     }
   }
 

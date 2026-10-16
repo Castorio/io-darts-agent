@@ -152,6 +152,58 @@ describe('ModuleInstaller', () => {
     });
   });
 
+  describe('failed installation', () => {
+    it('removes the cloned folder when the build fails', async () => {
+      vi.mocked(fs.readFile).mockImplementation(async (file) =>
+        String(file).endsWith('package.json') ? JSON.stringify({ scripts: { build: 'tsc' } }) : JSON.stringify(TEST_MANIFEST)
+      );
+      vi.mocked(execFile).mockImplementation(((file: string, args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
+        if (file === 'npm' && args[0] === 'run') cb(Object.assign(new Error('tsc: not found'), { stderr: 'tsc: not found' }));
+        else cb(null, { stdout: '', stderr: '' });
+      }) as never);
+
+      const result = await installer.install({ type: 'git', url: 'https://github.com/user/broken-module.git' });
+
+      expect(result.success).toBe(false);
+      expect(fs.rm).toHaveBeenCalledWith(path.join(testModulesDir, 'broken-module'), { recursive: true, force: true });
+    });
+  });
+
+  describe('module SDK link', () => {
+    const sdkPath = '/hub/module-sdk';
+    const modulePath = path.join(testModulesDir, 'autodarts-mqtt-module');
+    const link = path.join(modulePath, 'node_modules', '@autodarts-hub', 'module-sdk');
+
+    beforeEach(() => {
+      installer = new ModuleInstaller({ modulesDir: testModulesDir, sdkPath });
+      vi.mocked(fs.readFile).mockImplementation(async (file) =>
+        String(file).endsWith('package.json')
+          ? JSON.stringify({ dependencies: { '@autodarts-hub/module-sdk': 'file:../AutodartsClient/module-sdk' } })
+          : JSON.stringify(TEST_MANIFEST)
+      );
+    });
+
+    it('links the hub SDK when the module points to a path that does not exist here', async () => {
+      // npm leaves an empty @autodarts-hub folder for the unreachable file: dependency
+      vi.mocked(fs.access).mockImplementation(async (p) => {
+        if (String(p) === sdkPath || String(p) === path.join(sdkPath, 'package.json')) return
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      });
+
+      await installer.refreshAt(modulePath);
+
+      expect(fs.symlink).toHaveBeenCalledWith(sdkPath, link, 'dir');
+    });
+
+    it('keeps a working SDK link', async () => {
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+
+      await installer.refreshAt(modulePath);
+
+      expect(fs.symlink).not.toHaveBeenCalled();
+    });
+  });
+
   describe('refreshAt()', () => {
     it('pulls, installs with dev dependencies and builds a module at any folder name', async () => {
       vi.mocked(fs.readFile).mockImplementation(async (file) =>
@@ -176,10 +228,13 @@ describe('ModuleInstaller', () => {
   describe('update()', () => {
     it('should update a git module', async () => {
       vi.mocked(fs.access).mockResolvedValue(undefined); // all checks pass
-      vi.mocked(fs.readFile)
-        .mockResolvedValueOnce(JSON.stringify({ ...TEST_MANIFEST, version: '1.0.0' })) // module.json before pull
-        .mockResolvedValueOnce(JSON.stringify({ name: 'test-module' })) // package.json (buildModule)
-        .mockResolvedValueOnce(JSON.stringify({ ...TEST_MANIFEST, version: '1.1.0' })); // module.json after pull
+      // module.json is read before and after the pull; package.json by the SDK check and the build
+      let manifestReads = 0;
+      vi.mocked(fs.readFile).mockImplementation(async (file) => {
+        if (String(file).endsWith('package.json')) return JSON.stringify({ name: 'test-module' });
+        manifestReads++;
+        return JSON.stringify({ ...TEST_MANIFEST, version: manifestReads === 1 ? '1.0.0' : '1.1.0' });
+      });
 
       const handler = vi.fn();
       installer.on('updated', handler);

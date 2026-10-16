@@ -1135,7 +1135,8 @@ async function main(): Promise<void> {
   // Module Installer
   const modulesDir = runtimePath('modules_installed');
   const builtinModulesDir = resolveBuiltinModulesDir(path.join(__dirname, '..'));
-  const moduleInstaller = new ModuleInstaller({ modulesDir });
+  // The hub's own module SDK next to dist/, for modules that point to an SDK path of their author's machine
+  const moduleInstaller = new ModuleInstaller({ modulesDir, sdkPath: path.resolve(__dirname, '..', '..', 'module-sdk') });
 
   // Built-in modules that should be auto-installed on first run
   const BUILTIN_MODULES = ['wled', 'darts-caller', 'game-display'];

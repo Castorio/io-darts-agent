@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { copyText } from '../lib/clipboard'
 import { onMounted, ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '../api/client'
@@ -318,12 +319,10 @@ async function deleteFile(file: MediaFile) {
 
 // Copy URL to clipboard
 async function copyUrl(url: string) {
-  try {
-    await navigator.clipboard.writeText(window.location.origin + url)
-    message.value = { type: 'success', text: t('media.urlCopied') }
-  } catch {
-    message.value = { type: 'error', text: t('media.copyError') }
-  }
+  const copied = await copyText(window.location.origin + url)
+  message.value = copied
+    ? { type: 'success', text: t('media.urlCopied') }
+    : { type: 'error', text: t('media.copyError') }
 
   setTimeout(() => {
     message.value = null

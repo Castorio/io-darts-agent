@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MediaService } from './MediaService.js';
-import { rm, readdir } from 'fs/promises';
-import { join } from 'path';
+import { rm, readdir, mkdir, writeFile } from 'fs/promises';
+import { join, dirname } from 'path';
 import { Readable } from 'stream';
 
 const TEST_MEDIA_PATH = './test-media-temp';
@@ -221,6 +221,36 @@ describe('MediaService', () => {
   describe('getMaxFileSize()', () => {
     it('should return configured max file size', () => {
       expect(service.getMaxFileSize()).toBe(1024 * 1024);
+    });
+  });
+
+  describe('listing only shows media', () => {
+    async function put(rel: string): Promise<void> {
+      const full = join(TEST_MEDIA_PATH, rel);
+      await mkdir(dirname(full), { recursive: true });
+      await writeFile(full, 'x');
+    }
+
+    it('hides hidden files and files of other types in a folder listing', async () => {
+      await put('animation/goal.webm');
+      await put('animation/.animation-jobs.json');
+      await put('animation/notes.txt');
+      await put('animation/.DS_Store');
+
+      const names = (await service.listFiles('animation')).map((f) => f.filename);
+
+      expect(names).toEqual(['goal.webm']);
+    });
+
+    it('hides them in the recursive listing and skips hidden folders', async () => {
+      await put('sound/calls/180.mp3');
+      await put('sound/calls/.cache.json');
+      await put('sound/.hidden/secret.mp3');
+      await put('sound/readme.md');
+
+      const names = (await service.listFiles('sound', '*')).map((f) => f.filename);
+
+      expect(names).toEqual(['180.mp3']);
     });
   });
 });

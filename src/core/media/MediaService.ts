@@ -333,7 +333,7 @@ export class MediaService {
     const mediaFiles: MediaFile[] = [];
 
     for (const entry of entries) {
-      if (!entry.isFile()) continue;
+      if (!entry.isFile() || !this.isListableMedia(type, entry.name)) continue;
 
       const filename = entry.name;
       const filePath = join(dirPath, filename);
@@ -366,6 +366,16 @@ export class MediaService {
   }
 
   /**
+   * Only real media of this type: no hidden files (such as the animation
+   * generator's job list) and no other file types
+   */
+  private isListableMedia(type: MediaType, filename: string): boolean {
+    if (filename.startsWith('.')) return false;
+    const mimeType = this.getMimeTypeFromExt(extname(filename).toLowerCase());
+    return ALLOWED_MIME_TYPES[type].includes(mimeType);
+  }
+
+  /**
    * List files recursively from all subfolders
    */
   private async listFilesRecursive(
@@ -382,12 +392,14 @@ export class MediaService {
       for (const entry of entries) {
         const entryPath = join(dirPath, entry.name);
 
+        if (entry.name.startsWith('.')) continue;
+
         if (entry.isDirectory()) {
           // Recurse into subdirectory
           const subFolder = currentFolder ? `${currentFolder}/${entry.name}` : entry.name;
           const subFiles = await this.listFilesRecursive(type, baseDir, subFolder);
           mediaFiles.push(...subFiles);
-        } else if (entry.isFile()) {
+        } else if (entry.isFile() && this.isListableMedia(type, entry.name)) {
           const filename = entry.name;
           const stats = await stat(entryPath);
           const ext = extname(filename).toLowerCase();
@@ -477,7 +489,7 @@ export class MediaService {
       const entries = await readdir(dirPath, { withFileTypes: true });
 
       for (const entry of entries) {
-        if (entry.isDirectory()) {
+        if (entry.isDirectory() && !entry.name.startsWith('.')) {
           const folderPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
           const fullPath = join(baseDir, folderPath);
 

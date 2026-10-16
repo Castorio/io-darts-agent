@@ -35,6 +35,7 @@ import { ModuleBridge } from './core/modules/ModuleBridge.js';
 import { resolveBuiltinModulesDir } from './core/modules/BuiltinModuleInstaller.js';
 import { runtimePath } from './core/runtimePaths.js';
 import { restartProcess } from './core/system/restart.js';
+import { createStartOnce } from './core/modules/startOnce.js';
 import { isValidModuleId, resolveModuleUiFile } from './core/modules/moduleUiPath.js';
 import { getModuleRouteRegistry, type ModuleRouteRequest, type ModuleRouteResponse } from './core/modules/ModuleRouteRegistry.js';
 import type { RoutesRegisterPayload } from './types/modules.js';
@@ -251,13 +252,16 @@ function unregisterModuleIntents(mod: InstalledModule): void {
 /**
  * Start an external SDK-based module as a separate Node.js process
  */
-async function startExternalModule(mod: InstalledModule): Promise<void> {
-  const entryPoint = path.join(mod.path, mod.manifest.entry);
+async function spawnExternalModule(mod: InstalledModule): Promise<void> {
+  const linkedEntry = path.join(mod.path, mod.manifest.entry);
 
   // Check if entry point exists
-  if (!fs.existsSync(entryPoint)) {
-    throw new Error(`Module entry point not found: ${entryPoint}`);
+  if (!fs.existsSync(linkedEntry)) {
+    throw new Error(`Module entry point not found: ${linkedEntry}`);
   }
+  // Real path: modules_installed is often a symlink, and SDK modules start
+  // only when import.meta.url (resolved) matches process.argv[1]
+  const entryPoint = fs.realpathSync(linkedEntry);
 
   // Create IPC bridge for communication
   const socketPath = path.join(process.env.TMPDIR || '/tmp', `autodarts-hub-${mod.id}.sock`);
@@ -335,6 +339,13 @@ async function startExternalModule(mod: InstalledModule): Promise<void> {
       resolve();
     });
 }
+
+// Autostart and the start button can fire for the same module; start it once
+const startExternalModule = createStartOnce<InstalledModule>(
+  (mod) => !!mod.process && mod.process.exitCode === null,
+  spawnExternalModule,
+  (mod) => mod.id
+);
 
 /**
  * Stop all running external modules, so no orphaned module process

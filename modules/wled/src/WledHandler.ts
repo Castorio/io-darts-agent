@@ -114,6 +114,9 @@ export class WledHandler {
   private logger: WledLoggerInterface | null = null;
 
   // Current match state for player info lookup
+  // Player color waiting for the first match state of a new match. The board
+  // often sends it only with the first dart, long after the start animation.
+  private pendingStartColor: { action: WledAction; source: string } | null = null;
   private currentMatchState: {
     playerIndex: number;
     playerName: string;
@@ -240,6 +243,12 @@ export class WledHandler {
         players,
       };
       this.log(`Updated match state: player ${playerIndex} (${this.currentMatchState.playerName})`);
+
+      if (this.pendingStartColor) {
+        const { action, source } = this.pendingStartColor;
+        this.pendingStartColor = null;
+        await this.applyPlayerColorNow(action, source);
+      }
     }
 
     // Update current match state from player.change events
@@ -294,6 +303,9 @@ export class WledHandler {
 
     // Special handling for match.start: Apply player color after optional start animation
     if (event.type === 'match.start') {
+      // A new match: wait for its own state instead of using the previous one
+      this.currentMatchState = null;
+      this.pendingStartColor = null;
       this.handleMatchStartPlayerColor(event);
     }
 
@@ -348,6 +360,7 @@ export class WledHandler {
     // This ensures match.finished can use player color if usePlayerColor is enabled
     if (event.type === 'match.finished' || event.type === 'match.delete') {
       this.currentMatchState = null;
+      this.pendingStartColor = null;
       this.log('Match state cleared after action execution');
     }
   }
@@ -388,17 +401,20 @@ export class WledHandler {
   }
 
   private async applyPlayerColorWhenReady(action: WledAction, source: string): Promise<void> {
-    // Wait up to 2 seconds for match state to be available
-    await this.waitForMatchState(2000);
-
     if (this.currentMatchState) {
-      const playerColor = await this.resolvePlayerColor({ source });
-      if (playerColor) {
-        console.log(`🎨 WLED [${source}]: Applying player color RGB(${playerColor.r}, ${playerColor.g}, ${playerColor.b})`);
-        await this.executeAction(action, playerColor, source);
-      }
-    } else {
-      this.log(`${source}: No match state available after waiting`);
+      await this.applyPlayerColorNow(action, source);
+      return;
+    }
+    // Applied as soon as the first match state arrives
+    console.log(`🎨 WLED [${source}]: Waiting for the first match state to apply the player color`);
+    this.pendingStartColor = { action, source };
+  }
+
+  private async applyPlayerColorNow(action: WledAction, source: string): Promise<void> {
+    const playerColor = await this.resolvePlayerColor({ source });
+    if (playerColor) {
+      console.log(`🎨 WLED [${source}]: Applying player color RGB(${playerColor.r}, ${playerColor.g}, ${playerColor.b})`);
+      await this.executeAction(action, playerColor, source);
     }
   }
 
@@ -426,19 +442,6 @@ export class WledHandler {
     } else {
       this.log(`No action or match state for restore after duration`);
     }
-  }
-
-  /**
-   * Wait for match state to be available
-   */
-  private async waitForMatchState(timeoutMs: number): Promise<boolean> {
-    const interval = 100;
-    let elapsed = 0;
-    while (!this.currentMatchState && elapsed < timeoutMs) {
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      elapsed += interval;
-    }
-    return !!this.currentMatchState;
   }
 
   /**

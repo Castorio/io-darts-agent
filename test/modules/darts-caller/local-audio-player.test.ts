@@ -9,6 +9,8 @@ function fakeProcess(result: { error?: string; code?: number }) {
     if (result.error) {
       const err = Object.assign(new Error(result.error), { code: result.error });
       proc.emit('error', err);
+      // Node also emits close (code -2) after a spawn ENOENT
+      proc.emit('close', -2);
     } else {
       proc.emit('close', result.code ?? 0);
     }
@@ -41,6 +43,24 @@ describe('playWithFirstAvailable', () => {
 
     expect(used).toBe('ffplay');
     expect(spawn.mock.calls.map((c) => c[0])).toEqual(['mpg123', 'ffplay']);
+  });
+
+  it('waits for the fallback player instead of returning early', async () => {
+    let ffplayFinished = false;
+    const spawn = vi
+      .fn()
+      .mockImplementationOnce(() => fakeProcess({ error: 'ENOENT' }))
+      .mockImplementationOnce(() => {
+        const proc = fakeProcess({ code: 0 });
+        proc.on('close', () => {
+          ffplayFinished = true;
+        });
+        return proc;
+      });
+
+    await playWithFirstAvailable(linuxPlayerCandidates(80), '/a.mp3', spawn);
+
+    expect(ffplayFinished).toBe(true);
   });
 
   it('reports when no player is installed', async () => {

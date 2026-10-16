@@ -77,7 +77,11 @@ export function playWithFirstAvailable(
         return;
       }
       onSpawn?.(proc);
+      // Node emits close (code -2) after a spawn error; only the first event counts
+      let settled = false;
       proc.on('error', (err: NodeJS.ErrnoException) => {
+        if (settled) return;
+        settled = true;
         if (err.code === 'ENOENT') {
           tryAt(index + 1);
         } else {
@@ -87,6 +91,8 @@ export function playWithFirstAvailable(
         }
       });
       proc.on('close', (code: number | null) => {
+        if (settled) return;
+        settled = true;
         if (code !== 0) {
           console.warn(`Audio player ${player.cmd} exited with code ${code}`);
         }

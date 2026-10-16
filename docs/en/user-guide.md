@@ -335,7 +335,7 @@ In the **Animations** tab you switch on **Enable Animations** and set a **Defaul
 | **180 Animation** | 180 thrown |
 | **Bull Animation** | Single bull (25) |
 | **Double Bull Animation** | Bullseye (50) |
-| **High Score Animation** | Turn from a score (setting **From Score**), once per turn when it is finished |
+| **High Score Animation** | Turn from a score (setting **From Score**), once per turn after the third dart |
 | **Checkout Animation** | Successful checkout |
 | **Leg Win Animation** | Leg won |
 | **Match Win Animation** | Match won |

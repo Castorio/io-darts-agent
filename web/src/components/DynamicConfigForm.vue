@@ -3,6 +3,7 @@ import { computed, ref, watch, onMounted } from 'vue'
 import BaseInput from './BaseInput.vue'
 import MediaUpload from './MediaUpload.vue'
 import { api } from '../api/client'
+import { parseNumberInput } from '../lib/numberInput'
 
 // Config field schema types from module.json
 interface SelectOption {
@@ -387,7 +388,7 @@ watch(hasProviderSelectFields, (hasFields) => {
           v-else
           type="number"
           :value="getValue(key, field) as number"
-          @input="updateValue(key, Number(($event.target as HTMLInputElement).value))"
+          @input="updateValue(key, parseNumberInput(($event.target as HTMLInputElement).value))"
           :min="(field as NumberField).min"
           :step="(field as NumberField).step ?? 1"
           :disabled="disabled"
@@ -585,7 +586,7 @@ watch(hasProviderSelectFields, (hasFields) => {
               v-else
               type="number"
               :value="getGroupValue(key, nestedKey, nestedField) as number"
-              @input="updateGroupValue(key, nestedKey, Number(($event.target as HTMLInputElement).value))"
+              @input="updateGroupValue(key, nestedKey, parseNumberInput(($event.target as HTMLInputElement).value))"
               :min="(nestedField as NumberField).min"
               :step="(nestedField as NumberField).step ?? 1"
               :disabled="disabled"

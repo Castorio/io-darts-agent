@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { DEFAULT_HIGH_SCORE_THRESHOLD, ThrowAnimationTracker, throwAnimationsForDart } from '../utils/throwAnimations'
 
 // ============================================================================
 // PLAYER RESOLVER - Robuste Spieler-Erkennung trotz Array-Rotation
@@ -476,6 +477,8 @@ export interface DisplayConfig {
   matchResultsBackgroundColor: string // Background color for results table
   showCheckouts: boolean
   checkoutThreshold: number
+  /** "From Score" of the high score animation */
+  highScoreThreshold: number
   animationSpeed: 'slow' | 'normal' | 'fast'
   showOtherPlayers: boolean
   // Game info display
@@ -546,6 +549,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     matchResultsBackgroundColor: '#0a0a0f', // Dark background
     showCheckouts: true,
     checkoutThreshold: 170,
+    highScoreThreshold: DEFAULT_HIGH_SCORE_THRESHOLD,
     animationSpeed: 'normal',
     showOtherPlayers: true,
     // Game info display
@@ -580,6 +584,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   // Track processed darts to detect new throws from match.state events
   // This allows bull/bullseye animations even when throw.detected events don't arrive
   let lastProcessedDartsCount = 0
+  // Each throw animation fires once per turn and dart, even if a dart is seen twice
+  const throwAnimationTracker = new ThrowAnimationTracker()
 
   // Computed
   const activePlayer = computed(() => {
@@ -713,6 +719,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
           matchResultsBackgroundColor: data.matchResultsBackgroundColor || '#0a0a0f',
           showCheckouts: data.showCheckouts !== false,
           checkoutThreshold: data.checkoutThreshold || 170,
+          highScoreThreshold: Number((data.animationHighScore as Record<string, unknown> | undefined)?.threshold) || DEFAULT_HIGH_SCORE_THRESHOLD,
           animationSpeed: data.animationSpeed || 'normal',
           showOtherPlayers: data.showOtherPlayers !== false,
           // Game info display
@@ -1122,37 +1129,20 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     const activePlayer = gameState.value.players[gameState.value.activePlayerIndex]
     const playerRemainingScore = activePlayer?.score ?? gameState.value.startScore
 
-    // Check for NEW darts and trigger bull animations if needed
-    // This handles the case where throw.detected events don't arrive
-    // but we still get the throws via match.state
+    // Throw animations (bull, bullseye, 180, high score) are triggered only
+    // here, from the authoritative match state. The tracker makes sure each
+    // fires once per turn and dart.
+    const lastTurn = turns && turns.length > 0 ? turns[turns.length - 1] : undefined
+    const turnKey = (lastTurn?.id as string | undefined)
+      ?? `${data.set}:${data.leg}:${data.round}:${data.player}`
     const newDartsCount = currentTurnDarts.length
     if (newDartsCount > lastProcessedDartsCount) {
-      // Process only the NEW darts (ones we haven't seen before)
+      const segments = currentTurnDarts.map((d) => d.segment)
+      const player = gameState.value.players[gameState.value.activePlayerIndex]
       for (let i = lastProcessedDartsCount; i < newDartsCount; i++) {
-        const dart = currentTurnDarts[i]
-        if (dart && dart.segment) {
-          const number = dart.segment.number
-          const multiplier = dart.segment.multiplier
-          const player = gameState.value.players[gameState.value.activePlayerIndex]
-
-          // Trigger bull animations
-          if (number === 25 && multiplier === 1) {
-            console.log('🎯 Bull detected from match.state - triggering animation')
-            triggerAnimation('bull', player || undefined)
-          } else if (number === 25 && multiplier === 2) {
-            console.log('🎯 Double Bull detected from match.state - triggering animation')
-            triggerAnimation('doubleBull', player || undefined)
-          }
-
-          // Check for 180 (after 3 darts, all T20)
-          if (i === 2 && turnScore === 180) {
-            triggerAnimation('180', player || undefined)
-          }
-
-          // Check for high score (140+) after third dart
-          if (i === 2 && turnScore >= 140 && turnScore < 180) {
-            triggerAnimation('highScore', player || undefined)
-          }
+        const types = throwAnimationsForDart(segments, i, turnScore, config.value.highScoreThreshold)
+        for (const type of throwAnimationTracker.take(turnKey, i, types)) {
+          triggerAnimation(type, player || undefined)
         }
       }
     }
@@ -1220,23 +1210,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       const newTurnScore = gameState.value.currentTurn.darts.reduce((sum, d) => sum + d.points, 0)
       gameState.value.currentTurn.turnScore = newTurnScore
 
-      // Check for special throws - trigger animations
-      const player = activePlayer.value
-      if (number === 25 && multiplier === 1) {
-        triggerAnimation('bull', player || undefined)
-      } else if (number === 25 && multiplier === 2) {
-        triggerAnimation('doubleBull', player || undefined)
-      }
-
-      // Check for 180 (after 3 darts, all T20)
-      if (newTurnScore === 180 && gameState.value.currentTurn.darts.length === 3) {
-        triggerAnimation('180', player || undefined)
-      }
-
-      // Check for high score (140+)
-      if (newTurnScore >= 140 && newTurnScore < 180 && gameState.value.currentTurn.darts.length === 3) {
-        triggerAnimation('highScore', player || undefined)
-      }
+      // Throw animations are triggered in handleMatchState only (the hub
+      // sends match.state right after every throw.detected), so a dart never
+      // fires twice.
 
       // Subtract the thrown points from the CURRENT remaining score
       // (not from activePlayer.score, which already reflects the server state)

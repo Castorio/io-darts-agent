@@ -8,7 +8,5 @@ export type {
   GameDisplayAnimations,
   AnimationConfig,
   AnimationEventType,
-  AnimationTrigger,
   PlayerAnimationConfig,
-  GameDisplayEventCallback,
 } from './GameDisplayHandler.js';

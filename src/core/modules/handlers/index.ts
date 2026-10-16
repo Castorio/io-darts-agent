@@ -27,9 +27,7 @@ export type {
   GameDisplayAnimations,
   AnimationConfig,
   AnimationEventType,
-  AnimationTrigger,
   PlayerAnimationConfig,
-  GameDisplayEventCallback,
 } from '../../../../modules/game-display/src/index.js';
 
 // Darts Caller Module

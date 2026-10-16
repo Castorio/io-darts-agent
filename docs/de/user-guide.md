@@ -335,7 +335,7 @@ Im Tab **Animationen** schaltest du **Animationen aktivieren** ein und legst ein
 | **180 Animation** | 180 geworfen |
 | **Bull Animation** | Single Bull (25) |
 | **Double Bull Animation** | Bullseye (50) |
-| **High Score Animation** | Aufnahme ab einer Punktzahl (Einstellung **Ab Punktzahl**), einmal pro Aufnahme, wenn sie beendet ist |
+| **High Score Animation** | Aufnahme ab einer Punktzahl (Einstellung **Ab Punktzahl**), einmal pro Aufnahme nach dem dritten Dart |
 | **Checkout Animation** | Erfolgreicher Checkout |
 | **Leg-Sieg Animation** | Leg gewonnen |
 | **Match-Sieg Animation** | Match gewonnen |

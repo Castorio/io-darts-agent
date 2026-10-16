@@ -189,6 +189,8 @@ On Ubuntu `firefox` may be installed as a snap. The kiosk script only needs a `f
 
 ### 2. Install Node.js 22
 
+If Node.js 22 or newer is already installed at `/usr/bin/node` (`node -v`), skip this step.
+
 **Option A, NodeSource (recommended for the service):** installs `node` to `/usr/bin/node`, which is the path the service file uses.
 
 ```bash
@@ -361,6 +363,8 @@ rm ~/.local/bin/game-display-kiosk.sh ~/.config/autostart/game-display-kiosk.des
 rm -rf ~/.local/share/game-display-kiosk
 sudo loginctl disable-linger "$USER"   # only if nothing else needs it
 ```
+
+Skip `disable-linger` if other user services should run without a login. This matters in particular for the Autodarts service `autodarts.service` on the same PC: without linger it only starts after someone logs in. Check with `systemctl --user list-unit-files --state=enabled`.
 
 Remove the hub itself (this deletes the configuration and all data, make a backup first if needed):
 

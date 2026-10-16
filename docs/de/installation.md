@@ -189,6 +189,8 @@ Unter Ubuntu kommt `firefox` eventuell als Snap. Das Kiosk-Skript braucht nur ei
 
 ### 2. Node.js 22 installieren
 
+Ist schon Node.js 22 oder neuer unter `/usr/bin/node` installiert (`node -v`), überspringe diesen Schritt.
+
 **Variante A, NodeSource (empfohlen für den Dienst):** installiert `node` nach `/usr/bin/node`. Genau diesen Pfad nutzt die Dienstdatei.
 
 ```bash
@@ -361,6 +363,8 @@ rm ~/.local/bin/game-display-kiosk.sh ~/.config/autostart/game-display-kiosk.des
 rm -rf ~/.local/share/game-display-kiosk
 sudo loginctl disable-linger "$USER"   # nur, wenn nichts anderes es braucht
 ```
+
+Lass `disable-linger` weg, wenn weitere Benutzerdienste ohne Anmeldung laufen sollen. Das gilt besonders für den Autodarts-Dienst `autodarts.service` auf demselben PC: Ohne Linger startet er nach einem Neustart erst, wenn sich jemand anmeldet. Prüfen kannst du das mit `systemctl --user list-unit-files --state=enabled`.
 
 Den Hub selbst entfernen (das löscht die Konfiguration und alle Daten, bei Bedarf vorher sichern):
 

@@ -35,6 +35,7 @@ import { ModuleBridge } from './core/modules/ModuleBridge.js';
 import { resolveBuiltinModulesDir } from './core/modules/BuiltinModuleInstaller.js';
 import { runtimePath } from './core/runtimePaths.js';
 import { restartProcess } from './core/system/restart.js';
+import { isValidModuleId, resolveModuleUiFile } from './core/modules/moduleUiPath.js';
 import { getModuleRouteRegistry, type ModuleRouteRequest, type ModuleRouteResponse } from './core/modules/ModuleRouteRegistry.js';
 import type { RoutesRegisterPayload } from './types/modules.js';
 import { spawn, ChildProcess } from 'child_process';
@@ -1993,6 +1994,9 @@ async function main(): Promise<void> {
     instance.get('/module-ui/:moduleId/*', async (request, reply) => {
       const { moduleId } = request.params as { moduleId: string };
       const splat = (request.params as Record<string, string>)['*'] || 'index.html';
+      if (!isValidModuleId(moduleId)) {
+        return reply.status(404).send({ error: 'Module UI not found' });
+      }
 
       // Helper to find module UI path - check multiple locations
       const findModuleUiPath = (): string | null => {
@@ -2025,9 +2029,10 @@ async function main(): Promise<void> {
         return reply.status(404).send({ error: 'Module UI not found' });
       }
 
-      const filePath = path.join(moduleDistPath, splat);
+      // The router decodes the wildcard (..%2f), so keep the file inside the UI folder
+      const filePath = resolveModuleUiFile(moduleDistPath, splat);
 
-      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      if (filePath && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
         // Determine content type
         const ext = path.extname(filePath).toLowerCase();
         const contentTypes: Record<string, string> = {

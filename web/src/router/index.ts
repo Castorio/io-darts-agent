@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAppStore } from '../stores/app'
+import { dedicatedConfigRoute } from '../lib/moduleConfigRoute'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -39,6 +40,10 @@ const router = createRouter({
       name: 'module-config',
       component: () => import('../views/DefaultModuleConfigView.vue'),
       meta: { requiresAuth: true },
+      beforeEnter: (to) => {
+        const target = dedicatedConfigRoute(String(to.params.id))
+        return target ? { name: target, params: to.params } : true
+      },
     },
     {
       path: '/modules/:id/wled-config',

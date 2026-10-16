@@ -390,6 +390,9 @@ export default {
 
   // Media Library
   media: {
+    previous: 'Previous',
+    next: 'Next',
+    previewOf: 'Preview of {name}',
     title: 'Media Library',
     subtitle: 'Manage images, sounds, and animations for your modules',
     upload: 'Upload',

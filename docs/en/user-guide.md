@@ -526,8 +526,11 @@ A video generation can take several minutes depending on the provider and costs 
 - **Upload** with the button or drag and drop, up to 50 MB per file
 - **New Folder** for structure (only empty folders can be deleted)
 - **Search files**
-- **Copy URL** to use a file in a module
+- **Preview**: clicking a file opens it large. Animations play with sound in a loop on a checkerboard so the transparency is visible, sounds play in an audio player. Use the arrow keys or **Previous** and **Next** to browse, **Escape** closes.
+- **Copy URL** to use a file in a module (also works when the hub is opened over HTTP in the LAN)
 - Delete files
+- Only files matching the tab are shown. Hidden files, such as the animation generator's job list, do not appear.
+- The Darts Caller voice packs are not part of the media library; they live in `dist/data/voicepacks` and are managed on the Darts Caller page.
 
 In the animation and sound fields of the modules you can upload directly, pick from the library or enter an external URL.
 

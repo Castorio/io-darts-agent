@@ -526,8 +526,11 @@ Unter **Mediathek** verwaltest du Bilder, Sounds und Animationen für die Module
 - **Hochladen** per Button oder Drag and Drop, maximal 50 MB pro Datei
 - **Neuer Ordner** zum Strukturieren (nur leere Ordner lassen sich löschen)
 - **Dateien suchen**
-- **URL kopieren**, um eine Datei in einem Modul zu verwenden
+- **Vorschau**: Ein Klick auf eine Datei öffnet sie groß. Animationen laufen mit Ton in Schleife auf einem Schachbrett, damit die Transparenz sichtbar ist, Sounds spielen im Audio-Player. Mit den Pfeiltasten oder **Vorherige** und **Nächste** blätterst du, **Escape** schließt.
+- **URL kopieren**, um eine Datei in einem Modul zu verwenden (funktioniert auch, wenn der Hub per HTTP im LAN geöffnet ist)
 - Dateien löschen
+- Angezeigt werden nur Dateien, die zum Tab passen. Versteckte Dateien, etwa die Jobliste des Animations-Generators, erscheinen nicht.
+- Die Voicepacks des Darts Callers liegen nicht in der Mediathek, sondern unter `dist/data/voicepacks` und werden auf der Seite des Darts Callers verwaltet.
 
 In den Animations- und Sound-Feldern der Module kannst du direkt hochladen, aus der Mediathek wählen oder eine externe URL angeben.
 

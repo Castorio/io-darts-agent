@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import MediaPreviewDialog from '../components/MediaPreviewDialog.vue'
+import { neighborIndex } from '../lib/mediaPreview'
 import { copyText } from '../lib/clipboard'
 import { onMounted, ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -317,6 +319,25 @@ async function deleteFile(file: MediaFile) {
   }, 3000)
 }
 
+// Preview dialog: index into filteredFiles, null when closed
+const previewIndex = ref<number | null>(null)
+const previewFile = computed(() => (previewIndex.value === null ? null : filteredFiles.value[previewIndex.value] ?? null))
+
+function stepPreview(direction: -1 | 1) {
+  if (previewIndex.value === null) return
+  previewIndex.value = neighborIndex(filteredFiles.value.length, previewIndex.value, direction) ?? previewIndex.value
+}
+
+async function deleteFromPreview() {
+  const file = previewFile.value
+  if (!file) return
+  await deleteFile(file)
+  // Stay on the same position, or close when the list is empty
+  const remaining = filteredFiles.value.length
+  if (remaining === 0) previewIndex.value = null
+  else if (previewIndex.value !== null && previewIndex.value >= remaining) previewIndex.value = remaining - 1
+}
+
 // Copy URL to clipboard
 async function copyUrl(url: string) {
   const copied = await copyText(window.location.origin + url)
@@ -603,9 +624,14 @@ watch(activeTab, () => {
             <h3 class="text-sm font-medium text-dark-400 mb-3">{{ t('media.files') }}</h3>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               <div
-                v-for="file in filteredFiles"
+                v-for="(file, index) in filteredFiles"
                 :key="file.filename"
-                class="group relative aspect-square rounded-xl overflow-hidden bg-dark-800 border border-dark-700 hover:border-dark-500 transition-all"
+                class="group relative aspect-square rounded-xl overflow-hidden bg-dark-800 border border-dark-700 hover:border-dark-500 transition-all cursor-pointer"
+                role="button"
+                tabindex="0"
+                :aria-label="t('media.previewOf', { name: file.name })"
+                @click="previewIndex = index"
+                @keydown.enter="previewIndex = index"
               >
                 <!-- Thumbnail -->
                 <img
@@ -744,5 +770,18 @@ watch(activeTab, () => {
         </div>
       </div>
     </Teleport>
+    <MediaPreviewDialog
+      v-if="previewFile"
+      :name="previewFile.name"
+      :url="previewFile.url"
+      :mime-type="previewFile.type"
+      :has-previous="previewIndex !== null && previewIndex > 0"
+      :has-next="previewIndex !== null && previewIndex < filteredFiles.length - 1"
+      @close="previewIndex = null"
+      @previous="stepPreview(-1)"
+      @next="stepPreview(1)"
+      @copy="copyUrl(previewFile.url)"
+      @delete="deleteFromPreview"
+    />
   </AppLayout>
 </template>

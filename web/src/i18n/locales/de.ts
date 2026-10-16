@@ -390,6 +390,9 @@ export default {
 
   // Media Library
   media: {
+    previous: 'Vorherige',
+    next: 'Nächste',
+    previewOf: 'Vorschau von {name}',
     title: 'Mediathek',
     subtitle: 'Verwalten Sie Bilder, Sounds und Animationen für Ihre Module',
     upload: 'Hochladen',

@@ -120,47 +120,45 @@ export class ModuleRouteRegistry extends EventEmitter {
   private registerWildcardRoute(): void {
     if (!this.fastify || this.wildcardRegistered) return;
 
-    const self = this;
-
     // Create handler that dispatches to module handlers
-    const wildcardHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+    const wildcardHandler = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
       const params = request.params as { moduleId: string; '*': string };
       const moduleId = params.moduleId;
       const routePath = '/' + (params['*'] || '');
       const method = request.method as HttpMethod;
 
       // Find matching route for this module
-      const moduleRoutes = self.routes.get(moduleId);
+      const moduleRoutes = this.routes.get(moduleId);
       if (!moduleRoutes || moduleRoutes.length === 0) {
-        reply.code(404);
+        void reply.code(404);
         return { error: `No routes registered for module: ${moduleId}` };
       }
 
       // Find the specific route that matches
-      const matchedRoute = self.findMatchingRoute(moduleRoutes, method, routePath);
+      const matchedRoute = this.findMatchingRoute(moduleRoutes, method, routePath);
       if (!matchedRoute) {
-        reply.code(404);
+        void reply.code(404);
         return { error: `Route not found: ${method} ${routePath}` };
       }
 
       // Check authentication if required
       if (matchedRoute.definition.requireAuth !== false) {
-        const isAuthed = self.checkAuth(request);
+        const isAuthed = this.checkAuth(request);
         if (!isAuthed) {
-          reply.code(401);
+          void reply.code(401);
           return { error: 'Unauthorized' };
         }
       }
 
       // Get the route handler for this module
-      const routeHandler = self.routeHandlers.get(moduleId);
+      const routeHandler = this.routeHandlers.get(moduleId);
       if (!routeHandler) {
-        reply.code(503);
+        void reply.code(503);
         return { error: 'Module not ready to handle requests' };
       }
 
       // Extract path params from the route pattern
-      const extractedParams = self.extractPathParams(matchedRoute.definition.path, routePath);
+      const extractedParams = this.extractPathParams(matchedRoute.definition.path, routePath);
 
       // Build the request object for the module
       const moduleRequest: ModuleRouteRequest = {
@@ -184,19 +182,19 @@ export class ModuleRouteRegistry extends EventEmitter {
         // Set response headers
         if (response.headers) {
           for (const [key, value] of Object.entries(response.headers)) {
-            reply.header(key, value);
+            void reply.header(key, value);
           }
         }
 
         // Set status code
         if (response.statusCode) {
-          reply.code(response.statusCode);
+          void reply.code(response.statusCode);
         }
 
         return response.body;
       } catch (error) {
         console.error(`Module ${moduleId} route handler error:`, error);
-        reply.code(500);
+        void reply.code(500);
         return { error: 'Internal module error' };
       }
     };
@@ -326,15 +324,16 @@ export class ModuleRouteRegistry extends EventEmitter {
    * Register routes for a module (dynamic - can be called after server start)
    * Routes are stored in memory and matched by the wildcard handler
    */
-  async registerRoutes(registration: ModuleRouteRegistration): Promise<void> {
+  registerRoutes(registration: ModuleRouteRegistration): Promise<void> {
     if (!this.fastify) {
-      throw new Error('ModuleRouteRegistry not initialized');
+      return Promise.reject(new Error('ModuleRouteRegistry not initialized'));
     }
 
     const { moduleId, routes } = registration;
 
-    // Unregister existing routes for this module first
-    await this.unregisterRoutes(moduleId);
+    // Replace existing routes for this module first. The route handler is kept:
+    // callers set it right before registering, and unregisterRoutes() would drop it.
+    this.removeRoutes(moduleId);
 
     const registeredRoutes: RegisteredRoute[] = [];
 
@@ -352,21 +351,32 @@ export class ModuleRouteRegistry extends EventEmitter {
 
     this.routes.set(moduleId, registeredRoutes);
     this.emit('routesRegistered', { moduleId, routes: registeredRoutes });
+    return Promise.resolve();
   }
 
   /**
-   * Unregister all routes for a module
+   * Unregister all routes for a module, including its route handler
    */
-  async unregisterRoutes(moduleId: string): Promise<void> {
+  unregisterRoutes(moduleId: string): Promise<void> {
+    if (this.removeRoutes(moduleId)) {
+      this.routeHandlers.delete(moduleId);
+    }
+    return Promise.resolve();
+  }
+
+  /**
+   * Remove a module's routes from the map; the wildcard handler then returns 404.
+   * Returns false when the module had no routes.
+   */
+  private removeRoutes(moduleId: string): boolean {
     const existingRoutes = this.routes.get(moduleId);
     if (!existingRoutes || existingRoutes.length === 0) {
-      return;
+      return false;
     }
 
-    // Just remove from our map - the wildcard handler will return 404
     this.routes.delete(moduleId);
-    this.routeHandlers.delete(moduleId);
     this.emit('routesUnregistered', { moduleId });
+    return true;
   }
 
   /**

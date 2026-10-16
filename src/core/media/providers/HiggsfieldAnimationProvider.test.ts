@@ -8,7 +8,9 @@ function fakeProvider(overrides: Record<string, unknown> = {}) {
   return {
     config: { id: 'higgsfield', apiKey: 'id:secret' },
     isAvailable: vi.fn(() => true),
-    generateVideo: vi.fn().mockResolvedValue({ videoUrl: '', jobId: JOB_ID, model: 'm', duration: 5 }),
+    generateVideo: vi
+      .fn<[{ prompt: string; duration?: number; aspectRatio?: string }], Promise<unknown>>()
+      .mockResolvedValue({ videoUrl: '', jobId: JOB_ID, model: 'm', duration: 5 }),
     getJobStatus: vi.fn(),
     cancelJob: vi.fn().mockResolvedValue(true),
     ...overrides,
@@ -38,7 +40,7 @@ describe('HiggsfieldAnimationProvider', () => {
 
     expect(result).toEqual({ success: true, jobId: JOB_ID });
     expect(provider.generateVideo).toHaveBeenCalledWith({
-      prompt: expect.stringContaining('Golden 180, on a solid pure black #000000 background'),
+      prompt: expect.stringContaining('Golden 180, on a solid pure black #000000 background') as string,
       duration: 4,
       aspectRatio: '1:1',
     });

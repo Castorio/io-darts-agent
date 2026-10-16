@@ -144,7 +144,9 @@ export class RunwayProvider extends BaseAIProvider {
    * Parse Runway API error response into a human-readable message
    */
   private parseRunwayError(status: number, errorData: Record<string, unknown>): string {
-    const message = errorData.message || errorData.error || JSON.stringify(errorData);
+    // message/error may be a nested object; stringify those instead of printing [object Object]
+    const raw = errorData.message || errorData.error;
+    const message = typeof raw === 'string' ? raw : JSON.stringify(raw ?? errorData);
 
     switch (status) {
       case 400:
@@ -267,7 +269,7 @@ export class RunwayProvider extends BaseAIProvider {
           progress: 100,
           resultUrl: data.output?.[0],
         };
-      case 'FAILED':
+      case 'FAILED': {
         // Provide more helpful error messages for common failure codes
         let errorMessage = data.failure ?? data.failureCode ?? 'Generation failed';
         if (data.failureCode === 'CONTENT_MODERATION') {
@@ -282,6 +284,7 @@ export class RunwayProvider extends BaseAIProvider {
           progress: 0,
           error: errorMessage,
         };
+      }
       case 'CANCELLED':
         return {
           status: 'failed',

@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Mock } from 'vitest';
+
+type FetchMock = Mock<[url: string, init?: RequestInit], Promise<unknown>>;
 import { RunwayProvider, createRunwayProvider } from './RunwayProvider.js';
 
 const TASK_ID = '6f1c1b2e-6a7d-4c2a-9f8e-2b1d3c4e5f60';
@@ -7,16 +10,16 @@ function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-function postedBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {
+function postedBody(fetchMock: FetchMock): Record<string, unknown> {
   const call = fetchMock.mock.calls.find((c) => (c[1] as RequestInit).method === 'POST')!;
   return JSON.parse((call[1] as RequestInit).body as string) as Record<string, unknown>;
 }
 
 describe('Runway animation engine', () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
+  let fetchMock: FetchMock;
 
   beforeEach(() => {
-    fetchMock = vi.fn().mockImplementation(async () => jsonResponse(200, { id: TASK_ID, estimatedCost: { credits: 60 } }));
+    fetchMock = vi.fn<[url: string, init?: RequestInit], Promise<unknown>>().mockImplementation(async () => jsonResponse(200, { id: TASK_ID, estimatedCost: { credits: 60 } }));
     vi.stubGlobal('fetch', fetchMock);
   });
 
@@ -37,7 +40,7 @@ describe('Runway animation engine', () => {
     const body = postedBody(fetchMock);
     expect(body).toEqual({
       model: 'gen4.5',
-      promptText: expect.stringContaining('Golden 180, on a solid pure black #000000 background'),
+      promptText: expect.stringContaining('Golden 180, on a solid pure black #000000 background') as string,
       ratio: '1280:720',
       duration: 5,
     });
@@ -87,7 +90,7 @@ describe('Runway animation engine', () => {
     const result = await provider.generate('x');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({ success: false, error: expect.stringMatching(/500.*not retried/) });
+    expect(result).toEqual({ success: false, error: expect.stringMatching(/500.*not retried/) as string });
   });
 
   it('sends a generation exactly once on a network error or timeout', async () => {
@@ -97,7 +100,7 @@ describe('Runway animation engine', () => {
     const result = await provider.generate('x');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({ success: false, error: expect.stringMatching(/not retried/) });
+    expect(result).toEqual({ success: false, error: expect.stringMatching(/not retried/) as string });
   });
 
   it('still retries the task status after a server error', async () => {

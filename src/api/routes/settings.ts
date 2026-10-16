@@ -40,13 +40,13 @@ export function registerSettingsRoutes(
   }>('/api/settings', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
     const config = server.getConfig();
     if (!config) {
-      reply.code(500);
+      void reply.code(500);
       return { error: 'Server not configured' };
     }
 
@@ -88,13 +88,13 @@ export function registerSettingsRoutes(
   }>('/api/settings', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const config = server.getConfig();
     if (!config) {
-      reply.code(500);
+      void reply.code(500);
       return { success: false, error: 'Server not configured' };
     }
 
@@ -194,7 +194,7 @@ export function registerSettingsRoutes(
         message: 'Settings updated successfully',
       };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to update settings',
@@ -210,7 +210,7 @@ export function registerSettingsRoutes(
   }>('/api/settings/restart', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, message: 'Authentication required' };
     }
 

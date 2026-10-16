@@ -50,7 +50,7 @@ export function registerSetupRoutes(
     const { email, password, boardId } = request.body;
 
     if (!email || !password || !boardId) {
-      reply.code(400);
+      void reply.code(400);
       return {
         success: false,
         error: 'Missing required fields: email, password, boardId',
@@ -77,7 +77,7 @@ export function registerSetupRoutes(
   }>('/api/setup/complete', async (request, reply) => {
     // Check if setup is actually required
     if (!server.isSetupRequired()) {
-      reply.code(400);
+      void reply.code(400);
       return {
         success: false,
         message: 'Setup has already been completed',
@@ -88,7 +88,7 @@ export function registerSetupRoutes(
 
     // Validate autodarts credentials
     if (!autodarts?.email || !autodarts?.password || !autodarts?.boardId) {
-      reply.code(400);
+      void reply.code(400);
       return {
         success: false,
         message: 'Missing required Autodarts credentials',
@@ -98,7 +98,7 @@ export function registerSetupRoutes(
     // Validate web auth if enabled
     if (webAuth?.enabled) {
       if (!webAuth.username || !webAuth.password) {
-        reply.code(400);
+        void reply.code(400);
         return {
           success: false,
           message: 'Web authentication enabled but username/password missing',
@@ -152,7 +152,7 @@ export function registerSetupRoutes(
         message: 'Setup completed successfully',
       };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to complete setup',

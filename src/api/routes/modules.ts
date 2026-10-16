@@ -183,12 +183,12 @@ export function registerModuleRoutes(
   }>('/api/modules/intents', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
     if (!deps.getAllModuleIntents) {
-      reply.code(501);
+      void reply.code(501);
       return { error: 'Intent discovery not implemented' };
     }
 
@@ -203,12 +203,12 @@ export function registerModuleRoutes(
   }>('/api/modules/autostart', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
     if (!deps.getAllAutostartSettings) {
-      reply.code(501);
+      void reply.code(501);
       return { error: 'Autostart settings not implemented' };
     }
 
@@ -224,19 +224,19 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/autostart', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
     const { id } = request.params;
 
     if (!deps.isModuleInstalled(id)) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Module not found' };
     }
 
     if (!deps.getModuleAutostart) {
-      reply.code(501);
+      void reply.code(501);
       return { error: 'Autostart settings not implemented' };
     }
 
@@ -258,7 +258,7 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/autostart', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -266,17 +266,17 @@ export function registerModuleRoutes(
     const { autostart } = request.body;
 
     if (!deps.isModuleInstalled(id)) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Module not found' };
     }
 
     if (typeof autostart !== 'boolean') {
-      reply.code(400);
+      void reply.code(400);
       return { error: 'autostart must be a boolean' };
     }
 
     if (!deps.setModuleAutostart) {
-      reply.code(501);
+      void reply.code(501);
       return { error: 'Autostart settings not implemented' };
     }
 
@@ -296,7 +296,7 @@ export function registerModuleRoutes(
   }>('/api/modules', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return [];
     }
 
@@ -312,13 +312,13 @@ export function registerModuleRoutes(
   }>('/api/modules/:id', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
     const module = deps.getModule(request.params.id);
     if (!module) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Module not found' };
     }
 
@@ -335,7 +335,7 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/config', async (request, reply) => {
     const module = deps.getModule(request.params.id);
     if (!module) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Module not found' };
     }
 
@@ -353,7 +353,7 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/config', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -361,7 +361,7 @@ export function registerModuleRoutes(
     const { config } = request.body;
 
     if (!deps.isModuleInstalled(id)) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 
@@ -369,7 +369,7 @@ export function registerModuleRoutes(
       await deps.updateModuleConfig(id, config);
       return { success: true, message: 'Configuration updated' };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to update configuration',
@@ -386,14 +386,14 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/start', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { id } = request.params;
 
     if (!deps.isModuleInstalled(id)) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 
@@ -401,7 +401,7 @@ export function registerModuleRoutes(
       await deps.startModule(id);
       return { success: true, message: 'Module started' };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to start module',
@@ -418,14 +418,14 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/stop', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { id } = request.params;
 
     if (!deps.isModuleInstalled(id)) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 
@@ -433,7 +433,7 @@ export function registerModuleRoutes(
       await deps.stopModule(id);
       return { success: true, message: 'Module stopped' };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to stop module',
@@ -450,14 +450,14 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/restart', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { id } = request.params;
 
     if (!deps.isModuleInstalled(id)) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 
@@ -465,7 +465,7 @@ export function registerModuleRoutes(
       await deps.restartModule(id);
       return { success: true, message: 'Module restarted' };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to restart module',
@@ -482,24 +482,24 @@ export function registerModuleRoutes(
   }>('/api/modules/install', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { source, url, path, branch } = request.body;
 
     if (!source) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Source is required (git or local)' };
     }
 
     if (source === 'git' && !url) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'URL is required for git installation' };
     }
 
     if (source === 'local' && !path) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Path is required for local installation' };
     }
 
@@ -507,7 +507,7 @@ export function registerModuleRoutes(
       const moduleId = await deps.installModule(source, url, path, branch);
       return { success: true, moduleId };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to install module',
@@ -524,14 +524,14 @@ export function registerModuleRoutes(
   }>('/api/modules/:id', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { id } = request.params;
 
     if (!deps.isModuleInstalled(id)) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 
@@ -539,7 +539,7 @@ export function registerModuleRoutes(
       await deps.uninstallModule(id);
       return { success: true, message: 'Module uninstalled' };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to uninstall module',
@@ -557,25 +557,25 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/update', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { id } = request.params;
 
     if (!deps.isModuleInstalled(id)) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 
     try {
       const result = await deps.updateModule(id);
       if (!result.success) {
-        reply.code(500);
+        void reply.code(500);
       }
       return result;
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to update module',
@@ -593,19 +593,19 @@ export function registerModuleRoutes(
   }>('/api/modules/wled/test-action', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { host, port = 80, actionType } = request.body;
 
     if (!host) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'WLED host is required' };
     }
 
     if (!actionType) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Action type is required' };
     }
 
@@ -627,7 +627,7 @@ export function registerModuleRoutes(
 
       return { success: true, message: 'Test action sent successfully' };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to send test action',
@@ -644,14 +644,14 @@ export function registerModuleRoutes(
   }>('/api/modules/wled/test-connection', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { host, port = 80 } = request.body;
 
     if (!host) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'WLED host is required' };
     }
 
@@ -668,7 +668,7 @@ export function registerModuleRoutes(
       const info = await response.json() as Record<string, unknown>;
       return { success: true, info };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to connect to WLED',
@@ -689,14 +689,14 @@ export function registerModuleRoutes(
   }>('/api/modules/wled/presets', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { host, port = 80 } = request.body;
 
     if (!host) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'WLED host is required' };
     }
 
@@ -738,7 +738,7 @@ export function registerModuleRoutes(
 
       return { success: true, presets };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to fetch presets from WLED',
@@ -759,14 +759,14 @@ export function registerModuleRoutes(
   }>('/api/modules/wled/effects', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { host, port = 80 } = request.body;
 
     if (!host) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'WLED host is required' };
     }
 
@@ -791,7 +791,7 @@ export function registerModuleRoutes(
 
       return { success: true, effects };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to fetch effects from WLED',
@@ -812,14 +812,14 @@ export function registerModuleRoutes(
   }>('/api/modules/wled/palettes', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { host, port = 80 } = request.body;
 
     if (!host) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'WLED host is required' };
     }
 
@@ -844,7 +844,7 @@ export function registerModuleRoutes(
 
       return { success: true, palettes };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to fetch palettes from WLED',
@@ -862,7 +862,7 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/translations/:language', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -871,13 +871,13 @@ export function registerModuleRoutes(
     // Validate language
     const validLanguages: SupportedLanguage[] = ['en', 'de', 'es'];
     if (!validLanguages.includes(language as SupportedLanguage)) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: `Invalid language. Supported: ${validLanguages.join(', ')}` };
     }
 
     const manifest = deps.getModuleManifest(id);
     if (!manifest) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 
@@ -902,7 +902,7 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/languages', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -910,7 +910,7 @@ export function registerModuleRoutes(
 
     const manifest = deps.getModuleManifest(id);
     if (!manifest) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 
@@ -946,7 +946,7 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/intents', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -954,7 +954,7 @@ export function registerModuleRoutes(
 
     const manifest = deps.getModuleManifest(id);
     if (!manifest) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 
@@ -993,7 +993,7 @@ export function registerModuleRoutes(
   }>('/api/intents', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -1057,7 +1057,7 @@ export function registerModuleRoutes(
   }>('/api/intents/available', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -1122,7 +1122,7 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/intents', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -1130,7 +1130,7 @@ export function registerModuleRoutes(
     const { subscriptions } = request.body;
 
     if (!deps.isModuleInstalled(id)) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 
@@ -1145,7 +1145,7 @@ export function registerModuleRoutes(
       await deps.updateModuleConfig(id, updatedConfig);
       return { success: true };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to update intent subscriptions',
@@ -1171,7 +1171,7 @@ export function registerModuleRoutes(
   }>('/api/modules/:id/intent-subscriptions', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -1179,7 +1179,7 @@ export function registerModuleRoutes(
 
     const config = deps.getModuleConfig(id);
     if (config === null) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Module not found' };
     }
 

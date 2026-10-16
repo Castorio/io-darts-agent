@@ -87,7 +87,7 @@ export function registerMatchRoutes(
   }>('/api/match/current', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return {
         active: false,
         matchId: null,
@@ -183,7 +183,7 @@ export function registerMatchRoutes(
     Reply: { active: boolean; players: MatchPlayerInfo[] };
   }>('/api/match/current/players', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { active: false, players: [] };
     }
 
@@ -216,7 +216,7 @@ export function registerMatchRoutes(
     };
   }>('/api/match/current/scores', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return {
         active: false,
         scores: [],
@@ -259,7 +259,7 @@ export function registerMatchRoutes(
     Reply: MatchStatus;
   }>('/api/match/status', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return getMatchStatusService().getStatus();
     }
 
@@ -273,7 +273,7 @@ export function registerMatchRoutes(
     Reply: { active: boolean; matchId: string | null };
   }>('/api/match/status/active', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { active: false, matchId: null };
     }
 
@@ -300,7 +300,7 @@ export function registerMatchRoutes(
     };
   }>('/api/match/status/player', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { hasMatch: false, currentPlayer: null };
     }
 

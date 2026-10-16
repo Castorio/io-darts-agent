@@ -96,7 +96,7 @@ export function registerDeveloperRoutes(
     Reply: { enabled: boolean; matchActive: boolean; matchState?: SimulatedMatchState };
   }>('/api/developer/status', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { enabled: false, matchActive: false };
     }
 
@@ -119,12 +119,12 @@ export function registerDeveloperRoutes(
     Reply: { success: boolean; error?: string; matchId?: string };
   }>('/api/developer/simulate/match/start', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     if (!isDeveloperModeEnabled(server)) {
-      reply.code(403);
+      void reply.code(403);
       return { success: false, error: 'Developer mode is not enabled' };
     }
 
@@ -179,12 +179,12 @@ export function registerDeveloperRoutes(
     Reply: { success: boolean; error?: string };
   }>('/api/developer/simulate/match/end', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     if (!isDeveloperModeEnabled(server)) {
-      reply.code(403);
+      void reply.code(403);
       return { success: false, error: 'Developer mode is not enabled' };
     }
 
@@ -240,12 +240,12 @@ export function registerDeveloperRoutes(
     Reply: { success: boolean; error?: string; points?: number; remaining?: number };
   }>('/api/developer/simulate/throw', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     if (!isDeveloperModeEnabled(server)) {
-      reply.code(403);
+      void reply.code(403);
       return { success: false, error: 'Developer mode is not enabled' };
     }
 
@@ -306,12 +306,12 @@ export function registerDeveloperRoutes(
     Reply: { success: boolean; error?: string; nextPlayer?: string };
   }>('/api/developer/simulate/turn/end', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     if (!isDeveloperModeEnabled(server)) {
-      reply.code(403);
+      void reply.code(403);
       return { success: false, error: 'Developer mode is not enabled' };
     }
 
@@ -409,12 +409,12 @@ export function registerDeveloperRoutes(
     Reply: { success: boolean; error?: string };
   }>('/api/developer/simulate/event', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     if (!isDeveloperModeEnabled(server)) {
-      reply.code(403);
+      void reply.code(403);
       return { success: false, error: 'Developer mode is not enabled' };
     }
 
@@ -439,7 +439,7 @@ export function registerDeveloperRoutes(
     Reply: { scenarios: Array<{ id: string; name: string; description: string }> };
   }>('/api/developer/scenarios', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { scenarios: [] };
     }
 
@@ -462,12 +462,12 @@ export function registerDeveloperRoutes(
     Reply: { success: boolean; error?: string };
   }>('/api/developer/scenarios/:id/run', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     if (!isDeveloperModeEnabled(server)) {
-      reply.code(403);
+      void reply.code(403);
       return { success: false, error: 'Developer mode is not enabled' };
     }
 

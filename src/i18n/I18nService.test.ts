@@ -43,7 +43,7 @@ describe('I18nService', () => {
     });
 
     it('should throw error for unsupported language', () => {
-      expect(() => service.setLanguage('fr' as any)).toThrow('not supported');
+      expect(() => service.setLanguage('fr' as never)).toThrow('not supported');
     });
   });
 
@@ -128,7 +128,7 @@ describe('I18nService', () => {
     });
 
     it('should return default translations for unsupported language', () => {
-      const trans = service.getTranslationsFor('fr' as any);
+      const trans = service.getTranslationsFor('fr' as never);
       expect(trans.common.save).toBe('Save');
     });
   });

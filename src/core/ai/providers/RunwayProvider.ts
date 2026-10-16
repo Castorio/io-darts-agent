@@ -89,8 +89,8 @@ export class RunwayProvider extends BaseAIProvider {
   /**
    * Runway has no model listing endpoint; the catalog comes from its API reference
    */
-  async listTextModels(): Promise<AIModelInfo[]> {
-    return RUNWAY_TEXT_TO_VIDEO_MODELS.map((m) => ({ id: m.id, name: m.name, category: 'video' }));
+  listTextModels(): Promise<AIModelInfo[]> {
+    return Promise.resolve(RUNWAY_TEXT_TO_VIDEO_MODELS.map((m) => ({ id: m.id, name: m.name, category: 'video' })));
   }
 
   /**

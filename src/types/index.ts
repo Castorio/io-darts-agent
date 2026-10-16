@@ -170,7 +170,7 @@ export interface MatchThrow {
   };
   entry: 'detected' | 'manual_keyboard';
   id: string;
-  marks: unknown | null;
+  marks: unknown; // null when absent
   segment: ThrowSegment;
   throw: number;
   bouncer?: boolean;
@@ -181,7 +181,7 @@ export interface MatchTurn {
   createdAt: string;
   finishedAt: string;
   id: string;
-  marks: unknown | null;
+  marks: unknown; // null when absent
   playerId: string;
   points: number;
   round: number;

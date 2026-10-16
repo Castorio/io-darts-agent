@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventBus } from '../events/EventBus.js';
 
 // We need to create the mock factory without referencing external variables
-vi.mock('ws', () => {
-  const { EventEmitter } = require('events');
+vi.mock('ws', async () => {
+  const { EventEmitter } = await import('events');
 
   class MockWebSocket extends EventEmitter {
     static OPEN = 1;

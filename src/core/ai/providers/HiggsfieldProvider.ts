@@ -157,8 +157,8 @@ export class HiggsfieldProvider extends BaseAIProvider {
   /**
    * Higgsfield has no model listing endpoint; the catalog comes from its docs
    */
-  async listTextModels(): Promise<AIModelInfo[]> {
-    return HIGGSFIELD_CATALOG.map((m) => ({ id: m.id, name: m.name, category: m.type }));
+  listTextModels(): Promise<AIModelInfo[]> {
+    return Promise.resolve(HIGGSFIELD_CATALOG.map((m) => ({ id: m.id, name: m.name, category: m.type })));
   }
 
   async getJobStatus(jobId: string): Promise<AIJob> {

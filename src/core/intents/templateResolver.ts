@@ -146,7 +146,7 @@ export function resolveActionConfigTemplates(
 
   for (const [fieldKey, fieldSchema] of Object.entries(configSchema)) {
     if (fieldSchema.type === 'template' && typeof config[fieldKey] === 'string') {
-      resolved[fieldKey] = resolveTemplate(config[fieldKey] as string, payload);
+      resolved[fieldKey] = resolveTemplate(config[fieldKey], payload);
     }
   }
 

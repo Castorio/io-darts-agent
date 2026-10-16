@@ -12,7 +12,7 @@ const auth = {
 const socket = {
   onStateChange: vi.fn(),
   onErrorCallback: vi.fn(),
-  connect: vi.fn(),
+  connect: vi.fn<[ticketProvider: () => Promise<string>], void>(),
   waitUntilConnected: vi.fn(),
   subscribeToBoard: vi.fn(),
   disconnect: vi.fn(),
@@ -47,7 +47,7 @@ describe('AutodartsHub.start()', () => {
   it('connects with a ticket provider backed by the auth service', async () => {
     socket.waitUntilConnected.mockResolvedValue(undefined);
     auth.getToken.mockResolvedValue('access-1');
-    const fetchMock = vi.fn().mockResolvedValue({
+    const fetchMock = vi.fn<[url: string, init?: RequestInit], Promise<unknown>>().mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve({ code: 'ticket-1' }),
@@ -56,7 +56,7 @@ describe('AutodartsHub.start()', () => {
     const hub = new AutodartsHub(config);
     await hub.start();
 
-    const provider = socket.connect.mock.calls[0][0] as () => Promise<string>;
+    const provider = socket.connect.mock.calls[0][0];
     try {
       await expect(provider()).resolves.toBe('ticket-1');
     } finally {

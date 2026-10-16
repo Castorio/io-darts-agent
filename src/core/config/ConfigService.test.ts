@@ -340,7 +340,9 @@ describe('APIConfigService legacy client migration', () => {
     await service.loadConfig();
 
     expect(fs.writeFile).toHaveBeenCalledTimes(1);
-    const written = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
+    const written = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string) as {
+      autodarts: Record<string, unknown>;
+    };
     expect(written.autodarts).not.toHaveProperty('clientSecret');
     expect(written.autodarts.email).toBe('test@example.com');
   });

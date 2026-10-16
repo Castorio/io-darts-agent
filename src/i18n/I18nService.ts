@@ -51,7 +51,7 @@ export class I18nService {
    */
   setLanguage(language: SupportedLanguage): void {
     if (!this.isSupported(language)) {
-      throw new Error(`Language "${language}" is not supported`);
+      throw new Error(`Language "${String(language)}" is not supported`);
     }
     this.currentLanguage = language;
   }

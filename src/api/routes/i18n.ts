@@ -28,7 +28,7 @@ export function registerI18nRoutes(
    */
   fastify.get<{
     Reply: LanguagesResponse;
-  }>('/api/i18n/languages', async () => {
+  }>('/api/i18n/languages', () => {
     return {
       current: i18nService.getLanguage(),
       available: i18nService.getAllLanguageInfo(),
@@ -41,7 +41,7 @@ export function registerI18nRoutes(
   fastify.get<{
     Querystring: { lang?: string };
     Reply: { language: SupportedLanguage; translations: Translations };
-  }>('/api/i18n/translations', async (request) => {
+  }>('/api/i18n/translations', (request) => {
     const { lang } = request.query;
 
     let language = i18nService.getLanguage();
@@ -65,16 +65,16 @@ export function registerI18nRoutes(
     const { language } = request.body;
 
     if (!language) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, language: i18nService.getLanguage(), error: 'Language is required' };
     }
 
     if (!i18nService.isSupported(language)) {
-      reply.code(400);
+      void reply.code(400);
       return {
         success: false,
         language: i18nService.getLanguage(),
-        error: `Language "${language}" is not supported`,
+        error: `Language "${String(language)}" is not supported`,
       };
     }
 
@@ -87,7 +87,7 @@ export function registerI18nRoutes(
         language: i18nService.getLanguage(),
       };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         language: i18nService.getLanguage(),
@@ -103,7 +103,7 @@ export function registerI18nRoutes(
     Params: { key: string };
     Querystring: { lang?: string };
     Reply: { key: string; value: string; language: SupportedLanguage };
-  }>('/api/i18n/t/:key', async (request) => {
+  }>('/api/i18n/t/:key', (request) => {
     const { key } = request.params;
     const { lang } = request.query;
 

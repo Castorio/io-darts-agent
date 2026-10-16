@@ -436,13 +436,11 @@ export class ModuleBridge extends EventEmitter {
   private startPingTimer(): void {
     this.stopPingTimer();
 
-    this.pingTimer = setInterval(async () => {
-      try {
-        await this.ping();
-      } catch {
+    this.pingTimer = setInterval(() => {
+      this.ping().catch(() => {
         // Ping failed, module may be unresponsive
         this.emit('pingFailed');
-      }
+      });
     }, this.options.pingInterval);
   }
 

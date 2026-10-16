@@ -3,9 +3,8 @@ import {
   MatchStatusService,
   createMatchStatusService,
   getMatchStatusService,
-  type MatchStatus,
 } from './MatchStatusService.js';
-import type { ParsedEvent, MatchStateData } from '../../types/index.js';
+import type { ParsedEvent, MatchStateData, MatchStats } from '../../types/index.js';
 
 describe('MatchStatusService', () => {
   let service: MatchStatusService;
@@ -210,8 +209,8 @@ describe('MatchStatusService', () => {
         chalkboards: [],
         gameScores: [501],
         stats: {
-          legStats: [{ average: 0 } as any],
-          matchStats: [{ average: 0 } as any],
+          legStats: [{ average: 0 } as MatchStats],
+          matchStats: [{ average: 0 } as MatchStats],
         },
         turnBusted: false,
         turnScore: 0,
@@ -266,8 +265,8 @@ describe('MatchStatusService', () => {
       chalkboards: [],
       gameScores: [301],
       stats: {
-        legStats: [{ average: 40 } as any],
-        matchStats: [{ average: 40 } as any],
+        legStats: [{ average: 40 } as MatchStats],
+        matchStats: [{ average: 40 } as MatchStats],
       },
       turnBusted: false,
       turnScore: 60,

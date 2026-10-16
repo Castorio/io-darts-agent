@@ -133,14 +133,14 @@ export abstract class BaseAIProvider implements IAIProvider {
   /**
    * Get provider status
    */
-  async getStatus(): Promise<AIProviderStatus> {
-    return {
+  getStatus(): Promise<AIProviderStatus> {
+    return Promise.resolve({
       id: this.config.id,
       configured: this.isConfigured(),
       enabled: this.config.enabled !== false,
       available: this.isAvailable(),
       capabilities: this.capabilities,
-    };
+    });
   }
 
   /**

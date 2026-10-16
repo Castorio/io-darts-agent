@@ -139,14 +139,15 @@ export class AnimationGeneratorService {
   /**
    * Initialize the service
    */
-  async init(): Promise<void> {
+  init(): Promise<void> {
     // Ensure output directory exists
     if (!fs.existsSync(this.config.outputDir)) {
       fs.mkdirSync(this.config.outputDir, { recursive: true });
     }
 
     // Load persisted jobs
-    await this.loadJobs();
+    this.loadJobs();
+    return Promise.resolve();
   }
 
   /**
@@ -187,13 +188,13 @@ export class AnimationGeneratorService {
   /**
    * Generate a single animation
    */
-  async generateSingle(request: SingleGenerationRequest): Promise<AnimationJob> {
+  generateSingle(request: SingleGenerationRequest): Promise<AnimationJob> {
     if (!this.provider) {
-      throw new Error('No AI provider configured');
+      return Promise.reject(new Error('No AI provider configured'));
     }
     // The event type ends up in file names, so only known values pass
     if (!DART_EVENT_TYPES.includes(request.eventType)) {
-      throw new Error(`Unknown event type: ${String(request.eventType).slice(0, 40)}`);
+      return Promise.reject(new Error(`Unknown event type: ${String(request.eventType).slice(0, 40)}`));
     }
 
     // Create job
@@ -208,12 +209,15 @@ export class AnimationGeneratorService {
     };
 
     this.jobs.set(job.id, job);
-    await this.saveJobs();
+    this.saveJobs();
 
-    // Start generation in background
-    this.startGeneration(job, request.options);
+    // Start generation in background; startGeneration records its own
+    // failures on the job, the catch only guards against unexpected throws.
+    void this.startGeneration(job, request.options).catch((error) => {
+      console.error(`Animation generation ${job.id} failed unexpectedly:`, error);
+    });
 
-    return job;
+    return Promise.resolve(job);
   }
 
   /**
@@ -274,7 +278,7 @@ export class AnimationGeneratorService {
     this.jobProviders.delete(job.id);
     job.status = 'cancelled';
     job.completedAt = new Date();
-    await this.saveJobs();
+    this.saveJobs();
 
     return true;
   }
@@ -302,7 +306,7 @@ export class AnimationGeneratorService {
     this.jobProviders.delete(id);
 
     this.jobs.delete(id);
-    await this.saveJobs();
+    this.saveJobs();
 
     return true;
   }
@@ -310,7 +314,7 @@ export class AnimationGeneratorService {
   /**
    * Clear completed/failed jobs
    */
-  async clearFinishedJobs(): Promise<number> {
+  clearFinishedJobs(): Promise<number> {
     let count = 0;
     for (const [id, job] of this.jobs.entries()) {
       if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
@@ -319,8 +323,8 @@ export class AnimationGeneratorService {
         count++;
       }
     }
-    await this.saveJobs();
-    return count;
+    this.saveJobs();
+    return Promise.resolve(count);
   }
 
   /**
@@ -334,7 +338,7 @@ export class AnimationGeneratorService {
     if (!provider) {
       job.status = 'failed';
       job.error = 'No AI provider configured';
-      await this.saveJobs();
+      this.saveJobs();
       return;
     }
     this.jobProviders.set(job.id, provider);
@@ -342,7 +346,7 @@ export class AnimationGeneratorService {
     try {
       job.status = 'queued';
       job.startedAt = new Date();
-      await this.saveJobs();
+      this.saveJobs();
 
       // Build the full prompt
       const prompt = this.buildFullPrompt(job.eventType, job.style, job.customPrompt);
@@ -368,7 +372,7 @@ export class AnimationGeneratorService {
         this.jobProviders.delete(job.id);
         job.status = 'failed';
         job.error = result.error ?? 'Generation failed';
-        await this.saveJobs();
+        this.saveJobs();
         return;
       }
 
@@ -381,7 +385,7 @@ export class AnimationGeneratorService {
       // Store provider job ID and start polling
       job.providerJobId = result.jobId;
       job.status = 'processing';
-      await this.saveJobs();
+      this.saveJobs();
 
       // Poll for completion
       this.pollJobStatus(job);
@@ -389,7 +393,7 @@ export class AnimationGeneratorService {
       this.jobProviders.delete(job.id);
       job.status = 'failed';
       job.error = error instanceof Error ? error.message : 'Unknown error';
-      await this.saveJobs();
+      this.saveJobs();
     }
   }
 
@@ -397,27 +401,35 @@ export class AnimationGeneratorService {
    * Poll the job's own engine until it finishes. Transient errors are
    * retried; the job fails after repeated errors or when it runs too long.
    */
-  private async pollJobStatus(job: AnimationJob): Promise<void> {
+  private pollJobStatus(job: AnimationJob): void {
     const provider = this.jobProviders.get(job.id);
     if (!provider || !job.providerJobId) return;
 
     const startedAt = job.startedAt?.getTime() ?? Date.now();
     let consecutiveErrors = 0;
 
-    const fail = async (error: string) => {
+    const fail = (error: string): void => {
       this.jobProviders.delete(job.id);
       job.status = 'failed';
       job.error = error;
       job.completedAt = new Date();
-      await this.saveJobs();
+      this.saveJobs();
     };
 
-    const poll = async () => {
+    const schedule = (): void => {
+      setTimeout(() => {
+        void poll().catch((error) => {
+          console.error(`Animation polling ${job.id} failed unexpectedly:`, error);
+        });
+      }, this.pollInterval);
+    };
+
+    const poll = async (): Promise<void> => {
       // Cancelled or deleted in the meantime
       if (job.status !== 'processing' || !this.jobs.has(job.id)) return;
 
       if (Date.now() - startedAt > this.jobTimeoutMs) {
-        await fail('Generation did not finish in time');
+        fail('Generation did not finish in time');
         return;
       }
 
@@ -432,25 +444,27 @@ export class AnimationGeneratorService {
           if (status.resultUrl) {
             await this.handleCompletion(job, status.resultUrl, provider);
           } else {
-            await fail('Generation finished with no result URL');
+            fail('Generation finished with no result URL');
           }
         } else if (status.status === 'failed') {
-          await fail(status.error ?? 'Generation failed');
+          fail(status.error ?? 'Generation failed');
         } else {
-          await this.saveJobs();
-          setTimeout(poll, this.pollInterval);
+          this.saveJobs();
+          schedule();
         }
       } catch (error) {
         consecutiveErrors++;
         if (consecutiveErrors >= this.maxPollErrors) {
-          await fail(error instanceof Error ? error.message : 'Polling error');
+          fail(error instanceof Error ? error.message : 'Polling error');
         } else {
-          setTimeout(poll, this.pollInterval);
+          schedule();
         }
       }
     };
 
-    void poll();
+    void poll().catch((error) => {
+      console.error(`Animation polling ${job.id} failed unexpectedly:`, error);
+    });
   }
 
   /**
@@ -496,12 +510,12 @@ export class AnimationGeneratorService {
       job.resultUrl = `/api/media/files/animation/${folderName}/${filename}`;
       job.resultFilename = filename;
       job.completedAt = new Date();
-      await this.saveJobs();
+      this.saveJobs();
     } catch (error) {
       job.status = 'failed';
       job.error = error instanceof Error ? error.message : 'Download failed';
       job.completedAt = new Date();
-      await this.saveJobs();
+      this.saveJobs();
     }
   }
 
@@ -526,7 +540,7 @@ export class AnimationGeneratorService {
   /**
    * Load jobs from persistent storage
    */
-  private async loadJobs(): Promise<void> {
+  private loadJobs(): void {
     try {
       if (fs.existsSync(this.jobsFilePath)) {
         const data = fs.readFileSync(this.jobsFilePath, 'utf-8');
@@ -555,7 +569,7 @@ export class AnimationGeneratorService {
   /**
    * Save jobs to persistent storage
    */
-  private async saveJobs(): Promise<void> {
+  private saveJobs(): void {
     try {
       const jobsArray = Array.from(this.jobs.values());
       fs.writeFileSync(this.jobsFilePath, JSON.stringify(jobsArray, null, 2));

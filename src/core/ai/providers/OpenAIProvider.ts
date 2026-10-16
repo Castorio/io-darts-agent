@@ -18,7 +18,6 @@ import type {
   TTSResponse,
   EmbeddingsRequest,
   EmbeddingsResponse,
-  ChatMessage,
 } from '../types.js';
 
 /**
@@ -262,7 +261,7 @@ export class OpenAIProvider extends BaseAIProvider {
     if (typeof request.prompt === 'string') {
       messages.push({ role: 'user', content: request.prompt });
     } else {
-      for (const msg of request.prompt as ChatMessage[]) {
+      for (const msg of request.prompt) {
         messages.push({ role: msg.role, content: msg.content });
       }
     }

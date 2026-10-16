@@ -89,7 +89,8 @@ interface AnthropicResponse {
     | { type: string }
   >;
   model: string;
-  stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence' | 'refusal' | string | null;
+  /** 'end_turn' | 'max_tokens' | 'stop_sequence' | 'refusal', or a value added by a newer API version */
+  stop_reason: string | null;
   stop_sequence: string | null;
   usage: {
     input_tokens: number;

@@ -119,7 +119,7 @@ export function registerMediaRoutes(
     Reply: MediaListResponse | { error: string };
   }>('/api/media/:type', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -127,7 +127,7 @@ export function registerMediaRoutes(
     const { folder } = request.query;
 
     if (!['animation', 'sound', 'image'].includes(type)) {
-      reply.code(400);
+      void reply.code(400);
       return { error: 'Invalid media type. Must be: animation, sound, or image' };
     }
 
@@ -148,14 +148,14 @@ export function registerMediaRoutes(
     Reply: FolderListResponse | { error: string };
   }>('/api/media/:type/folders', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
     const { type } = request.params;
 
     if (!['animation', 'sound', 'image'].includes(type)) {
-      reply.code(400);
+      void reply.code(400);
       return { error: 'Invalid media type' };
     }
 
@@ -176,7 +176,7 @@ export function registerMediaRoutes(
     Reply: FolderResponse;
   }>('/api/media/:type/folders', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -184,21 +184,21 @@ export function registerMediaRoutes(
     const { path } = request.body;
 
     if (!['animation', 'sound', 'image'].includes(type)) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Invalid media type' };
     }
 
     if (!path || typeof path !== 'string') {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Folder path is required' };
     }
 
     try {
       const folder = await mediaService.createFolder(type as MediaType, path);
-      reply.code(201);
+      void reply.code(201);
       return { success: true, folder };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to create folder',
@@ -214,21 +214,21 @@ export function registerMediaRoutes(
     Reply: DeleteResponse;
   }>('/api/media/:type/folders/:path', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { type, path } = request.params;
 
     if (!['animation', 'sound', 'image'].includes(type)) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Invalid media type' };
     }
 
     const deleted = await mediaService.deleteFolder(type as MediaType, path);
 
     if (!deleted) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Failed to delete folder. Make sure it is empty.' };
     }
 
@@ -246,7 +246,7 @@ export function registerMediaRoutes(
     Reply: UploadResponse;
   }>('/api/media/:type/upload', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -254,16 +254,16 @@ export function registerMediaRoutes(
     const { folder } = request.query;
 
     if (!['animation', 'sound', 'image'].includes(type)) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Invalid media type' };
     }
 
     try {
-      // Get multipart data - need to cast request to access file() method from multipart plugin
-      const data = await (request as any).file() as MultipartFile | undefined;
+      // Get multipart data (file() is added by the @fastify/multipart plugin)
+      const data: MultipartFile | undefined = await request.file();
 
       if (!data) {
-        reply.code(400);
+        void reply.code(400);
         return { success: false, error: 'No file uploaded' };
       }
 
@@ -272,7 +272,7 @@ export function registerMediaRoutes(
       // Validate MIME type
       if (!mediaService.validateFileType(mimetype, type as MediaType)) {
         const allowed = mediaService.getAllowedMimeTypes(type as MediaType);
-        reply.code(400);
+        void reply.code(400);
         return {
           success: false,
           error: `Invalid file type. Allowed: ${allowed.join(', ')}`,
@@ -287,13 +287,13 @@ export function registerMediaRoutes(
         folder,
       });
 
-      reply.code(201);
+      void reply.code(201);
       return {
         success: true,
         file: mediaFile,
       };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Upload failed',
@@ -310,7 +310,7 @@ export function registerMediaRoutes(
     Reply: MoveFileResponse;
   }>('/api/media/:type/move', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -318,12 +318,12 @@ export function registerMediaRoutes(
     const { filename, fromFolder, toFolder } = request.body;
 
     if (!['animation', 'sound', 'image'].includes(type)) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Invalid media type' };
     }
 
     if (!filename) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Filename is required' };
     }
 
@@ -335,7 +335,7 @@ export function registerMediaRoutes(
     );
 
     if (!movedFile) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'File not found or move failed' };
     }
 
@@ -353,7 +353,7 @@ export function registerMediaRoutes(
     Reply: DeleteResponse;
   }>('/api/media/:type/:filename', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -361,14 +361,14 @@ export function registerMediaRoutes(
     const { folder } = request.query;
 
     if (!['animation', 'sound', 'image'].includes(type)) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Invalid media type' };
     }
 
     const deleted = await mediaService.delete(type as MediaType, filename, folder);
 
     if (!deleted) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'File not found' };
     }
 
@@ -388,13 +388,13 @@ export function registerMediaRoutes(
     const { type, filename } = request.params;
 
     if (!['animation', 'sound', 'image'].includes(type)) {
-      reply.code(400);
+      void reply.code(400);
       return { error: 'Invalid media type' };
     }
 
     const exists = await mediaService.exists(type as MediaType, filename);
     if (!exists) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'File not found' };
     }
 
@@ -402,9 +402,9 @@ export function registerMediaRoutes(
     const stats = await stat(filePath);
     const contentType = getContentType(filename);
 
-    reply.header('Content-Type', contentType);
-    reply.header('Content-Length', stats.size);
-    reply.header('Cache-Control', 'public, max-age=31536000'); // 1 year cache
+    void reply.header('Content-Type', contentType);
+    void reply.header('Content-Length', stats.size);
+    void reply.header('Cache-Control', 'public, max-age=31536000'); // 1 year cache
 
     const stream = createReadStream(filePath);
     return reply.send(stream);
@@ -422,14 +422,14 @@ export function registerMediaRoutes(
     const pathParts = request.params['*'];
 
     if (!['animation', 'sound', 'image'].includes(type)) {
-      reply.code(400);
+      void reply.code(400);
       return { error: 'Invalid media type' };
     }
 
     // Parse path: last segment is filename, rest is folder path
     const segments = pathParts.split('/').filter((s) => s.length > 0);
     if (segments.length === 0) {
-      reply.code(400);
+      void reply.code(400);
       return { error: 'Filename is required' };
     }
 
@@ -438,7 +438,7 @@ export function registerMediaRoutes(
 
     const exists = await mediaService.exists(type as MediaType, filename, folder);
     if (!exists) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'File not found' };
     }
 
@@ -446,9 +446,9 @@ export function registerMediaRoutes(
     const stats = await stat(filePath);
     const contentType = getContentType(filename);
 
-    reply.header('Content-Type', contentType);
-    reply.header('Content-Length', stats.size);
-    reply.header('Cache-Control', 'public, max-age=31536000'); // 1 year cache
+    void reply.header('Content-Type', contentType);
+    void reply.header('Content-Length', stats.size);
+    void reply.header('Cache-Control', 'public, max-age=31536000'); // 1 year cache
 
     const stream = createReadStream(filePath);
     return reply.send(stream);
@@ -462,7 +462,7 @@ export function registerMediaRoutes(
       maxFileSize: number;
       allowedTypes: Record<MediaType, string[]>;
     };
-  }>('/api/media/info', async () => {
+  }>('/api/media/info', () => {
     return {
       maxFileSize: mediaService.getMaxFileSize(),
       allowedTypes: {

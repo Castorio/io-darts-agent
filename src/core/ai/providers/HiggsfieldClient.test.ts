@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Mock } from 'vitest';
+
+type FetchMock = Mock<[url: string, init?: RequestInit], Promise<unknown>>;
 import { HiggsfieldClient, parseHiggsfieldCredentials } from './HiggsfieldClient.js';
 
 const REQUEST_ID = 'd7e6c0f3-6699-4f6c-bb45-2ad7fd9158ff';
@@ -30,11 +33,11 @@ describe('parseHiggsfieldCredentials', () => {
 });
 
 describe('HiggsfieldClient', () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
+  let fetchMock: FetchMock;
   let client: HiggsfieldClient;
 
   beforeEach(() => {
-    fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, queued));
+    fetchMock = vi.fn<[url: string, init?: RequestInit], Promise<unknown>>().mockResolvedValue(jsonResponse(200, queued));
     vi.stubGlobal('fetch', fetchMock);
     client = new HiggsfieldClient(API_KEY);
   });
@@ -60,7 +63,7 @@ describe('HiggsfieldClient', () => {
     });
 
     it('retries a submit after a network error with the same idempotency key', async () => {
-      const sleep = vi.fn().mockResolvedValue(undefined);
+      const sleep = vi.fn<[number], Promise<void>>().mockResolvedValue(undefined);
       client = new HiggsfieldClient(API_KEY, { sleep });
       fetchMock.mockReset();
       fetchMock
@@ -152,7 +155,7 @@ describe('HiggsfieldClient', () => {
         .mockResolvedValueOnce(jsonResponse(200, { status: 'queued' }))
         .mockResolvedValueOnce(jsonResponse(200, { status: 'in_progress' }))
         .mockResolvedValueOnce(jsonResponse(200, { status: 'completed', images: [{ url: 'https://cdn/i.jpg' }] }));
-      const sleep = vi.fn().mockResolvedValue(undefined);
+      const sleep = vi.fn<[number], Promise<void>>().mockResolvedValue(undefined);
 
       const status = await client.waitFor(REQUEST_ID, { timeoutMs: 60_000, sleep });
 
@@ -167,7 +170,7 @@ describe('HiggsfieldClient', () => {
         .mockResolvedValueOnce(jsonResponse(503, { detail: 'Service unavailable' }))
         .mockRejectedValueOnce(new TypeError('fetch failed'))
         .mockResolvedValueOnce(jsonResponse(200, { status: 'completed', images: [{ url: 'https://cdn/i.jpg' }] }));
-      const sleep = vi.fn().mockResolvedValue(undefined);
+      const sleep = vi.fn<[number], Promise<void>>().mockResolvedValue(undefined);
 
       const status = await client.waitFor(REQUEST_ID, { timeoutMs: 60_000, sleep });
 
@@ -176,7 +179,7 @@ describe('HiggsfieldClient', () => {
 
     it('stops polling on errors that will not go away', async () => {
       fetchMock.mockResolvedValue(jsonResponse(401, { detail: 'Invalid credentials' }));
-      const sleep = vi.fn().mockResolvedValue(undefined);
+      const sleep = vi.fn<[number], Promise<void>>().mockResolvedValue(undefined);
 
       await expect(client.waitFor(REQUEST_ID, { timeoutMs: 60_000, sleep })).rejects.toThrow('invalid key');
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -185,12 +188,12 @@ describe('HiggsfieldClient', () => {
     it('caps the poll interval at ten seconds', async () => {
       for (let i = 0; i < 8; i++) fetchMock.mockResolvedValueOnce(jsonResponse(200, { status: 'in_progress' }));
       fetchMock.mockResolvedValueOnce(jsonResponse(200, { status: 'failed', error: 'Generation failed' }));
-      const sleep = vi.fn().mockResolvedValue(undefined);
+      const sleep = vi.fn<[number], Promise<void>>().mockResolvedValue(undefined);
 
       const status = await client.waitFor(REQUEST_ID, { timeoutMs: 600_000, sleep });
 
       expect(status).toMatchObject({ status: 'failed', error: 'Generation failed' });
-      expect(Math.max(...sleep.mock.calls.map((c) => c[0] as number))).toBe(10_000);
+      expect(Math.max(...sleep.mock.calls.map((c) => c[0]))).toBe(10_000);
     });
 
     it('gives up after the timeout', async () => {

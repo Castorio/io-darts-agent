@@ -276,7 +276,7 @@ export function registerTrainerRoutes(
     Reply: { session: TrainingSession | null };
   }>('/api/trainer/session', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { session: null };
     }
 
@@ -309,7 +309,7 @@ export function registerTrainerRoutes(
     },
   }, async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -369,7 +369,7 @@ export function registerTrainerRoutes(
     Reply: { success: boolean; error?: string };
   }>('/api/trainer/session/pause', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -397,7 +397,7 @@ export function registerTrainerRoutes(
     Reply: { success: boolean; error?: string };
   }>('/api/trainer/session/resume', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -424,7 +424,7 @@ export function registerTrainerRoutes(
     Reply: { success: boolean; error?: string; stats?: TrainingStats };
   }>('/api/trainer/session/end', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -497,7 +497,7 @@ export function registerTrainerRoutes(
     },
   }, async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -588,7 +588,7 @@ export function registerTrainerRoutes(
     Reply: { routines: PracticeRoutine[] };
   }>('/api/trainer/routines', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { routines: [] };
     }
 
@@ -603,7 +603,7 @@ export function registerTrainerRoutes(
     Reply: { routine: PracticeRoutine | null };
   }>('/api/trainer/routines/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { routine: null };
     }
 
@@ -638,7 +638,7 @@ export function registerTrainerRoutes(
     },
   }, async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -663,7 +663,7 @@ export function registerTrainerRoutes(
     Reply: { success: boolean; error?: string };
   }>('/api/trainer/routines/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -693,7 +693,7 @@ export function registerTrainerRoutes(
     Reply: { success: boolean; error?: string; session?: TrainingSession };
   }>('/api/trainer/routines/:id/start', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -746,7 +746,7 @@ export function registerTrainerRoutes(
     Reply: { history: TrainingHistoryEntry[]; total: number };
   }>('/api/trainer/history', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { history: [], total: 0 };
     }
 
@@ -779,7 +779,7 @@ export function registerTrainerRoutes(
     };
   }>('/api/trainer/stats', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return {
         totalSessions: 0,
         totalTime: 0,

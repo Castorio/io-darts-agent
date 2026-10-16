@@ -83,7 +83,7 @@ export function registerAnimationRoutes(
    */
   fastify.get('/api/animations/status', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Unauthorized' };
     }
 
@@ -98,11 +98,11 @@ export function registerAnimationRoutes(
    */
   fastify.get('/api/animations/engine', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Unauthorized' };
     }
     if (!deps.engine) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Engine selection not available' };
     }
     return deps.engine.get();
@@ -113,16 +113,16 @@ export function registerAnimationRoutes(
    */
   fastify.put<{ Body: { engine?: unknown } }>('/api/animations/engine', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Unauthorized' };
     }
     if (!deps.engine) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Engine selection not available' };
     }
     const engine = request.body?.engine;
     if (!isAnimationEngine(engine)) {
-      reply.code(400);
+      void reply.code(400);
       return { error: 'Unknown animation engine' };
     }
     await deps.engine.set(engine);
@@ -136,7 +136,7 @@ export function registerAnimationRoutes(
     Reply: { styles: AnimationStyle[] };
   }>('/api/animations/styles', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { styles: [] };
     }
 
@@ -152,7 +152,7 @@ export function registerAnimationRoutes(
     Reply: { events: DartEventType[] };
   }>('/api/animations/events', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { events: [] };
     }
 
@@ -169,14 +169,14 @@ export function registerAnimationRoutes(
     Reply: { success: boolean; job?: AnimationJob; error?: string };
   }>('/api/animations/generate', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Unauthorized' };
     }
 
     const { eventType, styleId, customStyle, customPrompt, options } = request.body;
 
     if (!eventType) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'eventType is required' };
     }
 
@@ -192,12 +192,12 @@ export function registerAnimationRoutes(
     } else if (styleId) {
       const preset = animationService.getStylePreset(styleId);
       if (!preset) {
-        reply.code(400);
+        void reply.code(400);
         return { success: false, error: `Style '${styleId}' not found` };
       }
       style = preset;
     } else {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'styleId or customStyle is required' };
     }
 
@@ -211,7 +211,7 @@ export function registerAnimationRoutes(
 
       return { success: true, job };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Generation failed',
@@ -227,7 +227,7 @@ export function registerAnimationRoutes(
     Reply: { success: boolean; jobs?: AnimationJob[]; error?: string };
   }>('/api/animations/generate-batch', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Unauthorized' };
     }
 
@@ -245,12 +245,12 @@ export function registerAnimationRoutes(
     } else if (styleId) {
       const preset = animationService.getStylePreset(styleId);
       if (!preset) {
-        reply.code(400);
+        void reply.code(400);
         return { success: false, error: `Style '${styleId}' not found` };
       }
       style = preset;
     } else {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'styleId or customStyle is required' };
     }
 
@@ -263,7 +263,7 @@ export function registerAnimationRoutes(
 
       return { success: true, jobs };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Batch generation failed',
@@ -279,7 +279,7 @@ export function registerAnimationRoutes(
     Reply: { jobs: AnimationJob[] };
   }>('/api/animations/jobs', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { jobs: [] };
     }
 
@@ -302,13 +302,13 @@ export function registerAnimationRoutes(
     Reply: AnimationJob | { error: string };
   }>('/api/animations/jobs/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Unauthorized' };
     }
 
     const job = animationService.getJob(request.params.id);
     if (!job) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Job not found' };
     }
 
@@ -323,13 +323,13 @@ export function registerAnimationRoutes(
     Reply: { success: boolean; error?: string };
   }>('/api/animations/jobs/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Unauthorized' };
     }
 
     const job = animationService.getJob(request.params.id);
     if (!job) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Job not found' };
     }
 
@@ -350,7 +350,7 @@ export function registerAnimationRoutes(
     Reply: { success: boolean; cleared: number };
   }>('/api/animations/jobs/clear', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, cleared: 0 };
     }
 

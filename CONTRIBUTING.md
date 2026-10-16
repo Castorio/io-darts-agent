@@ -22,7 +22,7 @@ npx vitest run     # tests
 npm run lint       # ESLint
 ```
 
-The build and the tests must pass. The code base still has existing lint errors, so `npm run lint` does not pass as a whole yet: it must not report new problems in the files you changed.
+The build, the tests and the lint must pass: `npm run lint` has to finish with 0 errors (CI runs it on every push and pull request).
 
 If you changed the web interface or the Game Display UI, also run `npm run build:frontend` or `npm run build:modules`.
 

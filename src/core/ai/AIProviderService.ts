@@ -133,7 +133,7 @@ export class AIProviderService extends EventEmitter {
     }
 
     // Update mutable config properties
-    const config = provider.config as AIProviderConfig;
+    const config = provider.config;
 
     if (update.enabled !== undefined) {
       (config as { enabled?: boolean }).enabled = update.enabled;
@@ -481,7 +481,8 @@ export class AIProviderService extends EventEmitter {
   private startJobPolling(job: AIJob, provider: IAIProvider): void {
     if (!provider.getJobStatus) return;
 
-    const poll = async () => {
+    // poll() catches all of its own errors, so fire-and-forget is safe.
+    const poll = async (): Promise<void> => {
       try {
         const status = await provider.getJobStatus!(job.providerJobId);
 
@@ -507,10 +508,10 @@ export class AIProviderService extends EventEmitter {
     };
 
     // Initial poll
-    poll();
+    void poll();
 
     // Schedule polling
-    const timer = setInterval(poll, this.config.jobPollingInterval);
+    const timer = setInterval(() => void poll(), this.config.jobPollingInterval);
     this.jobPollingTimers.set(job.id, timer);
   }
 

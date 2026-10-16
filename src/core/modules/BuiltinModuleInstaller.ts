@@ -64,7 +64,7 @@ function copyDirectoryRecursive(source: string, target: string): void {
  * Creates symlinks to the /modules/ directory for built-in modules
  * Falls back to copying if symlinks fail (e.g., on Windows without admin)
  */
-export async function installBuiltinModules(options: BuiltinModuleInstallerOptions): Promise<void> {
+export function installBuiltinModules(options: BuiltinModuleInstallerOptions): Promise<void> {
   const { modulesDir, builtinModulesDir, builtinModules = DEFAULT_BUILTIN_MODULES } = options;
 
   try {
@@ -79,7 +79,7 @@ export async function installBuiltinModules(options: BuiltinModuleInstallerOptio
 
     if (existingModules.length > 0) {
       console.log(`📦 Found ${existingModules.length} existing module(s), skipping built-in installation`);
-      return;
+      return Promise.resolve();
     }
 
     console.log('🚀 First run detected - installing built-in modules...');
@@ -117,6 +117,7 @@ export async function installBuiltinModules(options: BuiltinModuleInstallerOptio
   } catch (e) {
     console.error('❌ Failed to install built-in modules:', e);
   }
+  return Promise.resolve();
 }
 
 /**
@@ -128,13 +129,13 @@ export interface ScannedModule {
   path: string;
 }
 
-export async function scanInstalledModules(modulesDir: string): Promise<ScannedModule[]> {
+export function scanInstalledModules(modulesDir: string): Promise<ScannedModule[]> {
   const modules: ScannedModule[] = [];
 
   try {
     if (!fs.existsSync(modulesDir)) {
       fs.mkdirSync(modulesDir, { recursive: true });
-      return modules;
+      return Promise.resolve(modules);
     }
 
     const entries = fs.readdirSync(modulesDir, { withFileTypes: true });
@@ -145,13 +146,18 @@ export async function scanInstalledModules(modulesDir: string): Promise<ScannedM
         if (fs.existsSync(manifestPath)) {
           try {
             const manifestData = fs.readFileSync(manifestPath, 'utf-8');
-            const manifest = JSON.parse(manifestData);
+            const manifest: unknown = JSON.parse(manifestData);
+            const { id, name } = (manifest ?? {}) as { id?: unknown; name?: unknown };
+            if (typeof id !== 'string') {
+              console.warn(`⚠️ Manifest for ${entry.name} has no string id, skipping`);
+              continue;
+            }
             modules.push({
-              id: manifest.id,
+              id,
               manifest,
               path: path.join(modulesDir, entry.name),
             });
-            console.log(`📦 Found installed module: ${manifest.name} (${manifest.id})`);
+            console.log(`📦 Found installed module: ${String(name)} (${id})`);
           } catch (e) {
             console.warn(`⚠️ Failed to read manifest for ${entry.name}:`, e);
           }
@@ -162,5 +168,5 @@ export async function scanInstalledModules(modulesDir: string): Promise<ScannedM
     console.warn('⚠️ Failed to scan modules directory:', e);
   }
 
-  return modules;
+  return Promise.resolve(modules);
 }

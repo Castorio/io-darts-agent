@@ -1,25 +1,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import { ModuleManager } from './ModuleManager.js';
 import { EventBus } from '../events/EventBus.js';
 import type { ModuleManifest } from '../../types/modules.js';
 
 vi.mock('fs/promises');
-vi.mock('child_process', () => ({
-  spawn: vi.fn(() => {
-    const EventEmitter = require('events').EventEmitter;
-    const proc = new EventEmitter();
-    proc.stdout = new EventEmitter();
-    proc.stderr = new EventEmitter();
-    proc.killed = false;
-    proc.kill = vi.fn(() => {
-      proc.killed = true;
-      proc.emit('exit', 0, null);
+vi.mock('child_process', async () => {
+  const { EventEmitter } = await import('events');
+  class FakeProcess extends EventEmitter {
+    stdout = new EventEmitter();
+    stderr = new EventEmitter();
+    killed = false;
+    kill = vi.fn(() => {
+      this.killed = true;
+      this.emit('exit', 0, null);
     });
-    return proc;
-  }),
-}));
+  }
+  return { spawn: vi.fn(() => new FakeProcess()) };
+});
+
+/** Minimal Dirent stand-in for the fs.readdir mock */
+function dirents(entries: Array<{ name: string; dir: boolean }>): Awaited<ReturnType<typeof fs.readdir>> {
+  return entries.map((e) => ({ name: e.name, isDirectory: (): boolean => e.dir })) as unknown as Awaited<
+    ReturnType<typeof fs.readdir>
+  >;
+}
 
 const TEST_MANIFEST: ModuleManifest = {
   id: 'test-module',
@@ -73,10 +78,12 @@ describe('ModuleManager', () => {
 
     it('should discover modules in directory', async () => {
       vi.mocked(fs.access).mockResolvedValue(undefined);
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'test-module', isDirectory: () => true },
-        { name: 'file.txt', isDirectory: () => false },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue(
+        dirents([
+          { name: 'test-module', dir: true },
+          { name: 'file.txt', dir: false },
+        ])
+      );
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(TEST_MANIFEST));
 
       const manifests = await manager.discoverModules();
@@ -87,9 +94,7 @@ describe('ModuleManager', () => {
 
     it('should skip invalid manifests', async () => {
       vi.mocked(fs.access).mockResolvedValue(undefined);
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'invalid-module', isDirectory: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue(dirents([{ name: 'invalid-module', dir: true }]));
       vi.mocked(fs.readFile).mockResolvedValue('{ "invalid": "json" }');
 
       const manifests = await manager.discoverModules();
@@ -232,9 +237,7 @@ describe('ModuleManager', () => {
   describe('Manifest Validation', () => {
     it('should reject manifest without id', async () => {
       vi.mocked(fs.access).mockResolvedValue(undefined);
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'bad-module', isDirectory: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue(dirents([{ name: 'bad-module', dir: true }]));
       vi.mocked(fs.readFile).mockResolvedValue(
         JSON.stringify({ name: 'Bad', version: '1.0.0', entry: 'index.js', events: [] })
       );
@@ -245,9 +248,7 @@ describe('ModuleManager', () => {
 
     it('should reject manifest without events array', async () => {
       vi.mocked(fs.access).mockResolvedValue(undefined);
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'bad-module', isDirectory: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue(dirents([{ name: 'bad-module', dir: true }]));
       vi.mocked(fs.readFile).mockResolvedValue(
         JSON.stringify({ id: 'bad', name: 'Bad', version: '1.0.0', entry: 'index.js' })
       );

@@ -333,7 +333,8 @@ export class ReplicateProvider extends BaseAIProvider {
     );
 
     const output = prediction.output;
-    const resultUrl = Array.isArray(output) ? output[0] : undefined;
+    const first: unknown = Array.isArray(output) ? output[0] : undefined;
+    const resultUrl = typeof first === 'string' ? first : undefined;
 
     return {
       id: jobId,

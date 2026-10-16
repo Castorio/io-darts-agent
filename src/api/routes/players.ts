@@ -41,7 +41,7 @@ export function registerPlayerRoutes(
     Reply: PlayerListResponse;
   }>('/api/players', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { players: [], total: 0 };
     }
 
@@ -64,13 +64,13 @@ export function registerPlayerRoutes(
     Reply: LocalPlayer | { error: string };
   }>('/api/players/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
     const player = await playerService.getPlayer(request.params.id);
     if (!player) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Player not found' };
     }
 
@@ -85,14 +85,14 @@ export function registerPlayerRoutes(
     Reply: PlayerActionResponse;
   }>('/api/players', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const { name, nickname, color, avatar, autodartsUserId } = request.body;
 
     if (!name || name.trim().length === 0) {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Player name is required' };
     }
 
@@ -105,7 +105,7 @@ export function registerPlayerRoutes(
         autodartsUserId,
       });
 
-      reply.code(201);
+      void reply.code(201);
       return {
         success: true,
         message: 'Player created',
@@ -114,11 +114,11 @@ export function registerPlayerRoutes(
     } catch (error) {
       // Check for duplicate name error
       if (error instanceof Error && error.message.includes('already exists')) {
-        reply.code(409);
+        void reply.code(409);
         return { success: false, error: error.message };
       }
 
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to create player',
@@ -135,7 +135,7 @@ export function registerPlayerRoutes(
     Reply: PlayerActionResponse;
   }>('/api/players/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -158,16 +158,16 @@ export function registerPlayerRoutes(
       };
     } catch (error) {
       if (error instanceof Error && error.message.includes('not found')) {
-        reply.code(404);
+        void reply.code(404);
         return { success: false, error: error.message };
       }
 
       if (error instanceof Error && error.message.includes('already exists')) {
-        reply.code(409);
+        void reply.code(409);
         return { success: false, error: error.message };
       }
 
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to update player',
@@ -183,13 +183,13 @@ export function registerPlayerRoutes(
     Reply: PlayerActionResponse;
   }>('/api/players/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
     const deleted = await playerService.deletePlayer(request.params.id);
     if (!deleted) {
-      reply.code(404);
+      void reply.code(404);
       return { success: false, error: 'Player not found' };
     }
 
@@ -207,7 +207,7 @@ export function registerPlayerRoutes(
     Reply: Record<string, unknown> | { error: string };
   }>('/api/players/:id/module-settings/:moduleId', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -220,11 +220,11 @@ export function registerPlayerRoutes(
       return settings ?? {};
     } catch (error) {
       if (error instanceof Error && error.message.includes('not found')) {
-        reply.code(404);
+        void reply.code(404);
         return { error: error.message };
       }
 
-      reply.code(500);
+      void reply.code(500);
       return { error: error instanceof Error ? error.message : 'Failed to get settings' };
     }
   });
@@ -238,7 +238,7 @@ export function registerPlayerRoutes(
     Reply: PlayerActionResponse;
   }>('/api/players/:id/module-settings/:moduleId', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { success: false, error: 'Authentication required' };
     }
 
@@ -246,7 +246,7 @@ export function registerPlayerRoutes(
     const { settings } = request.body;
 
     if (!settings || typeof settings !== 'object') {
-      reply.code(400);
+      void reply.code(400);
       return { success: false, error: 'Settings object is required' };
     }
 
@@ -260,11 +260,11 @@ export function registerPlayerRoutes(
       };
     } catch (error) {
       if (error instanceof Error && error.message.includes('not found')) {
-        reply.code(404);
+        void reply.code(404);
         return { success: false, error: error.message };
       }
 
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to update settings',
@@ -280,13 +280,13 @@ export function registerPlayerRoutes(
     Reply: { matched: boolean; player?: LocalPlayer };
   }>('/api/players/match', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { matched: false };
     }
 
     const { name } = request.body;
     if (!name) {
-      reply.code(400);
+      void reply.code(400);
       return { matched: false };
     }
 
@@ -305,13 +305,13 @@ export function registerPlayerRoutes(
     Reply: LocalPlayer['stats'] | { error: string };
   }>('/api/players/:id/stats', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
     const player = await playerService.getPlayer(request.params.id);
     if (!player) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Player not found' };
     }
 

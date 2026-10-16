@@ -61,7 +61,7 @@ export function registerStatusRoutes(
   }>('/api/autodarts/connect', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return {
         success: false,
         error: 'Authentication required',
@@ -70,7 +70,7 @@ export function registerStatusRoutes(
 
     // Check if setup is completed
     if (server.isSetupRequired()) {
-      reply.code(400);
+      void reply.code(400);
       return {
         success: false,
         error: 'Setup not completed',
@@ -94,7 +94,7 @@ export function registerStatusRoutes(
   }>('/api/autodarts/disconnect', async (request, reply) => {
     // Require authentication (if enabled)
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return {
         success: false,
         error: 'Authentication required',

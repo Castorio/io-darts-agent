@@ -46,6 +46,8 @@ import {
   createGameDisplayHandler,
   createDartsCallerHandler,
   normalizeDartsCallerConfig,
+  type WledConfig,
+  type GameDisplayConfig,
 } from './core/modules/handlers/index.js';
 // Note: BuiltinModuleInstaller is available but we use local implementations
 // that integrate with the local state (installedModules map, config loading, etc.)
@@ -118,11 +120,21 @@ interface InstalledModule {
 const installedModules = new Map<string, InstalledModule>();
 
 /**
+ * Run async work from a callback that ignores promises (EventEmitter listener,
+ * timer). A rejection would otherwise be unhandled and end the process.
+ */
+function runDetached(label: string, task: () => Promise<void>): void {
+  task().catch((err) => {
+    console.error(`❌ ${label} failed:`, err);
+  });
+}
+
+/**
  * Create a logger interface for module handlers
  */
-function createModuleLogger(moduleId: string) {
+function createModuleLogger(moduleId: string): { log: (source: string, message: string, data?: unknown) => void } {
   return {
-    log: (source: string, message: string, data?: unknown) => {
+    log: (source: string, message: string, data?: unknown): void => {
       addLog('module', source || moduleId, message, data);
     },
   };
@@ -237,7 +249,7 @@ function unregisterModuleIntents(mod: InstalledModule): void {
  * Start an external SDK-based module as a separate Node.js process
  */
 async function startExternalModule(mod: InstalledModule): Promise<void> {
-  const entryPoint = path.join(mod.path, mod.manifest.entry!);
+  const entryPoint = path.join(mod.path, mod.manifest.entry);
 
   // Check if entry point exists
   if (!fs.existsSync(entryPoint)) {
@@ -311,11 +323,14 @@ async function startExternalModule(mod: InstalledModule): Promise<void> {
   console.log(`▶️  Started external module: ${mod.manifest.name} (PID: ${proc.pid})`);
 
   // Setup event forwarding to the external module
-  mod.eventHandler = async (event: ParsedEvent) => {
-    if (bridge.isConnected()) {
-      bridge.sendEvent(event);
-    }
-  };
+  // Promise executor: a throw from sendEvent still surfaces as a rejection
+  mod.eventHandler = (event: ParsedEvent): Promise<void> =>
+    new Promise<void>((resolve) => {
+      if (bridge.isConnected()) {
+        bridge.sendEvent(event);
+      }
+      resolve();
+    });
 }
 
 /**
@@ -412,7 +427,7 @@ function setupExternalModuleBridgeHandlers(mod: InstalledModule, bridge: ModuleB
   });
 
   // Handle routes registration from external module
-  bridge.on('routesRegister', async (payload: RoutesRegisterPayload) => {
+  const onRoutesRegister = async (payload: RoutesRegisterPayload): Promise<void> => {
     console.log(`🛣️  [${mod.id}] Registering ${payload.routes.length} API routes`);
 
     const registry = getModuleRouteRegistry();
@@ -455,10 +470,13 @@ function setupExternalModuleBridgeHandlers(mod: InstalledModule, bridge: ModuleB
     } catch (err) {
       console.error(`❌ [${mod.id}] Failed to register routes:`, err);
     }
-  });
+  };
+  bridge.on('routesRegister', (payload: RoutesRegisterPayload) =>
+    runDetached(`[${mod.id}] routesRegister`, () => onRoutesRegister(payload))
+  );
 
   // Handle intent emission from external module
-  bridge.on('intentEmit', async (data: { moduleId: string; intentId: string; payload: Record<string, unknown> }) => {
+  const onIntentEmit = async (data: { moduleId: string; intentId: string; payload: Record<string, unknown> }): Promise<void> => {
     console.log(`📡 [${mod.id}] Emitting intent: ${data.intentId}`);
     addLog('module', `intent:${mod.id}`, data.intentId, data.payload);
 
@@ -469,10 +487,13 @@ function setupExternalModuleBridgeHandlers(mod: InstalledModule, bridge: ModuleB
       console.error(`❌ [${mod.id}] Failed to emit intent ${data.intentId}:`, err);
       addLog('module', mod.id, `Intent emit error: ${err instanceof Error ? err.message : String(err)}`);
     }
-  });
+  };
+  bridge.on('intentEmit', (data: Parameters<typeof onIntentEmit>[0]) =>
+    runDetached(`[${mod.id}] intentEmit`, () => onIntentEmit(data))
+  );
 
   // Handle data requests from external module (e.g., getPlayers, getPlayer)
-  bridge.on('request', async (payload: { action: string; data?: Record<string, unknown>; requestId: string }, _messageId: string) => {
+  const onRequest = async (payload: { action: string; data?: Record<string, unknown>; requestId: string }): Promise<void> => {
     console.log(`📥 [${mod.id}] Request: ${payload.action}`);
 
     try {
@@ -578,11 +599,19 @@ function setupExternalModuleBridgeHandlers(mod: InstalledModule, bridge: ModuleB
       console.error(`❌ [${mod.id}] Request failed:`, err);
       bridge.sendRequestResponse(payload.requestId, false, undefined, (err as Error).message);
     }
-  });
+  };
+  bridge.on('request', (payload: Parameters<typeof onRequest>[0]) =>
+    runDetached(`[${mod.id}] request ${payload.action}`, () => onRequest(payload))
+  );
 }
 
 // Module config storage directory
-const getConfigDir = () => runtimePath('config', 'modules');
+const getConfigDir = (): string => runtimePath('config', 'modules');
+
+/** JSON object check for config files edited on disk */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 /**
  * Get default config values from manifest
@@ -606,8 +635,9 @@ function loadModuleConfig(moduleId: string): Record<string, unknown> {
   try {
     const configPath = path.join(getConfigDir(), `${moduleId}.json`);
     if (fs.existsSync(configPath)) {
-      const data = fs.readFileSync(configPath, 'utf-8');
-      return JSON.parse(data);
+      const data: unknown = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (isJsonObject(data)) return data;
+      console.warn(`⚠️  Config for module ${moduleId} is not a JSON object, using defaults`);
     }
   } catch (e) {
     console.warn(`⚠️  Failed to load config for module ${moduleId}:`, e);
@@ -654,8 +684,9 @@ function loadAutostartSettings(): ModuleAutostartSettings {
   try {
     const settingsPath = getAutostartSettingsPath();
     if (fs.existsSync(settingsPath)) {
-      const data = fs.readFileSync(settingsPath, 'utf-8');
-      return JSON.parse(data);
+      const data: unknown = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+      if (isJsonObject(data)) return data as ModuleAutostartSettings;
+      console.warn('⚠️  Autostart settings are not a JSON object, ignoring them');
     }
   } catch (e) {
     console.warn('⚠️  Failed to load autostart settings:', e);
@@ -903,7 +934,7 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
             mod.wledHandler.setPlayerService(playerService);
             mod.wledHandler.setLogger(createModuleLogger('wled'));
 
-            mod.eventHandler = async (event: ParsedEvent) => {
+            mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
               if (mod.wledHandler) {
                 // Debug: Log before calling handler
                 if (event.type === 'throw.detected') {
@@ -919,7 +950,7 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
           } else if (mod.id === 'game-display') {
             // Create Game Display handler for statistics and animation tracking
             mod.gameDisplayHandler = createGameDisplayHandler(mod.configValues);
-            mod.eventHandler = async (event: ParsedEvent) => {
+            mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
               if (mod.gameDisplayHandler) {
                 await mod.gameDisplayHandler.handleEvent(event);
               }
@@ -956,7 +987,7 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
               mod.dartsCallerHandler.setVoicePackGenerator(generator);
               console.log('🎙️  Darts Caller configured with ElevenLabs for player name generation');
             }
-            mod.eventHandler = async (event: ParsedEvent) => {
+            mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
               if (mod.dartsCallerHandler) {
                 await mod.dartsCallerHandler.handleEvent(event);
               }
@@ -1095,7 +1126,7 @@ async function main(): Promise<void> {
    * Install built-in modules on first run (when modules_installed is empty)
    * Creates symlinks to the /modules/ directory for built-in modules
    */
-  async function installBuiltinModules(): Promise<void> {
+  function installBuiltinModules(): void {
     try {
       // Create modules_installed directory if it doesn't exist
       if (!fs.existsSync(modulesDir)) {
@@ -1171,10 +1202,10 @@ async function main(): Promise<void> {
   }
 
   // Install built-in modules on first run
-  await installBuiltinModules();
+  installBuiltinModules();
 
   // Scan for already installed modules on startup
-  async function scanInstalledModules(): Promise<void> {
+  function scanInstalledModules(): void {
     try {
       if (!fs.existsSync(modulesDir)) {
         fs.mkdirSync(modulesDir, { recursive: true });
@@ -1212,7 +1243,7 @@ async function main(): Promise<void> {
       console.warn('⚠️  Failed to scan modules directory:', e);
     }
   }
-  await scanInstalledModules();
+  scanInstalledModules();
 
   // Register Module Routes
   registerModuleRoutes(fastify, server, {
@@ -1294,7 +1325,8 @@ async function main(): Promise<void> {
       if (!mod) return null;
       return mod.configValues;
     },
-    updateModuleConfig: async (id: string, newConfig: Record<string, unknown>): Promise<void> => {
+    // Promise executor: a throw (unknown module, failed save) becomes a rejection
+    updateModuleConfig: (id: string, newConfig: Record<string, unknown>): Promise<void> => new Promise<void>((resolve) => {
       const mod = installedModules.get(id);
       if (!mod) throw new Error(`Module ${id} not found`);
 
@@ -1313,7 +1345,8 @@ async function main(): Promise<void> {
       if (id === 'darts-caller' && mod.dartsCallerHandler) {
         mod.dartsCallerHandler.updateConfig(mod.configValues);
       }
-    },
+      resolve();
+    }),
     startModule: async (id: string): Promise<void> => {
       const mod = installedModules.get(id);
       if (!mod) throw new Error(`Module ${id} not found`);
@@ -1324,7 +1357,7 @@ async function main(): Promise<void> {
         mod.wledHandler.setPlayerService(playerService);
         mod.wledHandler.setLogger(createModuleLogger('wled'));
 
-        mod.eventHandler = async (event: ParsedEvent) => {
+        mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
           if (mod.wledHandler) {
             await mod.wledHandler.handleEvent(event);
           }
@@ -1334,7 +1367,7 @@ async function main(): Promise<void> {
         console.log(`   Host: ${mod.wledHandler.getHost() || 'not configured'}`);
       } else if (id === 'game-display') {
         mod.gameDisplayHandler = createGameDisplayHandler(mod.configValues);
-        mod.eventHandler = async (event: ParsedEvent) => {
+        mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
           if (mod.gameDisplayHandler) {
             await mod.gameDisplayHandler.handleEvent(event);
           }
@@ -1368,7 +1401,7 @@ async function main(): Promise<void> {
           mod.dartsCallerHandler.setVoicePackGenerator(generator);
           console.log('🎙️  Darts Caller configured with ElevenLabs for player name generation');
         }
-        mod.eventHandler = async (event: ParsedEvent) => {
+        mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
           if (mod.dartsCallerHandler) {
             await mod.dartsCallerHandler.handleEvent(event);
           }
@@ -1406,7 +1439,8 @@ async function main(): Promise<void> {
       mod.status = 'stopped';
       console.log(`⏹️  Stopped module: ${mod.manifest.name}`);
     },
-    restartModule: async (id: string): Promise<void> => {
+    // Promise executor: a throw (unknown module, handler setup) becomes a rejection
+    restartModule: (id: string): Promise<void> => new Promise<void>((resolve) => {
       const mod = installedModules.get(id);
       if (!mod) throw new Error(`Module ${id} not found`);
 
@@ -1414,26 +1448,26 @@ async function main(): Promise<void> {
       if (id === 'wled') {
         // Update or create handler with latest config
         if (mod.wledHandler) {
-          mod.wledHandler.updateConfig(mod.configValues as any);
+          mod.wledHandler.updateConfig(mod.configValues as WledConfig);
         } else {
           mod.wledHandler = createWledHandler(mod.configValues);
           mod.wledHandler.setPlayerService(playerService);
           mod.wledHandler.setLogger(createModuleLogger('wled'));
         }
 
-        mod.eventHandler = async (event: ParsedEvent) => {
+        mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
           if (mod.wledHandler) {
             await mod.wledHandler.handleEvent(event);
           }
         };
       } else if (id === 'game-display') {
         if (mod.gameDisplayHandler) {
-          mod.gameDisplayHandler.updateConfig(mod.configValues as any);
+          mod.gameDisplayHandler.updateConfig(mod.configValues as GameDisplayConfig);
         } else {
           mod.gameDisplayHandler = createGameDisplayHandler(mod.configValues);
         }
 
-        mod.eventHandler = async (event: ParsedEvent) => {
+        mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
           if (mod.gameDisplayHandler) {
             await mod.gameDisplayHandler.handleEvent(event);
           }
@@ -1444,7 +1478,7 @@ async function main(): Promise<void> {
           voicePacksDir: runtimePath('data', 'voicepacks'),
         };
         if (mod.dartsCallerHandler) {
-          mod.dartsCallerHandler.updateConfig(callerConfig as any);
+          mod.dartsCallerHandler.updateConfig(callerConfig);
         } else {
           mod.dartsCallerHandler = createDartsCallerHandler(callerConfig);
           // Register callback to forward call requests to WebSocket
@@ -1454,7 +1488,7 @@ async function main(): Promise<void> {
           });
         }
 
-        mod.eventHandler = async (event: ParsedEvent) => {
+        mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
           if (mod.dartsCallerHandler) {
             await mod.dartsCallerHandler.handleEvent(event);
           }
@@ -1463,7 +1497,8 @@ async function main(): Promise<void> {
 
       mod.status = 'running';
       console.log(`🔄 Restarted module: ${mod.manifest.name}`);
-    },
+      resolve();
+    }),
     installModule: async (source: 'git' | 'local', url?: string, modulePath?: string, branch?: string): Promise<string> => {
       console.log(`📥 Installing module from ${source}: ${url || modulePath}`);
 
@@ -1680,7 +1715,7 @@ async function main(): Promise<void> {
 
   // Runway key from the AI settings, legacy hub config as fallback
   // Model from the AI settings; the provider replaces retired or unknown ids with its default
-  function runwayAnimationConfig() {
+  function runwayAnimationConfig(): { apiKey: string | undefined; model: string | undefined } {
     const legacy = server.getConfig()?.aiProviders?.runway;
     const aiService = getAIProviderService();
     return {
@@ -1696,7 +1731,7 @@ async function main(): Promise<void> {
   }
 
   // Function to configure/reconfigure the animation engine
-  function configureAnimationProvider() {
+  function configureAnimationProvider(): void {
     if (animationEngineSettings.get() === 'higgsfield') {
       const higgsfield = getHiggsfieldProvider();
       if (higgsfield) {
@@ -1715,7 +1750,7 @@ async function main(): Promise<void> {
       animationService.setProvider(runwayProvider);
       console.log('🎬 Animation generator: Runway ML configured');
     } else {
-      animationService.setProvider(null as any); // Clear provider
+      animationService.setProvider(null); // Clear provider
       console.log('🎬 Animation generator: No provider configured');
     }
   }
@@ -1930,7 +1965,8 @@ async function main(): Promise<void> {
   // Check both /modules/ (builtin) and /modules_installed/ (external)
   const modulesSourceDir = resolveBuiltinModulesDir(path.join(__dirname, '..'));
   const modulesInstalledDir = runtimePath('modules_installed');
-  fastify.register(async (instance) => {
+  // Registration is queued and loaded by fastify on listen; nothing to await here
+  void fastify.register((instance, _opts, done) => {
     instance.get('/module-ui/:moduleId/*', async (request, reply) => {
       const { moduleId } = request.params as { moduleId: string };
       const splat = (request.params as Record<string, string>)['*'] || 'index.html';
@@ -1984,19 +2020,20 @@ async function main(): Promise<void> {
         };
         const contentType = contentTypes[ext] || 'application/octet-stream';
 
-        reply.header('Content-Type', contentType);
+        void reply.header('Content-Type', contentType);
         return reply.send(fs.readFileSync(filePath));
       }
 
       // SPA fallback - serve index.html for any non-asset routes
       const indexPath = path.join(moduleDistPath, 'index.html');
       if (fs.existsSync(indexPath)) {
-        reply.header('Content-Type', 'text/html');
+        void reply.header('Content-Type', 'text/html');
         return reply.send(fs.readFileSync(indexPath));
       }
 
       return reply.status(404).send({ error: 'Module UI not found' });
     });
+    done();
   });
 
   // SPA fallback
@@ -2055,7 +2092,7 @@ async function main(): Promise<void> {
     if (isShuttingDown) return;
     isShuttingDown = true;
     console.log('\n🔄 Restarting hub...');
-    setTimeout(async () => {
+    const stopForRestart = async (): Promise<void> => {
       try {
         wsManager.stop();
         stopHub();
@@ -2063,7 +2100,11 @@ async function main(): Promise<void> {
       } catch (error) {
         console.error('Error while stopping for restart:', error);
       }
-      restartProcess();
+    };
+    setTimeout(() => {
+      // stopForRestart never rejects. If restartProcess throws, the rejection stays
+      // unhandled on purpose: the process exits instead of idling with a stopped server.
+      void stopForRestart().then(() => restartProcess());
     }, 300);
   });
 

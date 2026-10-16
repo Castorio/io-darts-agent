@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Mock } from 'vitest';
+
+type FetchMock = Mock<[url: string, init?: RequestInit], Promise<unknown>>;
 import { createAnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from './AnthropicProvider.js';
 
 function messageResponse(overrides: Record<string, unknown> = {}): Response {
@@ -16,19 +19,19 @@ function messageResponse(overrides: Record<string, unknown> = {}): Response {
   return { ok: true, status: 200, json: () => Promise.resolve(body) } as unknown as Response;
 }
 
-function sentBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {
+function sentBody(fetchMock: FetchMock): Record<string, unknown> {
   return JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string) as Record<string, unknown>;
 }
 
-function sentHeaders(fetchMock: ReturnType<typeof vi.fn>): Record<string, string> {
+function sentHeaders(fetchMock: FetchMock): Record<string, string> {
   return (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
 }
 
 describe('AnthropicProvider', () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
+  let fetchMock: FetchMock;
 
   beforeEach(() => {
-    fetchMock = vi.fn().mockResolvedValue(messageResponse());
+    fetchMock = vi.fn<[url: string, init?: RequestInit], Promise<unknown>>().mockResolvedValue(messageResponse());
     vi.stubGlobal('fetch', fetchMock);
   });
 

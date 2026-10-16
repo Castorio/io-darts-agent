@@ -3,6 +3,14 @@ import type { WebSocket } from 'ws';
 import type { APIServer } from '../Server.js';
 import type { WSMessage, WSEventMessage, WSStatusMessage, WSModuleMessage } from '../../types/api.js';
 import type { ParsedEvent, ModuleStatus } from '../../types/index.js';
+import { rawDataToString } from '../../core/socket/rawData.js';
+
+type ClientMessage = { type: string; [key: string]: unknown };
+
+/** Client messages are JSON objects with a string type; anything else is ignored */
+function isClientMessage(value: unknown): value is ClientMessage {
+  return typeof value === 'object' && value !== null && typeof (value as { type?: unknown }).type === 'string';
+}
 
 export interface LogEntry {
   id: string;
@@ -101,7 +109,7 @@ export class WebSocketManager {
     });
 
     // REST API for log history
-    fastify.get('/api/logs', async () => {
+    fastify.get('/api/logs', () => {
       if (this.deps.getLogHistory) {
         return this.deps.getLogHistory();
       }
@@ -200,8 +208,10 @@ export class WebSocketManager {
     // Handle incoming messages
     socket.on('message', (data) => {
       try {
-        const message = JSON.parse(data.toString());
-        this.handleClientMessage(client, message);
+        const message: unknown = JSON.parse(rawDataToString(data));
+        if (isClientMessage(message)) {
+          this.handleClientMessage(client, message);
+        }
       } catch {
         // Ignore invalid messages
       }
@@ -221,7 +231,7 @@ export class WebSocketManager {
   /**
    * Handle message from client
    */
-  private handleClientMessage(client: WSClient, message: { type: string; [key: string]: unknown }): void {
+  private handleClientMessage(client: WSClient, message: ClientMessage): void {
     switch (message.type) {
       case 'subscribe':
         // Subscribe to specific event types

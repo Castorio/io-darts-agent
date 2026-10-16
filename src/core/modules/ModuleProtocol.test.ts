@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { ModuleProtocol } from './ModuleProtocol.js';
-import type { IPCMessage, InitPayload, EventPayload } from '../../types/modules.js';
 import type { ParsedEvent } from '../../types/index.js';
 
 describe('ModuleProtocol', () => {

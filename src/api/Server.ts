@@ -106,7 +106,7 @@ export class APIServer extends EventEmitter {
     // Allow empty JSON bodies (for POST requests without body)
     this.fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
       try {
-        const json = body ? JSON.parse(body as string) : {};
+        const json: unknown = body ? JSON.parse(body as string) : {};
         done(null, json);
       } catch (err) {
         done(err as Error, undefined);
@@ -160,7 +160,7 @@ export class APIServer extends EventEmitter {
     }
 
     // Health check endpoint
-    this.fastify.get('/health', async () => ({ status: 'ok' }));
+    this.fastify.get('/health', () => ({ status: 'ok' }));
 
     this.emit('initialized');
   }

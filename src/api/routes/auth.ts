@@ -58,7 +58,7 @@ export function registerAuthRoutes(
     const { username, password } = request.body;
 
     if (!username || !password) {
-      reply.code(400);
+      void reply.code(400);
       return {
         success: false,
         message: 'Username and password are required',
@@ -67,7 +67,7 @@ export function registerAuthRoutes(
 
     const config = server.getConfig();
     if (!config) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         message: 'Server not configured',
@@ -76,7 +76,7 @@ export function registerAuthRoutes(
 
     // Check username
     if (username !== config.webAuth.username) {
-      reply.code(401);
+      void reply.code(401);
       return {
         success: false,
         message: 'Invalid username or password',
@@ -86,7 +86,7 @@ export function registerAuthRoutes(
     // Check password
     const passwordValid = await bcrypt.compare(password, config.webAuth.passwordHash);
     if (!passwordValid) {
-      reply.code(401);
+      void reply.code(401);
       return {
         success: false,
         message: 'Invalid username or password',
@@ -132,7 +132,7 @@ export function registerAuthRoutes(
   }>('/api/auth/change-password', async (request, reply) => {
     // Require authentication
     if (!request.session?.authenticated) {
-      reply.code(401);
+      void reply.code(401);
       return {
         success: false,
         message: 'Authentication required',
@@ -141,7 +141,7 @@ export function registerAuthRoutes(
 
     // Auth must be enabled
     if (!server.isAuthEnabled()) {
-      reply.code(400);
+      void reply.code(400);
       return {
         success: false,
         message: 'Authentication is not enabled',
@@ -151,7 +151,7 @@ export function registerAuthRoutes(
     const { currentPassword, newPassword } = request.body;
 
     if (!currentPassword || !newPassword) {
-      reply.code(400);
+      void reply.code(400);
       return {
         success: false,
         message: 'Current and new password are required',
@@ -160,7 +160,7 @@ export function registerAuthRoutes(
 
     const config = server.getConfig();
     if (!config) {
-      reply.code(500);
+      void reply.code(500);
       return {
         success: false,
         message: 'Server not configured',
@@ -170,7 +170,7 @@ export function registerAuthRoutes(
     // Verify current password
     const passwordValid = await bcrypt.compare(currentPassword, config.webAuth.passwordHash);
     if (!passwordValid) {
-      reply.code(401);
+      void reply.code(401);
       return {
         success: false,
         message: 'Current password is incorrect',

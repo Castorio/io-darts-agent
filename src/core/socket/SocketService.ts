@@ -4,6 +4,7 @@ import type {
   AutodartsMessage,
 } from '../../types/index.js';
 import { EventParser } from './EventParser.js';
+import { rawDataToString } from './rawData.js';
 import { EventBus } from '../events/EventBus.js';
 
 const WS_URL = 'wss://play.ws.autodarts.com/ms/v0/subscribe';
@@ -270,7 +271,7 @@ export class SocketService {
 
   private handleMessage(data: WebSocket.RawData): void {
     try {
-      const message = JSON.parse(data.toString()) as AutodartsMessage;
+      const message = JSON.parse(rawDataToString(data)) as AutodartsMessage;
       const isBoardEvent = message.channel === 'autodarts.boards' && message.topic?.endsWith('.events');
       console.log(`📨 WS Message: channel=${message.channel}, topic=${message.topic}${isBoardEvent ? ' [BOARD EVENT]' : ''}`);
       if (isBoardEvent) {

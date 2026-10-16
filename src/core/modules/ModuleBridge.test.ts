@@ -3,6 +3,7 @@ import * as net from 'net';
 import * as fs from 'fs';
 import { ModuleBridge } from './ModuleBridge.js';
 import { ModuleProtocol } from './ModuleProtocol.js';
+import type { IPCMessage, ErrorPayload } from '../../types/modules.js';
 
 const TEST_MODULE_ID = 'test-module';
 
@@ -142,7 +143,7 @@ describe('ModuleBridge', () => {
     });
 
     it('should parse incoming messages', async () => {
-      const messageHandler = vi.fn();
+      const messageHandler = vi.fn<[IPCMessage], void>();
       bridge.on('message', messageHandler);
 
       const msg = ModuleProtocol.createReady(TEST_MODULE_ID, '1.0.0');
@@ -210,7 +211,7 @@ describe('ModuleBridge', () => {
     });
 
     it('should emit moduleError event', async () => {
-      const errorHandler = vi.fn();
+      const errorHandler = vi.fn<[ErrorPayload], void>();
       bridge.on('moduleError', errorHandler);
 
       const msg = ModuleProtocol.createError('ERR_001', 'Something failed', false);

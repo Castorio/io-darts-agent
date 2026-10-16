@@ -131,7 +131,7 @@ export class HiggsfieldClient {
     this.authorization = `Key ${keyId}:${secret}`;
     this.baseUrl = (options.baseUrl ?? BASE_URL).replace(/\/+$/, '');
     this.timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
-    this.sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    this.sleep = options.sleep ?? ((ms: number): Promise<void> => new Promise<void>((r) => setTimeout(r, ms)));
   }
 
   /**
@@ -195,7 +195,7 @@ export class HiggsfieldClient {
    * Poll until the request reaches a terminal status.
    */
   async waitFor(requestId: string, options: WaitOptions): Promise<HiggsfieldStatus> {
-    const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    const sleep = options.sleep ?? ((ms: number): Promise<void> => new Promise<void>((r) => setTimeout(r, ms)));
     const now = options.now ?? Date.now;
     const deadline = now() + options.timeoutMs;
     let delay = POLL_START_MS;

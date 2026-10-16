@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PlayerService } from './PlayerService.js';
 import { PlayerRepository } from './PlayerRepository.js';
-import type { LocalPlayer } from '../../types/player.js';
 
 // Mock the filesystem
 vi.mock('fs/promises', () => ({
@@ -11,37 +10,13 @@ vi.mock('fs/promises', () => ({
   mkdir: vi.fn(),
 }));
 
-function createMockPlayer(overrides: Partial<LocalPlayer> = {}): LocalPlayer {
-  return {
-    id: 'test-id',
-    name: 'Test Player',
-    nickname: 'Testy',
-    avatarUrl: 'https://example.com/avatar.png',
-    createdAt: '2024-01-01T00:00:00.000Z',
-    updatedAt: '2024-01-01T00:00:00.000Z',
-    moduleSettings: {},
-    stats: {
-      gamesPlayed: 0,
-      gamesWon: 0,
-      legsPlayed: 0,
-      legsWon: 0,
-      averageScore: 0,
-      highestScore: 0,
-      total180s: 0,
-      totalCheckouts: 0,
-      bestCheckout: 0,
-    },
-    ...overrides,
-  };
-}
-
 describe('PlayerService', () => {
   let service: PlayerService;
   let repository: PlayerRepository;
 
   beforeEach(async () => {
     // Create a fresh repository with mocked file operations
-    const { readFile, writeFile, access, mkdir } = await import('fs/promises');
+    const { writeFile, access, mkdir } = await import('fs/promises');
 
     // Mock file doesn't exist initially
     (access as ReturnType<typeof vi.fn>).mockRejectedValueOnce({ code: 'ENOENT' });

@@ -110,7 +110,7 @@ const PREFERRED_PIXELS = 1280 * 720;
 
 function closestRatio(ratios: string[], aspect: RunwayAspect): string {
   const target = Math.log(ASPECT_TARGET[aspect]);
-  const score = (ratio: string) => {
+  const score = (ratio: string): { shape: number; size: number } => {
     const [w, h] = ratio.split(':').map(Number);
     return { shape: Math.abs(Math.log(w / h) - target), size: Math.abs(Math.log((w * h) / PREFERRED_PIXELS)) };
   };

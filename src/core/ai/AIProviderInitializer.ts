@@ -17,6 +17,13 @@ import {
   ReplicateProvider,
   OllamaProvider,
   HiggsfieldProvider,
+  type OpenAIProviderConfig,
+  type AnthropicProviderConfig,
+  type ElevenLabsProviderConfig,
+  type StabilityAIProviderConfig,
+  type RunwayProviderConfig,
+  type ReplicateProviderConfig,
+  type OllamaProviderConfig,
 } from './providers/index.js';
 
 export interface AIProviderInitializerOptions {
@@ -88,6 +95,19 @@ export const DEFAULT_AI_PROVIDER_CONFIGS: AIProviderConfig[] = [
 ];
 
 /**
+ * Narrow a stored provider config to the config type of one provider class.
+ * The service picks the factory by config.type, so the check only fails on a
+ * wiring mistake. Provider options come from the user's config file and each
+ * provider reads them defensively.
+ */
+function configOfType<C extends AIProviderConfig>(type: C['type'], config: AIProviderConfig): C {
+  if (config.type !== type) {
+    throw new Error(`Provider config of type ${config.type} passed to the ${type} factory`);
+  }
+  return config as C;
+}
+
+/**
  * Register all AI provider factories with the service
  */
 export function registerProviderFactories(): void {
@@ -95,21 +115,14 @@ export function registerProviderFactories(): void {
 
   // Register provider factories
   // Each factory receives an AIProviderConfig and returns the appropriate provider instance
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('openai', (config) => new OpenAIProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('anthropic', (config) => new AnthropicProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('elevenlabs', (config) => new ElevenLabsProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('stability', (config) => new StabilityAIProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('runway', (config) => new RunwayProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('replicate', (config) => new ReplicateProvider(config as any));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  aiService.registerProviderFactory('ollama', (config) => new OllamaProvider(config as any));
-  aiService.registerProviderFactory('higgsfield', (config) => new HiggsfieldProvider(config as any));
+  aiService.registerProviderFactory('openai', (config) => new OpenAIProvider(configOfType<OpenAIProviderConfig>('openai', config)));
+  aiService.registerProviderFactory('anthropic', (config) => new AnthropicProvider(configOfType<AnthropicProviderConfig>('anthropic', config)));
+  aiService.registerProviderFactory('elevenlabs', (config) => new ElevenLabsProvider(configOfType<ElevenLabsProviderConfig>('elevenlabs', config)));
+  aiService.registerProviderFactory('stability', (config) => new StabilityAIProvider(configOfType<StabilityAIProviderConfig>('stability', config)));
+  aiService.registerProviderFactory('runway', (config) => new RunwayProvider(configOfType<RunwayProviderConfig>('runway', config)));
+  aiService.registerProviderFactory('replicate', (config) => new ReplicateProvider(configOfType<ReplicateProviderConfig>('replicate', config)));
+  aiService.registerProviderFactory('ollama', (config) => new OllamaProvider(configOfType<OllamaProviderConfig>('ollama', config)));
+  aiService.registerProviderFactory('higgsfield', (config) => new HiggsfieldProvider(config));
 }
 
 /**

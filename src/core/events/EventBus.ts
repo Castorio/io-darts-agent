@@ -43,7 +43,7 @@ export class EventBus {
   ): EventSubscription {
     const subscription = this.on<T>(eventType, (event) => {
       subscription.unsubscribe();
-      return handler(event as ParsedEvent<T>);
+      return handler(event);
     });
 
     return subscription;

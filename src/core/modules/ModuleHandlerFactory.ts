@@ -17,22 +17,14 @@ import {
   type WledHandler,
   type GameDisplayHandler,
   type DartsCallerHandler,
+  type CallRequestCallback,
 } from './handlers/index.js';
 
 export interface ModuleHandlerContext {
   playerService: PlayerService | null;
   elevenLabsApiKey?: string;
-  onCallerRequest?: (request: CallerRequest) => void;
+  onCallerRequest?: CallRequestCallback;
   log?: (source: string, message: string, data?: unknown) => void;
-}
-
-export interface CallerRequest {
-  type: 'score' | 'checkout' | 'bust' | 'winner' | 'player_turn' | 'game_on' | 'match_on' | 'game_shot' | 'remaining';
-  text: string;
-  score?: number;
-  playerName?: string;
-  remaining?: number;
-  audioUrl?: string;
 }
 
 export interface CreatedHandler {
@@ -44,9 +36,12 @@ export interface CreatedHandler {
 /**
  * Create a logger interface for module handlers
  */
-function createModuleLogger(moduleId: string, logFn?: (source: string, message: string, data?: unknown) => void) {
+function createModuleLogger(
+  moduleId: string,
+  logFn?: (source: string, message: string, data?: unknown) => void
+): { log: (source: string, message: string, data?: unknown) => void } {
   return {
-    log: (source: string, message: string, data?: unknown) => {
+    log: (source: string, message: string, data?: unknown): void => {
       if (logFn) {
         logFn(source || moduleId, message, data);
       }
@@ -65,7 +60,7 @@ export function createWledModuleHandler(
   handler.setPlayerService(context.playerService);
   handler.setLogger(createModuleLogger('wled', context.log));
 
-  const eventHandler = async (event: ParsedEvent) => {
+  const eventHandler = async (event: ParsedEvent): Promise<void> => {
     await handler.handleEvent(event);
   };
 
@@ -80,7 +75,7 @@ export function createGameDisplayModuleHandler(
 ): CreatedHandler {
   const handler = createGameDisplayHandler(configValues);
 
-  const eventHandler = async (event: ParsedEvent) => {
+  const eventHandler = async (event: ParsedEvent): Promise<void> => {
     await handler.handleEvent(event);
   };
 
@@ -102,11 +97,8 @@ export function createDartsCallerModuleHandler(
   });
 
   // Register callback to forward call requests
-  // Note: Type cast required due to different CallRequest type definitions
-  // between EventSystem and DartsCallerHandler
   if (context.onCallerRequest) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    handler.onCallRequest(context.onCallerRequest as any);
+    handler.onCallRequest(context.onCallerRequest);
   }
 
   let service: ElevenLabsService | undefined;
@@ -129,7 +121,7 @@ export function createDartsCallerModuleHandler(
     console.log('🎙️  Darts Caller configured with ElevenLabs for player name generation');
   }
 
-  const eventHandler = async (event: ParsedEvent) => {
+  const eventHandler = async (event: ParsedEvent): Promise<void> => {
     await handler.handleEvent(event);
   };
 

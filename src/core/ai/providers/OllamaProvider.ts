@@ -6,6 +6,7 @@
  */
 
 import { BaseAIProvider } from '../AIProvider.js';
+import { readLines } from './ndjson.js';
 import type {
   AIProviderConfig,
   AIProviderStatus,
@@ -219,23 +220,14 @@ export class OllamaProvider extends BaseAIProvider {
       throw new Error('No response body');
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const lines = decoder.decode(value).split('\n').filter(Boolean);
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line) as { status: string };
-          if (onProgress) {
-            onProgress(data.status);
-          }
-        } catch {
-          // Ignore parse errors
+    for await (const line of readLines(response.body)) {
+      try {
+        const data = JSON.parse(line) as { status: string };
+        if (onProgress) {
+          onProgress(data.status);
         }
+      } catch {
+        // Ignore parse errors
       }
     }
   }
@@ -435,25 +427,19 @@ export class OllamaProvider extends BaseAIProvider {
       throw new Error('No response body');
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const lines = decoder.decode(value).split('\n').filter(Boolean);
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line) as OllamaChatResponse | OllamaGenerateResponse;
-          if ('message' in data) {
-            yield data.message.content;
-          } else if ('response' in data) {
-            yield data.response;
-          }
-        } catch {
-          // Ignore parse errors
-        }
+    for await (const line of readLines(response.body)) {
+      let data: OllamaChatResponse | OllamaGenerateResponse;
+      try {
+        data = JSON.parse(line) as OllamaChatResponse | OllamaGenerateResponse;
+      } catch {
+        // Ignore parse errors
+        continue;
+      }
+      if (typeof data !== 'object' || data === null) continue;
+      if ('message' in data) {
+        yield data.message.content;
+      } else if ('response' in data) {
+        yield data.response;
       }
     }
   }

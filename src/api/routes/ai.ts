@@ -64,7 +64,7 @@ export function registerAIRoutes(
     Reply: { providers: AIProviderInfo[] } | { error: string };
   }>('/api/ai/providers', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -96,7 +96,7 @@ export function registerAIRoutes(
     Reply: AIProviderInfo | { error: string };
   }>('/api/ai/providers/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -104,7 +104,7 @@ export function registerAIRoutes(
     const provider = service.getProvider(request.params.id);
 
     if (!provider) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Provider not found' };
     }
 
@@ -131,7 +131,7 @@ export function registerAIRoutes(
     Reply: AIProviderStatus | { error: string };
   }>('/api/ai/providers/:id/status', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -139,7 +139,7 @@ export function registerAIRoutes(
     const provider = service.getProvider(request.params.id);
 
     if (!provider) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Provider not found' };
     }
 
@@ -154,17 +154,17 @@ export function registerAIRoutes(
     Reply: { models: AIModelInfo[] } | { error: string };
   }>('/api/ai/providers/:id/models', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
     const provider = deps.getService().getProvider(request.params.id);
     if (!provider) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Provider not found' };
     }
     if (!provider.listTextModels) {
-      reply.code(400);
+      void reply.code(400);
       return { error: 'Provider does not list models' };
     }
 
@@ -173,7 +173,7 @@ export function registerAIRoutes(
     } catch (error) {
       // Upstream errors can echo request details; keep them in the server log only
       request.log.warn({ err: error, provider: request.params.id }, 'Listing AI models failed');
-      reply.code(502);
+      void reply.code(502);
       return { error: 'Could not load models from the provider' };
     }
   });
@@ -187,7 +187,7 @@ export function registerAIRoutes(
     Reply: { success: boolean } | { error: string };
   }>('/api/ai/providers/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -195,7 +195,7 @@ export function registerAIRoutes(
     const provider = service.getProvider(request.params.id);
 
     if (!provider) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Provider not found' };
     }
 
@@ -207,7 +207,7 @@ export function registerAIRoutes(
       }
       return { success: true };
     } catch (error) {
-      reply.code(400);
+      void reply.code(400);
       return { error: error instanceof Error ? error.message : 'Failed to update provider' };
     }
   });
@@ -220,7 +220,7 @@ export function registerAIRoutes(
     Reply: { success: boolean } | { error: string };
   }>('/api/ai/providers/:id/enable', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -233,7 +233,7 @@ export function registerAIRoutes(
       }
       return { success: true };
     } catch (error) {
-      reply.code(400);
+      void reply.code(400);
       return { error: error instanceof Error ? error.message : 'Failed to enable provider' };
     }
   });
@@ -246,7 +246,7 @@ export function registerAIRoutes(
     Reply: { success: boolean } | { error: string };
   }>('/api/ai/providers/:id/disable', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -259,7 +259,7 @@ export function registerAIRoutes(
       }
       return { success: true };
     } catch (error) {
-      reply.code(400);
+      void reply.code(400);
       return { error: error instanceof Error ? error.message : 'Failed to disable provider' };
     }
   });
@@ -271,7 +271,7 @@ export function registerAIRoutes(
     Reply: { capabilities: AICapability[]; providers: Record<AICapability, string[]> } | { error: string };
   }>('/api/ai/capabilities', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -305,7 +305,7 @@ export function registerAIRoutes(
     } | { error: string };
   }>('/api/ai/provider-options', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -341,7 +341,7 @@ export function registerAIRoutes(
     Reply: TextGenerationResponse | { error: string };
   }>('/api/ai/generate/text', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -351,7 +351,7 @@ export function registerAIRoutes(
     try {
       return await service.generateText(requestBody, providerId);
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return { error: error instanceof Error ? error.message : 'Text generation failed' };
     }
   });
@@ -364,7 +364,7 @@ export function registerAIRoutes(
     Reply: ImageGenerationResponse | { error: string };
   }>('/api/ai/generate/image', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -374,7 +374,7 @@ export function registerAIRoutes(
     try {
       return await service.generateImage(requestBody, providerId);
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return { error: error instanceof Error ? error.message : 'Image generation failed' };
     }
   });
@@ -387,7 +387,7 @@ export function registerAIRoutes(
     Reply: TTSResponse | { error: string };
   }>('/api/ai/generate/speech', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -397,7 +397,7 @@ export function registerAIRoutes(
     try {
       return await service.generateSpeech(requestBody, providerId);
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return { error: error instanceof Error ? error.message : 'Speech generation failed' };
     }
   });
@@ -410,7 +410,7 @@ export function registerAIRoutes(
     Reply: EmbeddingsResponse | { error: string };
   }>('/api/ai/generate/embeddings', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -420,7 +420,7 @@ export function registerAIRoutes(
     try {
       return await service.generateEmbeddings(requestBody, providerId);
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return { error: error instanceof Error ? error.message : 'Embeddings generation failed' };
     }
   });
@@ -437,7 +437,7 @@ export function registerAIRoutes(
     Reply: AIJob[] | { error: string };
   }>('/api/ai/jobs', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -462,7 +462,7 @@ export function registerAIRoutes(
     Reply: AIJob | { error: string };
   }>('/api/ai/jobs/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -470,7 +470,7 @@ export function registerAIRoutes(
     const job = service.getJob(request.params.id);
 
     if (!job) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Job not found' };
     }
 
@@ -485,7 +485,7 @@ export function registerAIRoutes(
     Reply: { success: boolean } | { error: string };
   }>('/api/ai/jobs/:id/cancel', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -494,12 +494,12 @@ export function registerAIRoutes(
     try {
       const success = await service.cancelJob(request.params.id);
       if (!success) {
-        reply.code(404);
+        void reply.code(404);
         return { error: 'Job not found or cannot be cancelled' };
       }
       return { success: true };
     } catch (error) {
-      reply.code(500);
+      void reply.code(500);
       return { error: error instanceof Error ? error.message : 'Failed to cancel job' };
     }
   });
@@ -512,7 +512,7 @@ export function registerAIRoutes(
     Reply: { success: boolean } | { error: string };
   }>('/api/ai/jobs/:id', async (request, reply) => {
     if (!isAuthorized(server, request.session)) {
-      reply.code(401);
+      void reply.code(401);
       return { error: 'Authentication required' };
     }
 
@@ -522,7 +522,7 @@ export function registerAIRoutes(
       service.deleteJob(request.params.id);
       return { success: true };
     } catch (error) {
-      reply.code(404);
+      void reply.code(404);
       return { error: 'Job not found' };
     }
   });

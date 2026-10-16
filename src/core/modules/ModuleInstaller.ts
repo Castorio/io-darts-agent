@@ -72,8 +72,11 @@ export class ModuleInstaller extends EventEmitter {
         case 'npm':
           result = await this.installFromNpm(source);
           break;
-        default:
-          throw new Error(`Unknown source type: ${(source as InstallSource).type}`);
+        default: {
+          // Exhaustiveness check; still guards against untyped callers at runtime
+          const unknownType: never = source.type;
+          throw new Error(`Unknown source type: ${String(unknownType)}`);
+        }
       }
 
       if (result.success) {
@@ -324,13 +327,13 @@ export class ModuleInstaller extends EventEmitter {
   /**
    * Install from NPM package (placeholder for future)
    */
-  private async installFromNpm(source: InstallSource): Promise<InstallResult> {
+  private installFromNpm(source: InstallSource): Promise<InstallResult> {
     if (!source.package) {
-      throw new Error('NPM source requires package name');
+      return Promise.reject(new Error('NPM source requires package name'));
     }
 
     // This is a placeholder for future NPM support
-    throw new Error('NPM installation not yet implemented');
+    return Promise.reject(new Error('NPM installation not yet implemented'));
   }
 
   /**
@@ -397,10 +400,10 @@ export class ModuleInstaller extends EventEmitter {
 
     try {
       const packageData = await fs.readFile(packageJsonPath, 'utf-8');
-      const packageJson = JSON.parse(packageData);
+      const packageJson = JSON.parse(packageData) as { scripts?: Record<string, unknown> } | null;
 
       // Check if the module has a build script
-      if (packageJson.scripts?.build) {
+      if (packageJson?.scripts?.build) {
         this.emit('progress', { step: 'build', message: 'Building module...' });
         await this.execCommand('npm', ['run', 'build'], modulePath);
       }

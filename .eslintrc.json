@@ -12,12 +12,28 @@
     "plugin:@typescript-eslint/recommended",
     "plugin:@typescript-eslint/recommended-requiring-type-checking"
   ],
+  // Note: FastifyReply is thenable, so no-floating-promises flags reply.code()/header().
+  // typescript-eslint v6 has no allowForKnownSafeCalls option, hence `void reply.code(...)`.
   "rules": {
     "@typescript-eslint/explicit-function-return-type": "warn",
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
     "@typescript-eslint/no-explicit-any": "warn",
-    "no-console": ["warn", { "allow": ["warn", "error"] }]
+    // The hub logs to stdout/stderr on purpose: under systemd and Electron the
+    // console is the log sink (journal / log files), so console.log is not a leftover.
+    "no-console": "off"
   },
+  "overrides": [
+    {
+      "files": ["*.test.ts"],
+      "rules": {
+        // Test doubles implement async interfaces (fetch, providers) with
+        // `async () => value`, and test helper factories rely on inferred
+        // return types; both rules only produce noise there.
+        "@typescript-eslint/require-await": "off",
+        "@typescript-eslint/explicit-function-return-type": "off"
+      }
+    }
+  ],
   "env": {
     "node": true,
     "es2022": true

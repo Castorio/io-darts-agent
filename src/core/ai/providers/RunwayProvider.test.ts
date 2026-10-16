@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Mock } from 'vitest';
+
+type FetchMock = Mock<[url: string, init?: RequestInit], Promise<unknown>>;
 import { RunwayProvider, type RunwayProviderConfig } from './RunwayProvider.js';
 import { RUNWAY_TEXT_TO_VIDEO_MODELS } from './runwayCatalog.js';
 
@@ -12,16 +15,16 @@ function provider(options?: RunwayProviderConfig['options']): RunwayProvider {
   return new RunwayProvider({ id: 'runway', type: 'runway', name: 'Runway ML', apiKey: 'key', maxRetries: 1, options });
 }
 
-function posted(fetchMock: ReturnType<typeof vi.fn>): { url: string; body: Record<string, unknown> } {
+function posted(fetchMock: FetchMock): { url: string; body: Record<string, unknown> } {
   const call = fetchMock.mock.calls.find((c) => (c[1] as RequestInit).method === 'POST')!;
-  return { url: call[0] as string, body: JSON.parse((call[1] as RequestInit).body as string) };
+  return { url: call[0], body: JSON.parse((call[1] as RequestInit).body as string) as Record<string, unknown> };
 }
 
 describe('Runway AI provider', () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
+  let fetchMock: FetchMock;
 
   beforeEach(() => {
-    fetchMock = vi.fn().mockImplementation(async () => jsonResponse(200, { id: TASK_ID, estimatedCost: { credits: 60 } }));
+    fetchMock = vi.fn<[url: string, init?: RequestInit], Promise<unknown>>().mockImplementation(async () => jsonResponse(200, { id: TASK_ID, estimatedCost: { credits: 60 } }));
     vi.stubGlobal('fetch', fetchMock);
   });
 

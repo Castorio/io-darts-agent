@@ -101,13 +101,13 @@ export class ModuleManager extends EventEmitter {
   /**
    * Register a module (without starting it)
    */
-  async registerModule(
+  registerModule(
     manifest: ModuleManifest,
     modulePath: string,
     config: Record<string, unknown> = {}
   ): Promise<void> {
     if (this.modules.has(manifest.id)) {
-      throw new Error(`Module ${manifest.id} is already registered`);
+      return Promise.reject(new Error(`Module ${manifest.id} is already registered`));
     }
 
     const socketPath = path.join(this.options.socketDir, `autodarts-hub-${manifest.id}.sock`);
@@ -131,6 +131,7 @@ export class ModuleManager extends EventEmitter {
 
     this.modules.set(manifest.id, managed);
     this.emit('moduleRegistered', manifest.id);
+    return Promise.resolve();
   }
 
   /**
@@ -179,7 +180,7 @@ export class ModuleManager extends EventEmitter {
       await managed.bridge.start();
 
       // Spawn the process
-      const proc = await this.spawnProcess(managed, options);
+      const proc = this.spawnProcess(managed, options);
       managed.process = proc;
 
       // Wait for ready signal
@@ -286,10 +287,10 @@ export class ModuleManager extends EventEmitter {
   /**
    * Update module config
    */
-  async updateModuleConfig(moduleId: string, config: Partial<Record<string, unknown>>): Promise<void> {
+  updateModuleConfig(moduleId: string, config: Partial<Record<string, unknown>>): Promise<void> {
     const managed = this.modules.get(moduleId);
     if (!managed) {
-      throw new Error(`Module ${moduleId} not found`);
+      return Promise.reject(new Error(`Module ${moduleId} not found`));
     }
 
     const changedKeys = Object.keys(config);
@@ -301,6 +302,7 @@ export class ModuleManager extends EventEmitter {
     }
 
     this.emit('moduleConfigUpdated', moduleId, changedKeys);
+    return Promise.resolve();
   }
 
   /**
@@ -314,7 +316,7 @@ export class ModuleManager extends EventEmitter {
   /**
    * Spawn the module process
    */
-  private async spawnProcess(managed: ManagedModule, options: SpawnOptions = {}): Promise<ChildProcess> {
+  private spawnProcess(managed: ManagedModule, options: SpawnOptions = {}): ChildProcess {
     const entryPath = path.join(managed.path, managed.manifest.entry);
 
     const env = {
@@ -426,13 +428,12 @@ export class ModuleManager extends EventEmitter {
         managed.state.restartCount++;
         this.emit('moduleRestarting', managed.manifest.id, managed.state.restartCount);
 
-        setTimeout(async () => {
-          try {
-            await this.cleanup(managed);
-            await this.startModule(managed.manifest.id);
-          } catch (err) {
-            console.error(`Failed to restart module ${managed.manifest.id}:`, err);
-          }
+        setTimeout(() => {
+          this.cleanup(managed)
+            .then(() => this.startModule(managed.manifest.id))
+            .catch((err) => {
+              console.error(`Failed to restart module ${managed.manifest.id}:`, err);
+            });
         }, this.options.restartDelay);
       } else {
         this.emit('moduleMaxRestartsReached', managed.manifest.id);
@@ -496,31 +497,43 @@ export class ModuleManager extends EventEmitter {
     });
 
     // Handle module route registration
-    bridge.on('routesRegister', async (payload: RoutesRegisterPayload) => {
-      try {
-        const routeRegistry = getModuleRouteRegistry();
-
-        // Set up the route handler to forward requests to the module
-        routeRegistry.setRouteHandler(moduleId, async (request) => {
-          return bridge.sendRouteRequest(request);
-        });
-
-        // Register the routes
-        await routeRegistry.registerRoutes({
-          moduleId,
-          routes: payload.routes,
-        });
-
-        this.emit('moduleRoutesRegistered', moduleId, payload.routes);
-      } catch (error) {
-        console.error(`Failed to register routes for module ${moduleId}:`, error);
-        this.emit('moduleError', moduleId, {
-          code: 'ROUTE_REGISTRATION_FAILED',
-          message: error instanceof Error ? error.message : String(error),
-          fatal: false,
-        });
-      }
+    bridge.on('routesRegister', (payload: RoutesRegisterPayload) => {
+      void this.handleRoutesRegister(moduleId, bridge, payload);
     });
+  }
+
+  /**
+   * Register the routes a module announced. Never rejects: failures are
+   * logged and emitted as a non-fatal moduleError.
+   */
+  private async handleRoutesRegister(
+    moduleId: string,
+    bridge: ModuleBridge,
+    payload: RoutesRegisterPayload
+  ): Promise<void> {
+    try {
+      const routeRegistry = getModuleRouteRegistry();
+
+      // Set up the route handler to forward requests to the module
+      routeRegistry.setRouteHandler(moduleId, async (request) => {
+        return bridge.sendRouteRequest(request);
+      });
+
+      // Register the routes
+      await routeRegistry.registerRoutes({
+        moduleId,
+        routes: payload.routes,
+      });
+
+      this.emit('moduleRoutesRegistered', moduleId, payload.routes);
+    } catch (error) {
+      console.error(`Failed to register routes for module ${moduleId}:`, error);
+      this.emit('moduleError', moduleId, {
+        code: 'ROUTE_REGISTRATION_FAILED',
+        message: error instanceof Error ? error.message : String(error),
+        fatal: false,
+      });
+    }
   }
 
   /**

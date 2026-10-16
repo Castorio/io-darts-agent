@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MediaService } from './MediaService.js';
-import { rm, mkdir, writeFile, readdir } from 'fs/promises';
+import { rm, readdir } from 'fs/promises';
 import { join } from 'path';
 import { Readable } from 'stream';
 

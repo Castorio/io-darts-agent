@@ -101,9 +101,10 @@ export function registerCallerRoutes(
 
     // Trigger a real call through the handler's event system
     // This simulates a turn.finished event to test audio playback
-    const testEvent = {
+    const testEvent: Parameters<DartsCallerHandler['handleEvent']>[0] = {
       type: 'turn.finished',
       timestamp: new Date(),
+      raw: { channel: 'test', topic: 'caller.test', data: null },
       data: {
         turnPoints: score ?? 180,
         remaining: 321,
@@ -112,7 +113,7 @@ export function registerCallerRoutes(
     };
 
     // Handle the event to trigger audio playback
-    await handler.handleEvent(testEvent as any);
+    await handler.handleEvent(testEvent);
 
     return reply.send({
       success: true,

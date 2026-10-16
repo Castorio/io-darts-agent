@@ -7,9 +7,11 @@ import type { ModuleManifest } from '../../types/modules.js';
 
 vi.mock('fs/promises');
 vi.mock('child_process', () => ({
-  execFile: vi.fn((file, args, opts, cb) => {
-    cb(null, { stdout: '', stderr: '' });
-  }),
+  execFile: vi.fn(
+    (_file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out: { stdout: string; stderr: string }) => void) => {
+      cb(null, { stdout: '', stderr: '' });
+    }
+  ),
 }));
 
 const TEST_MANIFEST: ModuleManifest = {

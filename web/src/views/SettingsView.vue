@@ -37,7 +37,9 @@ async function restartHub() {
   isRestarting.value = true
   message.value = null
   const savedPort = settings.value?.server.port
-  const portChanged = !!savedPort && savedPort !== serverPortAtLoad
+  // Compare with the port this page is served from (not the one loaded earlier)
+  const pagePort = Number(location.port || (location.protocol === 'https:' ? 443 : 80))
+  const portChanged = !!savedPort && savedPort !== pagePort && !import.meta.env.DEV
   const target = portChanged ? `${location.protocol}//${location.hostname}:${savedPort}` : ''
   try {
     await api.restartHub()
@@ -63,8 +65,6 @@ async function restartHub() {
 
 // Form values
 const serverPort = ref(3000)
-// Port the hub was running on when the page loaded
-let serverPortAtLoad: number | undefined
 const serverHost = ref('0.0.0.0')
 const webAuthEnabled = ref(false)
 const webAuthUsername = ref('')
@@ -81,7 +81,6 @@ async function loadSettings() {
   try {
     settings.value = await api.getSettings()
     serverPort.value = settings.value.server.port
-    if (serverPortAtLoad === undefined) serverPortAtLoad = settings.value.server.port
     serverHost.value = settings.value.server.host
     webAuthEnabled.value = settings.value.webAuth.enabled
     webAuthUsername.value = settings.value.webAuth.username

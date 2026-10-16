@@ -232,6 +232,41 @@ describe('normalizeDartsCallerConfig', () => {
       }
     });
 
+    it('migrates the flat elevenlabs* keys as the last fallback and removes them', () => {
+      const result = normalizeDartsCallerConfig({
+        elevenlabsVoiceId: 'flatVoice',
+        elevenlabsStability: 0.25,
+        elevenlabsSimilarity: 0.6,
+      });
+      expect(result.elevenlabsSettings).toEqual({ voiceId: 'flatVoice', stability: 0.25, similarity: 0.6 });
+      const raw = result as unknown as Record<string, unknown>;
+      for (const key of ['elevenlabsVoiceId', 'elevenlabsStability', 'elevenlabsSimilarity']) {
+        expect(raw, key).not.toHaveProperty(key);
+      }
+    });
+
+    it('prefers the page voice id over the flat elevenlabsVoiceId when both exist', () => {
+      const result = normalizeDartsCallerConfig({
+        elevenLabsVoiceId: 'pageVoice',
+        elevenlabsVoiceId: 'flatVoice',
+        elevenlabsStability: 0.25,
+      });
+      expect(result.elevenlabsSettings.voiceId).toBe('pageVoice');
+      expect(result.elevenlabsSettings.stability).toBe(0.25);
+      expect(result).not.toHaveProperty('elevenlabsVoiceId');
+      expect(result).not.toHaveProperty('elevenLabsVoiceId');
+    });
+
+    it('lets grouped ElevenLabs settings win over the flat elevenlabs* keys', () => {
+      const result = normalizeDartsCallerConfig({
+        elevenlabsSettings: { voiceId: 'grouped', stability: 0.9, similarity: 0.1 },
+        elevenlabsVoiceId: 'flatVoice',
+        elevenlabsStability: 0.25,
+        elevenlabsSimilarity: 0.6,
+      });
+      expect(result.elevenlabsSettings).toEqual({ voiceId: 'grouped', stability: 0.9, similarity: 0.1 });
+    });
+
     it('is idempotent', () => {
       const once = normalizeDartsCallerConfig({ voiceType: 'elevenlabs', selectedVoicePackId: 'p', callScores: false, rate: 150 });
       expect(normalizeDartsCallerConfig(once)).toEqual(once);

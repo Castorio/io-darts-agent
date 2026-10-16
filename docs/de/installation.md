@@ -388,6 +388,6 @@ Die Desktop-App startet den Hub im Hintergrund, öffnet die Weboberfläche in ei
 | Windows | `%APPDATA%\io-darts-agent\hub` |
 | Linux | `~/.config/io-darts-agent/hub` |
 
-Die App nutzt Port 3000. Ist der Port belegt, starte sie mit der Umgebungsvariable `IO_DARTS_PORT` auf einem anderen Port. Der Einrichtungsassistent speichert den Port, auf dem der Hub läuft, der Wert bleibt also nach dem Setup erhalten. Halte `IO_DARTS_PORT` und den Port in den Einstellungen gleich, denn die App öffnet den Port aus `IO_DARTS_PORT`.
+Die App nutzt Port 3000. Ist der Port belegt, starte sie mit der Umgebungsvariable `IO_DARTS_PORT` auf einem anderen Port. Der Einrichtungsassistent speichert den Port, auf dem der Hub läuft. Änderst du den Port später in den Einstellungen und startest den Hub neu, folgt die App automatisch.
 
 Der macOS-Build ist nur ad hoc signiert und nicht notarisiert. Gatekeeper warnt deshalb beim ersten Start (mit Rechtsklick und **Öffnen** starten). Die früheren eigenständigen Binaries aus pkg sind entfernt.

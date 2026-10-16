@@ -14,8 +14,14 @@ export const RESTART_EXIT_CODE = 75;
 export type RestartStrategy = 'exit' | 'respawn';
 
 export function restartStrategy(env: NodeJS.ProcessEnv): RestartStrategy {
-  // systemd sets INVOCATION_ID for every service start
-  return env.INVOCATION_ID || env.IO_DARTS_SUPERVISED ? 'exit' : 'respawn';
+  // Set by the systemd unit and the desktop app; INVOCATION_ID is not used
+  // because shells started from a systemd user service inherit it
+  return env.IO_DARTS_SUPERVISED ? 'exit' : 'respawn';
+}
+
+/** Command that started this process, including node flags such as loaders */
+export function defaultCommand(execPath: string, execArgv: string[], argv: string[]): string[] {
+  return [execPath, ...execArgv, ...argv.slice(1)];
 }
 
 export interface RestartDeps {
@@ -46,7 +52,7 @@ export function restartProcess(deps: RestartDeps = defaultDeps()): void {
 function defaultDeps(): RestartDeps {
   return {
     env: process.env,
-    argv: [process.execPath, ...process.argv.slice(1)],
+    argv: defaultCommand(process.execPath, process.execArgv, process.argv),
     cwd: process.cwd(),
     spawn: nodeSpawn as RestartDeps['spawn'],
     exit: (code) => process.exit(code),

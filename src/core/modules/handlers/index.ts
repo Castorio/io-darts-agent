@@ -6,7 +6,12 @@
  */
 
 // WLED Module
-export { WledHandler, createWledHandler } from '../../../../modules/wled/src/index.js';
+export {
+  WledHandler,
+  createWledHandler,
+  normalizeWledConfig,
+  mergeWledConfigUpdate,
+} from '../../../../modules/wled/src/index.js';
 export type {
   WledConfig,
   WledAction,

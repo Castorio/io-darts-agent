@@ -109,6 +109,8 @@ const LEGACY_KEYS = [
   'ttsVoice', 'ttsRate', 'ttsPitch', 'audioPackPath', 'voicePackId',
   'callScores', 'callHighScoresOnly', 'callCheckouts', 'callPlayerChange', 'callGameStart',
   'callGameOver', 'call180', 'callBusts', 'callBulls', 'callDoubleBulls', 'elevenlabs',
+  // flat ElevenLabs keys found in real stored configs (lowercase l)
+  'elevenlabsVoiceId', 'elevenlabsStability', 'elevenlabsSimilarity',
 ] as const;
 
 /** Old page event keys that map onto a supported call setting */
@@ -264,8 +266,8 @@ export function normalizeDartsCallerConfig(input: unknown): StoredDartsCallerCon
   const delayMs = firstNumber(raw.delayMs);
   const rate = firstNumber(tts.rate, raw.ttsRate, percentToFactor(raw.rate));
   const pitch = firstNumber(tts.pitch, raw.ttsPitch, percentToFactor(raw.pitch));
-  const stability = firstNumber(eleven.stability, legacyEleven.stability);
-  const similarity = firstNumber(eleven.similarity, legacyEleven.similarityBoost);
+  const stability = firstNumber(eleven.stability, legacyEleven.stability, raw.elevenlabsStability);
+  const similarity = firstNumber(eleven.similarity, legacyEleven.similarityBoost, raw.elevenlabsSimilarity);
 
   return {
     ...passthrough,
@@ -281,7 +283,7 @@ export function normalizeDartsCallerConfig(input: unknown): StoredDartsCallerCon
     },
     voicepackSettings: { packId },
     elevenlabsSettings: {
-      voiceId: firstNonEmptyString(eleven.voiceId, legacyEleven.voiceId, raw.elevenLabsVoiceId) ?? d.elevenlabsSettings.voiceId,
+      voiceId: firstNonEmptyString(eleven.voiceId, legacyEleven.voiceId, raw.elevenLabsVoiceId, raw.elevenlabsVoiceId) ?? d.elevenlabsSettings.voiceId,
       stability: stability === undefined ? d.elevenlabsSettings.stability : clamp(stability, 0, 1),
       similarity: similarity === undefined ? d.elevenlabsSettings.similarity : clamp(similarity, 0, 1),
     },

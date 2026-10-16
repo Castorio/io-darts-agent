@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { RESTART_EXIT_CODE, restartStrategy, restartProcess } from './restart.js';
+import { RESTART_EXIT_CODE, defaultCommand, restartStrategy, restartProcess } from './restart.js';
 
 describe('restartStrategy', () => {
-  it('leaves the restart to systemd', () => {
-    expect(restartStrategy({ INVOCATION_ID: 'abc' })).toBe('exit');
+  it('ignores a systemd invocation id inherited by a shell', () => {
+    expect(restartStrategy({ INVOCATION_ID: 'abc' })).toBe('respawn');
   });
 
   it('leaves the restart to the desktop app', () => {
@@ -12,6 +12,17 @@ describe('restartStrategy', () => {
 
   it('starts a new process when nothing supervises the hub', () => {
     expect(restartStrategy({})).toBe('respawn');
+  });
+});
+
+describe('defaultCommand', () => {
+  it('keeps node flags such as loaders', () => {
+    expect(defaultCommand('/usr/bin/node', ['--import', 'tsx'], ['/usr/bin/node', 'src/main.ts'])).toEqual([
+      '/usr/bin/node',
+      '--import',
+      'tsx',
+      'src/main.ts',
+    ]);
   });
 });
 
@@ -27,7 +38,7 @@ describe('restartProcess', () => {
   }
 
   it('exits with the restart code under a supervisor', () => {
-    const d = deps({ INVOCATION_ID: 'abc' });
+    const d = deps({ IO_DARTS_SUPERVISED: '1' });
 
     restartProcess(d);
 

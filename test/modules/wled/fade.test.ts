@@ -6,6 +6,7 @@ import {
   toWledTransition,
   migrateLegacyActionFade,
   normalizeWledConfig,
+  mergeWledConfigUpdate,
 } from '../../../modules/wled/src/fade.js';
 
 describe('toWledTransition', () => {
@@ -151,5 +152,57 @@ describe('normalizeWledConfig', () => {
     expect(normalizeWledConfig({}).fadeTimeUnit).toBe('ms');
     const result = normalizeWledConfig({ events: { a: null as unknown as object } } as never);
     expect(result.events?.a).toBeNull();
+  });
+});
+
+describe('mergeWledConfigUpdate (hub side, before saving)', () => {
+  it('migrates every stored fade location of a legacy config before merging a page save', () => {
+    const stored = {
+      wledHost: '10.0.0.5',
+      events: { 'throw.180': { actionType: 'solid', fadeTime: 50 } },
+      eventActions: { 'throw.bull': { actionType: 'solid', fadeTime: 10 } },
+      defaultState: { actionType: 'solid', fadeTime: 20 },
+    };
+    const pageSave = {
+      fadeTimeUnit: 'ms' as const,
+      events: { 'throw.180': { actionType: 'solid', fadeTime: 5000 } },
+    };
+    const result = mergeWledConfigUpdate(stored, pageSave);
+    expect(result.fadeTimeUnit).toBe('ms');
+    expect(result.events?.['throw.180'].fadeTime).toBe(5000);
+    expect(result.eventActions?.['throw.bull'].fadeTime).toBe(1000);
+    expect(result.defaultState?.fadeTime).toBe(2000);
+    expect(result.wledHost).toBe('10.0.0.5');
+  });
+
+  it('keeps a global 0 set through a form on a legacy config as "instant"', () => {
+    const stored = { wledHost: 'x', fadeTime: 0 };
+    const result = mergeWledConfigUpdate(stored, { fadeTime: 0 });
+    expect(result.fadeTime).toBe(0);
+    expect(result.fadeTimeUnit).toBe('ms');
+  });
+
+  it('still drops the old default 0 when the update does not touch fadeTime', () => {
+    const result = mergeWledConfigUpdate({ wledHost: 'x', fadeTime: 0 }, { wledHost: 'y' });
+    expect('fadeTime' in result).toBe(false);
+    expect(result.wledHost).toBe('y');
+  });
+
+  it('reads an unmarked update as milliseconds, since every current writer uses ms', () => {
+    const result = mergeWledConfigUpdate({}, { events: { a: { actionType: 'solid', fadeTime: 50 } } });
+    expect(result.events?.a.fadeTime).toBe(50);
+  });
+
+  it('clears the global fadeTime with null', () => {
+    const result = mergeWledConfigUpdate({ fadeTimeUnit: 'ms', fadeTime: 700 }, { fadeTime: null });
+    expect('fadeTime' in result).toBe(false);
+  });
+
+  it('does not mutate its inputs', () => {
+    const stored = { events: { a: { actionType: 'solid', fadeTime: 5 } } };
+    const update = { fadeTime: 0 };
+    mergeWledConfigUpdate(stored, update);
+    expect(stored.events.a.fadeTime).toBe(5);
+    expect(update).toEqual({ fadeTime: 0 });
   });
 });

@@ -103,7 +103,8 @@ export function installBuiltinModules(options: BuiltinModuleInstallerOptions): P
 
       try {
         // Create symlink to built-in module (allows updates without reinstall)
-        fs.symlinkSync(sourcePath, targetPath, 'dir');
+        // A junction needs no admin rights on Windows, so updates reach the module there too
+          fs.symlinkSync(sourcePath, targetPath, process.platform === 'win32' ? 'junction' : 'dir');
         console.log(`✅ Installed built-in module: ${moduleId} (symlink)`);
       } catch {
         // Fallback: copy the module if symlink fails (e.g., on Windows without admin)

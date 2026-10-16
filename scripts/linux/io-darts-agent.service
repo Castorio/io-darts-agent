@@ -8,6 +8,8 @@ Description=IO-Darts-Agent (Autodarts hub)
 [Service]
 WorkingDirectory=%h/io-darts-agent
 Environment=NODE_ENV=production
+# Restart button: the hub exits with code 75 and systemd starts it again
+Environment=IO_DARTS_SUPERVISED=1
 # The hub does not retry a failed start-up login, so wait for DNS first
 ExecStartPre=/bin/sh -c "until getent hosts api.autodarts.com >/dev/null; do sleep 2; done"
 TimeoutStartSec=180

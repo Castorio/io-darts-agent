@@ -128,7 +128,7 @@ Für bestimmte Events können Animationen konfiguriert werden:
 | **180** | "180!" Animation mit Konfetti |
 | **Bull** | Bullauge-Animation |
 | **Double Bull** | Doppel-Bull-Animation |
-| **High Score** | Animation ab konfigurierbarem Schwellenwert (Standard: 140) |
+| **High Score** | Animation ab konfigurierbarem Schwellenwert (Standard: 140), einmal pro Aufnahme bei Aufnahme-Ende |
 | **Bust** | Rote "BUST" Animation |
 | **Checkout** | Checkout-Animation |
 | **Leg Win** | Gewinner-Animation für Leg |

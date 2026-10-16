@@ -281,6 +281,11 @@ export class GameDisplayHandler {
       return this.checkThrowAnimation(eventData);
     }
 
+    // High score: once per turn, when the turn is finished
+    if (eventType === 'turn.finished') {
+      return this.checkHighScoreAnimation(eventData);
+    }
+
     // Handle game finished (leg won)
     if (eventType === 'game.finished') {
       return this.checkWinAnimation(eventData, 'legWin');
@@ -478,21 +483,31 @@ export class GameDisplayHandler {
       }
     }
 
-    // Check for high score
-    const highScoreConfig = animations.highScore;
-    const threshold = highScoreConfig?.threshold || 140;
-    if (turnPoints >= threshold && turnPoints < 180) {
-      if (highScoreConfig?.enabled !== false) {
-        this.stats.animationsTriggered++;
-        return {
-          type: 'highScore',
-          config: highScoreConfig || { enabled: true },
-          playerIndex,
-          playerName,
-        };
-      }
-    }
+    // High score is checked on turn.finished, once per turn: turnPoints here
+    // is a running total and would cross the threshold on more than one dart.
+    return null;
+  }
 
+  /**
+   * Check a finished turn for the high score animation (once per turn)
+   */
+  private checkHighScoreAnimation(
+    eventData: Record<string, unknown>
+  ): AnimationTrigger | null {
+    const highScoreConfig = this.config.animations?.highScore;
+    if (eventData.busted) return null;
+    const turnPoints = (eventData.turnPoints as number) ?? (eventData.turnScore as number) ?? 0;
+    const threshold = highScoreConfig?.threshold || 140;
+    // 180 has its own animation on the third dart
+    if (turnPoints >= threshold && turnPoints < 180 && highScoreConfig?.enabled !== false) {
+      this.stats.animationsTriggered++;
+      return {
+        type: 'highScore',
+        config: highScoreConfig || { enabled: true },
+        playerIndex: eventData.playerIndex as number,
+        playerName: eventData.playerName as string,
+      };
+    }
     return null;
   }
 

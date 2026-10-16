@@ -119,7 +119,7 @@ Die **Fade Time** bestimmt, wie sanft der Übergang zwischen zwei Lichtzustände
 | über 100 | bleibt, wird als Millisekunden gelesen (der alte Editor konnte solche Werte nicht erzeugen) |
 | negativ oder keine Zahl | wird entfernt, die Aktion nutzt dann die globale Übergangszeit |
 
-Die globale Übergangszeit war schon immer in Millisekunden. Ein alter globaler Wert `0` war nur der frühere Standardwert (in der Oberfläche nicht einstellbar) und wird entfernt, damit WLED wie bisher seine eigene Standard-Übergangszeit nutzt. Ein alter globaler Wert über 0 bleibt erhalten. Beim nächsten Speichern in der Oberfläche wird `fadeTimeUnit: "ms"` gesetzt; danach wird nichts mehr umgerechnet.
+Die globale Übergangszeit war schon immer in Millisekunden. Ein alter globaler Wert `0` war nur der frühere Standardwert (in der Oberfläche nicht einstellbar) und wird entfernt, damit WLED wie bisher seine eigene Standard-Übergangszeit nutzt. Ein alter globaler Wert über 0 bleibt erhalten. Der Hub migriert alle Stellen (`events`, `eventActions`, `defaultState` und den globalen Wert) beim Laden und schreibt sie beim nächsten Speichern zusammen mit `fadeTimeUnit: "ms"` in die Datei; danach wird nichts mehr umgerechnet. Werte, die nach dem Laden gespeichert werden, gelten immer als Millisekunden, ein über ein Formular gesetztes globales `0` bleibt also "sofort".
 
 ### Einzelspieler-Modus
 

@@ -114,3 +114,19 @@ export function normalizeWledConfig<C extends FadeConfigShape<A>, A extends Fade
   if (config.defaultState !== undefined) out.defaultState = normalizeAction(config.defaultState, legacy);
   return out;
 }
+
+/**
+ * Hub side merge for a config save. The stored config is migrated first, so
+ * a legacy file gets every fade location (events, eventActions,
+ * defaultState, global) converted before the marker is written. The update
+ * is read as milliseconds: the WLED page and the generic module form both
+ * write ms, so a global 0 from a form stays "instant" instead of being taken
+ * for the old manifest default.
+ */
+export function mergeWledConfigUpdate<C extends FadeConfigShape>(
+  stored: C,
+  update: Partial<C>,
+): C & { fadeTimeUnit: typeof FADE_TIME_UNIT } {
+  const migrated = normalizeWledConfig(stored);
+  return normalizeWledConfig({ ...migrated, ...update, fadeTimeUnit: FADE_TIME_UNIT } as C);
+}

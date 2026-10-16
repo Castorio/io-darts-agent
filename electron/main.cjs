@@ -71,10 +71,38 @@ function getTrayIcon() {
  * The Electron binary runs the backend in plain Node mode
  * (ELECTRON_RUN_AS_NODE), so no separate Node.js installation is needed.
  */
+/**
+ * Folder with the hub's runtime data (config, media, modules)
+ */
+function hubDataDir() {
+  // Own subfolder, apart from Electron's caches in userData
+  return path.join(app.getPath('userData'), 'hub');
+}
+
+/**
+ * Port the hub listens on: after setup the hub uses server.port from its
+ * config (also when changed in the settings), before that PORT
+ */
+function hubPort() {
+  try {
+    const config = JSON.parse(fs.readFileSync(path.join(hubDataDir(), 'config', 'hub.config.json'), 'utf8'));
+    const port = config && config.server && config.server.port;
+    if (Number.isInteger(port) && port > 0 && port < 65536) {
+      return port;
+    }
+  } catch {
+    // No config yet (before setup) or unreadable
+  }
+  return PORT;
+}
+
+function hubUrl() {
+  return `http://localhost:${hubPort()}`;
+}
+
 function startBackend() {
   const backendPath = getAppRoot('dist', 'src', 'main.js');
-  // Own subfolder, apart from Electron's caches in userData
-  const dataDir = path.join(app.getPath('userData'), 'hub');
+  const dataDir = hubDataDir();
   fs.mkdirSync(dataDir, { recursive: true });
   console.log(`[Electron] Starting backend: ${backendPath}`);
   console.log(`[Electron] Data directory: ${dataDir}`);
@@ -121,8 +149,9 @@ function startBackend() {
       startBackend();
       waitForServer()
         .then(() => {
+          // The port may have changed in the settings
           if (mainWindow) {
-            mainWindow.reload();
+            void mainWindow.loadURL(hubUrl());
           }
         })
         .catch((error) => {
@@ -139,6 +168,10 @@ function startBackend() {
 }
 
 function showCrashAndQuit() {
+  // Exit handler and failed restart can both end up here
+  if (isQuitting) {
+    return;
+  }
   dialog.showErrorBox(
     'IO-Darts-Agent Error',
     'The backend server has stopped unexpectedly. The application will now close.'
@@ -191,7 +224,7 @@ function waitForServer(maxAttempts = 60, interval = 500) {
         }
       };
 
-      const req = http.get(`http://127.0.0.1:${PORT}/health`, (res) => {
+      const req = http.get(`http://127.0.0.1:${hubPort()}/health`, (res) => {
         res.resume();
         if (res.statusCode === 200) {
           resolve();
@@ -228,7 +261,7 @@ function createWindow() {
   });
 
   // Load the web UI
-  mainWindow.loadURL(`http://localhost:${PORT}`);
+  mainWindow.loadURL(hubUrl());
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
@@ -289,7 +322,7 @@ function createTray() {
     {
       label: 'Open in Browser',
       click: () => {
-        shell.openExternal(`http://localhost:${PORT}`);
+        shell.openExternal(hubUrl());
       }
     },
     { type: 'separator' },

@@ -46,6 +46,8 @@ import {
   createGameDisplayHandler,
   createDartsCallerHandler,
   normalizeDartsCallerConfig,
+  normalizeWledConfig,
+  mergeWledConfigUpdate,
   type WledConfig,
   type GameDisplayConfig,
 } from './core/modules/handlers/index.js';
@@ -331,6 +333,21 @@ async function startExternalModule(mod: InstalledModule): Promise<void> {
       }
       resolve();
     });
+}
+
+/**
+ * Stop all running external modules, so no orphaned module process
+ * attaches to the next hub instance (restart, shutdown)
+ */
+async function stopAllExternalModules(): Promise<void> {
+  const running = [...installedModules.values()].filter((mod) => mod.process);
+  await Promise.all(
+    running.map((mod) =>
+      stopExternalModule(mod).catch((error) => {
+        console.error(`Error stopping module ${mod.id}:`, error);
+      })
+    )
+  );
 }
 
 /**
@@ -1163,7 +1180,8 @@ async function main(): Promise<void> {
 
         try {
           // Create symlink to built-in module (allows updates without reinstall)
-          fs.symlinkSync(sourcePath, targetPath, 'dir');
+          // A junction needs no admin rights on Windows, so updates reach the module there too
+          fs.symlinkSync(sourcePath, targetPath, process.platform === 'win32' ? 'junction' : 'dir');
           console.log(`✅ Installed built-in module: ${moduleId} (symlink)`);
         } catch (symlinkError) {
           // Fallback: copy the module if symlink fails (e.g., on Windows without admin)
@@ -1230,7 +1248,10 @@ async function main(): Promise<void> {
                 // Darts caller: migrate older stored shapes into the current one
                 configValues: manifest.id === 'darts-caller'
                   ? normalizeDartsCallerConfig({ ...defaultConfig, ...savedConfig })
-                  : { ...defaultConfig, ...savedConfig },
+                  // WLED: fade times to ms everywhere, unit marker set
+                  : manifest.id === 'wled'
+                    ? normalizeWledConfig({ ...defaultConfig, ...savedConfig })
+                    : { ...defaultConfig, ...savedConfig },
               });
               console.log(`📦 Found installed module: ${manifest.name} (${manifest.id})`);
             } catch (e) {
@@ -1330,8 +1351,10 @@ async function main(): Promise<void> {
       const mod = installedModules.get(id);
       if (!mod) throw new Error(`Module ${id} not found`);
 
-      // Merge with existing config
-      mod.configValues = { ...mod.configValues, ...newConfig };
+      // Merge with existing config (WLED: migrate the stored fade times first, update is in ms)
+      mod.configValues = id === 'wled'
+        ? mergeWledConfigUpdate(mod.configValues, newConfig)
+        : { ...mod.configValues, ...newConfig };
       if (id === 'darts-caller') {
         // One shape for page, generic form and handler; drops legacy keys
         mod.configValues = normalizeDartsCallerConfig(mod.configValues);
@@ -2074,15 +2097,16 @@ async function main(): Promise<void> {
     try {
       wsManager.stop();
       stopHub();
-      // Don't await - just trigger shutdown and exit immediately
+      // Don't await - just trigger shutdown
       server.stop().catch(() => {});
       console.log('✅ Server stopped cleanly');
     } catch (error) {
       console.error('Error during shutdown:', error);
     }
 
-    // Use setImmediate to let cleanup run, then exit
-    setImmediate(() => {
+    // Give external modules up to 7 s to stop, then exit
+    const timeout = new Promise<void>((resolve) => setTimeout(resolve, 7000));
+    void Promise.race([stopAllExternalModules(), timeout]).finally(() => {
       process.exit(0);
     });
   };
@@ -2096,6 +2120,7 @@ async function main(): Promise<void> {
       try {
         wsManager.stop();
         stopHub();
+        await stopAllExternalModules();
         await server.stop();
       } catch (error) {
         console.error('Error while stopping for restart:', error);

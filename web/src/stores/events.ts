@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, shallowRef, computed } from 'vue'
 import type { WSMessage, WSEventMessage, WSCallerMessage, CallRequest } from '../types/api'
 import { useModulesStore } from './modules'
 import { applyCallerTts } from '../lib/callerTts'
@@ -120,7 +120,8 @@ const callerAudioPlayer = new CallerAudioPlayer()
 
 export const useEventsStore = defineStore('events', () => {
   // State
-  const ws = ref<WebSocket | null>(null)
+  // shallowRef: a reactive proxy would break the socket identity check in onclose
+  const ws = shallowRef<WebSocket | null>(null)
   const isConnected = ref(false)
   const connectionError = ref<string | null>(null)
   const eventLog = ref<EventLogEntry[]>([])
@@ -134,39 +135,58 @@ export const useEventsStore = defineStore('events', () => {
   const recentEvents = computed(() => eventLog.value.slice(-20))
 
   // Actions
+  // One socket and one pending reconnect at most. Every failed attempt used to
+  // schedule its own reconnect, so parallel loops could connect at once and
+  // every event (also browser TTS calls) arrived twice.
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let shouldReconnect = true
+
+  function scheduleReconnect() {
+    if (!shouldReconnect || reconnectTimer) return
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      connect()
+    }, 3000)
+  }
+
   function connect() {
-    if (ws.value?.readyState === WebSocket.OPEN) {
+    shouldReconnect = true
+    const current = ws.value
+    if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) {
       return
+    }
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/api/events`
 
-    ws.value = new WebSocket(wsUrl)
+    const socket = new WebSocket(wsUrl)
+    ws.value = socket
 
-    ws.value.onopen = () => {
+    socket.onopen = () => {
       isConnected.value = true
       connectionError.value = null
       console.log('WebSocket connected')
     }
 
-    ws.value.onclose = () => {
+    socket.onclose = () => {
+      // A replaced socket must not start another reconnect loop
+      if (ws.value !== socket) return
       isConnected.value = false
+      ws.value = null
       console.log('WebSocket disconnected')
-      // Auto-reconnect after 3 seconds
-      setTimeout(() => {
-        if (!isConnected.value) {
-          connect()
-        }
-      }, 3000)
+      scheduleReconnect()
     }
 
-    ws.value.onerror = (event) => {
+    socket.onerror = (event) => {
       connectionError.value = 'WebSocket error'
       console.error('WebSocket error:', event)
     }
 
-    ws.value.onmessage = (event) => {
+    socket.onmessage = (event) => {
       try {
         const message: WSMessage = JSON.parse(event.data)
         handleMessage(message)
@@ -177,10 +197,14 @@ export const useEventsStore = defineStore('events', () => {
   }
 
   function disconnect() {
-    if (ws.value) {
-      ws.value.close()
-      ws.value = null
+    shouldReconnect = false
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
     }
+    const socket = ws.value
+    ws.value = null
+    socket?.close()
   }
 
   function handleMessage(message: WSMessage) {

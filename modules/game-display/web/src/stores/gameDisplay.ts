@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, shallowRef, computed } from 'vue'
 import { DEFAULT_HIGH_SCORE_THRESHOLD, ThrowAnimationTracker, throwAnimationsForDart } from '../utils/throwAnimations'
 
 // ============================================================================
@@ -532,7 +532,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     gameInfo: null,
   })
 
-  const wsConnection = ref<WebSocket | null>(null)
+  // shallowRef: a reactive proxy would make the socket identity check in onclose fail
+  const wsConnection = shallowRef<WebSocket | null>(null)
   const isConnected = ref(false)
 
   // Configuration
@@ -752,17 +753,38 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
   }
 
+  // One socket and one pending reconnect at most: every failed attempt used to
+  // schedule its own reconnect, so after the hub rejected the socket during
+  // setup several loops connected at once and every event arrived twice.
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let shouldReconnect = true
+
+  function scheduleReconnect() {
+    if (!shouldReconnect || reconnectTimer) return
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      connect()
+    }, 3000)
+  }
+
   function connect() {
-    if (wsConnection.value?.readyState === WebSocket.OPEN) return
+    shouldReconnect = true
+    const current = wsConnection.value
+    if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) return
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
 
     // Connect to the hub's WebSocket - handle different base paths
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
     const wsUrl = `${protocol}//${host}/api/events`
 
-    wsConnection.value = new WebSocket(wsUrl)
+    const socket = new WebSocket(wsUrl)
+    wsConnection.value = socket
 
-    wsConnection.value.onopen = async () => {
+    socket.onopen = async () => {
       console.log('Game Display WebSocket connected')
       isConnected.value = true
       // Load configuration and current match in parallel
@@ -772,18 +794,20 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       ])
     }
 
-    wsConnection.value.onclose = () => {
+    socket.onclose = () => {
+      // A socket that was already replaced must not start another loop
+      if (wsConnection.value !== socket) return
       console.log('Game Display WebSocket disconnected')
       isConnected.value = false
-      // Auto-reconnect after 3 seconds
-      setTimeout(() => connect(), 3000)
+      wsConnection.value = null
+      scheduleReconnect()
     }
 
-    wsConnection.value.onerror = (error) => {
+    socket.onerror = (error) => {
       console.error('Game Display WebSocket error:', error)
     }
 
-    wsConnection.value.onmessage = (wsEvent) => {
+    socket.onmessage = (wsEvent) => {
       try {
         const message = JSON.parse(wsEvent.data)
         console.log('Game Display received:', message)
@@ -805,10 +829,14 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   }
 
   function disconnect() {
-    if (wsConnection.value) {
-      wsConnection.value.close()
-      wsConnection.value = null
+    shouldReconnect = false
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
     }
+    const socket = wsConnection.value
+    wsConnection.value = null
+    socket?.close()
   }
 
   function handleEvent(message: { type: string; data: unknown }) {

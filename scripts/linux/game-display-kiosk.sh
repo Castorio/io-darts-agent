@@ -3,6 +3,8 @@
 # Install: cp game-display-kiosk.sh ~/.local/bin/ && chmod +x ~/.local/bin/game-display-kiosk.sh
 URL="${GAME_DISPLAY_URL:-http://localhost:3000/module-ui/game-display/}"
 PROFILE="$HOME/.local/share/game-display-kiosk"
+# Firefox refuses a --profile folder that does not exist ("profile cannot be loaded")
+mkdir -p "$PROFILE"
 
 # Keep the screen on (X11; the xfconf calls only matter on Xfce)
 xset s off -dpms s noblank 2>/dev/null

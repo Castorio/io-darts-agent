@@ -29,6 +29,10 @@ function requestPath(request: FastifyRequest): string {
   }
 }
 
+function isApiPath(pathname: string): boolean {
+  return pathname === '/api' || pathname.startsWith('/api/');
+}
+
 /**
  * Create authentication middleware
  */
@@ -52,7 +56,7 @@ function authorize(server: APIServer, request: FastifyRequest, reply: FastifyRep
   // If setup not completed, the web UI loads but the API only answers setup routes
   if (server.isSetupRequired()) {
     const pathname = requestPath(request);
-    const isApi = pathname === '/api' || pathname.startsWith('/api/');
+    const isApi = isApiPath(pathname);
     const isSetupApi = pathname === '/api/setup' || pathname.startsWith('/api/setup/');
     if (isApi && !isSetupApi) {
       void reply.code(403).send({
@@ -90,8 +94,11 @@ function authorize(server: APIServer, request: FastifyRequest, reply: FastifyRep
     '/health',
   ];
 
-  // Exact match on the routed path, so /healthz or /api/auth/sessionFoo are not public
-  if (publicRoutes.includes(requestPath(request))) {
+  // Exact match on the routed path, so /healthz or /api/auth/sessionFoo are not public.
+  // The web UI itself (static files) must load so the login page can be shown;
+  // all data, including the event socket at /api/events, stays behind the login.
+  const pathname = requestPath(request);
+  if (publicRoutes.includes(pathname) || !isApiPath(pathname)) {
     request.session = { authenticated: false };
     return;
   }

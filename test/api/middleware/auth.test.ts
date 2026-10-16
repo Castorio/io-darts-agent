@@ -141,8 +141,31 @@ describe('Auth Middleware', () => {
       }
     });
 
-    it.each(['/healthz', '/api/auth/sessionFoo', '/api/setup/status-x', '/api/auth/login/../../modules'])(
+    it.each(['/api/healthz', '/api/auth/sessionFoo', '/api/setup/status-x', '/api/auth/login/../../modules'])(
       'does not treat %s as a public route',
+      async (url) => {
+        mockRequest.url = url;
+        const middleware = createAuthMiddleware(mockServer as APIServer);
+        await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+
+        expect(mockReply.code).toHaveBeenCalledWith(401);
+      }
+    );
+
+    it.each(['/', '/login', '/assets/index-abc.js', '/module-ui/game-display/'])(
+      'serves the web UI at %s without a session so the login page can load',
+      async (url) => {
+        mockRequest.url = url;
+        const middleware = createAuthMiddleware(mockServer as APIServer);
+        await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+
+        expect(mockReply.code).not.toHaveBeenCalled();
+        expect(mockRequest.session).toEqual({ authenticated: false });
+      }
+    );
+
+    it.each(['/api/modules', '/api/events', '/%61pi/settings', '/x/../api/settings'])(
+      'keeps the API at %s behind the login',
       async (url) => {
         mockRequest.url = url;
         const middleware = createAuthMiddleware(mockServer as APIServer);

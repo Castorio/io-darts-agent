@@ -282,7 +282,15 @@ systemctl --user restart io-darts-agent
 
 Ohne Dienst beendest du den Hub statt der letzten Zeile mit `Strg+C` und startest ihn mit `npm start` neu.
 
-Die Builds schreiben nach `dist/`, `web/dist/` und `modules/game-display/web/dist/`, löschen aber keine vorhandenen Dateien. Deine Daten in `dist/config`, `dist/data`, `dist/media` und `dist/modules_installed` bleiben also erhalten.
+Auf einem Board-PC, der vor dem Neustart-Button eingerichtet wurde, kopierst du die Dienstdatei noch einmal, damit der Hub mit `IO_DARTS_SUPERVISED=1` läuft (sonst kann **Hub neu starten** den Neustart nicht an systemd übergeben):
+
+```bash
+cp scripts/linux/io-darts-agent.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user restart io-darts-agent
+```
+
+`npm run build:app` entfernt zuerst den alten kompilierten Code in `dist/src` und `dist/modules` und baut dann nach `dist/`, `web/dist/` und `modules/game-display/web/dist/`. Deine Daten in `dist/config`, `dist/data`, `dist/media` und `dist/modules_installed` bleiben erhalten.
 
 ### Was du nicht tun darfst
 

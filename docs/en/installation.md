@@ -282,7 +282,15 @@ systemctl --user restart io-darts-agent
 
 Without the service, stop the hub with `Ctrl+C` and run `npm start` again instead of the last line.
 
-The builds write into `dist/`, `web/dist/` and `modules/game-display/web/dist/` but do not delete existing files, so your data in `dist/config`, `dist/data`, `dist/media` and `dist/modules_installed` stays in place.
+On a board PC set up before the restart button existed, copy the service file once more so the hub runs with `IO_DARTS_SUPERVISED=1` (otherwise **Restart hub** cannot hand the restart to systemd):
+
+```bash
+cp scripts/linux/io-darts-agent.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user restart io-darts-agent
+```
+
+`npm run build:app` first removes the old compiled code in `dist/src` and `dist/modules`, then builds into `dist/`, `web/dist/` and `modules/game-display/web/dist/`. Your data in `dist/config`, `dist/data`, `dist/media` and `dist/modules_installed` stays in place.
 
 ### What you must not do
 

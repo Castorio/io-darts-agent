@@ -23,6 +23,81 @@ interface QueuedAudio {
   text?: string; // For logging
 }
 
+export interface PlayerCommand {
+  cmd: string;
+  args: (filePath: string) => string[];
+}
+
+type SpawnFn = (cmd: string, args: string[], options: object) => ChildProcess;
+
+/**
+ * Linux players that can decode the MP3 voice pack files, in order of
+ * preference. aplay is not one of them: it plays MP3 data as raw PCM,
+ * which comes out of the speakers as noise.
+ */
+export function linuxPlayerCandidates(volume: number): PlayerCommand[] {
+  const level = Math.max(0, Math.min(100, Math.round(volume)));
+  return [
+    // -f: output scale, 32768 is 100 %
+    { cmd: 'mpg123', args: (filePath): string[] => ['-q', '-f', String(Math.round(32768 * level / 100)), filePath] },
+    // ffplay is part of ffmpeg, which the hub also uses for animations
+    {
+      cmd: 'ffplay',
+      args: (filePath): string[] => ['-nodisp', '-autoexit', '-loglevel', 'error', '-volume', String(level), filePath],
+    },
+  ];
+}
+
+/**
+ * Play the file with the first installed player
+ *
+ * Moves on to the next player only if a command is not installed; a
+ * player that runs but fails is not retried with another one.
+ * Returns the player used, or null if none is installed.
+ */
+export function playWithFirstAvailable(
+  candidates: PlayerCommand[],
+  filePath: string,
+  spawnFn: SpawnFn = spawn as SpawnFn,
+  onSpawn?: (proc: ChildProcess | null) => void
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    const tryAt = (index: number): void => {
+      const player = candidates[index];
+      if (!player) {
+        onSpawn?.(null);
+        resolve(null);
+        return;
+      }
+      let proc: ChildProcess;
+      try {
+        proc = spawnFn(player.cmd, player.args(filePath), { stdio: ['ignore', 'ignore', 'pipe'] });
+      } catch {
+        tryAt(index + 1);
+        return;
+      }
+      onSpawn?.(proc);
+      proc.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'ENOENT') {
+          tryAt(index + 1);
+        } else {
+          console.error(`Audio player ${player.cmd} failed:`, err.message);
+          onSpawn?.(null);
+          resolve(player.cmd);
+        }
+      });
+      proc.on('close', (code: number | null) => {
+        if (code !== 0) {
+          console.warn(`Audio player ${player.cmd} exited with code ${code}`);
+        }
+        onSpawn?.(null);
+        resolve(player.cmd);
+      });
+    };
+    tryAt(0);
+  });
+}
+
 /**
  * Local audio player that plays audio on the server machine
  */
@@ -90,14 +165,8 @@ export class LocalAudioPlayer {
 
       case 'linux':
       default:
-        // Try aplay (ALSA), paplay (PulseAudio), or mpg123
-        return {
-          cmd: 'mpg123',
-          args: (filePath): string[] => {
-            const args = ['-q', filePath]; // -q for quiet mode
-            return args;
-          },
-        };
+        // Linux normally goes through linuxPlayerCandidates (see playFileInternal)
+        return linuxPlayerCandidates(this.config.volume ?? 80)[0];
     }
   }
 
@@ -209,7 +278,22 @@ export class LocalAudioPlayer {
    * Internal method to play a file using system command
    */
   private playFileInternal(filePath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    if (os.platform() === 'linux' && !this.config.player) {
+      return playWithFirstAvailable(
+        linuxPlayerCandidates(this.config.volume ?? 80),
+        filePath,
+        spawn as SpawnFn,
+        (proc) => {
+          this.currentProcess = proc;
+        }
+      ).then((used) => {
+        if (!used) {
+          console.warn('No MP3 audio player found. Install ffmpeg (ffplay) or mpg123.');
+        }
+      });
+    }
+
+    return new Promise((resolve) => {
       const player = this.getPlayerCommand();
 
       try {
@@ -231,12 +315,7 @@ export class LocalAudioPlayer {
         this.currentProcess.on('error', (err) => {
           this.currentProcess = null;
           console.error('Audio player error:', err.message);
-          // Try fallback players on Linux
-          if (os.platform() === 'linux' && player.cmd === 'mpg123') {
-            this.tryFallbackPlayer(filePath).then(resolve).catch(reject);
-          } else {
-            resolve(); // Don't block on audio errors
-          }
+          resolve(); // Don't block on audio errors
         });
       } catch (error) {
         console.error('Failed to spawn audio player:', error);
@@ -245,33 +324,6 @@ export class LocalAudioPlayer {
     });
   }
 
-  /**
-   * Try fallback audio players on Linux
-   */
-  private async tryFallbackPlayer(filePath: string): Promise<void> {
-    const fallbacks = ['aplay', 'paplay', 'ffplay'];
-
-    for (const cmd of fallbacks) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const args = cmd === 'ffplay' ? ['-nodisp', '-autoexit', filePath] : [filePath];
-          const proc = spawn(cmd, args, { stdio: 'ignore' });
-
-          proc.on('close', (code) => {
-            if (code === 0) resolve();
-            else reject(new Error(`${cmd} exited with ${code}`));
-          });
-
-          proc.on('error', reject);
-        });
-        return; // Success
-      } catch {
-        // Try next fallback
-      }
-    }
-
-    console.warn('No audio player available. Install mpg123, aplay, paplay, or ffplay.');
-  }
 
   /**
    * Stop current playback and clear queue

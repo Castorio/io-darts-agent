@@ -69,6 +69,11 @@ interface CacheEntry {
   filePath: string;
 }
 
+/** Cache index entries come from disk; an entry without a file path is unusable */
+function isCacheEntry(value: unknown): value is CacheEntry {
+  return typeof value === 'object' && value !== null && typeof (value as { filePath?: unknown }).filePath === 'string';
+}
+
 /**
  * Default voice settings
  */
@@ -105,20 +110,24 @@ export class ElevenLabsService {
   /**
    * Initialize the service
    */
-  async init(): Promise<void> {
-    if (this.initialized) return;
+  init(): Promise<void> {
+    // Promise executor: callers use init().catch(), so a throw must become a rejection
+    return new Promise<void>((resolve) => {
+      if (this.initialized) return resolve();
 
-    // Create cache directory
-    if (this.config.enableCache && this.config.cacheDir) {
-      if (!fs.existsSync(this.config.cacheDir)) {
-        fs.mkdirSync(this.config.cacheDir, { recursive: true });
+      // Create cache directory
+      if (this.config.enableCache && this.config.cacheDir) {
+        if (!fs.existsSync(this.config.cacheDir)) {
+          fs.mkdirSync(this.config.cacheDir, { recursive: true });
+        }
+
+        // Load cache index
+        this.loadCacheIndex();
       }
 
-      // Load cache index
-      await this.loadCacheIndex();
-    }
-
-    this.initialized = true;
+      this.initialized = true;
+      resolve();
+    });
   }
 
   /**
@@ -213,7 +222,7 @@ export class ElevenLabsService {
     // Check cache first
     if (this.config.enableCache) {
       const cacheKey = this.getCacheKey(text, voiceId, modelId);
-      const cached = await this.getFromCache(cacheKey);
+      const cached = this.getFromCache(cacheKey);
       if (cached) {
         return cached;
       }
@@ -269,7 +278,7 @@ export class ElevenLabsService {
     // Save to cache
     if (this.config.enableCache) {
       const cacheKey = this.getCacheKey(text, voiceId, modelId);
-      await this.saveToCache(cacheKey, audioBuffer, text, voiceId, modelId);
+      this.saveToCache(cacheKey, audioBuffer, text, voiceId, modelId);
     }
 
     return audioBuffer;
@@ -340,7 +349,7 @@ export class ElevenLabsService {
   /**
    * Get audio from cache
    */
-  private async getFromCache(cacheKey: string): Promise<Buffer | null> {
+  private getFromCache(cacheKey: string): Buffer | null {
     const entry = this.cacheIndex.get(cacheKey);
     if (!entry) return null;
 
@@ -356,13 +365,13 @@ export class ElevenLabsService {
   /**
    * Save audio to cache
    */
-  private async saveToCache(
+  private saveToCache(
     cacheKey: string,
     audio: Buffer,
     text: string,
     voiceId: string,
     modelId: string
-  ): Promise<void> {
+  ): void {
     if (!this.config.cacheDir) return;
 
     const filePath = path.join(this.config.cacheDir, `${cacheKey}.mp3`);
@@ -377,20 +386,26 @@ export class ElevenLabsService {
     };
 
     this.cacheIndex.set(cacheKey, entry);
-    await this.saveCacheIndex();
+    this.saveCacheIndex();
   }
 
   /**
    * Load cache index
    */
-  private async loadCacheIndex(): Promise<void> {
+  private loadCacheIndex(): void {
     if (!this.config.cacheDir) return;
 
     const indexPath = path.join(this.config.cacheDir, 'index.json');
     if (fs.existsSync(indexPath)) {
       try {
-        const data = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
-        this.cacheIndex = new Map(Object.entries(data));
+        const data: unknown = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+        this.cacheIndex = new Map(
+          typeof data === 'object' && data !== null
+            ? Object.entries(data as Record<string, unknown>).filter(
+                (e): e is [string, CacheEntry] => isCacheEntry(e[1])
+              )
+            : []
+        );
       } catch {
         this.cacheIndex = new Map();
       }
@@ -400,7 +415,7 @@ export class ElevenLabsService {
   /**
    * Save cache index
    */
-  private async saveCacheIndex(): Promise<void> {
+  private saveCacheIndex(): void {
     if (!this.config.cacheDir) return;
 
     const indexPath = path.join(this.config.cacheDir, 'index.json');
@@ -411,17 +426,21 @@ export class ElevenLabsService {
   /**
    * Clear cache
    */
-  async clearCache(): Promise<void> {
-    if (!this.config.cacheDir) return;
+  clearCache(): Promise<void> {
+    // Promise executor: a failed unlink still surfaces as a rejection
+    return new Promise<void>((resolve) => {
+      if (!this.config.cacheDir) return resolve();
 
-    for (const [, entry] of this.cacheIndex) {
-      if (fs.existsSync(entry.filePath)) {
-        fs.unlinkSync(entry.filePath);
+      for (const [, entry] of this.cacheIndex) {
+        if (fs.existsSync(entry.filePath)) {
+          fs.unlinkSync(entry.filePath);
+        }
       }
-    }
 
-    this.cacheIndex.clear();
-    await this.saveCacheIndex();
+      this.cacheIndex.clear();
+      this.saveCacheIndex();
+      resolve();
+    });
   }
 
   /**

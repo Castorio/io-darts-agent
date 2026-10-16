@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
-import { VoicePackGenerator, isValidPackId } from '../../../modules/darts-caller/src/VoicePackGenerator.js';
+import { VoicePackGenerator, isValidPackId, intentAudioPath } from '../../../modules/darts-caller/src/VoicePackGenerator.js';
 
 describe('voice pack ids', () => {
   let root: string;
@@ -41,5 +41,21 @@ describe('voice pack ids', () => {
     expect(generator.getExistingPlayerNames('..')).toEqual([]);
     expect(generator.getPlayerNameAudioPath('..', 'Max')).toBeNull();
     expect(generator.hasPlayerName('..', 'Max')).toBe(false);
+  });
+});
+
+describe('intent audio files', () => {
+  it('builds the path inside the selected voice pack', () => {
+    expect(intentAudioPath('/data/voicepacks', 'de-adam', 'score_180')).toBe(
+      path.join('/data/voicepacks', 'de-adam', 'score_180.mp3')
+    );
+  });
+
+  it.each(['../../secret', 'a/b', '..', '', 'x\\y'])('refuses the file name %j', (name) => {
+    expect(intentAudioPath('/data/voicepacks', 'de-adam', name)).toBeNull();
+  });
+
+  it('refuses an invalid pack id', () => {
+    expect(intentAudioPath('/data/voicepacks', '..', 'score_180')).toBeNull();
   });
 });

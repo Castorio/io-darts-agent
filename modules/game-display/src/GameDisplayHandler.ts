@@ -242,9 +242,17 @@ export class GameDisplayHandler {
   }
 
   /**
-   * Handle an event
+   * Handle an event. Processing is synchronous; the promise keeps the handler
+   * interface and turns a throw into a rejection for the caller's catch.
    */
-  async handleEvent(event: ParsedEvent): Promise<void> {
+  handleEvent(event: ParsedEvent): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.processEvent(event);
+      resolve();
+    });
+  }
+
+  private processEvent(event: ParsedEvent): void {
     console.log('🎯 [GameDisplay] Handling event:', event.type, 'Data:', event.data);
     this.stats.eventsProcessed++;
 
@@ -348,7 +356,7 @@ export class GameDisplayHandler {
       winData.checkoutPath = checkoutPath.map((dart) => {
         if (typeof dart === 'string') return dart;
         const segment = dart as Record<string, unknown>;
-        return (segment.name as string) || `${segment.number}`;
+        return (segment.name as string) || String(segment.number);
       });
       this.stats.checkouts++;
     }

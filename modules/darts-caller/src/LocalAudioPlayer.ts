@@ -59,7 +59,7 @@ export class LocalAudioPlayer {
     if (this.config.player) {
       return {
         cmd: this.config.player,
-        args: (filePath) => [filePath],
+        args: (filePath): string[] => [filePath],
       };
     }
 
@@ -67,7 +67,7 @@ export class LocalAudioPlayer {
       case 'darwin': // macOS
         return {
           cmd: 'afplay',
-          args: (filePath) => {
+          args: (filePath): string[] => {
             const args = [filePath];
             // afplay volume is 0-1, convert from 0-100
             if (this.config.volume !== undefined) {
@@ -80,9 +80,11 @@ export class LocalAudioPlayer {
       case 'win32': // Windows
         return {
           cmd: 'powershell',
-          args: (filePath) => [
+          args: (filePath): string[] => [
             '-c',
-            `(New-Object Media.SoundPlayer '${filePath}').PlaySync()`,
+            // Single-quoted PowerShell string: a ' in the path must be doubled,
+            // otherwise the path could end the string and inject commands
+            `(New-Object Media.SoundPlayer '${filePath.replace(/'/g, "''")}').PlaySync()`,
           ],
         };
 
@@ -91,7 +93,7 @@ export class LocalAudioPlayer {
         // Try aplay (ALSA), paplay (PulseAudio), or mpg123
         return {
           cmd: 'mpg123',
-          args: (filePath) => {
+          args: (filePath): string[] => {
             const args = ['-q', filePath]; // -q for quiet mode
             return args;
           },
@@ -116,22 +118,24 @@ export class LocalAudioPlayer {
   /**
    * Play an audio file
    */
-  async playFile(filePath: string, priority = 5, text?: string): Promise<void> {
+  playFile(filePath: string, priority = 5, text?: string): Promise<void> {
     if (!fs.existsSync(filePath)) {
       console.error(`Audio file not found: ${filePath}`);
-      return;
+      return Promise.resolve();
     }
 
     const id = `file_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     this.enqueue({ id, filePath, priority, text });
+    return Promise.resolve();
   }
 
   /**
    * Play audio from a buffer (writes to temp file first)
    */
-  async playBuffer(buffer: Buffer, priority = 5, text?: string): Promise<void> {
+  playBuffer(buffer: Buffer, priority = 5, text?: string): Promise<void> {
     const id = `buffer_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     this.enqueue({ id, buffer, priority, text });
+    return Promise.resolve();
   }
 
   /**
@@ -149,8 +153,9 @@ export class LocalAudioPlayer {
     this.queue.splice(insertIndex, 0, audio);
 
     // Start processing if not already playing
+    // processQueue catches errors per item and never rejects
     if (!this.isPlaying) {
-      this.processQueue();
+      void this.processQueue();
     }
   }
 

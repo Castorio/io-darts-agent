@@ -378,20 +378,28 @@ export class WledHandler {
 
     console.log(`🎨 WLED [${source}]: Scheduling player color application in ${delay}ms`);
 
-    setTimeout(async () => {
-      // Wait up to 2 seconds for match state to be available
-      await this.waitForMatchState(2000);
-
-      if (this.currentMatchState) {
-        const playerColor = await this.resolvePlayerColor({ source });
-        if (playerColor) {
-          console.log(`🎨 WLED [${source}]: Applying player color RGB(${playerColor.r}, ${playerColor.g}, ${playerColor.b})`);
-          await this.executeAction(action, playerColor, source);
-        }
-      } else {
-        this.log(`${source}: No match state available after waiting`);
-      }
+    // The timer ignores promises, so a failed WLED request is logged here
+    // instead of becoming an unhandled rejection
+    setTimeout(() => {
+      this.applyPlayerColorWhenReady(action, source).catch((err) => {
+        console.error(`🎨 WLED [${source}]: Applying player color failed:`, err);
+      });
     }, delay);
+  }
+
+  private async applyPlayerColorWhenReady(action: WledAction, source: string): Promise<void> {
+    // Wait up to 2 seconds for match state to be available
+    await this.waitForMatchState(2000);
+
+    if (this.currentMatchState) {
+      const playerColor = await this.resolvePlayerColor({ source });
+      if (playerColor) {
+        console.log(`🎨 WLED [${source}]: Applying player color RGB(${playerColor.r}, ${playerColor.g}, ${playerColor.b})`);
+        await this.executeAction(action, playerColor, source);
+      }
+    } else {
+      this.log(`${source}: No match state available after waiting`);
+    }
   }
 
   /**
@@ -400,18 +408,24 @@ export class WledHandler {
   private schedulePlayerColorRestore(duration: number, eventType: string): void {
     console.log(`🎨 WLED [${eventType}]: Will restore to player color in ${duration}ms`);
 
-    setTimeout(async () => {
-      const restoreAction = this.getPlayerChangeAction();
-      if (restoreAction && this.currentMatchState) {
-        const playerColor = await this.resolvePlayerColor({ source: `${eventType}.restore` });
-        if (playerColor) {
-          console.log(`🎨 WLED [${eventType}]: Restoring to player color RGB(${playerColor.r}, ${playerColor.g}, ${playerColor.b})`);
-          await this.executeAction(restoreAction, playerColor, `${eventType}.restore`);
-        }
-      } else {
-        this.log(`No action or match state for restore after duration`);
-      }
+    setTimeout(() => {
+      this.restorePlayerColor(eventType).catch((err) => {
+        console.error(`🎨 WLED [${eventType}]: Restoring player color failed:`, err);
+      });
     }, duration);
+  }
+
+  private async restorePlayerColor(eventType: string): Promise<void> {
+    const restoreAction = this.getPlayerChangeAction();
+    if (restoreAction && this.currentMatchState) {
+      const playerColor = await this.resolvePlayerColor({ source: `${eventType}.restore` });
+      if (playerColor) {
+        console.log(`🎨 WLED [${eventType}]: Restoring to player color RGB(${playerColor.r}, ${playerColor.g}, ${playerColor.b})`);
+        await this.executeAction(restoreAction, playerColor, `${eventType}.restore`);
+      }
+    } else {
+      this.log(`No action or match state for restore after duration`);
+    }
   }
 
   /**
@@ -463,7 +477,7 @@ export class WledHandler {
     source?: string;
   } = {}): Promise<RGB | null> {
     const source = options.source || 'unknown';
-    let playerIdx = options.playerIndex ?? this.currentMatchState?.playerIndex ?? 0;
+    const playerIdx = options.playerIndex ?? this.currentMatchState?.playerIndex ?? 0;
     let playerName = options.playerName ?? this.currentMatchState?.playerName;
     const players = options.players ?? this.currentMatchState?.players ?? null;
 
@@ -488,7 +502,7 @@ export class WledHandler {
           return parseColor(matched.color);
         }
       } catch (e) {
-        this.log(`[${source}] Player service error: ${e}`);
+        this.log(`[${source}] Player service error: ${String(e)}`);
       }
     }
 

@@ -186,7 +186,7 @@ export function resolveAnimation(
   }
 
   // Get global animation config
-  const globalConfig = config.animations[eventType] as AnimationConfig | HighScoreAnimationConfig;
+  const globalConfig = config.animations[eventType];
   if (!globalConfig || !globalConfig.enabled) {
     return null;
   }

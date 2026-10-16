@@ -33,6 +33,13 @@ export interface GenerationProgress {
 /**
  * Voice pack configuration
  */
+export interface ImportPackResult {
+  success: boolean;
+  packId?: string;
+  packName?: string;
+  error?: string;
+}
+
 export interface VoicePackConfig {
   packId: string;
   packName: string;
@@ -190,12 +197,49 @@ function scoreToGerman(score: number): string {
  * A pack id is used as a folder name below the voice pack directory,
  * so it must be a single plain path segment.
  */
+/**
+ * Contents of a pack's metadata.json as the generator writes it. The file is
+ * read from disk or an imported ZIP, so callers still validate what they need.
+ */
+export interface PackMetadataFile {
+  id: string;
+  name: string;
+  voiceId: string;
+  language: string;
+  generatedAt: string;
+  totalFiles: number;
+  successfulFiles?: number;
+  packName?: string;
+}
+
+/**
+ * Read and parse a pack's metadata.json; throws when it is not a JSON object
+ */
+export function readPackMetadata(metadataPath: string): PackMetadataFile {
+  const data: unknown = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    throw new Error('metadata.json is not a JSON object');
+  }
+  return data as PackMetadataFile;
+}
+
 export function isValidPackId(packId: unknown): packId is string {
   return (
     typeof packId === 'string' &&
     /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/.test(packId) &&
     !packId.includes('..')
   );
+}
+
+/**
+ * Path of an audio file in a voice pack, or null if pack id or file name
+ * would leave the voice pack folder
+ */
+export function intentAudioPath(voicePacksDir: string, packId: string, name: string): string | null {
+  if (!isValidPackId(packId) || !/^[A-Za-z0-9_.-]+$/.test(name) || name.includes('..')) {
+    return null;
+  }
+  return path.join(voicePacksDir, packId, `${name}.mp3`);
 }
 
 export class VoicePackGenerator {
@@ -409,7 +453,7 @@ export class VoicePackGenerator {
         const metadataPath = path.join(this.outputDir, entry.name, 'metadata.json');
         if (fs.existsSync(metadataPath)) {
           try {
-            const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+            const metadata = readPackMetadata(metadataPath);
             packs.push({
               id: metadata.id,
               name: metadata.name,
@@ -471,7 +515,7 @@ export class VoicePackGenerator {
     }
 
     try {
-      const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+      const metadata = readPackMetadata(metadataPath);
       const files = fs.readdirSync(packDir).filter((f) => f.endsWith('.mp3'));
 
       return {
@@ -752,12 +796,12 @@ export class VoicePackGenerator {
    * @param tempDir - Directory containing extracted pack files
    * @returns Import result with pack info or error
    */
-  async importPack(tempDir: string): Promise<{
-    success: boolean;
-    packId?: string;
-    packName?: string;
-    error?: string;
-  }> {
+  importPack(tempDir: string): Promise<ImportPackResult> {
+    // All file work is synchronous; the executor turns an unexpected throw into a rejection
+    return new Promise<ImportPackResult>((resolve) => resolve(this.importPackFromDir(tempDir)));
+  }
+
+  private importPackFromDir(tempDir: string): ImportPackResult {
     try {
       // Find metadata.json - could be in root or in a subdirectory
       let metadataPath = path.join(tempDir, 'metadata.json');
@@ -797,7 +841,7 @@ export class VoicePackGenerator {
       };
 
       try {
-        metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+        metadata = readPackMetadata(metadataPath);
       } catch {
         return {
           success: false,

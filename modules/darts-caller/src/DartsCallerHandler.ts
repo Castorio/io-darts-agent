@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { ParsedEvent } from './types/hub-types.js';
 import type { ElevenLabsService } from './ElevenLabsService.js';
-import type { VoicePackGenerator } from './VoicePackGenerator.js';
+import { intentAudioPath, readPackMetadata, type VoicePackGenerator } from './VoicePackGenerator.js';
 import { LocalAudioPlayer } from './LocalAudioPlayer.js';
 
 import {
@@ -355,7 +355,7 @@ export class DartsCallerHandler {
           const metadataPath = path.join(voicePacksDir, entry.name, 'metadata.json');
           if (fs.existsSync(metadataPath)) {
             try {
-              const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
+              const metadata = readPackMetadata(metadataPath);
               packs.push({
                 id: entry.name,
                 name: metadata.packName || entry.name,
@@ -573,9 +573,17 @@ export class DartsCallerHandler {
   }
 
   /**
-   * Handle an event
+   * Handle an event. Processing is synchronous; the promise keeps the handler
+   * interface and turns a throw into a rejection for the caller's catch.
    */
-  async handleEvent(event: ParsedEvent): Promise<void> {
+  handleEvent(event: ParsedEvent): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.processEvent(event);
+      resolve();
+    });
+  }
+
+  private processEvent(event: ParsedEvent): void {
     this.stats.eventsProcessed++;
 
     if (!this.isEnabled()) {
@@ -882,7 +890,7 @@ export class DartsCallerHandler {
     // Apply delay if configured
     const delay = this.config.delayMs;
 
-    const playLocalAudio = async () => {
+    const playLocalAudio = async (): Promise<void> => {
       console.log(`🔊 Caller type: ${this.config.callerType}, audioFile: ${audioFile}`);
 
       // Voice Pack: Play pre-generated audio files locally
@@ -1116,7 +1124,11 @@ export class DartsCallerHandler {
     const voicePackId = this.getVoicepackId();
     const voicePacksDir = this.config.voicePacksDir;
     if (voicePackId && voicePacksDir) {
-      const filePath = path.join(voicePacksDir, voicePackId, `${name}.mp3`);
+      const filePath = intentAudioPath(voicePacksDir, voicePackId, name);
+      if (!filePath) {
+        console.warn(`🎙️  [Caller] Refused audio file name from intent: ${name}`);
+        return;
+      }
       try {
         await this.audioPlayer.playFile(filePath, 10, name);
       } catch (error) {

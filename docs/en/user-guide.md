@@ -201,7 +201,7 @@ The WLED module controls LED strips running WLED firmware based on game events.
 1. **WLED IP address**: IP of the controller, e.g. `192.168.1.100`
 2. **Port**: usually `80`
 3. **Fade Time (ms)**: global transition time in milliseconds, used by every action whose fade time is set to "Global". Empty (the default) keeps the controller's own default transition, `0` means an instant change.
-4. Click **Connect**. On success the hub loads presets and effects straight from the controller. Without a connection a built-in effect list is available.
+4. Click **Connect**. The hub then loads presets and effects straight from the controller. Once a host is saved, the page connects by itself when it opens; **Reconnect** loads the lists again, for example after adding presets in WLED.
 
 You can start or stop the module at the top right.
 
@@ -410,7 +410,7 @@ The module detail page shows the same settings as a generic form in the **Config
 | **ElevenLabs Live AI** | Every call is generated live at ElevenLabs. Played on the speakers of the hub machine. |
 | **Custom Audio Files** | Your own MP3 files from a folder (for example `score_60.mp3`, `180.mp3`, `game_on.mp3`, `bust.mp3`). Played on the speakers of the hub machine. |
 
-For playback on the hub machine the hub uses `afplay` (macOS), PowerShell (Windows) or `mpg123`, `aplay`, `paplay` or `ffplay` (Linux).
+For playback on the hub machine the hub uses `afplay` (macOS), PowerShell (Windows) or on Linux `mpg123` or `ffplay` (from ffmpeg). On Linux one of the two must be installed, otherwise the speaker stays silent.
 
 ### Set up ElevenLabs
 

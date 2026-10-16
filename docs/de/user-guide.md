@@ -201,7 +201,7 @@ Das WLED-Modul steuert LED-Strips mit WLED-Firmware abhängig von Spielereigniss
 1. **WLED IP-Adresse**: IP des Controllers, z.B. `192.168.1.100`
 2. **Port**: Normalerweise `80`
 3. **Übergangszeit (ms)**: Globale Übergangszeit in Millisekunden, gilt für jede Aktion, deren Übergangszeit auf "Global" steht. Leer (Standard) behält die eigene Standard-Übergangszeit des Controllers, `0` bedeutet sofortiger Wechsel.
-4. Klicke auf **Verbinden**. Bei Erfolg lädt der Hub die Presets und Effekte direkt vom Controller. Ohne Verbindung steht eine eingebaute Effektliste zur Verfügung.
+4. Klicke auf **Verbinden**. Der Hub lädt dann die Presets und Effekte direkt vom Controller. Ist ein Host gespeichert, verbindet sich die Seite beim Öffnen von selbst; **Neu verbinden** lädt die Listen erneut, etwa nach neuen Presets im WLED.
 
 Oben rechts kannst du das Modul starten oder stoppen.
 
@@ -410,7 +410,7 @@ Die Modul-Detailseite zeigt im Bereich **Konfiguration** dieselben Einstellungen
 | **ElevenLabs Live KI** | Jede Ansage wird live bei ElevenLabs erzeugt. Wiedergabe über die Lautsprecher des Hub-Rechners. |
 | **Eigene Audiodateien** | Eigene MP3-Dateien aus einem Ordner (zum Beispiel `score_60.mp3`, `180.mp3`, `game_on.mp3`, `bust.mp3`). Wiedergabe über die Lautsprecher des Hub-Rechners. |
 
-Für die Wiedergabe auf dem Hub-Rechner nutzt der Hub `afplay` (macOS), PowerShell (Windows) oder `mpg123`, `aplay`, `paplay` bzw. `ffplay` (Linux).
+Für die Wiedergabe auf dem Hub-Rechner nutzt der Hub `afplay` (macOS), PowerShell (Windows) oder unter Linux `mpg123` bzw. `ffplay` (aus ffmpeg). Unter Linux muss einer der beiden installiert sein, sonst bleibt der Lautsprecher stumm.
 
 ### ElevenLabs einrichten
 

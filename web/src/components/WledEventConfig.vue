@@ -320,14 +320,25 @@ async function testAction() {
       <div v-if="config.actionType === 'preset'" class="space-y-3">
         <label class="block text-sm font-medium text-dark-200">Preset wählen</label>
         <select
-          :value="config.presetId"
+          :value="config.presetId ?? ''"
           @change="updateConfig('presetId', Number(($event.target as HTMLSelectElement).value))"
           class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
         >
+          <!-- Without a placeholder the first preset looks selected but is never saved -->
+          <option value="" disabled>{{ presets.length ? 'Bitte wählen' : 'Keine Presets geladen' }}</option>
+          <option
+            v-if="config.presetId !== undefined && !presets.some((p) => p.id === config.presetId)"
+            :value="config.presetId"
+          >
+            Preset {{ config.presetId }}
+          </option>
           <option v-for="preset in presets" :key="preset.id" :value="preset.id">
             {{ preset.name }}
           </option>
         </select>
+        <p v-if="!presets.length" class="text-xs text-dark-400">
+          Presets kommen vom WLED-Controller. Prüfe Host und Verbindung oben auf der Seite.
+        </p>
       </div>
 
       <!-- Effect Selection -->
@@ -335,10 +346,17 @@ async function testAction() {
         <div>
           <label class="block text-sm font-medium text-dark-200 mb-2">Effekt wählen</label>
           <select
-            :value="config.effectId"
+            :value="config.effectId ?? ''"
             @change="updateConfig('effectId', Number(($event.target as HTMLSelectElement).value))"
             class="w-full px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
+            <option value="" disabled>{{ effects.length ? 'Bitte wählen' : 'Keine Effekte geladen' }}</option>
+            <option
+              v-if="config.effectId !== undefined && !effects.some((e) => e.id === config.effectId)"
+              :value="config.effectId"
+            >
+              Effekt {{ config.effectId }}
+            </option>
             <option v-for="effect in effects" :key="effect.id" :value="effect.id">
               {{ effect.name }}
             </option>

@@ -70,6 +70,8 @@ const wledPort = ref(80)
 const globalFadeTime = ref<number | string>('')
 const isConnected = ref(false)
 const isConnecting = ref(false)
+// Auto connect only once per page visit, later via the Connect button
+let autoConnectStarted = false
 const connectionError = ref<string | null>(null)
 
 // Player colors for player.changed event (6 generic players)
@@ -208,7 +210,7 @@ const i18n = computed(() => {
       notConnected: lang === 'de' ? 'Nicht verbunden' : lang === 'es' ? 'No conectado' : 'Not connected',
       connect: lang === 'de' ? 'Verbinden' : lang === 'es' ? 'Conectar' : 'Connect',
       reconnect: lang === 'de' ? 'Neu verbinden' : lang === 'es' ? 'Reconectar' : 'Reconnect',
-      presetsEffectsAvailable: lang === 'de' ? 'Presets, Effekte verfügbar' : lang === 'es' ? 'Presets, efectos disponibles' : 'presets, effects available',
+      effectsAvailable: lang === 'de' ? 'Effekte verfügbar' : lang === 'es' ? 'efectos disponibles' : 'effects available',
       playerColorsDesc: lang === 'de' ? 'Definieren Sie Farben für bis zu 6 Spieler (werden verwendet wenn \'Spielerfarbe verwenden\' aktiviert ist)' : lang === 'es' ? 'Defina colores para hasta 6 jugadores' : 'Define colors for up to 6 players (used when \'Use player color\' is enabled)',
       playerColorsInfo: lang === 'de' ? 'Diese Farben werden verwendet, wenn bei einem Event die Aktion "Spielerfarbe" gewählt wird. Bei einem Spielerwechsel wird die LED-Farbe entsprechend dem aktuellen Spieler gesetzt.' : lang === 'es' ? 'Estos colores se usan cuando se selecciona la acción "Color del jugador".' : 'These colors are used when "Player color" action is selected. On player change, the LED color will be set according to the current player.',
       player: lang === 'de' ? 'Spieler' : lang === 'es' ? 'Jugador' : 'Player',
@@ -312,6 +314,11 @@ watch(
     if (values) {
       wledHost.value = (values.wledHost as string) || ''
       wledPort.value = (values.wledPort as number) || 80
+      // Presets and effects come from the controller: connect right away when a host is saved
+      if (wledHost.value && !isConnected.value && !isConnecting.value && !autoConnectStarted) {
+        autoConnectStarted = true
+        void connectToWled()
+      }
       // Converts legacy per-action fade values (tenths of a second) to ms, same rules as the hub
       const normalized = normalizeWledConfig({
         fadeTime: values.fadeTime as number | undefined,
@@ -596,7 +603,7 @@ onMounted(async () => {
                   </p>
                   <p v-if="connectionError" class="text-sm text-red-400">{{ connectionError }}</p>
                   <p v-else-if="isConnected" class="text-sm text-dark-400">
-                    {{ presets.length }} Presets, {{ effects.length }} {{ i18n.strings.presetsEffectsAvailable }}
+                    {{ presets.length }} Presets, {{ effects.length }} {{ i18n.strings.effectsAvailable }}
                   </p>
                 </div>
               </div>

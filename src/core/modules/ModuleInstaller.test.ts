@@ -152,6 +152,27 @@ describe('ModuleInstaller', () => {
     });
   });
 
+  describe('refreshAt()', () => {
+    it('pulls, installs with dev dependencies and builds a module at any folder name', async () => {
+      vi.mocked(fs.readFile).mockImplementation(async (file) =>
+        String(file).endsWith('package.json')
+          ? JSON.stringify({ name: 'mqtt', scripts: { build: 'tsc' } })
+          : JSON.stringify(TEST_MANIFEST)
+      );
+      const modulePath = path.join(testModulesDir, 'autodarts-mqtt-module');
+
+      await installer.refreshAt(modulePath);
+
+      const calls = vi.mocked(execFile).mock.calls.map((c) => [c[0], ...(c[1] as string[])]);
+      expect(calls).toEqual([
+        ['git', '-C', modulePath, 'pull'],
+        ['npm', 'install', '--include=dev'],
+        ['npm', 'run', 'build'],
+      ]);
+      expect(vi.mocked(execFile).mock.calls.every((c) => (c[2] as { cwd: string }).cwd === modulePath)).toBe(true);
+    });
+  });
+
   describe('update()', () => {
     it('should update a git module', async () => {
       vi.mocked(fs.access).mockResolvedValue(undefined); // all checks pass
@@ -296,8 +317,21 @@ describe('ModuleInstaller', () => {
       }
 
       const npmCall = vi.mocked(execFile).mock.calls.find((c) => c[0] === 'cmd.exe');
-      expect(npmCall![1]).toEqual(['/d', '/s', '/c', 'npm', 'install']);
+      expect(npmCall![1]).toEqual(['/d', '/s', '/c', 'npm', 'install', '--include=dev']);
       expect((npmCall![2] as { shell?: boolean }).shell).toBeFalsy();
+    });
+
+    it('installs dev dependencies for the build even when the hub runs in production', async () => {
+      const previous = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production'; // set by the systemd unit, makes npm omit dev dependencies
+      try {
+        await installer.install({ type: 'git', url: 'https://github.com/user/repo.git' });
+      } finally {
+        process.env.NODE_ENV = previous;
+      }
+
+      const installCall = vi.mocked(execFile).mock.calls.find((c) => c[0] === 'npm' && (c[1] as string[])[0] === 'install');
+      expect(installCall![1]).toEqual(['install', '--include=dev']);
     });
 
     it('rejects a git url whose repository name escapes the modules dir', async () => {

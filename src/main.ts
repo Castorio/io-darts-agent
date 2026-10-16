@@ -1599,14 +1599,9 @@ async function main(): Promise<void> {
       }
 
       try {
-        // Git pull
+        // Pull, install with dev dependencies and rebuild (without a shell)
         console.log(`🔄 Updating module ${id} from git...`);
-        const { execSync } = await import('child_process');
-        execSync('git pull', { cwd: mod.path, stdio: 'pipe' });
-
-        // Run npm install
-        console.log(`📦 Installing dependencies for ${id}...`);
-        execSync('npm install --production', { cwd: mod.path, stdio: 'pipe' });
+        await moduleInstaller.refreshAt(mod.path);
 
         // Reload manifest
         const manifestPath = path.join(mod.path, 'module.json');

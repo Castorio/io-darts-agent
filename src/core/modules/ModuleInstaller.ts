@@ -12,6 +12,10 @@ import type {
 
 const execFileAsync = promisify(execFile);
 
+// The hub runs with NODE_ENV=production (systemd unit), which makes npm skip
+// devDependencies; modules need them (e.g. typescript) for npm run build
+const NPM_INSTALL_WITH_DEV = ['install', '--include=dev'];
+
 // Module ids and repository names become directory names below modulesDir,
 // so they must not contain path separators or be "." / "..".
 const MODULE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -127,17 +131,7 @@ export class ModuleInstaller extends EventEmitter {
 
       this.emit('updating', moduleId);
 
-      // Git pull
-      await this.execCommand('git', ['-C', modulePath, 'pull'], modulePath);
-
-      // Run npm install (including devDependencies for build)
-      await this.execCommand('npm', ['install'], modulePath);
-
-      // Fix SDK symlink if it uses relative path
-      await this.fixSdkLink(modulePath);
-
-      // Rebuild the module
-      await this.buildModule(modulePath);
+      await this.refreshAt(modulePath);
 
       // Get new version
       const newManifestData = await fs.readFile(manifestPath, 'utf-8');
@@ -243,7 +237,7 @@ export class ModuleInstaller extends EventEmitter {
 
     // Run npm install (including devDependencies for build)
     this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
-    await this.execCommand('npm', ['install'], targetPath);
+    await this.execCommand('npm', NPM_INSTALL_WITH_DEV, targetPath);
 
     // Fix SDK symlink if it uses relative path
     await this.fixSdkLink(targetPath);
@@ -307,7 +301,7 @@ export class ModuleInstaller extends EventEmitter {
 
       // Run npm install in copied directory
       this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
-      await this.execCommand('npm', ['install'], targetPath);
+      await this.execCommand('npm', NPM_INSTALL_WITH_DEV, targetPath);
 
       // Fix SDK symlink if it uses relative path
       await this.fixSdkLink(targetPath);
@@ -390,6 +384,20 @@ export class ModuleInstaller extends EventEmitter {
         throw err;
       }
     }
+  }
+
+  /**
+   * Pull the latest version of a git module and rebuild it in place
+   *
+   * Works with the module's real folder, which can differ from its id
+   * (e.g. folder autodarts-mqtt-module for module mqtt).
+   */
+  async refreshAt(modulePath: string): Promise<void> {
+    await this.execCommand('git', ['-C', modulePath, 'pull'], modulePath);
+    // Including devDependencies, which the build needs
+    await this.execCommand('npm', NPM_INSTALL_WITH_DEV, modulePath);
+    await this.fixSdkLink(modulePath);
+    await this.buildModule(modulePath);
   }
 
   /**

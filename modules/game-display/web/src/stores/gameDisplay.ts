@@ -1543,7 +1543,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // Parse chalkboards
     const chalkboards = data.chalkboards as Array<Record<string, unknown>> | undefined
     const stats = data.stats as Array<Record<string, unknown>> | undefined
-    const winnerIndex = data.winner as number | undefined
+    // Stable player.index of the winner as resolved by the hub; raw winner as fallback
+    const winnerIndex = (data.winnerPlayerIndex as number | undefined) ?? (data.winner as number | undefined)
     const players = data.players as Array<Record<string, unknown>> | undefined
 
     // Show results even if chalkboards are empty - we can still show winner and stats

@@ -348,6 +348,8 @@ export interface MatchResultData {
   matchId: string;
   winner: number;
   winnerName: string;
+  /** Stable player.index of the winner */
+  winnerPlayerIndex: number | null;
   variant: string;
   type: string;
   leg: number;

@@ -21,6 +21,8 @@ export class EventParser {
   private debug: boolean;
   private currentMatchId: string | null = null;
   private lastPlayerIndex: number | null = null;
+  // Leg (match:set:leg) whose game.finished was already reported
+  private lastFinishedLegKey: string | null = null;
   private currentMatchState: MatchStateData | null = null;
   private lastMatchUpdate: Date | null = null;
   private lastRound: number | null = null;
@@ -429,8 +431,12 @@ export class EventParser {
     }
     this.lastPlayerIndex = data.player;
 
-    // Check for game finished
-    if (data.gameFinished && data.gameWinner !== null) {
+    // Check for game finished. Autodarts keeps sending finished states for the
+    // same leg (also after rotating the players for the next leg), so report
+    // each leg once, from its first finished state.
+    const legKey = `${data.id}:${data.set}:${data.leg}`;
+    if (data.gameFinished && data.gameWinner !== null && this.lastFinishedLegKey !== legKey) {
+      this.lastFinishedLegKey = legKey;
       // IMPORTANT: gameWinner from Autodarts is the player's INDEX field value, not array position!
       // When a leg ends, Autodarts rotates the players array for the next leg.
       // The gameWinner value stays the same (it's the player.index, not array position).
@@ -452,8 +458,10 @@ export class EventParser {
         console.log('  Found by array position:', gameWinnerByArrayPos?.name);
       }
 
-      // Use find by p.index since gameWinner is the player's index field value
-      const gameWinnerPlayer = gameWinnerByIndex;
+      // The player who checked out has 0 left; gameScores follows the players
+      // order of the same state. gameWinner is the fallback (non-X01 variants).
+      const checkedOut = data.gameScores?.map((score, i) => (score === 0 ? i : -1)).filter((i) => i >= 0) ?? [];
+      const gameWinnerPlayer = checkedOut.length === 1 ? data.players[checkedOut[0]] : gameWinnerByIndex;
 
       events.push({
         type: 'game.finished',
@@ -475,8 +483,12 @@ export class EventParser {
 
     // Check for match finished
     if (data.finished && data.winner !== null) {
-      // Find winner by index field, not array position (Autodarts uses index field as winner identifier)
-      const matchWinnerPlayer = data.players.find(p => p.index === data.winner);
+      // The player who checked out the last leg has 0 left (players order of this
+      // state); the index lookup is the fallback for non-X01 variants
+      const lastCheckout = data.gameScores?.map((score, i) => (score === 0 ? i : -1)).filter((i) => i >= 0) ?? [];
+      const matchWinnerPlayer = lastCheckout.length === 1
+        ? data.players[lastCheckout[0]]
+        : data.players.find(p => p.index === data.winner);
 
       if (this.debug) {
         console.log('🏆 DEBUG EventParser - MATCH FINISHED RAW DATA:');
@@ -506,6 +518,7 @@ export class EventParser {
         matchId: data.id,
         winner: data.winner,
         winnerName: matchWinnerPlayer?.name ?? 'Unknown',
+        winnerPlayerIndex: matchWinnerPlayer?.index ?? data.winner,
         variant: data.variant,
         type: data.type,
         leg: data.leg,

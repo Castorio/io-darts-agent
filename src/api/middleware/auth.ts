@@ -32,64 +32,76 @@ function requestPath(request: FastifyRequest): string {
 /**
  * Create authentication middleware
  */
-export function createAuthMiddleware(server: APIServer) {
-  return async function authMiddleware(
-    request: FastifyRequest,
-    reply: FastifyReply
-  ): Promise<void> {
-    // If setup not completed, the web UI loads but the API only answers setup routes
-    if (server.isSetupRequired()) {
-      const pathname = requestPath(request);
-      const isApi = pathname === '/api' || pathname.startsWith('/api/');
-      const isSetupApi = pathname === '/api/setup' || pathname.startsWith('/api/setup/');
-      if (isApi && !isSetupApi) {
-        reply.code(403).send({
-          statusCode: 403,
-          error: 'Forbidden',
-          message: 'Setup required. Please complete the setup wizard.',
-        });
-        return;
-      }
-      return;
-    }
-
-    // If auth is not enabled, allow all requests
-    if (!server.isAuthEnabled()) {
-      request.session = { authenticated: true };
-      return;
-    }
-
-    // Check for session cookie
-    const sessionId = request.cookies[SESSION_COOKIE];
-    if (sessionId && server.isSessionValid(sessionId)) {
-      const session = server.getSession(sessionId);
-      request.session = {
-        authenticated: true,
-        username: session?.username,
-      };
-      return;
-    }
-
-    // Allow public routes
-    const publicRoutes = [
-      '/api/auth/login',
-      '/api/auth/session',
-      '/api/setup/status',
-      '/health',
-    ];
-
-    if (publicRoutes.some((route) => request.url.startsWith(route))) {
-      request.session = { authenticated: false };
-      return;
-    }
-
-    // Unauthorized
-    reply.code(401).send({
-      statusCode: 401,
-      error: 'Unauthorized',
-      message: 'Authentication required',
+export function createAuthMiddleware(
+  server: APIServer
+): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
+  // Registered as an onRequest hook without a done callback, so it must return
+  // a promise; a thrown error becomes a rejection as with an async function.
+  return function authMiddleware(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    return new Promise<void>((resolve) => {
+      authorize(server, request, reply);
+      resolve();
     });
   };
+}
+
+/**
+ * Let the request through, or answer it with 401/403
+ */
+function authorize(server: APIServer, request: FastifyRequest, reply: FastifyReply): void {
+  // If setup not completed, the web UI loads but the API only answers setup routes
+  if (server.isSetupRequired()) {
+    const pathname = requestPath(request);
+    const isApi = pathname === '/api' || pathname.startsWith('/api/');
+    const isSetupApi = pathname === '/api/setup' || pathname.startsWith('/api/setup/');
+    if (isApi && !isSetupApi) {
+      void reply.code(403).send({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: 'Setup required. Please complete the setup wizard.',
+      });
+      return;
+    }
+    return;
+  }
+
+  // If auth is not enabled, allow all requests
+  if (!server.isAuthEnabled()) {
+    request.session = { authenticated: true };
+    return;
+  }
+
+  // Check for session cookie
+  const sessionId = request.cookies[SESSION_COOKIE];
+  if (sessionId && server.isSessionValid(sessionId)) {
+    const session = server.getSession(sessionId);
+    request.session = {
+      authenticated: true,
+      username: session?.username,
+    };
+    return;
+  }
+
+  // Allow public routes
+  const publicRoutes = [
+    '/api/auth/login',
+    '/api/auth/session',
+    '/api/setup/status',
+    '/health',
+  ];
+
+  // Exact match on the routed path, so /healthz or /api/auth/sessionFoo are not public
+  if (publicRoutes.includes(requestPath(request))) {
+    request.session = { authenticated: false };
+    return;
+  }
+
+  // Unauthorized
+  void reply.code(401).send({
+    statusCode: 401,
+    error: 'Unauthorized',
+    message: 'Authentication required',
+  });
 }
 
 /**
@@ -101,7 +113,7 @@ export function requireAuth(
   done: () => void
 ): void {
   if (!request.session?.authenticated) {
-    reply.code(401).send({
+    void reply.code(401).send({
       statusCode: 401,
       error: 'Unauthorized',
       message: 'Authentication required',
@@ -118,7 +130,7 @@ export function setSessionCookie(
   reply: FastifyReply,
   sessionId: string
 ): void {
-  reply.setCookie(SESSION_COOKIE, sessionId, {
+  void reply.setCookie(SESSION_COOKIE, sessionId, {
     path: '/',
     httpOnly: true,
     // The hub serves plain HTTP in the LAN; a Secure cookie would never come back
@@ -132,7 +144,7 @@ export function setSessionCookie(
  * Clear session cookie
  */
 export function clearSessionCookie(reply: FastifyReply): void {
-  reply.clearCookie(SESSION_COOKIE, {
+  void reply.clearCookie(SESSION_COOKIE, {
     path: '/',
   });
 }

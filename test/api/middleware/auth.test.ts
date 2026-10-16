@@ -141,6 +141,25 @@ describe('Auth Middleware', () => {
       }
     });
 
+    it.each(['/healthz', '/api/auth/sessionFoo', '/api/setup/status-x', '/api/auth/login/../../modules'])(
+      'does not treat %s as a public route',
+      async (url) => {
+        mockRequest.url = url;
+        const middleware = createAuthMiddleware(mockServer as APIServer);
+        await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+
+        expect(mockReply.code).toHaveBeenCalledWith(401);
+      }
+    );
+
+    it('accepts public routes with a query string', async () => {
+      mockRequest.url = '/api/auth/session?ts=1';
+      const middleware = createAuthMiddleware(mockServer as APIServer);
+      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+
+      expect(mockRequest.session).toEqual({ authenticated: false });
+    });
+
     it('should block protected routes without valid session', async () => {
       mockRequest.url = '/api/modules';
 

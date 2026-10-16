@@ -34,6 +34,7 @@ export default {
   // Game info strings
   strings: {
     bestOf: 'Mejor de',
+    firstTo: 'Primero a',
     straightIn: 'Straight In',
     doubleIn: 'Double In',
     straightOut: 'Straight Out',

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { gameInfoLines } from './utils/gameInfo'
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useGameDisplayStore } from './stores/gameDisplay'
@@ -92,16 +93,6 @@ const statusText = computed(() => {
   return [set, leg].filter(Boolean).join(' • ')
 })
 
-// Format in/out mode for display
-function formatInOutMode(mode: string, isIn: boolean): string {
-  const modeMap: Record<string, string> = {
-    'straight': isIn ? t('strings.straightIn') : t('strings.straightOut'),
-    'double': isIn ? t('strings.doubleIn') : t('strings.doubleOut'),
-    'master': t('strings.masterOut'),
-  }
-  return modeMap[mode] || mode
-}
-
 // Game info position classes based on config
 const gameInfoPositionClasses = computed(() => {
   const position = config.value.gameInfoPosition || 'top-left'
@@ -172,48 +163,9 @@ interface GameInfoItem {
   value: string
 }
 
-const gameInfoText = computed((): GameInfoItem[] | null => {
-  if (!gameInfo.value) return null
-
-  const items: GameInfoItem[] = []
-
-  // Item 1: Game type and start score (e.g., "501 Double Out")
-  const gameTypeLine = gameInfo.value.baseScore > 0
-    ? `${gameInfo.value.baseScore}`
-    : gameInfo.value.variant
-  const outModeText = formatInOutMode(gameInfo.value.outMode, false)
-  items.push({
-    label: t('gameInfo.game'),
-    value: `${gameTypeLine} ${outModeText}`
-  })
-
-  // Item 2: Legs/Sets info (e.g., "Best of 3 Legs")
-  const legsText = gameInfo.value.legsToWin > 1
-    ? `${t('strings.bestOf')} ${gameInfo.value.legsToWin} ${t('score.legs')}`
-    : `1 ${t('score.leg')}`
-
-  if (gameInfo.value.setsToWin > 1) {
-    items.push({
-      label: t('gameInfo.format'),
-      value: `${t('strings.bestOf')} ${gameInfo.value.setsToWin} ${t('score.sets')}, ${legsText}`
-    })
-  } else {
-    items.push({
-      label: t('gameInfo.legs'),
-      value: legsText
-    })
-  }
-
-  // Item 3: In mode if not straight (e.g., "Double In")
-  if (gameInfo.value.inMode !== 'straight') {
-    items.push({
-      label: t('gameInfo.inMode'),
-      value: formatInOutMode(gameInfo.value.inMode, true)
-    })
-  }
-
-  return items
-})
+const gameInfoText = computed((): GameInfoItem[] | null =>
+  gameInfo.value ? gameInfoLines(gameInfo.value, (key) => t(key)) : null
+)
 
 // Watch for score changes to animate
 watch(() => activePlayer.value?.score, (newScore, oldScore) => {

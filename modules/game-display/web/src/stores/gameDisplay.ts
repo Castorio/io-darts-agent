@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { legsAndSetsFrom } from '../utils/gameInfo'
 import { ref, shallowRef, computed } from 'vue'
 import { DEFAULT_HIGH_SCORE_THRESHOLD, ThrowAnimationTracker, throwAnimationsForDart } from '../utils/throwAnimations'
 
@@ -517,7 +518,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     currentSet: 1,
     currentLeg: 1,
     setsToWin: 1,
-    legsToWin: 3,
+    legsToWin: 1,
     players: [],
     activePlayerIndex: 0,
     currentTurn: {
@@ -930,8 +931,11 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // ========================================================================
     const settings = data.settings as Record<string, unknown> | undefined
     const variant = (data.variant as string) || 'X01'
-    const setsToWin = (data.sets as number) || (settings?.sets as number) || 1
-    const legsToWin = (data.legs as number) || (settings?.legs as number) || 3
+    // null from Autodarts means a single leg match, not "best of 3"
+    const { legsToWin, setsToWin } = legsAndSetsFrom({
+      legs: data.legs ?? settings?.legs,
+      sets: data.sets ?? settings?.sets,
+    })
 
     if (settings) {
       gameState.value.startScore = (settings.baseScore as number) || (settings.startScore as number) || 501

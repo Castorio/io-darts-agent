@@ -10,3 +10,9 @@ html, body, #app {
   overflow: hidden;
   background: #0a0a0f;
 }
+
+/* The display runs full screen next to the board: never show the mouse
+   pointer, also not over overlays that set cursor-pointer */
+html, body, #app, * {
+  cursor: none !important;
+}

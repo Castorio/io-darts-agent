@@ -156,6 +156,9 @@ export interface MatchSettings {
   inMode: string;
   maxRounds: number;
   outMode: string;
+  cutThroat?: boolean;
+  gameMode?: string;
+  scoringMode?: string;
 }
 
 export interface MatchThrow {

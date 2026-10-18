@@ -5,6 +5,7 @@ import type {
 } from '../../types/index.js';
 import { EventParser } from './EventParser.js';
 import { rawDataToString } from './rawData.js';
+import { createMessageRecorder } from './messageRecorder.js';
 import { EventBus } from '../events/EventBus.js';
 
 const WS_URL = 'wss://play.ws.autodarts.com/ms/v0/subscribe';
@@ -31,6 +32,8 @@ export class SocketService {
   private attemptId = 0;
   private boardId: string;
   private eventParser: EventParser;
+  // Diagnostics: IO_DARTS_RECORD_FILE records every raw message
+  private readonly recordMessage = createMessageRecorder(process.env.IO_DARTS_RECORD_FILE);
   private eventBus: EventBus;
 
   private connectionState: ConnectionState = 'disconnected';
@@ -271,7 +274,9 @@ export class SocketService {
 
   private handleMessage(data: WebSocket.RawData): void {
     try {
-      const message = JSON.parse(rawDataToString(data)) as AutodartsMessage;
+      const text = rawDataToString(data);
+      this.recordMessage?.(text);
+      const message = JSON.parse(text) as AutodartsMessage;
       const isBoardEvent = message.channel === 'autodarts.boards' && message.topic?.endsWith('.events');
       console.log(`📨 WS Message: channel=${message.channel}, topic=${message.topic}${isBoardEvent ? ' [BOARD EVENT]' : ''}`);
       if (isBoardEvent) {

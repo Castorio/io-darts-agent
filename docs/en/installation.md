@@ -390,13 +390,19 @@ Ready-made packages for macOS, Windows and Linux are on the [Releases page](http
 
 | System | File |
 |--------|------|
-| macOS, Apple Silicon (M1/M2/M3/…) | `.dmg` or `.zip`, arm64 |
-| macOS, Intel | `.dmg` or `.zip`, x64 |
-| Windows x64 | NSIS installer `.exe` (with an install dialog) or portable `.exe` |
-| Linux x64 (desktop) | `.deb`, `.rpm` or `.AppImage` |
-| Linux arm64 (e.g. Raspberry Pi) | `.deb` or `.AppImage` |
+| macOS, Apple Silicon (M1/M2/M3/…) | `IO-Darts-Agent-<version>-arm64.dmg` or `.zip` |
+| macOS, Intel | `IO-Darts-Agent-<version>-x64.dmg` or `.zip` |
+| Windows x64 | NSIS installer `IO-Darts-Agent-<version>-x64-setup.exe` or portable `IO-Darts-Agent-<version>-x64-portable.exe` |
+| Linux x64 (desktop) | `IO-Darts-Agent-<version>-x64.deb`, `.rpm` or `.AppImage` |
+| Linux arm64 (e.g. Raspberry Pi) | `IO-Darts-Agent-<version>-arm64.deb` or `.AppImage` |
 
-File names follow the pattern `IO-Darts-Agent-<version>-<arch>.<extension>` (for example `IO-Darts-Agent-1.0.0-arm64.AppImage`); see the exact names in that release's assets.
+File names follow the pattern `IO-Darts-Agent-<version>-<arch>.<extension>` throughout, with two exceptions on Windows: the installer and the portable build add `-setup` or `-portable` before the extension so the two don't collide. For version 1.0.0, for example:
+
+- `IO-Darts-Agent-1.0.0-arm64.dmg`, `IO-Darts-Agent-1.0.0-x64.zip`
+- `IO-Darts-Agent-1.0.0-x64-setup.exe`, `IO-Darts-Agent-1.0.0-x64-portable.exe`
+- `IO-Darts-Agent-1.0.0-x64.deb`, `IO-Darts-Agent-1.0.0-x64.rpm`, `IO-Darts-Agent-1.0.0-arm64.AppImage`
+
+See the exact names in that release's assets.
 
 Each release also includes `SHA256SUMS.txt` with checksums for every file. Download it into the same folder as the package and verify:
 
@@ -405,12 +411,12 @@ Each release also includes `SHA256SUMS.txt` with checksums for every file. Downl
 sha256sum -c SHA256SUMS.txt --ignore-missing
 
 # macOS
-shasum -a 256 -c SHA256SUMS.txt
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing
 ```
 
 ### Running unsigned builds
 
-The packages are unsigned (macOS: signed ad hoc only, not notarized), so the OS warns on first start:
+The packages are unsigned, with one exception: the macOS arm64 packages (`.dmg`/`.zip`) are signed ad hoc, but not notarized. The macOS x64 packages are completely unsigned. The OS warns on first start:
 
 - **macOS:** right click the app, choose **Open**, confirm the dialog. Or in a terminal: `xattr -dr com.apple.quarantine /Applications/IO-Darts-Agent.app`.
 - **Windows:** SmartScreen shows "Windows protected your PC". Click **More info**, then **Run anyway**.

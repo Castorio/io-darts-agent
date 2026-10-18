@@ -390,13 +390,19 @@ Fertige Pakete für macOS, Windows und Linux gibt es auf der [Releases-Seite](ht
 
 | System | Datei |
 |--------|-------|
-| macOS, Apple Silicon (M1/M2/M3/…) | `.dmg` oder `.zip`, arm64 |
-| macOS, Intel | `.dmg` oder `.zip`, x64 |
-| Windows x64 | NSIS-Installer `.exe` (mit Installationsdialog) oder portable `.exe` |
-| Linux x64 (Desktop) | `.deb`, `.rpm` oder `.AppImage` |
-| Linux arm64 (z. B. Raspberry Pi) | `.deb` oder `.AppImage` |
+| macOS, Apple Silicon (M1/M2/M3/…) | `IO-Darts-Agent-<Version>-arm64.dmg` oder `.zip` |
+| macOS, Intel | `IO-Darts-Agent-<Version>-x64.dmg` oder `.zip` |
+| Windows x64 | NSIS-Installer `IO-Darts-Agent-<Version>-x64-setup.exe` oder portable `IO-Darts-Agent-<Version>-x64-portable.exe` |
+| Linux x64 (Desktop) | `IO-Darts-Agent-<Version>-x64.deb`, `.rpm` oder `.AppImage` |
+| Linux arm64 (z. B. Raspberry Pi) | `IO-Darts-Agent-<Version>-arm64.deb` oder `.AppImage` |
 
-Die Dateinamen folgen dem Muster `IO-Darts-Agent-<Version>-<Architektur>.<Endung>` (zum Beispiel `IO-Darts-Agent-1.0.0-arm64.AppImage`); die genauen Namen stehen bei den Anhängen des jeweiligen Releases.
+Die Dateinamen folgen durchgehend dem Muster `IO-Darts-Agent-<Version>-<Architektur>.<Endung>`, mit zwei Ausnahmen bei Windows: Installer und portable Version tragen zusätzlich `-setup` bzw. `-portable` vor der Endung, damit sie sich unterscheiden. Für Version 1.0.0 also zum Beispiel:
+
+- `IO-Darts-Agent-1.0.0-arm64.dmg`, `IO-Darts-Agent-1.0.0-x64.zip`
+- `IO-Darts-Agent-1.0.0-x64-setup.exe`, `IO-Darts-Agent-1.0.0-x64-portable.exe`
+- `IO-Darts-Agent-1.0.0-x64.deb`, `IO-Darts-Agent-1.0.0-x64.rpm`, `IO-Darts-Agent-1.0.0-arm64.AppImage`
+
+Die genauen Namen stehen bei den Anhängen des jeweiligen Releases.
 
 Jeder Release enthält außerdem `SHA256SUMS.txt` mit den Prüfsummen aller Dateien. Lade sie zusammen mit dem gewünschten Paket in denselben Ordner und prüfe:
 
@@ -405,12 +411,12 @@ Jeder Release enthält außerdem `SHA256SUMS.txt` mit den Prüfsummen aller Date
 sha256sum -c SHA256SUMS.txt --ignore-missing
 
 # macOS
-shasum -a 256 -c SHA256SUMS.txt
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing
 ```
 
 ### Unsignierte Builds starten
 
-Die Pakete sind nicht signiert (macOS: nur ad hoc signiert, nicht notarisiert). Die Betriebssysteme warnen deshalb beim ersten Start:
+Die Pakete sind nicht signiert, mit einer Ausnahme: Die macOS-arm64-Pakete (`.dmg`/`.zip`) sind ad hoc signiert, aber nicht notarisiert. Die macOS-x64-Pakete sind komplett unsigniert. Die Betriebssysteme warnen deshalb beim ersten Start:
 
 - **macOS:** Rechtsklick auf die App > **Öffnen**, im Dialog bestätigen. Alternativ im Terminal: `xattr -dr com.apple.quarantine /Applications/IO-Darts-Agent.app`.
 - **Windows:** SmartScreen zeigt "Der Computer wurde durch Windows geschützt". Auf **Weitere Informationen** und dann **Trotzdem ausführen** klicken.

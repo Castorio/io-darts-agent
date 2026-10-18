@@ -53,6 +53,14 @@ extraResources:
 # special cases.
 asar: false
 
+# Asset file names: electron-builder's defaults use spaces (e.g.
+# "IO-Darts-Agent Setup 1.0.0.exe"), and GitHub rewrites spaces in release
+# asset names on upload. That breaks SHA256SUMS.txt, whose lines are
+# generated from the on-disk file names before upload. Use a uniform,
+# space-free pattern everywhere; nsis/portable below override it with a
+# distinct suffix so the two Windows targets don't collide.
+artifactName: "${productName}-${version}-${arch}.${ext}"
+
 # =====================
 # macOS Configuration
 # =====================
@@ -112,6 +120,10 @@ nsis:
   uninstallerIcon: "build/icon.ico"
   installerHeaderIcon: "build/icon.ico"
   license: "LICENSE"
+  artifactName: "${productName}-${version}-${arch}-setup.${ext}"
+
+portable:
+  artifactName: "${productName}-${version}-${arch}-portable.${ext}"
 
 # =====================
 # Linux Configuration

@@ -45,6 +45,7 @@ interface WledConfig {
   playerColors?: string[]
   fadeTime: number | null // ms for every action on "Global"; null = WLED default (no transition sent)
   fadeTimeUnit: typeof FADE_TIME_UNIT
+  cricketMarksThreshold: number // 3-9, marks in a Cricket turn from which cricket.marks fires
 }
 
 // Available intent from other modules
@@ -68,6 +69,11 @@ const wledHost = ref('')
 const wledPort = ref(80)
 // ms; empty = WLED default, 0 = instant (v-model.number yields '' for an empty field)
 const globalFadeTime = ref<number | string>('')
+// Marks in a Cricket turn from which the cricket.marks strong-turn effect fires
+const CRICKET_MARKS_THRESHOLD_DEFAULT = 6
+const CRICKET_MARKS_THRESHOLD_MIN = 3
+const CRICKET_MARKS_THRESHOLD_MAX = 9
+const cricketMarksThreshold = ref<number>(CRICKET_MARKS_THRESHOLD_DEFAULT)
 const isConnected = ref(false)
 const isConnecting = ref(false)
 // Auto connect only once per page visit, later via the Connect button
@@ -333,6 +339,14 @@ watch(
       if (values.playerColors && Array.isArray(values.playerColors)) {
         playerColors.value = values.playerColors as string[]
       }
+      const threshold = values.cricketMarksThreshold
+      cricketMarksThreshold.value =
+        typeof threshold === 'number' &&
+        Number.isFinite(threshold) &&
+        threshold >= CRICKET_MARKS_THRESHOLD_MIN &&
+        threshold <= CRICKET_MARKS_THRESHOLD_MAX
+          ? threshold
+          : CRICKET_MARKS_THRESHOLD_DEFAULT
     }
   },
   { immediate: true }
@@ -379,6 +393,7 @@ async function saveConfig() {
       // null clears a stored value; the hub merges configs, so a missing key would keep the old one
       fadeTime: parseGlobalFadeInput(globalFadeTime.value) ?? null,
       fadeTimeUnit: FADE_TIME_UNIT,
+      cricketMarksThreshold: cricketMarksThreshold.value,
     }
 
     await modulesStore.updateConfig(module.value.id, config as unknown as Record<string, unknown>)
@@ -572,20 +587,36 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- Global fade time (ms) -->
-            <div>
-              <label for="wled-fade-time" class="block text-sm font-medium text-dark-200 mb-1">{{ getConfigLabel('fadeTime') }}</label>
-              <input
-                id="wled-fade-time"
-                type="number"
-                v-model.number="globalFadeTime"
-                min="0"
-                :max="MAX_FADE_MS"
-                step="100"
-                :placeholder="i18n.strings.wledDefault"
-                class="w-full md:w-48 px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500"
-              />
-              <p class="text-xs text-dark-500 mt-1">{{ i18n.config.fadeTime?.description }}</p>
+            <!-- Global fade time (ms) + Cricket strong-turn threshold -->
+            <div class="flex flex-wrap gap-4">
+              <div>
+                <label for="wled-fade-time" class="block text-sm font-medium text-dark-200 mb-1">{{ getConfigLabel('fadeTime') }}</label>
+                <input
+                  id="wled-fade-time"
+                  type="number"
+                  v-model.number="globalFadeTime"
+                  min="0"
+                  :max="MAX_FADE_MS"
+                  step="100"
+                  :placeholder="i18n.strings.wledDefault"
+                  class="w-full md:w-48 px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500"
+                />
+                <p class="text-xs text-dark-500 mt-1">{{ i18n.config.fadeTime?.description }}</p>
+              </div>
+
+              <div>
+                <label for="wled-cricket-marks-threshold" class="block text-sm font-medium text-dark-200 mb-1">{{ getConfigLabel('cricketMarksThreshold') }}</label>
+                <input
+                  id="wled-cricket-marks-threshold"
+                  type="number"
+                  v-model.number="cricketMarksThreshold"
+                  :min="CRICKET_MARKS_THRESHOLD_MIN"
+                  :max="CRICKET_MARKS_THRESHOLD_MAX"
+                  step="1"
+                  class="w-full md:w-48 px-4 py-2.5 rounded-lg bg-dark-800 border border-dark-600 text-white focus:outline-none focus:ring-2 focus:ring-autodarts-500"
+                />
+                <p class="text-xs text-dark-500 mt-1">{{ i18n.config.cricketMarksThreshold?.description }}</p>
+              </div>
             </div>
 
             <!-- Connection Status -->

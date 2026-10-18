@@ -52,6 +52,8 @@ export interface WledConfig {
   fadeTime?: number;
   /** Unit marker for fadeTime values. Missing means a legacy config, see fade.ts. */
   fadeTimeUnit?: typeof FADE_TIME_UNIT;
+  /** Marks in a Cricket turn from which the cricket.marks strong-turn effect fires (3-9, default 6). */
+  cricketMarksThreshold?: number;
 }
 
 type RGB = { r: number; g: number; b: number };
@@ -83,6 +85,13 @@ function parseColor(color: unknown, fallback: RGB = DEFAULT_WHITE): RGB {
   return fallback;
 }
 
+// The module must not import from the hub's src/, so Cricket mode detection is defined locally.
+const isCricketMode = (mode: unknown): boolean => mode === 'cricket' || mode === 'tactics';
+
+const DEFAULT_CRICKET_MARKS_THRESHOLD = 6;
+const MIN_CRICKET_MARKS_THRESHOLD = 3;
+const MAX_CRICKET_MARKS_THRESHOLD = 9;
+
 // Event key mappings for findAction lookups
 const EVENT_KEY_MAPPINGS: Record<string, string[]> = {
   'throw.180': ['throw.180', 'throw180'],
@@ -103,6 +112,8 @@ const EVENT_KEY_MAPPINGS: Record<string, string[]> = {
   'turn.finished': ['turn.finished', 'turnFinished'],
   'takeout.started': ['takeout.started', 'takeoutStarted'],
   'takeout.finished': ['takeout.finished', 'takeoutFinished'],
+  'cricket.closed': ['cricket.closed', 'cricketClosed'],
+  'cricket.marks': ['cricket.marks', 'cricketMarks'],
 };
 
 /**
@@ -122,6 +133,10 @@ export class WledHandler {
     playerName: string;
     players: Array<{ name?: string; color?: string; index?: number }>;
   } | null = null;
+
+  // turnIds for which the Cricket cricket.marks strong-turn action already fired.
+  // Cleared on match.start/match.delete so a new match can fire again.
+  private strongTurns = new Set<string>();
 
   // Default player colors for fallback
   private readonly defaultPlayerColors = [
@@ -225,6 +240,16 @@ export class WledHandler {
    */
   async handleEvent(event: ParsedEvent): Promise<void> {
     this.stats.eventsProcessed++;
+
+    // A new match never carries over Cricket strong-turn dedup from the previous one
+    if (
+      event.type === 'match.start' ||
+      (event.type as string) === 'match.started' ||
+      event.type === 'match.delete' ||
+      (event.type as string) === 'match.deleted'
+    ) {
+      this.strongTurns.clear();
+    }
 
     // Debug: Log throw events
     if (event.type === 'throw.detected') {
@@ -558,6 +583,9 @@ export class WledHandler {
 
     // Handle throw events with special conditions
     if (eventType === 'throw.detected') {
+      const strongTurn = this.getStrongTurnAction(eventsConfig, eventData);
+      if (strongTurn) return strongTurn;
+
       const eventKey = this.getThrowEventKey(eventData);
       const found = this.findActionByKey(eventsConfig, eventKey);
       if (found || (eventKey !== 'throw.180' && eventKey !== 'throw.bust')) return found;
@@ -571,6 +599,49 @@ export class WledHandler {
   }
 
   /**
+   * Cricket "strong turn": once per turnId, when the running turn marks reach the
+   * configured threshold, the cricket.marks action takes priority over the normal
+   * throw action for that dart - but only if a cricket.marks action is configured.
+   */
+  private getStrongTurnAction(
+    eventsConfig: Record<string, WledAction>,
+    eventData: Record<string, unknown>,
+  ): { action: WledAction; eventKey: string } | null {
+    const game = eventData.game as { mode?: unknown } | undefined;
+    if (!isCricketMode(game?.mode)) return null;
+
+    const turnId = eventData.turnId;
+    if (typeof turnId !== 'string' || !turnId) return null;
+    if (this.strongTurns.has(turnId)) return null;
+
+    const turnMarks = eventData.turnMarks;
+    if (typeof turnMarks !== 'number' || turnMarks < this.getCricketMarksThreshold()) return null;
+
+    const found = this.findActionByKey(eventsConfig, 'cricket.marks');
+    if (!found) return null;
+
+    this.strongTurns.add(turnId);
+    return found;
+  }
+
+  /**
+   * Cricket marks threshold from config, validated defensively (non-number or out of
+   * range falls back to the default).
+   */
+  private getCricketMarksThreshold(): number {
+    const value = this.config.cricketMarksThreshold;
+    if (
+      typeof value !== 'number' ||
+      !Number.isFinite(value) ||
+      value < MIN_CRICKET_MARKS_THRESHOLD ||
+      value > MAX_CRICKET_MARKS_THRESHOLD
+    ) {
+      return DEFAULT_CRICKET_MARKS_THRESHOLD;
+    }
+    return value;
+  }
+
+  /**
    * Determine the event key for throw events
    */
   private getThrowEventKey(eventData: Record<string, unknown>): string {
@@ -580,9 +651,13 @@ export class WledHandler {
     const number = (segment?.number as number) || 0;
     // Older payloads carry no points; derive them from the segment so a single hit is not a miss
     const points = typeof eventData.points === 'number' ? eventData.points : number * multiplier;
+    // Cricket/Tactics have no 180 or bust concept the way X01 does: a triple 20 is a
+    // triple regardless of turn total, and a "bust" throw still hit a real segment.
+    const game = eventData.game as { mode?: unknown } | undefined;
+    const cricket = isCricketMode(game?.mode);
 
-    if (turnPoints === 180) return 'throw.180';
-    if (eventData.busted) return 'throw.bust';
+    if (!cricket && turnPoints === 180) return 'throw.180';
+    if (!cricket && eventData.busted) return 'throw.bust';
     if (number === 25 && multiplier === 2) return 'throw.bullseye';
     if (number === 25 && multiplier === 1) return 'throw.bull';
     if (multiplier === 3) return 'throw.triple';
@@ -609,6 +684,7 @@ export class WledHandler {
       'turn.finished': 'turn.finished',
       'takeout.started': 'takeout.started',
       'takeout.finished': 'takeout.finished',
+      'cricket.closed': 'cricket.closed',
     };
     return typeMapping[eventType] || null;
   }

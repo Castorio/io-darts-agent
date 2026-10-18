@@ -23,7 +23,8 @@
     "turn.finished",
     "takeout.started",
     "takeout.finished",
-    "game.finished"
+    "game.finished",
+    "cricket.closed"
   ],
   "eventMeta": {
     "match.started": {
@@ -93,6 +94,14 @@
     "game.finished": {
       "label": { "de": "Leg beendet", "en": "Leg finished", "es": "Leg terminado" },
       "description": { "de": "Ein Leg wurde beendet", "en": "A leg has been finished", "es": "Se ha terminado un leg" }
+    },
+    "cricket.closed": {
+      "label": { "de": "Cricket: Feld geschlossen", "en": "Cricket: field closed", "es": "Cricket: campo cerrado" },
+      "description": { "de": "Ein Spieler schließt ein Feld mit dem dritten Treffer", "en": "A player closes a field with the third mark", "es": "Un jugador cierra un campo con la tercera marca" }
+    },
+    "cricket.marks": {
+      "label": { "de": "Cricket: Starke Aufnahme", "en": "Cricket: strong turn", "es": "Cricket: gran turno" },
+      "description": { "de": "Aufnahme ab der eingestellten Zahl Marks (Standard 6)", "en": "Turn from the set number of marks (default 6)", "es": "Turno desde el número de marcas configurado (6 por defecto)" }
     }
   },
   "eventGroups": [
@@ -111,6 +120,10 @@
     {
       "title": { "de": "Board Events", "en": "Board Events", "es": "Eventos del Tablero" },
       "events": ["takeout.started", "takeout.finished"]
+    },
+    {
+      "title": { "de": "Cricket", "en": "Cricket", "es": "Cricket" },
+      "events": ["cricket.closed", "cricket.marks"]
     }
   ],
   "config": {
@@ -136,6 +149,14 @@
       "min": 0,
       "max": 10000,
       "step": 100
+    },
+    "cricketMarksThreshold": {
+      "type": "number",
+      "label": "Strong turn from marks",
+      "description": "Number of marks in a Cricket turn from which the strong-turn effect fires",
+      "default": 6,
+      "min": 3,
+      "max": 9
     }
   },
   "effects": [
@@ -234,6 +255,10 @@
         "fadeTime": {
           "label": "Fade Time (ms)",
           "description": "Global transition time in milliseconds. Empty = WLED default, 0 = instant"
+        },
+        "cricketMarksThreshold": {
+          "label": "Strong turn from marks",
+          "description": "Number of marks in a Cricket turn from which the strong-turn effect fires"
         }
       },
       "strings": {
@@ -259,6 +284,10 @@
         "fadeTime": {
           "label": "Übergangszeit (ms)",
           "description": "Globale Übergangszeit in Millisekunden. Leer = WLED-Standard, 0 = sofort"
+        },
+        "cricketMarksThreshold": {
+          "label": "Starke Aufnahme ab Marks",
+          "description": "Anzahl Marks in einer Cricket-Aufnahme, ab der der Starke-Aufnahme-Effekt ausgelöst wird"
         }
       },
       "strings": {
@@ -284,6 +313,10 @@
         "fadeTime": {
           "label": "Tiempo de Transición (ms)",
           "description": "Tiempo de transición global en milisegundos. Vacío = valor de WLED, 0 = instantáneo"
+        },
+        "cricketMarksThreshold": {
+          "label": "Gran turno desde marcas",
+          "description": "Número de marcas en un turno de Cricket a partir del cual se activa el efecto de gran turno"
         }
       },
       "strings": {

@@ -625,7 +625,14 @@ export const api = {
     // Default packId based on voiceId and language; the hub still validates
     // whatever packId is sent (isValidPackId), so this is just a default.
     const resolvedPackId = packId || `${voiceId}_${language}`
-    const packName = voiceName ? `${voiceName} (${language.toUpperCase()})` : `Voice Pack (${language.toUpperCase()})`
+    // When packId is given, voiceName is an EXISTING pack's name (e.g. "Rachel (DE)")
+    // passed in to fill missing files for that same pack - use it unchanged so
+    // regenerating never appends another "(DE)" suffix on top of itself.
+    // Without a packId (creating a brand new pack), voiceName is a raw voice
+    // name and still gets the language suffix added, as before.
+    const packName = packId
+      ? (voiceName || `Voice Pack (${language.toUpperCase()})`)
+      : (voiceName ? `${voiceName} (${language.toUpperCase()})` : `Voice Pack (${language.toUpperCase()})`)
 
     return request<{
       success: boolean

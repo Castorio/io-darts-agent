@@ -852,10 +852,14 @@ export class DartsCallerHandler {
       return;
     }
 
-    const turnMarks = eventData.turnMarks as number | undefined;
-    if (typeof turnMarks !== 'number') {
+    const rawTurnMarks = eventData.turnMarks;
+    if (!Number.isFinite(rawTurnMarks)) {
       return;
     }
+    // Number.isFinite rejects non-numbers and NaN/Infinity alike (unlike a
+    // plain `typeof === 'number'` check, which lets NaN through and recurses
+    // forever in scoreToEnglish/scoreToGerman).
+    const turnMarks = rawTurnMarks as number;
 
     if (turnMarks < this.getCallSetting('cricketMarksThreshold')) {
       return;

@@ -125,6 +125,13 @@ describe('DartsCallerHandler in Cricket', () => {
       await flush();
       expect(calls).toHaveLength(0);
     });
+
+    it('does not call and does not hang when turnMarks is NaN', async () => {
+      const { handler, calls } = collect({});
+      await expect(handler.handleEvent(cricketTurnFinished({ turnMarks: NaN }))).resolves.toBeUndefined();
+      await flush();
+      expect(calls).toHaveLength(0);
+    });
   });
 
   describe('player.changed', () => {

@@ -1,4 +1,15 @@
 export default {
+  // Status badge
+  status: {
+    running: 'Running',
+    connected: 'Connected',
+    stopped: 'Stopped',
+    disconnected: 'Disconnected',
+    starting: 'Starting',
+    stopping: 'Stopping',
+    error: 'Error',
+  },
+
   // Common
   common: {
     save: 'Save',

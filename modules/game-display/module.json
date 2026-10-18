@@ -608,6 +608,85 @@
         }
       }
     },
+    "animationCricketClose": {
+      "type": "group",
+      "label": "Cricket: Field Closed Animation",
+      "description": "Cricket: animation when a player closes a field with the third mark",
+      "showIf": { "field": "animationsEnabled", "value": true },
+      "fields": {
+        "type": {
+          "type": "select",
+          "label": "Type",
+          "default": "builtin",
+          "options": [
+            { "value": "none", "label": "Disabled" },
+            { "value": "builtin", "label": "Built-in" },
+            { "value": "gif", "label": "GIF" },
+            { "value": "video", "label": "Video" }
+          ]
+        },
+        "mediaUrl": {
+          "type": "string",
+          "label": "Media URL",
+          "default": ""
+        },
+        "soundUrl": {
+          "type": "string",
+          "label": "Sound URL",
+          "default": ""
+        },
+        "duration": {
+          "type": "number",
+          "label": "Duration (ms)",
+          "default": 2000,
+          "min": 500,
+          "max": 3000
+        }
+      }
+    },
+    "animationCricketMarks": {
+      "type": "group",
+      "label": "Cricket: Strong Turn Animation",
+      "description": "Cricket: animation for a turn with many marks",
+      "showIf": { "field": "animationsEnabled", "value": true },
+      "fields": {
+        "type": {
+          "type": "select",
+          "label": "Type",
+          "default": "builtin",
+          "options": [
+            { "value": "none", "label": "Disabled" },
+            { "value": "builtin", "label": "Built-in" },
+            { "value": "gif", "label": "GIF" },
+            { "value": "video", "label": "Video" }
+          ]
+        },
+        "threshold": {
+          "type": "number",
+          "label": "From Marks",
+          "default": 6,
+          "min": 3,
+          "max": 9
+        },
+        "mediaUrl": {
+          "type": "string",
+          "label": "Media URL",
+          "default": ""
+        },
+        "soundUrl": {
+          "type": "string",
+          "label": "Sound URL",
+          "default": ""
+        },
+        "duration": {
+          "type": "number",
+          "label": "Duration (ms)",
+          "default": 2500,
+          "min": 500,
+          "max": 3000
+        }
+      }
+    },
     "playerAnimations": {
       "type": "array",
       "label": "Player Animations",
@@ -871,7 +950,40 @@
         },
         "animationBust.mediaUrl": { "label": "Media URL" },
         "animationBust.soundUrl": { "label": "Sound URL" },
-        "animationBust.duration": { "label": "Duration" }
+        "animationBust.duration": { "label": "Duration" },
+        "animationCricketClose": {
+          "label": "Cricket: Field Closed Animation",
+          "description": "Animation when a player closes a field with the third mark"
+        },
+        "animationCricketClose.type": {
+          "label": "Type",
+          "options": {
+            "none": "Disabled",
+            "builtin": "Built-in",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationCricketClose.mediaUrl": { "label": "Media URL" },
+        "animationCricketClose.soundUrl": { "label": "Sound URL" },
+        "animationCricketClose.duration": { "label": "Duration" },
+        "animationCricketMarks": {
+          "label": "Cricket: Strong Turn Animation",
+          "description": "Animation for a turn with many marks"
+        },
+        "animationCricketMarks.type": {
+          "label": "Type",
+          "options": {
+            "none": "Disabled",
+            "builtin": "Built-in",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationCricketMarks.threshold": { "label": "From Marks" },
+        "animationCricketMarks.mediaUrl": { "label": "Media URL" },
+        "animationCricketMarks.soundUrl": { "label": "Sound URL" },
+        "animationCricketMarks.duration": { "label": "Duration" }
       },
       "strings": {
         "currentPlayer": "Current Player",
@@ -1149,7 +1261,40 @@
         },
         "animationBust.mediaUrl": { "label": "Medien-URL" },
         "animationBust.soundUrl": { "label": "Sound-URL" },
-        "animationBust.duration": { "label": "Dauer" }
+        "animationBust.duration": { "label": "Dauer" },
+        "animationCricketClose": {
+          "label": "Cricket: Feld geschlossen Animation",
+          "description": "Animation, wenn ein Spieler ein Feld mit dem dritten Treffer schließt"
+        },
+        "animationCricketClose.type": {
+          "label": "Typ",
+          "options": {
+            "none": "Deaktiviert",
+            "builtin": "Standard",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationCricketClose.mediaUrl": { "label": "Medien-URL" },
+        "animationCricketClose.soundUrl": { "label": "Sound-URL" },
+        "animationCricketClose.duration": { "label": "Dauer" },
+        "animationCricketMarks": {
+          "label": "Cricket: Starke Aufnahme Animation",
+          "description": "Animation für eine Aufnahme mit vielen Marks"
+        },
+        "animationCricketMarks.type": {
+          "label": "Typ",
+          "options": {
+            "none": "Deaktiviert",
+            "builtin": "Standard",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationCricketMarks.threshold": { "label": "Ab Marks" },
+        "animationCricketMarks.mediaUrl": { "label": "Medien-URL" },
+        "animationCricketMarks.soundUrl": { "label": "Sound-URL" },
+        "animationCricketMarks.duration": { "label": "Dauer" }
       },
       "strings": {
         "currentPlayer": "Aktueller Spieler",
@@ -1427,7 +1572,40 @@
         },
         "animationBust.mediaUrl": { "label": "URL de Medios" },
         "animationBust.soundUrl": { "label": "URL de Sonido" },
-        "animationBust.duration": { "label": "Duración" }
+        "animationBust.duration": { "label": "Duración" },
+        "animationCricketClose": {
+          "label": "Cricket: Animación Campo Cerrado",
+          "description": "Animación cuando un jugador cierra un campo con la tercera marca"
+        },
+        "animationCricketClose.type": {
+          "label": "Tipo",
+          "options": {
+            "none": "Desactivado",
+            "builtin": "Predeterminado",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationCricketClose.mediaUrl": { "label": "URL de Medios" },
+        "animationCricketClose.soundUrl": { "label": "URL de Sonido" },
+        "animationCricketClose.duration": { "label": "Duración" },
+        "animationCricketMarks": {
+          "label": "Cricket: Animación Gran Turno",
+          "description": "Animación para un turno con muchas marcas"
+        },
+        "animationCricketMarks.type": {
+          "label": "Tipo",
+          "options": {
+            "none": "Desactivado",
+            "builtin": "Predeterminado",
+            "gif": "GIF",
+            "video": "Video"
+          }
+        },
+        "animationCricketMarks.threshold": { "label": "Desde Marcas" },
+        "animationCricketMarks.mediaUrl": { "label": "URL de Medios" },
+        "animationCricketMarks.soundUrl": { "label": "URL de Sonido" },
+        "animationCricketMarks.duration": { "label": "Duración" }
       },
       "strings": {
         "currentPlayer": "Jugador Actual",

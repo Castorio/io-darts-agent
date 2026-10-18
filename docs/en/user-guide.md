@@ -324,6 +324,8 @@ Replace `192.168.1.100` with the IP of your hub machine. The device must be in t
 | **Show Other Players** | Bar with other players |
 | **Show Game Info**, **Game Info Position**, **Game Info Size**, offsets | Game info overlay in a corner |
 
+In a **Cricket** game the display switches to the Cricket view by itself: the points of the active player large ("Points against" in Cut Throat), below them the marks per field from 20 to 15 and Bull (`/` one mark, `X` two, `⊗` closed). Fields every player has closed are dimmed. The other players are listed small below with points and marks.
+
 After the match ends the display shows a results table with chalkboard, statistics (e.g. averages, darts thrown) and final scores.
 
 ### Animations
@@ -340,6 +342,10 @@ In the **Animations** tab you switch on **Enable Animations** and set a **Defaul
 | **Leg Win Animation** | Leg won |
 | **Match Win Animation** | Match won |
 | **Bust Animation** | Bust |
+| **Cricket: Field Closed Animation** | Cricket: a player closes a field with the third mark (once per field and player in a leg) |
+| **Cricket: Strong Turn Animation** | Cricket: turn from a number of marks (setting **From Marks**, default 6), once per turn |
+
+In Cricket Bull, Double Bull, Leg Win and Match Win play as well; 180, High Score and Checkout are off there.
 
 Per animation:
 

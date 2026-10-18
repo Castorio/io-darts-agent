@@ -172,6 +172,7 @@ Zeigt den aktuellen Spielstand im Vollbild auf einem separaten Gerät. Display-U
 - Checkout-Vorschläge (Schwelle einstellbar, Standard 170)
 - Wurf-Anzeige (Dart 1, 2, 3) und Aufnahme-Summe
 - Leiste mit anderen Spielern
+- Eigene Cricket-Ansicht: Punkte des aktiven Spielers, Treffer pro Feld (20 bis 15, Bull) als `/`, `X`, `⊗`, tote Felder abgedunkelt, Mitspieler mit ihren Treffern am Rand
 - Optionales Spielinfo-Overlay (Position, Größe, Versatz einstellbar)
 - Idle-Modus: Letzten Spielstand anzeigen, Schwarzer Bildschirm, Eigenes Bild
 - Match-Start-Bildschirm: Standard (Game On!) oder eigenes Bild/GIF, Dauer und Hintergrundfarbe einstellbar
@@ -181,6 +182,7 @@ Zeigt den aktuellen Spielstand im Vollbild auf einem separaten Gerät. Display-U
 
 **Animationen pro Event:**
 - 180, Bull, Double Bull, High Score (Schwelle einstellbar), Checkout, Leg-Sieg, Match-Sieg, Überworfen
+- Cricket: Feld geschlossen, Starke Aufnahme (ab Marks einstellbar, Standard 6); 180, High Score und Checkout sind bei Cricket aus
 - Typ: Deaktiviert, Built-in, GIF oder Video, jeweils mit optionalem Sound und eigener Dauer
 - Leg- und Match-Sieg zusätzlich mit Gewinnername, Statistiken, Effekt (Konfetti, Feuerwerk, Funken) und Farben
 - Medien per Upload, aus der Mediathek oder als externe URL

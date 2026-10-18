@@ -248,6 +248,37 @@ describe('EventParser', () => {
       });
     });
 
+    it('passes the variant and the cricket marks with the match state', () => {
+      const segments = { '15': [0, 0], '16': [0, 0], '17': [0, 0], '18': [1, 0], '19': [0, 0], '20': [4, 1], '25': [0, 0] };
+      const event = parser.parse({
+        channel: 'autodarts.matches',
+        topic: `${MATCH_ID}.state`,
+        data: createMatchState({ variant: 'Cricket', state: { segments }, gameScores: [20, 0] }),
+      });
+      const events = Array.isArray(event) ? event : [event];
+      const stateEvent = events.find((e) => e?.type === 'match.state');
+
+      expect(stateEvent!.data).toMatchObject({ variant: 'Cricket', segments });
+    });
+
+    it('names the cricket leg winner from gameWinner, not from a zero score', () => {
+      // In Cricket gameScores are points: the loser may well sit at 0
+      const event = parser.parse({
+        channel: 'autodarts.matches',
+        topic: `${MATCH_ID}.state`,
+        data: createMatchState({
+          variant: 'Cricket',
+          gameScores: [45, 0],
+          gameFinished: true,
+          gameWinner: 0,
+        }),
+      });
+      const events = Array.isArray(event) ? event : [event];
+      const finished = events.find((e) => e?.type === 'game.finished');
+
+      expect(finished!.data).toMatchObject({ winnerName: 'Player 1', winnerPlayerIndex: 0 });
+    });
+
     it('should detect player change', () => {
       // First update - player 0
       const state1 = createMatchState({ player: 0 });

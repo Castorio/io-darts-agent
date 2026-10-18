@@ -224,6 +224,14 @@ export interface Chalkboard {
   rows: ChalkboardRow[];
 }
 
+/**
+ * Variant specific game state. For Cricket, segments maps each field
+ * ("15".."20", "25" for Bull) to the marks per player array position.
+ */
+export interface MatchGameState {
+  segments?: Record<string, number[]>;
+}
+
 export interface MatchStateData {
   id: string;
   createdAt: string;
@@ -240,7 +248,7 @@ export interface MatchStateData {
   variant: string;
   winner: number | null;
   settings: MatchSettings;
-  state: string;
+  state?: MatchGameState | string | null;
   scores: number[];
   chalkboards: Chalkboard[];
   gameScores: number[];
@@ -308,6 +316,8 @@ export interface MatchStateEvent extends ParsedEvent<{
   round: number;
   finished: boolean;
   winner: number | null;
+  variant?: string;
+  segments?: Record<string, number[]> | null;
 }> {
   type: 'match.state';
 }

@@ -2,6 +2,17 @@ import { defineStore } from 'pinia'
 import { legsAndSetsFrom } from '../utils/gameInfo'
 import { ref, shallowRef, computed } from 'vue'
 import { DEFAULT_HIGH_SCORE_THRESHOLD, ThrowAnimationTracker, throwAnimationsForDart } from '../utils/throwAnimations'
+import {
+  DEFAULT_CRICKET_MARKS_THRESHOLD,
+  OnceTracker,
+  cricketAnimations,
+  deadFields,
+  fieldsOf,
+  isCricket,
+  marksFor,
+  type CricketMarks,
+  type CricketSegments,
+} from '../utils/cricket'
 
 // ============================================================================
 // PLAYER RESOLVER - Robuste Spieler-Erkennung trotz Array-Rotation
@@ -302,6 +313,8 @@ export type AnimationEventType =
   | 'setWin'
   | 'matchWin'
   | 'bust'
+  | 'cricketClose' // Cricket: a field closed with the third mark
+  | 'cricketMarks' // Cricket: strong turn from N marks
 
 export interface AnimationConfig {
   enabled: boolean
@@ -438,6 +451,7 @@ export interface GameInfo {
   outMode: string       // e.g. "straight", "double"
   bullMode: string      // e.g. "25/50"
   maxRounds: number     // e.g. 0 = unlimited
+  cutThroat?: boolean   // Cricket: points count against the other players
   setsToWin: number
   legsToWin: number
 }
@@ -463,6 +477,10 @@ export interface GameState {
   isCheckoutPossible: boolean
   winner: Player | null
   gameInfo: GameInfo | null
+  /** Cricket marks per field, keyed by player.index (empty outside Cricket) */
+  cricketMarks: Record<number, CricketMarks>
+  /** Raw Cricket marks per field and player array position */
+  cricketSegments: CricketSegments | null
 }
 
 export interface DisplayConfig {
@@ -480,6 +498,8 @@ export interface DisplayConfig {
   checkoutThreshold: number
   /** "From Score" of the high score animation */
   highScoreThreshold: number
+  /** "From Marks" of the Cricket strong turn animation */
+  cricketMarksThreshold: number
   animationSpeed: 'slow' | 'normal' | 'fast'
   showOtherPlayers: boolean
   // Game info display
@@ -531,6 +551,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     isCheckoutPossible: false,
     winner: null,
     gameInfo: null,
+    cricketMarks: {},
+    cricketSegments: null,
   })
 
   // shallowRef: a reactive proxy would make the socket identity check in onclose fail
@@ -552,6 +574,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     showCheckouts: true,
     checkoutThreshold: 170,
     highScoreThreshold: DEFAULT_HIGH_SCORE_THRESHOLD,
+    cricketMarksThreshold: DEFAULT_CRICKET_MARKS_THRESHOLD,
     animationSpeed: 'normal',
     showOtherPlayers: true,
     // Game info display
@@ -588,6 +611,12 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   let lastProcessedDartsCount = 0
   // Each throw animation fires once per turn and dart, even if a dart is seen twice
   const throwAnimationTracker = new ThrowAnimationTracker()
+  // Cricket: marks of the previous state (to see a field close) and the
+  // close/strong turn animations that already fired
+  let lastCricketSegments: CricketSegments | null = null
+  const cricketAnimationTracker = new OnceTracker()
+  // Animation slots set to "Disabled" (also turns off the built-in fallback)
+  const disabledAnimations = new Set<AnimationEventType>()
 
   // Computed
   const activePlayer = computed(() => {
@@ -614,6 +643,12 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   const isBusted = computed(() => {
     return gameState.value.currentTurn.isBusted
   })
+
+  const isCricketGame = computed(() => isCricket(gameState.value.gameMode))
+
+  const cricketDeadFields = computed(() => deadFields(gameState.value.cricketSegments))
+
+  const cricketFields = computed(() => fieldsOf(gameState.value.cricketSegments))
 
   // Default player colors
   const defaultColors = [
@@ -685,11 +720,15 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
           'animationLegWin': 'legWin',
           'animationMatchWin': 'matchWin',
           'animationBust': 'bust',
+          'animationCricketClose': 'cricketClose',
+          'animationCricketMarks': 'cricketMarks',
         }
 
         // Parse each animation group (new format from module.json)
+        disabledAnimations.clear()
         for (const [groupName, eventType] of Object.entries(animationGroupMap)) {
           const groupConfig = data[groupName] as Record<string, unknown> | undefined
+          if (groupConfig?.type === 'none') disabledAnimations.add(eventType)
           const animConfig = parseAnimationGroup(groupConfig)
           if (animConfig) {
             defaultAnimations[eventType] = animConfig
@@ -722,6 +761,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
           showCheckouts: data.showCheckouts !== false,
           checkoutThreshold: data.checkoutThreshold || 170,
           highScoreThreshold: Number((data.animationHighScore as Record<string, unknown> | undefined)?.threshold) || DEFAULT_HIGH_SCORE_THRESHOLD,
+          cricketMarksThreshold: Number((data.animationCricketMarks as Record<string, unknown> | undefined)?.threshold) || DEFAULT_CRICKET_MARKS_THRESHOLD,
           animationSpeed: data.animationSpeed || 'normal',
           showOtherPlayers: data.showOtherPlayers !== false,
           // Game info display
@@ -901,6 +941,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     // Reset dart tracking for new match
     lastProcessedDartsCount = 0
+    lastCricketSegments = null
+    cricketAnimationTracker.reset()
 
     // WICHTIG: PlayerResolver für neues Match zurücksetzen
     // Dies löscht die originalen Name->Index Zuordnungen, damit sie
@@ -931,6 +973,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // ========================================================================
     const settings = data.settings as Record<string, unknown> | undefined
     const variant = (data.variant as string) || 'X01'
+    const cricket = isCricket(variant)
+    gameState.value.gameMode = variant
     // null from Autodarts means a single leg match, not "best of 3"
     const { legsToWin, setsToWin } = legsAndSetsFrom({
       legs: data.legs ?? settings?.legs,
@@ -948,6 +992,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         outMode: (settings.outMode as string) || 'double',
         bullMode: (settings.bullMode as string) || '25/50',
         maxRounds: (settings.maxRounds as number) || 0,
+        cutThroat: settings.cutThroat === true,
         setsToWin,
         legsToWin,
       }
@@ -1172,13 +1217,17 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       const segments = currentTurnDarts.map((d) => d.segment)
       const player = gameState.value.players[gameState.value.activePlayerIndex]
       for (let i = lastProcessedDartsCount; i < newDartsCount; i++) {
+        // Cricket keeps Bull and Bullseye; 180 and high score are X01 only
         const types = throwAnimationsForDart(segments, i, turnScore, config.value.highScoreThreshold)
+          .filter((type) => !cricket || type === 'bull' || type === 'doubleBull')
         for (const type of throwAnimationTracker.take(turnKey, i, types)) {
           triggerAnimation(type, player || undefined)
         }
       }
     }
     lastProcessedDartsCount = newDartsCount
+
+    updateCricketState(data, cricket, lastTurn, turnKey)
 
     gameState.value.currentTurn = {
       darts: currentTurnDarts,
@@ -1211,6 +1260,52 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
   }
 
+  /**
+   * Cricket marks per player and the close / strong turn animations. The
+   * segments are indexed by array position in Autodarts' (rotated) players
+   * array, so they are stored per player.index.
+   */
+  function updateCricketState(
+    data: Record<string, unknown>,
+    cricket: boolean,
+    lastTurn: Record<string, unknown> | undefined,
+    turnKey: string,
+  ) {
+    if (!cricket) {
+      gameState.value.cricketMarks = {}
+      gameState.value.cricketSegments = null
+      lastCricketSegments = null
+      return
+    }
+    const segments = (data.segments as CricketSegments | null | undefined) ?? null
+    const autodartsPlayers = (data.players as Array<Record<string, unknown>> | undefined) ?? []
+    const marks: Record<number, CricketMarks> = {}
+    autodartsPlayers.forEach((p, arrayPos) => {
+      marks[(p.index as number) ?? arrayPos] = marksFor(segments, arrayPos)
+    })
+    gameState.value.cricketMarks = marks
+    gameState.value.cricketSegments = segments
+
+    const activeArrayPos = (data.player as number) ?? 0
+    const playerIndex = (autodartsPlayers[activeArrayPos]?.index as number) ?? activeArrayPos
+    const player = gameState.value.players.find((p) => p.index === playerIndex)
+    const legKey = `${data.matchId}:${data.set}:${data.leg}`
+    const found = cricketAnimations(
+      lastCricketSegments,
+      segments,
+      activeArrayPos,
+      lastTurn as Parameters<typeof cricketAnimations>[3],
+      config.value.cricketMarksThreshold,
+    )
+    for (const animation of found) {
+      const key = animation.type === 'cricketClose'
+        ? `${legKey}:${playerIndex}:close:${animation.field}`
+        : `${turnKey}:marks`
+      if (cricketAnimationTracker.take(key)) triggerAnimation(animation.type, player)
+    }
+    lastCricketSegments = segments
+  }
+
   function handleThrow(data: Record<string, unknown>) {
     // throw.detected events only have segment info, no scores
     // The next match.state event will have the complete data including scores
@@ -1236,6 +1331,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       }
 
       gameState.value.currentTurn.darts.push(dart)
+
+      // Cricket points depend on the marks: wait for the next match.state
+      if (isCricketGame.value) return
 
       // Update turn score for immediate visual feedback
       // The next match.state will provide the authoritative values
@@ -1325,7 +1423,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
 
     // Check for checkout (remaining = 0 and finished with double)
-    if (newScore === 0) {
+    // In Cricket a score of 0 just means no points yet
+    if (newScore === 0 && !isCricketGame.value) {
       const player = gameState.value.players[playerArrayIndex]
       triggerAnimation('checkout', player || undefined)
     }
@@ -1401,7 +1500,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
 
     // STRATEGIE 3: Spieler mit Score = 0 (wenn Leg noch nicht gewechselt hat)
-    if (!winner) {
+    // In Cricket a score of 0 means no points, not a checkout
+    if (!winner && !isCricketGame.value) {
       const zeroScorePlayer = gameState.value.players.find(p => p.score === 0)
       if (zeroScorePlayer) {
         winner = zeroScorePlayer
@@ -1504,7 +1604,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
 
     // STRATEGIE 3: Score = 0
-    if (!winner) {
+    // In Cricket a score of 0 means no points, not a checkout
+    if (!winner && !isCricketGame.value) {
       const zeroScorePlayer = gameState.value.players.find(p => p.score === 0)
       if (zeroScorePlayer) {
         winner = zeroScorePlayer
@@ -1703,6 +1804,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     const remaining = gameState.value.currentTurn.remaining
     // Checkout is possible if remaining is between 2 and 170 and not busted
     gameState.value.isCheckoutPossible =
+      !isCricketGame.value &&
       !gameState.value.currentTurn.isBusted &&
       remaining >= 2 &&
       remaining <= 170
@@ -1721,6 +1823,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     'setWin': 3000,
     'matchWin': 5000,
     'bust': 1500,
+    'cricketClose': 2000,
+    'cricketMarks': 2500,
   }
 
   // Map event type to UI key
@@ -1734,6 +1838,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     'highScore': 'highScore',
     'setWin': 'setWin',
     'bust': 'bust',
+    'cricketClose': 'cricketClose',
+    'cricketMarks': 'cricketMarks',
   }
 
   function getAnimationForEvent(
@@ -1793,6 +1899,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         }
       }
     }
+
+    // Slot set to "Disabled": no built-in fallback either
+    if (disabledAnimations.has(eventType)) return null
 
     // Fall back to default animations
     const defaultAnim = config.value.defaultAnimations[eventType]
@@ -1940,7 +2049,11 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       isCheckoutPossible: false,
       winner: null,
       gameInfo: null,
+      cricketMarks: {},
+      cricketSegments: null,
     }
+    lastCricketSegments = null
+    cricketAnimationTracker.reset()
   }
 
   // Demo mode for testing
@@ -2001,6 +2114,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         setsToWin: 1,
         legsToWin: 3,
       },
+      cricketMarks: {},
+      cricketSegments: null,
     }
   }
 
@@ -2032,6 +2147,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     turnScore,
     remainingScore,
     isBusted,
+    isCricketGame,
+    cricketDeadFields,
+    cricketFields,
     // Actions
     connect,
     disconnect,

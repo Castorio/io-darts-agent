@@ -1,3 +1,5 @@
+import { isCricket } from './cricket'
+
 /**
  * Game info lines for the display (game, legs/sets, in mode)
  */
@@ -9,6 +11,7 @@ export interface GameInfoData {
   outMode: string
   bullMode: string
   maxRounds: number
+  cutThroat?: boolean
   setsToWin: number
   legsToWin: number
 }
@@ -46,8 +49,14 @@ function formatMode(mode: string, isIn: boolean, t: Translate): string {
 export function gameInfoLines(info: GameInfoData, t: Translate): GameInfoLine[] {
   const lines: GameInfoLine[] = []
 
-  const game = info.baseScore > 0 ? `${info.baseScore}` : info.variant
-  lines.push({ label: t('gameInfo.game'), value: `${game} ${formatMode(info.outMode, false, t)}` })
+  const cricket = isCricket(info.variant)
+  if (cricket) {
+    // Score and in/out modes are X01 only
+    lines.push({ label: t('gameInfo.game'), value: info.cutThroat ? `Cricket ${t('cricket.cutThroat')}` : 'Cricket' })
+  } else {
+    const game = info.baseScore > 0 ? `${info.baseScore}` : info.variant
+    lines.push({ label: t('gameInfo.game'), value: `${game} ${formatMode(info.outMode, false, t)}` })
+  }
 
   const legs = info.legsToWin > 1 ? `${t('strings.firstTo')} ${info.legsToWin} ${t('score.legs')}` : `1 ${t('score.leg')}`
   if (info.setsToWin > 1) {
@@ -60,7 +69,7 @@ export function gameInfoLines(info: GameInfoData, t: Translate): GameInfoLine[] 
   }
 
   // Straight in is the default and not worth a line
-  if (info.inMode.toLowerCase() !== 'straight') {
+  if (!cricket && info.inMode.toLowerCase() !== 'straight') {
     lines.push({ label: t('gameInfo.inMode'), value: formatMode(info.inMode, true, t) })
   }
 

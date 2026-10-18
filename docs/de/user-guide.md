@@ -324,6 +324,8 @@ Ersetze `192.168.1.100` durch die IP deines Hub-Rechners. Das Gerät muss im sel
 | **Andere Spieler anzeigen** | Leiste mit Mitspielern |
 | **Spielinfo anzeigen**, **Position**, **Größe**, **Versatz** | Spielinfo-Overlay in einer Ecke |
 
+Bei einem **Cricket**-Spiel schaltet das Display automatisch auf die Cricket-Ansicht: groß die Punkte des aktiven Spielers (bei Cut Throat "Punkte gegen"), darunter seine Treffer pro Feld von 20 bis 15 und Bull (`/` ein Treffer, `X` zwei, `⊗` geschlossen). Felder, die alle Spieler geschlossen haben, sind abgedunkelt. Die Mitspieler stehen mit Punkten und Treffern klein darunter.
+
 Nach Match-Ende zeigt das Display eine Ergebnistabelle mit Chalkboard, Statistiken (z.B. Durchschnitt, geworfene Darts) und finalen Punkteständen.
 
 ### Animationen
@@ -340,6 +342,10 @@ Im Tab **Animationen** schaltest du **Animationen aktivieren** ein und legst ein
 | **Leg-Sieg Animation** | Leg gewonnen |
 | **Match-Sieg Animation** | Match gewonnen |
 | **Überworfen Animation** | Bust |
+| **Cricket: Feld geschlossen Animation** | Cricket: ein Spieler schließt ein Feld mit dem dritten Treffer (einmal pro Feld und Spieler im Leg) |
+| **Cricket: Starke Aufnahme Animation** | Cricket: Aufnahme ab einer Zahl von Marks (Einstellung **Ab Marks**, Standard 6), einmal pro Aufnahme |
+
+Bei Cricket laufen außerdem Bull, Double Bull, Leg- und Match-Sieg; 180, High Score und Checkout sind dort aus.
 
 Pro Animation:
 

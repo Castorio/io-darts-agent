@@ -68,6 +68,8 @@ export default {
     setWin: 'SET WON!',
     matchWin: 'MATCH WON!',
     bust: 'BUST!',
+    cricketClose: 'CLOSED!',
+    cricketMarks: 'STRONG TURN!',
     clickToClose: 'Click or press Space to close',
   },
 
@@ -88,5 +90,14 @@ export default {
   // Player
   player: {
     defaultName: 'Player',
+  },
+
+  // Cricket
+  cricket: {
+    points: 'Points',
+    pointsAgainst: 'Points against',
+    cutThroat: 'Cut Throat',
+    bull: 'Bull',
+    marks: 'Marks',
   },
 }

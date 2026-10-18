@@ -6,6 +6,7 @@ import { useGameDisplayStore } from './stores/gameDisplay'
 import { getCheckoutSuggestion, getDartLabel } from './utils/checkouts'
 import AnimationOverlay from './components/AnimationOverlay.vue'
 import WinAnimation from './components/WinAnimation.vue'
+import CricketBoard from './components/CricketBoard.vue'
 
 const { t } = useI18n()
 const store = useGameDisplayStore()
@@ -29,6 +30,7 @@ const currentDarts = computed(() => store.currentDarts)
 const turnScore = computed(() => store.turnScore)
 const remainingScore = computed(() => store.remainingScore)
 const isBusted = computed(() => store.isBusted)
+const isCricketGame = computed(() => store.isCricketGame)
 
 // Match started state
 const isMatchStarted = computed(() => store.isMatchStarted)
@@ -673,8 +675,20 @@ onUnmounted(() => {
           </div>
         </header>
 
+        <!-- Cricket: points and marks per field -->
+        <CricketBoard
+          v-if="isCricketGame"
+          :active-player="activePlayer"
+          :other-players="config.showOtherPlayers ? otherPlayers : []"
+          :marks="gameState.cricketMarks"
+          :fields="store.cricketFields"
+          :dead-fields="store.cricketDeadFields"
+          :cut-throat="gameInfo?.cutThroat === true"
+          :player-color="playerColor"
+        />
+
         <!-- Main Score -->
-        <div class="flex-1 flex flex-col items-center justify-center -mt-10">
+        <div v-else class="flex-1 flex flex-col items-center justify-center -mt-10">
           <!-- Remaining Score -->
           <div class="relative">
             <!-- Glow effect -->
@@ -730,7 +744,10 @@ onUnmounted(() => {
         <!-- Darts Thrown -->
         <div class="mt-auto">
           <!-- Three Dart Boxes -->
-          <div class="grid grid-cols-3 gap-4 lg:gap-6 max-w-2xl mx-auto mb-6">
+          <div
+            class="grid grid-cols-3 gap-4 lg:gap-6 mx-auto mb-6"
+            :class="isCricketGame ? 'max-w-md' : 'max-w-2xl'"
+          >
             <div
               v-for="i in 3"
               :key="i"
@@ -753,8 +770,9 @@ onUnmounted(() => {
               </span>
 
               <!-- Points -->
+              <!-- X01 points only: in Cricket a dart counts by its marks -->
               <span
-                v-if="currentDarts[i-1]"
+                v-if="currentDarts[i-1] && !isCricketGame"
                 class="absolute bottom-2 right-3 text-sm text-white/50"
               >
                 {{ currentDarts[i-1]?.points }}
@@ -777,7 +795,7 @@ onUnmounted(() => {
 
           <!-- Other Players Bar -->
           <div
-            v-if="otherPlayers.length > 0"
+            v-if="otherPlayers.length > 0 && !isCricketGame"
             class="flex items-center justify-center gap-4 py-4 border-t border-white/10"
           >
             <div

@@ -172,6 +172,7 @@ Shows the current score fullscreen on a separate device. Display URL: `http://19
 - Checkout suggestions (threshold adjustable, default 170)
 - Throw display (dart 1, 2, 3) and turn sum
 - Bar with other players
+- Own Cricket view: points of the active player, marks per field (20 to 15, Bull) as `/`, `X`, `⊗`, dead fields dimmed, other players with their marks at the edge
 - Optional game info overlay (position, size, offset adjustable)
 - Idle mode: Show Last Game Score, Black Screen, Custom Image
 - Match start screen: default (Game On!) or custom image/GIF, duration and background color adjustable
@@ -181,6 +182,7 @@ Shows the current score fullscreen on a separate device. Display URL: `http://19
 
 **Animations per event:**
 - 180, Bull, Double Bull, High Score (threshold adjustable), Checkout, Leg Win, Match Win, Bust
+- Cricket: Field Closed, Strong Turn (from marks adjustable, default 6); 180, High Score and Checkout are off in Cricket
 - Type: Disabled, Built-in, GIF or Video, each with an optional sound and its own duration
 - Leg and match win also with winner name, statistics, effect (Confetti, Fireworks, Sparkles) and colors
 - Media via upload, from the media library or as an external URL

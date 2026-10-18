@@ -460,7 +460,10 @@ export class EventParser {
 
       // The player who checked out has 0 left; gameScores follows the players
       // order of the same state. gameWinner is the fallback (non-X01 variants).
-      const checkedOut = data.gameScores?.map((score, i) => (score === 0 ? i : -1)).filter((i) => i >= 0) ?? [];
+      // Only X01 counts down to 0; in Cricket gameScores are points
+      const checkedOut = isX01(data)
+        ? data.gameScores?.map((score, i) => (score === 0 ? i : -1)).filter((i) => i >= 0) ?? []
+        : [];
       const gameWinnerPlayer = checkedOut.length === 1 ? data.players[checkedOut[0]] : gameWinnerByIndex;
 
       events.push({
@@ -485,7 +488,9 @@ export class EventParser {
     if (data.finished && data.winner !== null) {
       // The player who checked out the last leg has 0 left (players order of this
       // state); the index lookup is the fallback for non-X01 variants
-      const lastCheckout = data.gameScores?.map((score, i) => (score === 0 ? i : -1)).filter((i) => i >= 0) ?? [];
+      const lastCheckout = isX01(data)
+        ? data.gameScores?.map((score, i) => (score === 0 ? i : -1)).filter((i) => i >= 0) ?? []
+        : [];
       const matchWinnerPlayer = lastCheckout.length === 1
         ? data.players[lastCheckout[0]]
         : data.players.find(p => p.index === data.winner);
@@ -584,11 +589,21 @@ export class EventParser {
         })),
         turns: data.turns,
         settings: data.settings,
+        variant: data.variant,
+        // Cricket marks per field and player array position
+        segments: typeof data.state === 'object' && data.state ? data.state.segments ?? null : null,
       },
     });
 
     return events.length === 1 ? events[0] : events;
   }
+}
+
+/**
+ * X01 counts each player down to 0; other variants (Cricket) count points up
+ */
+function isX01(state: MatchStateData): boolean {
+  return !state.variant || state.variant === 'X01';
 }
 
 /**

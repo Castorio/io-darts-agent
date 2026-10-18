@@ -45,6 +45,8 @@ const animationColor = computed((): string => {
     'setWin': '#a855f7', // Purple
     'matchWin': '#fbbf24', // Gold for match win (celebration color)
     'bust': '#ef4444', // Red
+    'cricketClose': '#10b981', // Emerald
+    'cricketMarks': '#fbbf24', // Gold
   }
   return colors[animation.value.type] || '#3b82f6'
 })
@@ -179,7 +181,7 @@ onUnmounted(() => {
           >
             <!-- Event-specific icon -->
             <svg
-              v-if="animation.type === '180' || animation.type === 'highScore'"
+              v-if="animation.type === '180' || animation.type === 'highScore' || animation.type === 'cricketMarks'"
               class="w-24 h-24"
               :style="{ color: animationColor }"
               fill="currentColor"
@@ -197,7 +199,7 @@ onUnmounted(() => {
               <circle cx="12" cy="12" r="10" />
             </svg>
             <svg
-              v-else-if="animation.type === 'checkout' || animation.type === 'legWin'"
+              v-else-if="animation.type === 'checkout' || animation.type === 'legWin' || animation.type === 'cricketClose'"
               class="w-24 h-24"
               :style="{ color: animationColor }"
               fill="none"

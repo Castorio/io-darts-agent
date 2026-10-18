@@ -215,6 +215,18 @@ describe('Match Routes', () => {
       expect(body.lastUpdated).toBe('2024-01-01T12:05:00.000Z');
     });
 
+    it('includes the Cricket marks and the current turn, so a reloaded display can draw them', async () => {
+      const segments = { '20': [4, 1], '25': [0, 0] };
+      const turns = [{ id: 'turn-1' }, { id: 'turn-2' }] as unknown as MatchStateData['turns'];
+      getCurrentMatch.mockReturnValue(createMockMatchState({ variant: 'Cricket', state: { segments }, turns }));
+
+      const response = await fastify.inject({ method: 'GET', url: '/api/match/current' });
+      const body = JSON.parse(response.body);
+
+      expect(body.segments).toEqual(segments);
+      expect(body.turns).toEqual([{ id: 'turn-2' }]);
+    });
+
     it('should include player info with scores and averages', async () => {
       const mockMatch = createMockMatchState();
       getCurrentMatch.mockReturnValue(mockMatch);

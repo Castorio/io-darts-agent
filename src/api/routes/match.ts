@@ -171,6 +171,10 @@ export function registerMatchRoutes(
         matchStats: match.stats?.matchStats ?? [],
       },
       settings: match.settings,
+      // Cricket marks per field and the running turn, so a display that
+      // (re)connects mid-leg can draw them before the next dart
+      segments: typeof match.state === 'object' && match.state ? match.state.segments ?? null : null,
+      turns: match.turns?.slice(-1) ?? [],
       lastUpdated: lastUpdated?.toISOString() ?? null,
     };
   });

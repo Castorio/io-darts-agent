@@ -170,6 +170,8 @@ tar czf ~/io-darts-agent-backup-$(date +%F).tar.gz \
 
 Dieser Abschnitt richtet einen kleinen Linux-PC ein (zum Beispiel Linux Mint oder Ubuntu mit Xfce), der den Hub beim Booten startet und das Game Display im Vollbild auf einem Monitor neben dem Board zeigt. Die nötigen Dateien liegen im Repository unter `scripts/linux/`:
 
+Für reinen Desktop-Einsatz (kein Kiosk, kein Autostart) ist das `.deb`-Paket aus den [Desktop-Paketen](#desktop-pakete) eine schnellere Alternative. Für den hier beschriebenen Kiosk-Betrieb mit systemd bleibt die Installation aus dem Quellcode der Weg.
+
 | Datei | Zweck |
 |-------|-------|
 | `io-darts-agent.service` | systemd-Benutzerdienst. Startet `/usr/bin/node dist/src/main.js` in `~/io-darts-agent` mit `NODE_ENV=production`, wartet vor dem Start, bis `api.autodarts.com` per DNS auflösbar ist (der Hub wiederholt eine fehlgeschlagene Anmeldung beim Start nicht), und startet bei Fehlern neu. Die Web-Anmeldung funktioniert trotzdem über einfaches HTTP, weil das Session-Cookie das `Secure`-Flag nur bei HTTPS-Anfragen bekommt. |
@@ -380,17 +382,42 @@ Auf anderen Systemen beendest du den Hub und löschst das geklonte Verzeichnis.
 
 ## Desktop-Pakete
 
-Es gibt noch keine veröffentlichten Installer oder Desktop-Downloads. Die Electron-Desktop-App kannst du selbst aus dem Quellcode bauen. Sie enthält den Hub, die Weboberfläche und die eingebauten Module und braucht auf dem Zielrechner keine eigene Node.js-Installation. Der macOS-Build ist getestet, die Builds für Windows und Linux nicht.
+Die Electron-Desktop-App enthält den Hub, die Weboberfläche und die eingebauten Module und braucht auf dem Zielrechner keine eigene Node.js-Installation.
 
-Gebaut wird auf der Plattform, für die das Paket gedacht ist (auf dem Build-Rechner ist Node.js 22 nötig):
+### Herunterladen
+
+Fertige Pakete für macOS, Windows und Linux gibt es auf der [Releases-Seite](https://github.com/Castorio/io-darts-agent/releases). Jeder Release enthält:
+
+| System | Datei |
+|--------|-------|
+| macOS, Apple Silicon (M1/M2/M3/…) | `.dmg` oder `.zip`, arm64 |
+| macOS, Intel | `.dmg` oder `.zip`, x64 |
+| Windows x64 | NSIS-Installer `.exe` (mit Installationsdialog) oder portable `.exe` |
+| Linux x64 (Desktop) | `.deb`, `.rpm` oder `.AppImage` |
+| Linux arm64 (z. B. Raspberry Pi) | `.deb` oder `.AppImage` |
+
+Die Dateinamen folgen dem Muster `IO-Darts-Agent-<Version>-<Architektur>.<Endung>` (zum Beispiel `IO-Darts-Agent-1.0.0-arm64.AppImage`); die genauen Namen stehen bei den Anhängen des jeweiligen Releases.
+
+Jeder Release enthält außerdem `SHA256SUMS.txt` mit den Prüfsummen aller Dateien. Lade sie zusammen mit dem gewünschten Paket in denselben Ordner und prüfe:
 
 ```bash
-npm run setup        # Abhängigkeiten installieren (Hauptprojekt und Unterpakete)
-npm run build:app    # Backend, Weboberfläche und Game-Display-UI bauen
-npm run dist:mac     # oder: npm run dist:linux / npm run dist:win
+# Linux
+sha256sum -c SHA256SUMS.txt --ignore-missing
+
+# macOS
+shasum -a 256 -c SHA256SUMS.txt
 ```
 
-Die Pakete landen in `releases/` (macOS: `.dmg` und `.zip`, Windows: NSIS-Installer und portable `.exe`, Linux: `.deb`, `.rpm` und AppImage). `npm run dist:*` führt `build:app` selbst noch einmal aus.
+### Unsignierte Builds starten
+
+Die Pakete sind nicht signiert (macOS: nur ad hoc signiert, nicht notarisiert). Die Betriebssysteme warnen deshalb beim ersten Start:
+
+- **macOS:** Rechtsklick auf die App > **Öffnen**, im Dialog bestätigen. Alternativ im Terminal: `xattr -dr com.apple.quarantine /Applications/IO-Darts-Agent.app`.
+- **Windows:** SmartScreen zeigt "Der Computer wurde durch Windows geschützt". Auf **Weitere Informationen** und dann **Trotzdem ausführen** klicken.
+- **Linux, `.deb`:** `sudo apt install ./<datei>.deb` (löst Abhängigkeiten automatisch auf).
+- **Linux, AppImage:** ausführbar machen und starten: `chmod +x IO-Darts-Agent-*.AppImage && ./IO-Darts-Agent-*.AppImage`.
+
+### Was die App macht
 
 Die Desktop-App startet den Hub im Hintergrund, öffnet die Weboberfläche in einem eigenen Fenster und zeigt ein Tray-Symbol. Schließt du das Fenster, läuft der Hub weiter. **Quit** im Tray-Menü beendet ihn. Die App schreibt nicht in ihren Installationsordner. Konfiguration, Daten, Medien und installierte Module liegen im App-Datenordner des Benutzers:
 
@@ -402,4 +429,23 @@ Die Desktop-App startet den Hub im Hintergrund, öffnet die Weboberfläche in ei
 
 Die App nutzt Port 3000. Ist der Port belegt, starte sie mit der Umgebungsvariable `IO_DARTS_PORT` auf einem anderen Port. Der Einrichtungsassistent speichert den Port, auf dem der Hub läuft. Änderst du den Port später in den Einstellungen und startest den Hub neu, folgt die App automatisch.
 
-Der macOS-Build ist nur ad hoc signiert und nicht notarisiert. Gatekeeper warnt deshalb beim ersten Start (mit Rechtsklick und **Öffnen** starten). Die früheren eigenständigen Binaries aus pkg sind entfernt.
+### Selbst bauen
+
+Alternativ zum Download baust du die App selbst aus dem Quellcode, auf der Plattform, für die das Paket gedacht ist (auf dem Build-Rechner ist Node.js 22 nötig):
+
+```bash
+npm run setup        # Abhängigkeiten installieren (Hauptprojekt und Unterpakete)
+npm run build:app    # Backend, Weboberfläche und Game-Display-UI bauen
+npm run dist:mac     # oder: npm run dist:linux / npm run dist:win
+```
+
+Die Pakete landen in `releases/`. `npm run dist:*` führt `build:app` selbst noch einmal aus.
+
+### Release erstellen (für Maintainer)
+
+1. Version setzen: `npm version X.Y.Z --no-git-tag-version`, danach `package.json` (und `package-lock.json`) committen.
+2. Tag `vX.Y.Z` pushen: von Hand mit `git tag vX.Y.Z && git push origin vX.Y.Z`, oder mit `scripts/create-release.sh X.Y.Z`, das Version setzt, committet, taggt und pusht.
+3. Der Workflow **Release** (`.github/workflows/release.yml`) läuft an: prüft, ob der Tag zur `package.json`-Version passt, führt Lint und Tests aus, baut die Pakete für macOS, Windows und Linux auf GitHub-Runnern und testet jedes gebaute Paket kurz an (Smoke-Test, macOS/Windows/Linux x64).
+4. Nach Abschluss legt der Workflow einen **Entwurf** in den [Releases](https://github.com/Castorio/io-darts-agent/releases) an, mit allen Paketen, `SHA256SUMS.txt` und automatisch erzeugten Notes. Entwurf prüfen (alle Dateien vorhanden, Prüfsummen, Notes sinnvoll) und veröffentlichen.
+
+Ein manuell im Actions-Tab gestarteter `workflow_dispatch`-Lauf baut testweise, ohne einen Release zu erzeugen, nützlich um die Pipeline ohne neuen Tag zu prüfen.

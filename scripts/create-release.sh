@@ -3,6 +3,10 @@
 # IO-Darts-Agent - Release Script
 # Usage: ./scripts/create-release.sh [version]
 # Example: ./scripts/create-release.sh 1.0.0
+#
+# Pushing the vX.Y.Z tag triggers the "Release" GitHub Actions workflow
+# (.github/workflows/release.yml), which builds the packages for macOS,
+# Windows and Linux and opens a draft release for review.
 
 set -e
 

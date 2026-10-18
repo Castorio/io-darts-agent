@@ -170,6 +170,8 @@ tar czf ~/io-darts-agent-backup-$(date +%F).tar.gz \
 
 This section sets up a small Linux PC (for example Linux Mint or Ubuntu with Xfce) that starts the hub at boot and shows the Game Display full screen on a monitor next to the board. The repository contains the needed files in `scripts/linux/`:
 
+For plain desktop use (no kiosk, no autostart) the `.deb` package from [Desktop packages](#desktop-packages) is a quicker alternative. For the kiosk setup with systemd described here, installing from source remains the way to go.
+
 | File | Purpose |
 |------|---------|
 | `io-darts-agent.service` | systemd user service. Runs `/usr/bin/node dist/src/main.js` in `~/io-darts-agent` with `NODE_ENV=production`, waits until `api.autodarts.com` resolves in DNS before the start (the hub does not retry a failed start-up login), restarts on failure. The web login still works over plain HTTP, because the session cookie gets the `Secure` flag only for HTTPS requests. |
@@ -380,17 +382,42 @@ On other systems stop the hub and delete the cloned directory.
 
 ## Desktop packages
 
-There are no published installers or desktop downloads yet. You can build the Electron desktop app yourself from the source code. It bundles the hub, the web UI and the built-in modules and needs no separate Node.js installation on the target machine. The macOS build has been tested, the Windows and Linux builds have not.
+The Electron desktop app bundles the hub, the web UI and the built-in modules and needs no separate Node.js installation on the target machine.
 
-Build on the platform you are building for (Node.js 22 required on the build machine):
+### Download
+
+Ready-made packages for macOS, Windows and Linux are on the [Releases page](https://github.com/Castorio/io-darts-agent/releases). Each release contains:
+
+| System | File |
+|--------|------|
+| macOS, Apple Silicon (M1/M2/M3/…) | `.dmg` or `.zip`, arm64 |
+| macOS, Intel | `.dmg` or `.zip`, x64 |
+| Windows x64 | NSIS installer `.exe` (with an install dialog) or portable `.exe` |
+| Linux x64 (desktop) | `.deb`, `.rpm` or `.AppImage` |
+| Linux arm64 (e.g. Raspberry Pi) | `.deb` or `.AppImage` |
+
+File names follow the pattern `IO-Darts-Agent-<version>-<arch>.<extension>` (for example `IO-Darts-Agent-1.0.0-arm64.AppImage`); see the exact names in that release's assets.
+
+Each release also includes `SHA256SUMS.txt` with checksums for every file. Download it into the same folder as the package and verify:
 
 ```bash
-npm run setup        # install dependencies (root and sub-packages)
-npm run build:app    # compile the backend, the web UI and the Game Display UI
-npm run dist:mac     # or: npm run dist:linux / npm run dist:win
+# Linux
+sha256sum -c SHA256SUMS.txt --ignore-missing
+
+# macOS
+shasum -a 256 -c SHA256SUMS.txt
 ```
 
-The packages end up in `releases/` (macOS: `.dmg` and `.zip`, Windows: NSIS installer and portable `.exe`, Linux: `.deb`, `.rpm` and AppImage). `npm run dist:*` runs `build:app` again by itself.
+### Running unsigned builds
+
+The packages are unsigned (macOS: signed ad hoc only, not notarized), so the OS warns on first start:
+
+- **macOS:** right click the app, choose **Open**, confirm the dialog. Or in a terminal: `xattr -dr com.apple.quarantine /Applications/IO-Darts-Agent.app`.
+- **Windows:** SmartScreen shows "Windows protected your PC". Click **More info**, then **Run anyway**.
+- **Linux, `.deb`:** `sudo apt install ./<file>.deb` (resolves dependencies automatically).
+- **Linux, AppImage:** make it executable and run it: `chmod +x IO-Darts-Agent-*.AppImage && ./IO-Darts-Agent-*.AppImage`.
+
+### What the app does
 
 The desktop app starts the hub in the background, opens the web UI in its own window and keeps a tray icon. Closing the window keeps the hub running; **Quit** in the tray menu stops it. The app does not write into its install folder. Configuration, data, media and installed modules live in the per-user app data folder:
 
@@ -402,4 +429,23 @@ The desktop app starts the hub in the background, opens the web UI in its own wi
 
 The app uses port 3000. If that port is taken, start it with the environment variable `IO_DARTS_PORT` set to another port. The setup wizard stores the port the hub runs on. If you later change the port in the settings and restart the hub, the app follows it automatically.
 
-The macOS build is signed ad hoc only and not notarized, so Gatekeeper warns on first start (open it with right click, **Open**). The former standalone binaries built with pkg have been removed.
+### Build it yourself
+
+Instead of downloading, you can build the app from source, on the platform you are building for (Node.js 22 required on the build machine):
+
+```bash
+npm run setup        # install dependencies (root and sub-packages)
+npm run build:app    # compile the backend, the web UI and the Game Display UI
+npm run dist:mac     # or: npm run dist:linux / npm run dist:win
+```
+
+The packages end up in `releases/`. `npm run dist:*` runs `build:app` again by itself.
+
+### Creating a release (for maintainers)
+
+1. Set the version: `npm version X.Y.Z --no-git-tag-version`, then commit `package.json` (and `package-lock.json`).
+2. Push the tag `vX.Y.Z`: by hand with `git tag vX.Y.Z && git push origin vX.Y.Z`, or with `scripts/create-release.sh X.Y.Z`, which sets the version, commits, tags and pushes.
+3. The **Release** workflow (`.github/workflows/release.yml`) runs: checks the tag against the `package.json` version, runs lint and tests, builds the packages for macOS, Windows and Linux on GitHub runners, and smoke-tests each packaged build (macOS, Windows, Linux x64).
+4. Once it finishes, the workflow creates a **draft** on the [Releases page](https://github.com/Castorio/io-darts-agent/releases) with every package, `SHA256SUMS.txt` and auto-generated notes. Check the draft (all files present, checksums, notes make sense), then publish it.
+
+A `workflow_dispatch` run started manually from the Actions tab builds everything as a trial, without creating a release — useful to check the pipeline without pushing a new tag.

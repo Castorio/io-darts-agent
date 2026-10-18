@@ -48,6 +48,10 @@ The animation generator creates short clips from a text prompt (style and event)
 - An Autodarts account and board
 - Optional: WLED controller, a second screen for the Game Display, API keys for the AI providers you want to use
 
+## Download
+
+Ready-made installers for macOS, Windows and Linux are on the [Releases page](https://github.com/Castorio/io-darts-agent/releases). See [Desktop packages](docs/en/installation.md#desktop-packages) for which file fits your system, checksum verification and how to start an unsigned build.
+
 ## Quick start
 
 Run from source:

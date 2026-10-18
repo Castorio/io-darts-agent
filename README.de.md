@@ -48,6 +48,10 @@ Der Animationsgenerator erzeugt kurze Clips aus einem Text-Prompt (Stil und Even
 - Ein Autodarts-Konto und ein Board
 - Optional: WLED-Controller, ein zweiter Bildschirm für das Game Display, API-Keys für die gewünschten KI-Anbieter
 
+## Download
+
+Fertige Installer für macOS, Windows und Linux gibt es auf der [Releases-Seite](https://github.com/Castorio/io-darts-agent/releases). Welche Datei zu deinem System passt, Prüfsummen und wie du ein unsigniertes Paket startest, steht unter [Desktop-Pakete](docs/de/installation.md#desktop-pakete).
+
 ## Schnellstart
 
 Start aus dem Quellcode:

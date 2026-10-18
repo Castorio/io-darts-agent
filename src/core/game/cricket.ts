@@ -14,8 +14,12 @@ export interface CricketStateData {
   matchId: string; set: number; leg: number;
   mode: 'cricket' | 'tactics'; cutThroat: boolean;
   fields: string[]; deadFields: string[]; players: CricketPlayerState[];
+  game?: GameContext;
 }
-export interface CricketClosedData { matchId: string; set: number; leg: number; field: string; playerIndex: number; playerName: string }
+export interface CricketClosedData {
+  matchId: string; set: number; leg: number; field: string; playerIndex: number; playerName: string;
+  game?: GameContext;
+}
 
 export const CRICKET_FIELDS: readonly string[] = ['20', '19', '18', '17', '16', '15', '25'];
 const CLOSED = 3;

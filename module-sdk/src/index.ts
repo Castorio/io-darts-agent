@@ -32,8 +32,12 @@ export interface CricketStateData {
   matchId: string; set: number; leg: number;
   mode: 'cricket' | 'tactics'; cutThroat: boolean;
   fields: string[]; deadFields: string[]; players: CricketPlayerState[];
+  game?: GameContext;
 }
-export interface CricketClosedData { matchId: string; set: number; leg: number; field: string; playerIndex: number; playerName: string }
+export interface CricketClosedData {
+  matchId: string; set: number; leg: number; field: string; playerIndex: number; playerName: string;
+  game?: GameContext;
+}
 
 export interface ParsedEvent<T = unknown> {
   type: AutodartsEventType;
@@ -77,6 +81,7 @@ export interface MatchData {
   round: number;
   finished: boolean;
   winner: number | null;
+  game?: GameContext;
 }
 
 // IPC Types

@@ -1,5 +1,7 @@
 # IO-Darts-Agent
 
+> **Beta:** IO-Darts-Agent is in beta. Things can still change and you may run into bugs. Please report problems as an [issue](https://github.com/Castorio/io-darts-agent/issues).
+
 A local hub for [Autodarts](https://autodarts.io): it listens to your board's live game events and turns them into light shows, a scoreboard on a second screen and spoken score announcements.
 
 **[Deutsche Version](README.de.md)**

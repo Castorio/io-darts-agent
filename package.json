@@ -1,6 +1,6 @@
 {
   "name": "io-darts-agent",
-  "version": "1.0.0",
+  "version": "1.0.1-beta",
   "description": "Modular Agent for Autodarts with WebSocket connection and module system",
   "main": "electron/main.cjs",
   "type": "module",

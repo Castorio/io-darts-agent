@@ -2,16 +2,16 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Player } from '../stores/gameDisplay'
-import { markSymbol, type CricketField, type CricketMarks } from '../utils/cricket'
+import { markSymbol } from '../utils/cricket'
 
 const props = defineProps<{
   activePlayer: Player | null
   otherPlayers: Player[]
   /** Marks keyed by player.index */
-  marks: Record<number, CricketMarks>
+  marks: Record<number, Record<string, number>>
   /** Fields of the game, high to low with Bull last (Tactics: 10 to 20) */
-  fields: CricketField[]
-  deadFields: CricketField[]
+  fields: string[]
+  deadFields: string[]
   cutThroat: boolean
   playerColor: string
 }>()
@@ -20,11 +20,11 @@ const { t } = useI18n()
 
 const dead = computed(() => new Set(props.deadFields))
 
-function fieldLabel(field: CricketField): string {
+function fieldLabel(field: string): string {
   return field === '25' ? t('cricket.bull') : field
 }
 
-function marksOf(player: Player | null, field: CricketField): number {
+function marksOf(player: Player | null, field: string): number {
   return player ? props.marks[player.index]?.[field] ?? 0 : 0
 }
 </script>

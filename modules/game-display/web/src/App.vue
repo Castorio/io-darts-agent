@@ -680,10 +680,10 @@ onUnmounted(() => {
           v-if="isCricketGame"
           :active-player="activePlayer"
           :other-players="config.showOtherPlayers ? otherPlayers : []"
-          :marks="gameState.cricketMarks"
+          :marks="store.cricketMarksByIndex"
           :fields="store.cricketFields"
           :dead-fields="store.cricketDeadFields"
-          :cut-throat="gameInfo?.cutThroat === true"
+          :cut-throat="gameState.cricket?.cutThroat === true"
           :player-color="playerColor"
         />
 

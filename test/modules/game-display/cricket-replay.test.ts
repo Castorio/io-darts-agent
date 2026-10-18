@@ -44,8 +44,8 @@ describe('game display in a Cricket match', () => {
     expect(store.isCricketGame).toBe(true);
     const anna = store.gameState.players.find((p) => p.name === 'Anna')!;
     const ben = store.gameState.players.find((p) => p.name === 'Ben')!;
-    expect(store.gameState.cricketMarks[anna.index]).toMatchObject({ '20': 4, '18': 1, '15': 1 });
-    expect(store.gameState.cricketMarks[ben.index]).toMatchObject({ '20': 1, '18': 0 });
+    expect(store.cricketMarksByIndex[anna.index]).toMatchObject({ '20': 4, '18': 1, '15': 1 });
+    expect(store.cricketMarksByIndex[ben.index]).toMatchObject({ '20': 1, '18': 0 });
     expect(anna.score).toBe(20);
     expect(store.cricketDeadFields).toEqual([]);
   });
@@ -65,6 +65,34 @@ describe('game display in a Cricket match', () => {
     replay(store);
     expect(store.gameState.isCheckoutPossible).toBe(false);
   });
+
+  it('fires the strong-turn animation once per turnId, even if the dart is reported twice', () => {
+    const store = useGameDisplayStore();
+    replay(store);
+    const anna = store.gameState.players.find((p) => p.name === 'Anna')!;
+    // Fresh turn so handleThrow starts counting darts from zero again
+    store.handleEvent({ type: 'player.change', data: { playerIndex: anna.index, playerName: 'Anna', currentPlayer: 0 } });
+
+    const game = { variant: 'Cricket', mode: 'cricket', cutThroat: false };
+    const dart = { segment: { number: 20, multiplier: 1, name: 'S20' }, turnMarks: 6, turnId: 't1', game };
+    store.handleEvent({ type: 'throw.detected', data: dart });
+    store.handleEvent({ type: 'throw.detected', data: dart });
+
+    const triggered = [store.activeAnimation, ...store.animationQueue].filter(Boolean).map((a) => a!.type as string);
+    expect(triggered.filter((t) => t === 'cricketMarks')).toHaveLength(1);
+  });
+
+  it('ignores a cricket.closed event when the game is not Cricket', () => {
+    const store = useGameDisplayStore();
+    // Fresh store: no match was replayed, so the game is not Cricket
+    store.handleEvent({
+      type: 'cricket.closed',
+      data: { matchId: 'm1', set: 1, leg: 1, field: '20', playerIndex: 0, playerName: 'Anna' },
+    });
+
+    expect(store.activeAnimation).toBeNull();
+    expect(store.animationQueue).toEqual([]);
+  });
 });
 
 describe('Cricket display after a reload', () => {
@@ -77,15 +105,23 @@ describe('Cricket display after a reload', () => {
         active: true, matchId: 'm1', variant: 'Cricket', leg: 1, set: 1, round: 2, player: 1,
         players: [{ index: 0, name: 'Anna' }, { index: 1, name: 'Ben' }],
         gameScores: [20, 0], turnScore: 0, finished: false, gameFinished: false,
-        settings: { gameMode: 'Cricket' }, segments: { '20': [4, 1], '18': [1, 0] }, turns: [],
+        settings: { gameMode: 'Cricket' }, turns: [],
+        cricket: {
+          matchId: 'm1', set: 1, leg: 1, mode: 'cricket', cutThroat: false,
+          fields: ['20', '19', '18', '17', '16', '15', '25'], deadFields: [],
+          players: [
+            { index: 0, name: 'Anna', points: 20, marks: { '20': 4, '18': 1 } },
+            { index: 1, name: 'Ben', points: 0, marks: { '20': 1, '18': 0 } },
+          ],
+        },
       }),
     }));
     const store = useGameDisplayStore();
     await store.fetchCurrentMatch();
 
     expect(store.isCricketGame).toBe(true);
-    expect(store.gameState.cricketMarks[0]).toMatchObject({ '20': 4, '18': 1 });
-    expect(store.gameState.cricketMarks[1]).toMatchObject({ '20': 1 });
+    expect(store.cricketMarksByIndex[0]).toMatchObject({ '20': 4, '18': 1 });
+    expect(store.cricketMarksByIndex[1]).toMatchObject({ '20': 1 });
   });
 });
 

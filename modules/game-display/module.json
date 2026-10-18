@@ -15,7 +15,9 @@
     "throw.detected",
     "player.change",
     "turn.finished",
-    "game.finished"
+    "game.finished",
+    "cricket.state",
+    "cricket.closed"
   ],
   "intents": {
     "actions": [

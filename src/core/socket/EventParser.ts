@@ -669,8 +669,6 @@ export class EventParser {
         turns: data.turns,
         settings: data.settings,
         variant: data.variant,
-        // Cricket marks per field and player array position
-        segments: typeof data.state === 'object' && data.state ? data.state.segments ?? null : null,
       },
     });
 

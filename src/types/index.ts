@@ -334,7 +334,6 @@ export interface MatchStateEvent extends ParsedEvent<{
   finished: boolean;
   winner: number | null;
   variant?: string;
-  segments?: Record<string, number[]> | null;
   game?: GameContext;
 }> {
   type: 'match.state';

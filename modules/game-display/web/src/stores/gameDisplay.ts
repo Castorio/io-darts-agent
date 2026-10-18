@@ -3,15 +3,11 @@ import { legsAndSetsFrom } from '../utils/gameInfo'
 import { ref, shallowRef, computed } from 'vue'
 import { DEFAULT_HIGH_SCORE_THRESHOLD, ThrowAnimationTracker, throwAnimationsForDart } from '../utils/throwAnimations'
 import {
+  CRICKET_FIELDS,
   DEFAULT_CRICKET_MARKS_THRESHOLD,
   OnceTracker,
-  cricketAnimations,
-  deadFields,
-  fieldsOf,
   isCricket,
-  marksFor,
-  type CricketMarks,
-  type CricketSegments,
+  type CricketState,
 } from '../utils/cricket'
 
 // ============================================================================
@@ -477,10 +473,8 @@ export interface GameState {
   isCheckoutPossible: boolean
   winner: Player | null
   gameInfo: GameInfo | null
-  /** Cricket marks per field, keyed by player.index (empty outside Cricket) */
-  cricketMarks: Record<number, CricketMarks>
-  /** Raw Cricket marks per field and player array position */
-  cricketSegments: CricketSegments | null
+  /** Cricket state as pushed by the hub (null outside Cricket/Tactics) */
+  cricket: CricketState | null
 }
 
 export interface DisplayConfig {
@@ -551,8 +545,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     isCheckoutPossible: false,
     winner: null,
     gameInfo: null,
-    cricketMarks: {},
-    cricketSegments: null,
+    cricket: null,
   })
 
   // shallowRef: a reactive proxy would make the socket identity check in onclose fail
@@ -611,10 +604,13 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   let lastProcessedDartsCount = 0
   // Each throw animation fires once per turn and dart, even if a dart is seen twice
   const throwAnimationTracker = new ThrowAnimationTracker()
-  // Cricket: marks of the previous state (to see a field close) and the
-  // close/strong turn animations that already fired
-  let lastCricketSegments: CricketSegments | null = null
+  // Cricket: strong-turn animations that already fired (one per turnId).
+  // Field closes are deduped by the hub, so no tracker is needed for those.
   const cricketAnimationTracker = new OnceTracker()
+  // Whether the current game is Cricket/Tactics, from the last match.state's
+  // game.mode (fallback: variant). Set before gameState.cricket is updated,
+  // so it is known in time for the throw.detected events that precede it.
+  const lastGameIsCricket = ref(false)
   // Animation slots set to "Disabled" (also turns off the built-in fallback)
   const disabledAnimations = new Set<AnimationEventType>()
 
@@ -644,11 +640,18 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     return gameState.value.currentTurn.isBusted
   })
 
-  const isCricketGame = computed(() => isCricket(gameState.value.gameMode))
+  const isCricketGame = computed(() => lastGameIsCricket.value)
 
-  const cricketDeadFields = computed(() => deadFields(gameState.value.cricketSegments))
+  const cricketDeadFields = computed(() => gameState.value.cricket?.deadFields ?? [])
 
-  const cricketFields = computed(() => fieldsOf(gameState.value.cricketSegments))
+  const cricketFields = computed(() => gameState.value.cricket?.fields ?? [...CRICKET_FIELDS])
+
+  /** Cricket marks per field, keyed by player.index (empty outside Cricket) */
+  const cricketMarksByIndex = computed(() => {
+    const result: Record<number, Record<string, number>> = {}
+    for (const p of gameState.value.cricket?.players ?? []) result[p.index] = p.marks
+    return result
+  })
 
   // Default player colors
   const defaultColors = [
@@ -897,6 +900,14 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         handleThrow(data as Record<string, unknown>)
         break
 
+      case 'cricket.state':
+        handleCricketState(data as Record<string, unknown>)
+        break
+
+      case 'cricket.closed':
+        handleCricketClosed(data as Record<string, unknown>)
+        break
+
       case 'player.change':
         handlePlayerChange(data as Record<string, unknown>)
         break
@@ -941,7 +952,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     // Reset dart tracking for new match
     lastProcessedDartsCount = 0
-    lastCricketSegments = null
+    lastGameIsCricket.value = false
     cricketAnimationTracker.reset()
 
     // WICHTIG: PlayerResolver für neues Match zurücksetzen
@@ -973,7 +984,11 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // ========================================================================
     const settings = data.settings as Record<string, unknown> | undefined
     const variant = (data.variant as string) || 'X01'
-    const cricket = isCricket(variant)
+    const gameMode = (data.game as { mode?: string } | undefined)?.mode
+    const cricket = gameMode !== undefined
+      ? (gameMode === 'cricket' || gameMode === 'tactics')
+      : isCricket(variant)
+    lastGameIsCricket.value = cricket
     gameState.value.gameMode = variant
     // null from Autodarts means a single leg match, not "best of 3"
     const { legsToWin, setsToWin } = legsAndSetsFrom({
@@ -1227,7 +1242,16 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
     lastProcessedDartsCount = newDartsCount
 
-    updateCricketState(data, cricket, lastTurn, turnKey)
+    // Cricket state: the hub's cricket.state event (processed before this
+    // match.state in the same batch) already set gameState.cricket while
+    // the game is ongoing. Only two cases need handling here: leaving
+    // Cricket, and a reload via /api/match/current (which carries data.cricket
+    // directly, since it has no preceding cricket.state event).
+    if (!cricket) {
+      gameState.value.cricket = null
+    } else if (data.cricket) {
+      gameState.value.cricket = data.cricket as CricketState
+    }
 
     gameState.value.currentTurn = {
       darts: currentTurnDarts,
@@ -1260,50 +1284,17 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
   }
 
-  /**
-   * Cricket marks per player and the close / strong turn animations. The
-   * segments are indexed by array position in Autodarts' (rotated) players
-   * array, so they are stored per player.index.
-   */
-  function updateCricketState(
-    data: Record<string, unknown>,
-    cricket: boolean,
-    lastTurn: Record<string, unknown> | undefined,
-    turnKey: string,
-  ) {
-    if (!cricket) {
-      gameState.value.cricketMarks = {}
-      gameState.value.cricketSegments = null
-      lastCricketSegments = null
-      return
-    }
-    const segments = (data.segments as CricketSegments | null | undefined) ?? null
-    const autodartsPlayers = (data.players as Array<Record<string, unknown>> | undefined) ?? []
-    const marks: Record<number, CricketMarks> = {}
-    autodartsPlayers.forEach((p, arrayPos) => {
-      marks[(p.index as number) ?? arrayPos] = marksFor(segments, arrayPos)
-    })
-    gameState.value.cricketMarks = marks
-    gameState.value.cricketSegments = segments
+  /** Cricket state pushed by the hub's cricket.state event */
+  function handleCricketState(data: Record<string, unknown>) {
+    gameState.value.cricket = data as unknown as CricketState
+  }
 
-    const activeArrayPos = (data.player as number) ?? 0
-    const playerIndex = (autodartsPlayers[activeArrayPos]?.index as number) ?? activeArrayPos
+  /** Field closed (hub dedupes, so this always means "trigger the animation") */
+  function handleCricketClosed(data: Record<string, unknown>) {
+    if (!isCricketGame.value) return
+    const playerIndex = data.playerIndex as number
     const player = gameState.value.players.find((p) => p.index === playerIndex)
-    const legKey = `${data.matchId}:${data.set}:${data.leg}`
-    const found = cricketAnimations(
-      lastCricketSegments,
-      segments,
-      activeArrayPos,
-      lastTurn as Parameters<typeof cricketAnimations>[3],
-      config.value.cricketMarksThreshold,
-    )
-    for (const animation of found) {
-      const key = animation.type === 'cricketClose'
-        ? `${legKey}:${playerIndex}:close:${animation.field}`
-        : `${turnKey}:marks`
-      if (cricketAnimationTracker.take(key)) triggerAnimation(animation.type, player)
-    }
-    lastCricketSegments = segments
+    triggerAnimation('cricketClose', player ?? undefined)
   }
 
   function handleThrow(data: Record<string, unknown>) {
@@ -1332,8 +1323,22 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
       gameState.value.currentTurn.darts.push(dart)
 
-      // Cricket points depend on the marks: wait for the next match.state
-      if (isCricketGame.value) return
+      // Cricket points depend on the marks: wait for the next match.state.
+      // A strong turn (from the configured mark threshold) fires here, once
+      // per turnId, since this is the only event carrying turnMarks live.
+      if (isCricketGame.value) {
+        const turnMarksValue = data.turnMarks
+        const turnId = data.turnId as string | null | undefined
+        if (
+          typeof turnMarksValue === 'number'
+          && turnMarksValue >= config.value.cricketMarksThreshold
+          && turnId
+          && cricketAnimationTracker.take(`${turnId}:marks`)
+        ) {
+          triggerAnimation('cricketMarks', activePlayer.value ?? undefined)
+        }
+        return
+      }
 
       // Update turn score for immediate visual feedback
       // The next match.state will provide the authoritative values
@@ -2049,10 +2054,9 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       isCheckoutPossible: false,
       winner: null,
       gameInfo: null,
-      cricketMarks: {},
-      cricketSegments: null,
+      cricket: null,
     }
-    lastCricketSegments = null
+    lastGameIsCricket.value = false
     cricketAnimationTracker.reset()
   }
 
@@ -2114,8 +2118,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         setsToWin: 1,
         legsToWin: 3,
       },
-      cricketMarks: {},
-      cricketSegments: null,
+      cricket: null,
     }
   }
 
@@ -2150,6 +2153,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     isCricketGame,
     cricketDeadFields,
     cricketFields,
+    cricketMarksByIndex,
     // Actions
     connect,
     disconnect,

@@ -248,7 +248,7 @@ describe('EventParser', () => {
       });
     });
 
-    it('passes the variant and the cricket marks with the match state', () => {
+    it('passes the variant and the game context with the match state, no segments', () => {
       const segments = { '15': [0, 0], '16': [0, 0], '17': [0, 0], '18': [1, 0], '19': [0, 0], '20': [4, 1], '25': [0, 0] };
       const event = parser.parse({
         channel: 'autodarts.matches',
@@ -258,7 +258,11 @@ describe('EventParser', () => {
       const events = Array.isArray(event) ? event : [event];
       const stateEvent = events.find((e) => e?.type === 'match.state');
 
-      expect(stateEvent!.data).toMatchObject({ variant: 'Cricket', segments });
+      expect(stateEvent!.data).toMatchObject({
+        variant: 'Cricket',
+        game: { variant: 'Cricket', mode: 'cricket', cutThroat: false },
+      });
+      expect(stateEvent!.data).not.toHaveProperty('segments');
     });
 
     it('names the cricket leg winner from gameWinner, not from a zero score', () => {

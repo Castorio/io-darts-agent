@@ -11,6 +11,9 @@ xset s off -dpms s noblank 2>/dev/null
 xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/presentation-mode -n -t bool -s true 2>/dev/null
 xfconf-query -c xfce4-screensaver -p /saver/enabled -n -t bool -s false 2>/dev/null
 
+# Hide the mouse pointer from the start (Firefox hides it only after the mouse moved)
+command -v unclutter >/dev/null && unclutter --start-hidden --fork 2>/dev/null
+
 # Wait until the hub serves the display
 until curl -sf "$URL" >/dev/null; do sleep 2; done
 

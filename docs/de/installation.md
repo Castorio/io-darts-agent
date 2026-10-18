@@ -182,10 +182,10 @@ Alle folgenden Befehle laufen als dein normaler Benutzer, außer dort, wo `sudo`
 
 ```bash
 sudo apt update
-sudo apt install -y git curl ffmpeg firefox
+sudo apt install -y git curl ffmpeg firefox unclutter-xfixes
 ```
 
-Unter Ubuntu kommt `firefox` eventuell als Snap. Das Kiosk-Skript braucht nur einen Befehl `firefox`.
+`unclutter-xfixes` blendet den Mauszeiger auf dem Display aus. Unter Ubuntu kommt `firefox` eventuell als Snap. Das Kiosk-Skript braucht nur einen Befehl `firefox`.
 
 ### 2. Node.js 22 installieren
 

@@ -182,10 +182,10 @@ All commands below run as your normal user, except where `sudo` is shown.
 
 ```bash
 sudo apt update
-sudo apt install -y git curl ffmpeg firefox
+sudo apt install -y git curl ffmpeg firefox unclutter-xfixes
 ```
 
-On Ubuntu `firefox` may be installed as a snap. The kiosk script only needs a `firefox` command.
+`unclutter-xfixes` hides the mouse pointer on the display. On Ubuntu `firefox` may be installed as a snap. The kiosk script only needs a `firefox` command.
 
 ### 2. Install Node.js 22
 

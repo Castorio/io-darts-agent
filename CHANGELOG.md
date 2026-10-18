@@ -7,8 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- README weist auf den Beta-Status hin.
+
+## [1.0.1-beta] - 2026-10-18
+
+### Fixed
+
+- **Game Display nach einem beendeten Match**: Beim nächsten Match blieb der Gewinner des vorigen gespeichert, sodass das Display (etwa bei einem Solo-Spiel nach einem Spiel zu zweit) weiter den alten Spieler mit dessen Farbe zeigte. Ein neues Match (Start-Event oder neue Match-ID) setzt jetzt Gewinner, Spieler und Zähler zurück.
+
+## [1.0.0] - 2026-10-18
+
+Erste öffentliche Version (Beta).
+
 ### Added
 
+- **Cricket im Game Display**: eigene Ansicht mit den Punkten des aktiven Spielers, Treffern pro Feld (20 bis 15 und Bull, bei Tactics 10 bis 20) als `/`, `X`, `⊗`, abgedunkelten toten Feldern und den Mitspielern am Rand. Neue Animationen "Feld geschlossen" und "Starke Aufnahme" (ab einstellbarer Zahl Marks, Standard 6); 180, High Score und Checkout sind bei Cricket aus.
+- **Spielmodus und Cricket-Events für alle Module**: Match-Events tragen `game: { variant, mode, cutThroat }`, `throw.detected` zusätzlich `turnId`, `marks` und `turnMarks`, `turn.finished` `turnMarks`. Neue Events `cricket.state` (Treffer pro Spieler, tote Felder, Punkte) und `cricket.closed`; `/api/match/current` liefert `cricket` und die laufende Aufnahme. Typen im Module SDK.
+- **WLED**: Effekt-Gruppe Cricket (Feld geschlossen, starke Aufnahme mit Schwelle); 180-Effekt bei Cricket aus.
+- **Darts Caller**: Bei Cricket Ansagen "Zwanzig geschlossen!" bzw. "Twenty closed!" und "Sechs Marks!" für starke Aufnahmen, X01-Ansagen (Score, "You require", 180, Bust) dort aus. Neue Voice-Pack-Phrasen und Button "Fehlende Ansagen erzeugen", der nur fehlende Dateien erzeugt.
+- **Desktop-App (Electron)** für macOS, Windows und Linux mit Hub, Weboberfläche und eingebauten Modulen; Daten im Benutzerordner. Installer werden per GitHub Actions bei jedem Versions-Tag gebaut, per Smoke-Test geprüft und als Release-Entwurf mit `SHA256SUMS.txt` bereitgestellt (unsigniert).
+- **Hub-Neustart** aus der Oberfläche (unter systemd und in der Desktop-App).
+- **Mediathek**: Vorschau-Fenster für Animationen, Bilder und Sounds, URL kopieren auch über HTTP im LAN.
+- Diagnose: rohe Autodarts-Nachrichten lassen sich über `IO_DARTS_RECORD_FILE` mitschneiden.
 - **Linux-Dateien für einen eigenen Board-PC** (`scripts/linux/`): systemd-User-Service für den Hub und Autostart des Game Displays im Firefox-Kioskmodus.
 - **Higgsfield als AI-Provider** mit vollständigem Text-Katalog (20 Video-, 10 Bildmodelle aus docs.higgsfield.ai, Default Kling 3.0 Standard und Soul Standard). Request-Body je Modell aus dem Schema (erlaubte Dauer, Seitenverhältnis, Batch-Größe, Ton aus über `sound` oder `generate_audio`), getrennte Auswahl für Video- und Bildmodell in den AI-Einstellungen. Zugang als `KEY_ID:KEY_SECRET`, kostenfreier Verbindungstest, Idempotency-Key gegen Doppelabrechnung.
 - **Engine-Wahl im Animations-Generator** (Runway oder Higgsfield) in der Game-Display-Konfiguration, gespeichert in `config/animation-settings.json`, Routen `GET/PUT /api/animations/engine`.
@@ -29,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Darts-Caller-Seite und Handler nutzen eine gemeinsame Konfiguration (mit Migration alter Einstellungen).
+- WLED-Fade-Zeiten in Millisekunden; die WLED-Seite verbindet sich selbst und lädt Presets und Effekte ohne Klick auf "Verbinden".
+- Kiosk für den Board-PC blendet den Mauszeiger von Anfang an aus.
 - **Lizenz: PolyForm Noncommercial 1.0.0.** Frei für private und andere nicht-kommerzielle Nutzung, Ändern und Weitergeben eingeschlossen. Kommerzielle Nutzung nur mit separater Lizenz (info@castor.io). Das Module SDK steht unter MIT.
 - **Dokumentation überarbeitet** (README, Installation inklusive Board-PC mit Autostart, Benutzerhandbuch, API, Entwickler- und SDK-Doku).
 - Animations-Jobs bleiben bei der Engine, die sie gestartet hat; kurze Fehler beim Abfragen brechen bezahlte Jobs nicht mehr ab, Jobs geben nach 30 Minuten auf, Abbrechen wird bis zur Engine durchgereicht.
@@ -42,6 +67,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Game Display: Spielinfo zeigt das echte Match-Format ("First to N Legs") und erkennt Modi unabhängig von der Schreibweise.
+- Leg- und Match-Gewinner stimmen auch, nachdem Autodarts die Spieler für das nächste Leg rotiert hat; jede Wurf-Animation läuft einmal pro Aufnahme.
+- WLED setzt die Spielerfarbe mit dem ersten Spielstand, auch bei Solo-Spielen.
+- Weboberfläche und Game Display bauen nur noch eine WebSocket-Verbindung auf; Würfe werden nicht mehr doppelt gezählt.
+- Modul-Installation von GitHub auf dem Board-PC (devDependencies, SDK-Link, Aufräumen nach Fehlern, einmaliger Start, echter Pfad bei Symlinks).
+- Darts Caller: kein Rauschen unter Linux ohne `mpg123`, Fallback auf den nächsten Spieler.
+- Kiosk-Skript legt sein Firefox-Profil selbst an.
+- Status-Anzeigen der Weboberfläche sind übersetzt.
+- Frische Installation aus dem Quellcode funktioniert (`npm run setup`, `npm run build:app`).
 - **Runway-Animationen funktionieren wieder.** Das fest eingestellte Modell `gen3a_turbo` gibt es in der Runway-API nicht mehr, außerdem wurde das in den AI-Einstellungen gewählte Modell ignoriert. Der Animations-Generator nutzt jetzt `POST /v1/text_to_video` ohne Platzhalterbild mit dem Modell aus den AI-Einstellungen (Standard Gen-4.5). Neuer Katalog mit allen 23 Text-zu-Video-Modellen der API (Gen-4.5, Veo 3.1, Kling, Seedance, WAN, Grok Imagine, Gemini Omni Flash, MiniMax, HappyHorse), der Request-Body wird je Modell gebaut: erlaubtes Seitenverhältnis passend zur Ausrichtung, Dauer gerundet bzw. begrenzt, Ton aus, Prompt auf die Höchstlänge gekürzt. Abgeschaltete oder unbekannte Modelle (Gen-3) fallen mit Logeintrag auf Gen-4.5 zurück. Die AI-Einstellungen zeigen die Runway-Modelle aus dem Katalog, auch ohne Schlüssel. Abbrechen nutzt `DELETE /v1/tasks/{id}`, der Status `THROTTLED` gilt als wartend, der Fortschritt wird von 0 bis 1 in Prozent umgerechnet.
 - **Runway: keine doppelt berechneten Generierungen mehr.** `text_to_video` und `image_to_video` werden genau einmal gesendet, auch nach Serverfehler, Timeout oder Netzwerkfehler (Runway kann den Auftrag bereits gestartet haben). Die Fehlermeldung weist darauf hin, Statusabfragen werden weiter wiederholt. Gemeinsame Anfragelogik der AI-Provider: 4xx-Antworten werden nicht mehr wiederholt.
 - **AI-Provider: kostenpflichtige Anfragen werden genau einmal gesendet.** Das gilt für OpenAI (Chat, Bild, Sprache, Embeddings), Anthropic (Messages), Replicate (Prediction anlegen), Stability AI (Bild, beide APIs) und ElevenLabs (Sprache). Nach Serverfehler, Timeout oder Netzwerkfehler kommt die Meldung "request failed (...); not retried", 4xx bleiben die Fehlermeldung des Anbieters. Abfragen wie Modelllisten, Status und Abbrechen werden weiter wiederholt, Ollama (lokal, kostenlos) ebenfalls.
@@ -56,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Setup-Sperre ließ sich über kodierte Pfade (`/%61pi/...`) umgehen; geschlossen.
+- `/module-ui/` liefert nur noch Dateien aus dem UI-Ordner des Moduls (vorher war `..%2f` bis zur `hub.config.json` möglich).
+- Session-Cookie über HTTP im LAN ohne `Secure`-Flag, öffentliche Routen werden exakt verglichen.
 - **Animations-Generator:** Der Event-Typ aus `POST /api/animations/generate` wird gegen die bekannten Typen geprüft, bevor er in einen Dateinamen gelangt; ffmpeg läuft per `execFile` ohne Shell. Vorher war Command Injection und Path Traversal aus dem lokalen Netz möglich.
 - ModuleInstaller nutzt `execFile` ohne Shell; Git-URL und Branch können keine
   Shell-Befehle mehr einschleusen.
@@ -72,72 +109,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prototyp `index.js` (enthielt Klartext-Zugangsdaten) und Ad-hoc-Playwright-Skripte im Root.
 - Versehentlich committete Build-Artefakte in `src/types/` und `test/`.
 
-## [1.1.0] - 2026-04-03
+### Frühere interne Stände
 
-### Added
+Die bisherigen internen Stände (vor dem öffentlichen Repository, Frühjahr 2026) sind in dieser Version enthalten:
 
-#### Game Display Module - Player-Specific Animations
-- **New "Players" configuration tab** for configuring individual animations per player
-- Players can have unique animations for the following events:
-  - **180**: Custom animation when the player throws 180
-  - **Leg Win**: Custom animation when the player wins a leg
-  - **Set Win**: Custom animation when the player wins a set
-  - **Match Win**: Custom animation when the player wins the match
-  - **Checkout**: Custom animation when the player checks out
-- **Multiple media types supported**: Built-in animations, GIF, Video
-- **Custom sound support**: Each animation can have its own sound file (MP3, WAV, etc.)
-- **Override mechanism**: Player-specific animations override global animations when that player is on throw
-- **Fallback system**: If no player animation is configured, the global animation is used
+- **Game Display: spielerspezifische Animationen** im Tab "Spieler" für 180, Leg-, Set- und Match-Sieg und Checkout, jeweils als Built-in, GIF oder Video mit eigenem Sound; ohne Eintrag gilt die globale Animation.
+- **Gewinn-Animationen** für Leg, Set und Match mit Gewinnername, Statistiken (Average, Darts, Checkout-Quote, 180er), Effekt (Konfetti, Feuerwerk, Funken) sowie Hintergrund- und Textfarbe.
+- **Animations-Events** 180, Bull, Double Bull, High Score (Schwelle einstellbar), Checkout, Überworfen, Leg-, Set- und Match-Sieg; Spielerzuordnung über ID, Name oder Index.
+- **Ergebnistabelle** nach Match-Ende mit Chalkboard und Statistiken, Anzeigedauer einstellbar.
+- Modul-Konfigurationsoberfläche und erste Dokumentation.
 
-#### Win Animation System
-- **Configurable win animations** for Leg Win, Set Win, and Match Win events
-- **Win animation options**:
-  - Show Winner Name - Displays the player's name
-  - Show Statistics - Displays Average, Darts, Checkout%, 180s
-  - Effect - None / Confetti / Fireworks / Sparkles
-  - Background Color - Configurable background color
-  - Text Color - Configurable text color
-- **Correct winner name resolution** from Autodarts match data at the moment of leg win
-
-#### Animation System Enhancements
-- Extended animation events: 180, Bull, Double Bull, High Score, Bust, Checkout, Leg Win, Set Win, Match Win
-- Configurable high score threshold (default: 140)
-- Improved animation triggering based on player identification (by ID, name, or index)
-
-#### Match Results Display
-- **Match results table** with chalkboard and statistics after match ends
-- **Configurable display duration**: auto-hide after X seconds or manual dismiss
-- Statistics include: Average, Darts thrown, Checkout percentage, 180s count
-
-### Changed
-
-- Enhanced `GameDisplayHandler` to support player-specific animation resolution
-- Updated configuration UI with new "Players" tab for animation management
-- Improved animation lookup logic: searches by player ID first, then by name, then by index
-- Win animation now shows correct player name from the Autodarts event data
-
-### Fixed
-
-- **Leg win animation** now shows the correct winner name (fetched from Autodarts data at the moment of win)
-- Player identification during win events now uses data from the current match state
-
-### Technical Details
-
-- New types: `PlayerAnimationConfig`, `PlayerAnimations` in `modules/game-display/src/types.ts`
-- New function: `resolveAnimation()` for determining the correct animation based on event and player
-- Player animations are stored in `config.playerAnimations[]` array
-- Win animation configuration stored in `config.legWin`, `config.setWin`, `config.matchWin`
-
----
-
-## [1.0.0] - 2026-03-30
-
-### Added
-
-- Win animation system with configurable effects
-- Module configuration UI improvements
-- Comprehensive documentation
-
-### Previous Releases
-
-See git history for changes before version 1.0.0.
+[Unreleased]: https://github.com/Castorio/io-darts-agent/compare/v1.0.1-beta...HEAD
+[1.0.1-beta]: https://github.com/Castorio/io-darts-agent/compare/v1.0.0...v1.0.1-beta
+[1.0.0]: https://github.com/Castorio/io-darts-agent/releases/tag/v1.0.0

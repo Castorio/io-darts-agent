@@ -400,8 +400,19 @@ Autodarts -> board WebSocket -> EventParser -> EventBus -> Module Manager -> Mod
 | `player.change` | Synthetic | Generated when the active player index changes |
 | `turn.finished` | Synthetic | Generated after 3 darts, a bust, or a round change |
 | `game.finished`, `match.finished`, `match.result` | Synthetic | Generated when a leg/match ends |
+| `cricket.state`, `cricket.closed` | Synthetic | Generated when marks or points change in Cricket/Tactics, or a player closes a field |
 
 This allows modules to react to logical events without parsing raw `match.state`. See [API Documentation](api.md#autodarts-events) for the full list with payload fields.
+
+#### Game mode and Cricket
+
+Each of the synthetic events above, plus `match.state` and `throw.detected`, additionally carries `data.game`:
+
+```json
+{ "variant": "Cricket", "mode": "cricket", "cutThroat": false }
+```
+
+`mode` is `'x01' | 'cricket' | 'tactics' | 'other'`. In Cricket/Tactics, `cricket.state` gives the full game state (points and marks per field per player, players keyed by the stable `index`), and `cricket.closed` fires once per closed field and player within a leg. Full payload examples are in the [Module SDK](module-sdk.md#synthetic-events-generated-by-the-hubs-eventparser).
 
 ### Module Sandbox
 
@@ -472,7 +483,7 @@ chore: upgrade dependencies
 `src/core/socket/EventParser.ts` reads raw messages from the Autodarts board WebSocket and:
 
 1. Emits native events largely unchanged (`board.state`, `match.start`, `throw.detected`, ...).
-2. Analyzes each `match.state` update to also emit the synthetic events (`player.change`, `turn.finished`, `game.finished`, `match.finished`, `match.result`) described above.
+2. Analyzes each `match.state` update to also emit the synthetic events (`player.change`, `turn.finished`, `game.finished`, `match.finished`, `match.result`, `cricket.state`, `cricket.closed`) described above.
 
 ### Module Handlers
 

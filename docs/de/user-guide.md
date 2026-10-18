@@ -201,7 +201,8 @@ Das WLED-Modul steuert LED-Strips mit WLED-Firmware abhängig von Spielereigniss
 1. **WLED IP-Adresse**: IP des Controllers, z.B. `192.168.1.100`
 2. **Port**: Normalerweise `80`
 3. **Übergangszeit (ms)**: Globale Übergangszeit in Millisekunden, gilt für jede Aktion, deren Übergangszeit auf "Global" steht. Leer (Standard) behält die eigene Standard-Übergangszeit des Controllers, `0` bedeutet sofortiger Wechsel.
-4. Klicke auf **Verbinden**. Der Hub lädt dann die Presets und Effekte direkt vom Controller. Ist ein Host gespeichert, verbindet sich die Seite beim Öffnen von selbst; **Neu verbinden** lädt die Listen erneut, etwa nach neuen Presets im WLED.
+4. **Starke Aufnahme ab Marks**: Ab wie vielen Marks in einer Cricket-Aufnahme die Aktion für "Cricket: Starke Aufnahme" ausgelöst wird (3 bis 9, Standard 6).
+5. Klicke auf **Verbinden**. Der Hub lädt dann die Presets und Effekte direkt vom Controller. Ist ein Host gespeichert, verbindet sich die Seite beim Öffnen von selbst; **Neu verbinden** lädt die Listen erneut, etwa nach neuen Presets im WLED.
 
 Oben rechts kannst du das Modul starten oder stoppen.
 
@@ -215,8 +216,11 @@ Die Ereignisse sind in Gruppen sortiert:
 | **Wurf Events** | Wurf erkannt, Triple getroffen, Double getroffen, Single Bull, Bullseye!, 180!, Fehlwurf |
 | **Spieler Events** | Spielerwechsel, Aufnahme gestartet, Aufnahme beendet |
 | **Board Events** | Pfeile ziehen, Pfeile gezogen |
+| **Cricket** | Cricket: Feld geschlossen, Cricket: Starke Aufnahme |
 
 Ein Event "High Finish" gibt es nicht: Der Hub liefert keinen Checkout-Wert, deshalb kann das Modul ihn nicht erkennen.
+
+Bei einem Cricket- oder Tactics-Spiel löst die Aktion für **180!** nicht aus; Triple, Double, Single Bull, Bullseye und Fehlwurf lösen weiterhin aus. Die beiden Cricket-Aktionen greifen zusätzlich: **Cricket: Feld geschlossen** sobald ein Spieler ein Feld mit dem dritten Treffer schließt, **Cricket: Starke Aufnahme** sobald eine Aufnahme die oben eingestellte Marks-Schwelle erreicht (einmal pro Aufnahme).
 
 Für jedes Ereignis wählst du einen Aktionstyp:
 
@@ -384,6 +388,7 @@ Der Darts Caller sagt Scores, Checkouts und Spielereignisse an.
 - Checkout-Anforderungen ("You require ...")
 - Spezial-Ansagen: 180, Bust, No Score, Game Shot, Match Shot, Game On
 - Spielernamen beim Spielerwechsel
+- In Cricket/Tactics: "<Feld> geschlossen!" (10 bis 20, Bull) statt Score/Checkout/180/Bust/Bull/Double-Bull, und "<N> Marks!" ab einer einstellbaren Schwelle (Standard 6) am Ende einer Aufnahme; Game On, Spielername beim Wechsel, Game Shot und Match Shot bleiben
 
 ### Konfiguration
 
@@ -400,6 +405,7 @@ Alle Einstellungen nimmst du auf der **Caller-Seite** vor (unter **Module > Dart
 | **Lautstärke** | 0 bis 100 % |
 | **Verzögerung** | Wartezeit vor der Ansage, 0 bis 2000 ms |
 | **Caller-Verhalten** | Was angesagt wird: Punkte, nur hohe Punktzahlen (ab 100), 180, Bust, Bull, Bullseye, Spielernamen, Restpunkte ("You require ...") mit Obergrenze, Game on, Game shot |
+| **Geschlossene Felder ansagen**, **Starke Aufnahmen ansagen**, **Starke Aufnahme ab Marks** | Nur in Cricket/Tactics wirksam: Ansage beim Schließen eines Felds, Ansage einer starken Aufnahme und die Marks-Schwelle dafür (3 bis 9, Standard 6) |
 
 **Stimme testen** spricht bei Browser TTS sofort mit den aktuellen, noch nicht gespeicherten Einstellungen. Bei den anderen Caller-Typen löst der Test eine 180 über das laufende Modul aus und nutzt die gespeicherten Einstellungen. Speichere also vorher.
 
@@ -434,9 +440,10 @@ Ein Voice Pack enthält alle Ansagen als vorab erzeugte Audio-Dateien. Dadurch g
 
 Der Bereich **Voice Packs** erscheint auf der Caller-Seite beim Caller-Typ **KI Voice Pack**:
 
-- **Neues Voice Pack erstellen** (nur mit ElevenLabs): Erzeugt mit der gewählten ElevenLabs-Stimme und Sprache alle Dateien: Scores 0 bis 180, alle möglichen Checkouts 2 bis 170 und Spezial-Ansagen. Der Fortschritt wird angezeigt, die Generierung lässt sich abbrechen.
+- **Neues Voice Pack erstellen** (nur mit ElevenLabs): Erzeugt mit der gewählten ElevenLabs-Stimme und Sprache alle Dateien: Scores 0 bis 180, alle möglichen Checkouts 2 bis 170, Spezial-Ansagen und die Cricket-Phrasen (geschlossene Felder 10 bis 20 und Bull, Marks 3 bis 9). Der Fortschritt wird angezeigt, die Generierung lässt sich abbrechen.
 - **Voice Pack hochladen**: Ein bestehendes Voice Pack als ZIP-Datei importieren (auch ohne ElevenLabs)
 - **Verfügbare Voice Packs**: Pack auswählen (wird sofort gespeichert und genutzt) oder löschen
+- **Fehlende Ansagen erzeugen**: Erscheint pro Voice Pack, sobald ElevenLabs eingerichtet ist. Erzeugt nur die Dateien, die dem Pack noch fehlen (zum Beispiel nach neuen Phrasen wie den Cricket-Ansagen), ohne den Namen des Packs zu ändern. Kostet nur bei einem Klick ElevenLabs-Credits, fehlende Dateien werden sonst beim Ansagen einfach ausgelassen.
 
 **Spielernamen**: Ist ein Voice Pack aktiv und ElevenLabs eingerichtet, erkennt der Caller beim Match-Start neue Spieler und erzeugt deren Namen automatisch mit der Stimme des Packs.
 

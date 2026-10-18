@@ -201,7 +201,8 @@ The WLED module controls LED strips running WLED firmware based on game events.
 1. **WLED IP address**: IP of the controller, e.g. `192.168.1.100`
 2. **Port**: usually `80`
 3. **Fade Time (ms)**: global transition time in milliseconds, used by every action whose fade time is set to "Global". Empty (the default) keeps the controller's own default transition, `0` means an instant change.
-4. Click **Connect**. The hub then loads presets and effects straight from the controller. Once a host is saved, the page connects by itself when it opens; **Reconnect** loads the lists again, for example after adding presets in WLED.
+4. **Strong turn from marks**: how many marks in a Cricket turn fire the "Cricket: strong turn" action (3 to 9, default 6).
+5. Click **Connect**. The hub then loads presets and effects straight from the controller. Once a host is saved, the page connects by itself when it opens; **Reconnect** loads the lists again, for example after adding presets in WLED.
 
 You can start or stop the module at the top right.
 
@@ -215,8 +216,11 @@ Events are grouped:
 | **Throw Events** | Throw detected, Triple hit, Double hit, Single Bull, Bullseye!, 180!, Miss |
 | **Player Events** | Player changed, Turn started, Turn finished |
 | **Board Events** | Pulling darts, Darts pulled |
+| **Cricket** | Cricket: field closed, Cricket: strong turn |
 
 There is no "High Finish" event: the hub does not report a checkout value, so the module cannot detect it.
+
+In a Cricket or Tactics game the **180!** action does not fire; triple, double, single bull, bullseye and miss keep firing. The two Cricket actions kick in instead: **Cricket: field closed** as soon as a player closes a field with the third mark, **Cricket: strong turn** as soon as a turn reaches the marks threshold set above (once per turn).
 
 For each event you choose an action type. The action editor is currently labeled in German only; the German label is given in brackets.
 
@@ -384,6 +388,7 @@ The Darts Caller announces scores, checkouts and game events.
 - Checkout requirements ("You require ...")
 - Special calls: 180, bust, no score, game shot, match shot, game on
 - Player names on player change
+- In Cricket/Tactics: "<field> closed!" (10 to 20, Bull) instead of score/checkout/180/bust/bull/double-bull, and "<N> marks!" from an adjustable threshold (default 6) at the end of a turn; game on, player name on change, game shot and match shot are kept
 
 ### Configuration
 
@@ -400,6 +405,7 @@ All settings are on the **caller page** (under **Modules > Darts Caller**, butto
 | **Volume** | 0 to 100 % |
 | **Delay** | Wait time before a call, 0 to 2000 ms |
 | **Caller behavior** | What is announced: scores, high scores only (100 and more), 180, bust, bull, bullseye, player names, required score ("You require ...") with an upper limit, game on, game shot |
+| **Call Closed Fields**, **Call Strong Turns**, **Strong turn from marks** | Only active in Cricket/Tactics: announce when a field closes, announce a strong turn, and the marks threshold for it (3 to 9, default 6) |
 
 **Test Voice** speaks right away with the current, unsaved settings for Browser TTS. For the other caller types the test triggers a 180 through the running module and uses the saved settings, so save first.
 
@@ -434,9 +440,10 @@ A voice pack contains all calls as pre-generated audio files. That means no dela
 
 The **Voice Packs** section appears on the caller page with caller type **AI Voice Pack**:
 
-- **Create New Voice Pack** (ElevenLabs only): generates all files with the selected ElevenLabs voice and language: scores 0 to 180, all possible checkouts 2 to 170 and special calls. Progress is shown, and generation can be cancelled.
+- **Create New Voice Pack** (ElevenLabs only): generates all files with the selected ElevenLabs voice and language: scores 0 to 180, all possible checkouts 2 to 170, special calls and the Cricket phrases (closed fields 10 to 20 and Bull, marks 3 to 9). Progress is shown, and generation can be cancelled.
 - **Upload Voice Pack**: import an existing voice pack as a ZIP file (also without ElevenLabs)
 - **Available Voice Packs**: select a pack (saved and used immediately) or delete it
+- **Generate Missing Announcements**: appears per voice pack once ElevenLabs is configured. Generates only the files the pack is still missing (for example after new phrases such as the Cricket calls), without changing the pack's name. Only costs ElevenLabs credits on a click; missing files are otherwise simply skipped when announcing.
 
 **Player names**: with a voice pack active and ElevenLabs set up, the caller detects new players at match start and generates their names automatically with the pack's voice.
 

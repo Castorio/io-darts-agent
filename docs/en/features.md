@@ -45,8 +45,12 @@ IO-Darts-Agent is a local hub between the Autodarts platform and various action 
 | `game.finished` | Leg won (winner, leg, set) | Winner detected in match.state |
 | `match.finished` | Match ended (winner determined) | Match winner detected in match.state |
 | `match.result` | Match result with complete data (chalkboard, statistics, scores) | Emitted right after `match.finished` |
+| `cricket.state` | Cricket/Tactics state: points and marks per field per player | Marks or points change in match.state (Cricket/Tactics only) |
+| `cricket.closed` | Cricket/Tactics: a player closes a field with the third mark | A field reaches 3 marks in match.state (Cricket/Tactics only, once per field/player/leg) |
 
 > **Note on array rotation:** Autodarts rotates the player array after each leg. The synthetic events therefore contain both `playerName`/`winnerName` and `playerIndex`/`winnerPlayerIndex` for robust player detection. Details in the developer guide.
+
+> **Note on `game`:** `match.state`, `throw.detected`, `turn.finished`, `player.change`, `game.finished`, `match.finished`, `match.result`, `cricket.state` and `cricket.closed` additionally carry `data.game = { variant, mode, cutThroat }`, with `mode` one of `x01`, `cricket`, `tactics` or `other`. In Cricket/Tactics, `throw.detected` also carries `marks` (this dart's marks) and `turnMarks` (the turn's marks up to and including this dart); `turn.finished` only carries `turnMarks`.
 
 ### 2. Modular Plugin System
 
@@ -160,8 +164,9 @@ Controls WLED-compatible LED controllers based on game events.
 | Throw Events | Throw detected, Triple hit, Double hit, Single Bull, Bullseye!, 180!, Miss |
 | Player Events | Player changed, Turn started, Turn finished |
 | Board Events | Pulling darts, Darts pulled |
+| Cricket | Field closed, Strong turn |
 
-There is no "High Finish" event: the hub does not report a checkout value, so the module cannot detect it.
+There is no "High Finish" event: the hub does not report a checkout value, so the module cannot detect it. "Strong turn" is not a hub event either, but a module-internal key like `throw.triple`: the module fires it itself once `turnMarks` reaches the configured threshold (3 to 9, default 6). In Cricket/Tactics the 180 action does not fire; triple, double, bull, bullseye and miss keep firing.
 
 ### Game Display Module
 
@@ -202,6 +207,7 @@ Darts caller with browser TTS, voice packs, ElevenLabs or custom audio files.
 - Checkout calls ("You require ...")
 - Special calls: 180, bust, no score, game on, game shot, match shot
 - Player change calls with player names
+- In Cricket/Tactics: "<field> closed!" (10 to 20, Bull) and "<N> marks!" from an adjustable threshold (3 to 9, default 6), instead of score, checkout, 180, bust and bull/double-bull calls; Game On, player name on change, Game Shot and Match Shot are kept
 - Languages: English, German
 - Caller types: Browser TTS (played in the browser), AI Voice Pack, ElevenLabs Live AI, Custom Audio Files (played on the speakers of the hub machine)
 - Call settings: scores, high scores only, checkouts with an upper limit for "You require ...", player change, game start, game over, 180, busts, bulls, double bulls
@@ -211,8 +217,9 @@ Darts caller with browser TTS, voice packs, ElevenLabs or custom audio files.
 **ElevenLabs:**
 - Uses the ElevenLabs key from the AI provider settings
 - Choice of the voices in your ElevenLabs account
-- Voice pack generator: scores 0 to 180, all possible checkouts 2 to 170 and special calls, with progress and cancel
+- Voice pack generator: scores 0 to 180, all possible checkouts 2 to 170, special calls and Cricket phrases (closed fields 10 to 20 and Bull, marks 3 to 9), with progress and cancel
 - Multiple voice packs (different voices and languages), upload as ZIP, select and delete
+- "Generate Missing Announcements" per voice pack: generates only the files still missing (e.g. after new phrases), costs ElevenLabs credits only on click
 - Missing player names are generated automatically at match start (with a voice pack active)
 - TTS cache for live calls, repeated phrases are not requested again
 

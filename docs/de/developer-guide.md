@@ -402,8 +402,19 @@ Der `EventParser` leitet manche Autodarts-Nachrichten weitgehend unverändert we
 | `player.change` | Synthetisch | Generiert, wenn der Index des aktiven Spielers sich ändert |
 | `turn.finished` | Synthetisch | Generiert nach 3 Darts, einem Bust oder einem Rundenwechsel |
 | `game.finished`, `match.finished`, `match.result` | Synthetisch | Generiert, wenn ein Leg/Match endet |
+| `cricket.state`, `cricket.closed` | Synthetisch | Generiert, wenn sich in Cricket/Tactics Treffer oder Punkte ändern bzw. ein Spieler ein Feld schließt |
 
 Dies ermöglicht Modulen, auf logische Events zu reagieren, ohne den rohen `match.state` parsen zu müssen. Siehe [API-Dokumentation](api.md#autodarts-events) für die vollständige Liste mit Payload-Feldern.
+
+#### Spielmodus und Cricket
+
+Jedes der oben genannten synthetischen Events sowie `match.state` und `throw.detected` trägt zusätzlich `data.game`:
+
+```json
+{ "variant": "Cricket", "mode": "cricket", "cutThroat": false }
+```
+
+`mode` ist `'x01' | 'cricket' | 'tactics' | 'other'`. In Cricket/Tactics liefert `cricket.state` den vollständigen Spielstand (Punkte und Treffer pro Feld je Spieler, Spieler über den stabilen `index`) und `cricket.closed` einmal pro geschlossenem Feld und Spieler im Leg. Payload-Beispiele mit allen Feldern stehen im [Module SDK](module-sdk.md#synthetische-events-generiert-vom-eventparser-des-hubs).
 
 ### Modul-Sandbox
 
@@ -474,7 +485,7 @@ chore: upgrade dependencies
 `src/core/socket/EventParser.ts` liest rohe Nachrichten vom Autodarts-Board-WebSocket und:
 
 1. Gibt native Events weitgehend unverändert weiter (`board.state`, `match.start`, `throw.detected`, ...).
-2. Analysiert jedes `match.state`-Update, um zusätzlich die synthetischen Events (`player.change`, `turn.finished`, `game.finished`, `match.finished`, `match.result`) oben zu generieren.
+2. Analysiert jedes `match.state`-Update, um zusätzlich die synthetischen Events (`player.change`, `turn.finished`, `game.finished`, `match.finished`, `match.result`, `cricket.state`, `cricket.closed`) oben zu generieren.
 
 ### Module Handlers
 

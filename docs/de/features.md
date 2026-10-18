@@ -45,8 +45,12 @@ IO-Darts-Agent ist ein lokaler Hub zwischen der Autodarts-Plattform und verschie
 | `game.finished` | Leg gewonnen (Gewinner, Leg, Set) | Gewinner in match.state erkannt |
 | `match.finished` | Match beendet (Gewinner ermittelt) | Match-Gewinner in match.state erkannt |
 | `match.result` | Match-Ergebnis mit vollständigen Daten (Chalkboard, Statistiken, Scores) | Wird direkt nach `match.finished` gesendet |
+| `cricket.state` | Cricket/Tactics-Zustand: Punkte und Treffer pro Feld je Spieler | Treffer oder Punkte ändern sich in match.state (nur Cricket/Tactics) |
+| `cricket.closed` | Cricket/Tactics: ein Spieler schließt ein Feld mit dem dritten Treffer | Feld erreicht 3 Treffer in match.state (nur Cricket/Tactics, einmal pro Feld/Spieler/Leg) |
 
 > **Hinweis zur Array-Rotation:** Autodarts rotiert das Spieler-Array nach jedem Leg. Die synthetischen Events enthalten daher sowohl `playerName`/`winnerName` als auch `playerIndex`/`winnerPlayerIndex` für eine robuste Spieler-Erkennung. Details im Developer Guide.
+
+> **Hinweis zu `game`:** `match.state`, `throw.detected`, `turn.finished`, `player.change`, `game.finished`, `match.finished`, `match.result`, `cricket.state` und `cricket.closed` tragen zusätzlich `data.game = { variant, mode, cutThroat }`, mit `mode` gleich `x01`, `cricket`, `tactics` oder `other`. In Cricket/Tactics enthält `throw.detected` zusätzlich `marks` (Treffer dieses Darts) und `turnMarks` (Treffer der Aufnahme bis einschließlich diesem Dart), `turn.finished` nur `turnMarks`.
 
 ### 2. Modulares Plugin-System
 
@@ -160,8 +164,9 @@ Steuert WLED-kompatible LED-Controller abhängig von Spiel-Events.
 | Wurf Events | Wurf erkannt, Triple getroffen, Double getroffen, Single Bull, Bullseye!, 180!, Fehlwurf |
 | Spieler Events | Spielerwechsel, Aufnahme gestartet, Aufnahme beendet |
 | Board Events | Pfeile ziehen, Pfeile gezogen |
+| Cricket | Feld geschlossen, Starke Aufnahme |
 
-Ein Event "High Finish" gibt es nicht: Der Hub liefert keinen Checkout-Wert, deshalb kann das Modul ihn nicht erkennen.
+Ein Event "High Finish" gibt es nicht: Der Hub liefert keinen Checkout-Wert, deshalb kann das Modul ihn nicht erkennen. "Starke Aufnahme" ist ebenfalls kein Hub-Event, sondern ein modul-interner Schlüssel wie `throw.triple`: Das Modul löst ihn selbst aus, wenn `turnMarks` die eingestellte Schwelle erreicht (3 bis 9, Standard 6). In Cricket/Tactics löst die 180-Aktion nicht aus, Triple, Double, Bull, Bullseye und Fehlwurf laufen weiter.
 
 ### Game Display Modul
 
@@ -202,6 +207,7 @@ Darts-Caller mit Browser-TTS, Voice Packs, ElevenLabs oder eigenen Audiodateien.
 - Checkout-Ansagen ("You require ...")
 - Spezial-Ansagen: 180, Bust, No Score, Game On, Game Shot, Match Shot
 - Spielerwechsel-Ansagen mit Spielernamen
+- In Cricket/Tactics: "<Feld> geschlossen!" (10 bis 20, Bull) und "<N> Marks!" ab einstellbarer Schwelle (3 bis 9, Standard 6), statt Score-, Checkout-, 180-, Bust- und Bull/Double-Bull-Ansagen; Game On, Spielername beim Wechsel, Game Shot und Match Shot bleiben
 - Sprachen: Deutsch, Englisch
 - Caller-Typen: Browser TTS (Wiedergabe im Browser), KI Voice Pack, ElevenLabs Live KI, Eigene Audiodateien (Wiedergabe über die Lautsprecher des Hub-Rechners)
 - Ansage-Einstellungen: Scores, nur hohe Scores, Checkouts mit Obergrenze für "You require ...", Spielerwechsel, Spielstart, Spielende, 180, Busts, Bulls, Double Bulls
@@ -211,8 +217,9 @@ Darts-Caller mit Browser-TTS, Voice Packs, ElevenLabs oder eigenen Audiodateien.
 **ElevenLabs:**
 - Nutzt den ElevenLabs-Schlüssel aus den AI Provider-Einstellungen
 - Auswahl aus den Stimmen deines ElevenLabs-Kontos
-- Voice Pack Generator: Scores 0 bis 180, alle möglichen Checkouts 2 bis 170 und Spezial-Ansagen, mit Fortschritt und Abbruch
+- Voice Pack Generator: Scores 0 bis 180, alle möglichen Checkouts 2 bis 170, Spezial-Ansagen und Cricket-Phrasen (geschlossene Felder 10 bis 20 und Bull, Marks 3 bis 9), mit Fortschritt und Abbruch
 - Mehrere Voice Packs (verschiedene Stimmen und Sprachen), Upload als ZIP, Auswahl und Löschen
+- "Fehlende Ansagen erzeugen" pro Voice Pack: erzeugt nur die noch fehlenden Dateien (z.B. nach neuen Phrasen), kostet nur bei Klick ElevenLabs-Credits
 - Automatische Erzeugung fehlender Spielernamen beim Match-Start (bei aktivem Voice Pack)
 - TTS-Cache für Live-Ansagen, wiederholte Sätze werden nicht erneut angefragt
 

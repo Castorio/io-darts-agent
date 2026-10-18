@@ -515,7 +515,7 @@ Module können auf folgende Autodarts-Events reagieren. `type` ist einer aus ein
 | `match.state` | Match-Status-Update | `players`, `gameScores`, `player`, `round`, `settings` |
 | `match.delete` | Match abgebrochen | `matchId`, `boardId` |
 | `match.finish` | Benutzer schließt die Ergebnisanzeige | `matchId`, `boardId` |
-| `throw.detected` | Wurf erkannt | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted` (die letzten beiden nur bei Würfen aus `match.state`) |
+| `throw.detected` | Wurf erkannt | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnId`, `turnPoints`, `busted` (die letzten drei nur bei Würfen aus `match.state`, dem Normalfall); in Cricket/Tactics zusätzlich `marks`, `turnMarks` |
 | `takeout.started` | Dart-Entnahme gestartet | `boardId` |
 | `takeout.finished` | Dart-Entnahme beendet | `boardId` |
 
@@ -524,16 +524,67 @@ Module können auf folgende Autodarts-Events reagieren. `type` ist einer aus ein
 | Event | Beschreibung | Wichtige Daten |
 |-------|-------------|----------------|
 | `player.change` | Aktiver Spieler gewechselt | `previousPlayer`, `currentPlayer`, `playerIndex`, `playerName`, `remaining` |
-| `turn.finished` | Aufnahme beendet | `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining`, `round` |
+| `turn.finished` | Aufnahme beendet | `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining`, `round`; in Cricket/Tactics zusätzlich `turnMarks` |
 | `game.finished` | Leg gewonnen | `winner`, `winnerName`, `winnerPlayerIndex`, `leg`, `set` |
 | `match.finished` | Match gewonnen | `winner`, `winnerName`, `winnerPlayerIndex`, `scores` |
 | `match.result` | Vollständige Ergebnisdaten, zusammen mit `match.finished` gesendet | `chalkboards`, `stats`, `scores`, `settings` |
+| `cricket.state` | Cricket/Tactics-Zustand: Punkte und Treffer pro Feld je Spieler | `matchId`, `set`, `leg`, `mode`, `cutThroat`, `fields`, `deadFields`, `players[].{index,name,points,marks}` |
+| `cricket.closed` | Cricket/Tactics: ein Spieler schließt ein Feld mit dem dritten Treffer | `matchId`, `set`, `leg`, `field`, `playerIndex`, `playerName` |
 
 > **Hinweis:** Synthetische Events bieten praktische Hooks für Module. `turn.finished` wird ausgelöst, wenn 3 Darts geworfen wurden, ein Bust auftritt oder sich die Rundennummer ändert.
 
+> **Hinweis zu `game`:** `match.state`, `throw.detected`, `turn.finished`, `player.change`, `game.finished`, `match.finished`, `match.result`, `cricket.state` und `cricket.closed` tragen zusätzlich `data.game: { variant: string; mode: 'x01' | 'cricket' | 'tactics' | 'other'; cutThroat: boolean }`. `match.start`, `match.delete` und `match.finish` tragen kein `game`.
+
+### Cricket- und Tactics-Daten
+
+Cricket und Tactics (eine Cricket-Variante mit den Feldern 10 bis 20 statt 15 bis 20) laufen über dieselben Events wie X01, mit den oben genannten Zusatzfeldern. Felder sind Strings `'10'` bis `'20'` sowie `'25'` für Bull. Spieler stehen über den stabilen `index` (nicht die Array-Position), bleiben also über die Spieler-Array-Rotation nach einem Leg hinweg zuordenbar.
+
+`throw.detected` in Cricket/Tactics, zusätzlich zu den üblichen Feldern:
+
+```json
+{
+  "segment": { "name": "20", "number": 20, "multiplier": 1, "bed": "Single" },
+  "points": 20,
+  "turnId": "abc123",
+  "marks": 1,
+  "turnMarks": 2,
+  "game": { "variant": "Cricket", "mode": "cricket", "cutThroat": false }
+}
+```
+
+`marks` sind die Treffer dieses einen Darts, `turnMarks` die Summe der Aufnahme bis einschließlich diesem Dart (für einen 180 auf dem dritten Dart sichtbar). `turn.finished` trägt nur `turnMarks` (Summe der ganzen Aufnahme).
+
+`cricket.state`, gesendet beim ersten Cricket-Zustand und immer, wenn sich Treffer oder Punkte ändern:
+
+```json
+{
+  "matchId": "match-1",
+  "set": 1,
+  "leg": 1,
+  "mode": "cricket",
+  "cutThroat": false,
+  "fields": ["20", "19", "18", "17", "16", "15", "25"],
+  "deadFields": ["20"],
+  "players": [
+    { "index": 0, "name": "Anna", "points": 24, "marks": { "20": 3, "19": 1, "18": 0, "17": 0, "16": 0, "15": 0, "25": 0 } },
+    { "index": 1, "name": "Max", "points": 12, "marks": { "20": 3, "19": 0, "18": 0, "17": 0, "16": 0, "15": 0, "25": 0 } }
+  ]
+}
+```
+
+`cricket.closed`, einmal pro Feld und Spieler im Leg, nicht für Felder, die bereits aus einem vorherigen Zustand (z.B. nach einem Hub-Neustart) geschlossen waren:
+
+```json
+{ "matchId": "match-1", "set": 1, "leg": 1, "field": "20", "playerIndex": 0, "playerName": "Anna" }
+```
+
+**Starke Aufnahme ist kein Hub-Event.** Es gibt kein `turn.strong` oder Ähnliches; Module vergleichen `turnMarks` (aus `throw.detected` oder `turn.finished`) selbst mit einer eigenen Schwelle (3 bis 9, Standard 6). WLED und Darts Caller sind die Referenzimplementierungen.
+
+`GET /api/match/current` liefert zusätzlich `cricket` (gleiche Form wie `cricket.state`, `null` außerhalb von Cricket/Tactics) und `turns` (ein Array mit der letzten Aufnahme).
+
 ### Wurf-Unterschlüssel auf Modul-Ebene (keine Hub-Events)
 
-Es gibt kein `throw.triple`, `throw.double`, `throw.180`, `throw.bullseye`, `throw.bull`, `throw.miss` oder `throw.highfinish` auf dem Event-Bus oder im WebSocket des Hubs. Manche Module (das WLED-Modul ist die Referenzimplementierung, siehe `modules/wled/src/WledHandler.ts`) leiten diese als interne Lookup-Schlüssel aus einem `throw.detected`-Payload ab, rein um eine Aktion pro Ereignis in der eigenen Konfiguration auszuwählen:
+Es gibt kein `throw.triple`, `throw.double`, `throw.180`, `throw.bullseye`, `throw.bull`, `throw.miss` oder `throw.highfinish` auf dem Event-Bus oder im WebSocket des Hubs. Ebenso ist `cricket.marks` (Starke Aufnahme) kein Hub-Event. Manche Module (das WLED-Modul ist die Referenzimplementierung, siehe `modules/wled/src/WledHandler.ts`) leiten diese als interne Lookup-Schlüssel aus einem `throw.detected`-Payload ab, rein um eine Aktion pro Ereignis in der eigenen Konfiguration auszuwählen:
 
 ```typescript
 function getThrowEventKey(data: { turnPoints?: number; busted?: boolean; segment?: { number?: number; multiplier?: number }; points?: number }): string {

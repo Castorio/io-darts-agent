@@ -515,7 +515,7 @@ Modules can react to the following Autodarts events. `type` is one of a fixed `A
 | `match.state` | Match status update | `players`, `gameScores`, `player`, `round`, `settings` |
 | `match.delete` | Match cancelled | `matchId`, `boardId` |
 | `match.finish` | User dismisses the results screen | `matchId`, `boardId` |
-| `throw.detected` | Throw detected | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted` (the last two only for throws taken from `match.state`) |
+| `throw.detected` | Throw detected | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnId`, `turnPoints`, `busted` (the last three only for throws taken from `match.state`, the normal case); in Cricket/Tactics also `marks`, `turnMarks` |
 | `takeout.started` | Dart removal started | `boardId` |
 | `takeout.finished` | Dart removal finished | `boardId` |
 
@@ -524,16 +524,67 @@ Modules can react to the following Autodarts events. `type` is one of a fixed `A
 | Event | Description | Important Data |
 |-------|-------------|------------------|
 | `player.change` | Active player changed | `previousPlayer`, `currentPlayer`, `playerIndex`, `playerName`, `remaining` |
-| `turn.finished` | Turn finished | `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining`, `round` |
+| `turn.finished` | Turn finished | `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining`, `round`; in Cricket/Tactics also `turnMarks` |
 | `game.finished` | Leg won | `winner`, `winnerName`, `winnerPlayerIndex`, `leg`, `set` |
 | `match.finished` | Match won | `winner`, `winnerName`, `winnerPlayerIndex`, `scores` |
 | `match.result` | Full result data, emitted alongside `match.finished` | `chalkboards`, `stats`, `scores`, `settings` |
+| `cricket.state` | Cricket/Tactics state: points and marks per field per player | `matchId`, `set`, `leg`, `mode`, `cutThroat`, `fields`, `deadFields`, `players[].{index,name,points,marks}` |
+| `cricket.closed` | Cricket/Tactics: a player closes a field with the third mark | `matchId`, `set`, `leg`, `field`, `playerIndex`, `playerName` |
 
 > **Note:** Synthetic events provide convenient hooks for modules. `turn.finished` is triggered when 3 darts have been thrown, a bust occurs, or the round number changes.
 
+> **Note on `game`:** `match.state`, `throw.detected`, `turn.finished`, `player.change`, `game.finished`, `match.finished`, `match.result`, `cricket.state` and `cricket.closed` additionally carry `data.game: { variant: string; mode: 'x01' | 'cricket' | 'tactics' | 'other'; cutThroat: boolean }`. `match.start`, `match.delete` and `match.finish` do not carry `game`.
+
+### Cricket and Tactics Data
+
+Cricket and Tactics (a Cricket variant using fields 10 to 20 instead of 15 to 20) run over the same events as X01, with the extra fields above. Fields are strings `'10'` to `'20'` plus `'25'` for Bull. Players are keyed by the stable `index` (not the array position), so they stay identifiable across the player array rotation after a leg.
+
+`throw.detected` in Cricket/Tactics, in addition to the usual fields:
+
+```json
+{
+  "segment": { "name": "20", "number": 20, "multiplier": 1, "bed": "Single" },
+  "points": 20,
+  "turnId": "abc123",
+  "marks": 1,
+  "turnMarks": 2,
+  "game": { "variant": "Cricket", "mode": "cricket", "cutThroat": false }
+}
+```
+
+`marks` is the number of marks scored by this one dart, `turnMarks` the running total for the turn up to and including this dart (so a 180 is visible on the third dart). `turn.finished` only carries `turnMarks` (the whole turn's total).
+
+`cricket.state`, sent on the first Cricket state and whenever marks or points change:
+
+```json
+{
+  "matchId": "match-1",
+  "set": 1,
+  "leg": 1,
+  "mode": "cricket",
+  "cutThroat": false,
+  "fields": ["20", "19", "18", "17", "16", "15", "25"],
+  "deadFields": ["20"],
+  "players": [
+    { "index": 0, "name": "Anna", "points": 24, "marks": { "20": 3, "19": 1, "18": 0, "17": 0, "16": 0, "15": 0, "25": 0 } },
+    { "index": 1, "name": "Max", "points": 12, "marks": { "20": 3, "19": 0, "18": 0, "17": 0, "16": 0, "15": 0, "25": 0 } }
+  ]
+}
+```
+
+`cricket.closed`, once per field and player within a leg, never for fields that were already closed in a previous state (e.g. after a hub restart):
+
+```json
+{ "matchId": "match-1", "set": 1, "leg": 1, "field": "20", "playerIndex": 0, "playerName": "Anna" }
+```
+
+**A strong turn is not a hub event.** There is no `turn.strong` or similar; modules compare `turnMarks` (from `throw.detected` or `turn.finished`) with their own threshold (3 to 9, default 6). WLED and Darts Caller are the reference implementations.
+
+`GET /api/match/current` additionally returns `cricket` (same shape as `cricket.state`, `null` outside Cricket/Tactics) and `turns` (an array with the last turn).
+
 ### Module-Level Throw Sub-Keys (not hub events)
 
-There is no `throw.triple`, `throw.double`, `throw.180`, `throw.bullseye`, `throw.bull`, `throw.miss`, or `throw.highfinish` event on the hub's event bus or WebSocket. Some modules (the WLED module is the reference implementation, see `modules/wled/src/WledHandler.ts`) derive these as internal lookup keys from a `throw.detected` payload purely to pick a per-event action in their own config:
+There is no `throw.triple`, `throw.double`, `throw.180`, `throw.bullseye`, `throw.bull`, `throw.miss`, or `throw.highfinish` event on the hub's event bus or WebSocket. `cricket.marks` (strong turn) is not a hub event either. Some modules (the WLED module is the reference implementation, see `modules/wled/src/WledHandler.ts`) derive these as internal lookup keys from a `throw.detected` payload purely to pick a per-event action in their own config:
 
 ```typescript
 function getThrowEventKey(data: { turnPoints?: number; busted?: boolean; segment?: { number?: number; multiplier?: number }; points?: number }): string {

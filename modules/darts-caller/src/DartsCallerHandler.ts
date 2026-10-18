@@ -11,6 +11,7 @@ import type { ParsedEvent } from './types/hub-types.js';
 import type { ElevenLabsService } from './ElevenLabsService.js';
 import { intentAudioPath, readPackMetadata, type VoicePackGenerator } from './VoicePackGenerator.js';
 import { LocalAudioPlayer } from './LocalAudioPlayer.js';
+import { closedFile, closedText, marksFile, marksText } from './cricketPhrases.js';
 
 import {
   normalizeDartsCallerConfig,
@@ -175,6 +176,8 @@ export class DartsCallerHandler {
   private knownPlayerNames: Set<string> = new Set();
   private playerNameGenerationInProgress: Set<string> = new Set();
   private currentMatchState: MatchState | null = null;
+  /** Game mode remembered from the most recent event that carried data.game */
+  private gameMode: string | undefined;
 
   // Statistics
   private stats = {
@@ -593,6 +596,23 @@ export class DartsCallerHandler {
     const eventType = event.type as string;
     const eventData = event.data as Record<string, unknown>;
 
+    // Remember the game mode (x01/cricket/tactics/other) from the most recent
+    // event that carried it, so turn.finished and player.change can branch on
+    // it. Reset on a new or deleted match so a stale mode never lingers.
+    if (
+      eventType === 'match.start' ||
+      eventType === 'match.started' ||
+      eventType === 'match.delete' ||
+      eventType === 'match.deleted'
+    ) {
+      this.gameMode = undefined;
+    } else {
+      const game = eventData.game as { mode?: unknown } | undefined;
+      if (typeof game?.mode === 'string') {
+        this.gameMode = game.mode;
+      }
+    }
+
     switch (eventType) {
       case 'match.start':
       case 'match.started':
@@ -686,8 +706,11 @@ export class DartsCallerHandler {
 
           console.log(`🎯 Player change: "${playerName}", remaining: ${remaining}, callCheckouts: ${this.getCallSetting('checkouts')}, isCheckout: ${remaining ? this.isCheckoutPossible(remaining) : 'N/A'}`);
           if (playerName) {
+            // Cricket/Tactics "remaining" is points, not a dart countdown, so
+            // never treat it as a checkout requirement - only the name is announced.
+            const effectiveRemaining = this.isCricketMode() ? undefined : remaining;
             // Handle player change asynchronously to wait for audio generation if needed
-            this.handlePlayerChange(playerName, remaining).catch((err) => {
+            this.handlePlayerChange(playerName, effectiveRemaining).catch((err) => {
               console.error('Error handling player change:', err);
             });
           }
@@ -699,6 +722,18 @@ export class DartsCallerHandler {
         this.handleTurnFinished(eventData);
         break;
 
+      case 'cricket.closed':
+        if (this.getCallSetting('cricketClosed')) {
+          const field = eventData.field as string;
+          // The field ends up in an audio file name; only ever accept a real
+          // Cricket field so a malformed event can never reach the filesystem.
+          if (typeof field === 'string' && /^(1[0-9]|20|25)$/.test(field)) {
+            this.generateCall('special', closedText(field, this.config.language), closedFile(field), 7);
+            this.stats.specialCalls++;
+          }
+        }
+        break;
+
       case 'throw.detected':
         // Individual throw detection - busts are handled in turn.finished
         break;
@@ -706,9 +741,23 @@ export class DartsCallerHandler {
   }
 
   /**
+   * Whether the remembered game mode is Cricket or Tactics (same Cricket rules)
+   */
+  private isCricketMode(): boolean {
+    return this.gameMode === 'cricket' || this.gameMode === 'tactics';
+  }
+
+  /**
    * Handle turn finished event
    */
   private handleTurnFinished(eventData: Record<string, unknown>): void {
+    // Cricket/Tactics have no bust, 180 or score concept the way X01 does: the
+    // only thing worth announcing is a strong turn (enough marks in one turn).
+    if (this.isCricketMode()) {
+      this.handleCricketTurnFinished(eventData);
+      return;
+    }
+
     // Support both turnPoints and turnScore (Autodarts API uses turnScore)
     const turnPoints = (eventData.turnPoints as number) ?? (eventData.turnScore as number) ?? 0;
     const remaining = (eventData.remaining as number) || 0;
@@ -792,6 +841,28 @@ export class DartsCallerHandler {
 
     // NOTE: "You require X" checkout announcement is handled in player.change event
     // for the NEXT player, not for the current player after their turn
+  }
+
+  /**
+   * Handle a Cricket/Tactics turn.finished: announce the strong turn (once per
+   * turn, using the whole turn's marks so the number is correct) and nothing else.
+   */
+  private handleCricketTurnFinished(eventData: Record<string, unknown>): void {
+    if (!this.getCallSetting('cricketMarks')) {
+      return;
+    }
+
+    const turnMarks = eventData.turnMarks as number | undefined;
+    if (typeof turnMarks !== 'number') {
+      return;
+    }
+
+    if (turnMarks < this.getCallSetting('cricketMarksThreshold')) {
+      return;
+    }
+
+    this.generateCall('special', marksText(turnMarks, this.config.language), marksFile(turnMarks), 7);
+    this.stats.specialCalls++;
   }
 
   /**

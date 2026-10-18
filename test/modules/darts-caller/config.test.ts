@@ -60,6 +60,9 @@ describe('normalizeDartsCallerConfig', () => {
           busts: false,
           bulls: false,
           doubleBulls: false,
+          cricketClosed: false,
+          cricketMarks: false,
+          cricketMarksThreshold: 7,
         },
       };
       expect(normalizeDartsCallerConfig(input)).toEqual(input);

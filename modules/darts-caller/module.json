@@ -12,7 +12,8 @@
     "throw.detected",
     "player.change",
     "turn.finished",
-    "game.finished"
+    "game.finished",
+    "cricket.closed"
   ],
   "intents": {
     "actions": [
@@ -280,6 +281,26 @@
           "label": "Call Double Bulls",
           "description": "Announce when player hits double bull / bullseye (50)",
           "default": true
+        },
+        "cricketClosed": {
+          "type": "boolean",
+          "label": "Call Closed Fields",
+          "description": "Announce when a Cricket field is closed",
+          "default": true
+        },
+        "cricketMarks": {
+          "type": "boolean",
+          "label": "Call Strong Turns",
+          "description": "Announce a strong Cricket turn once it reaches the marks threshold",
+          "default": true
+        },
+        "cricketMarksThreshold": {
+          "type": "number",
+          "label": "Strong Turn From Marks",
+          "description": "Number of marks in a Cricket turn from which the strong turn announcement fires (3 - 9)",
+          "default": 6,
+          "min": 3,
+          "max": 9
         }
       }
     }
@@ -415,6 +436,72 @@
         "bust": "Überworfen!",
         "noScore": "Keine Punkte",
         "youRequire": "Du brauchst"
+      }
+    },
+    "es": {
+      "name": "Darts Caller",
+      "description": "Caller profesional de dardos que anuncia puntos, checkouts y eventos del juego mediante texto a voz o archivos de audio pregrabados.",
+      "config": {
+        "enabled": {
+          "label": "Activar Caller",
+          "description": "Activa o desactiva el caller de dardos"
+        },
+        "callerType": {
+          "label": "Tipo de Caller",
+          "description": "Elige la fuente de audio para los anuncios de voz",
+          "options": {
+            "tts": "TTS del Navegador",
+            "voicepack": "Voice Pack de IA",
+            "elevenlabs": "ElevenLabs en Vivo IA",
+            "audio": "Archivos de Audio Personalizados"
+          }
+        },
+        "language": {
+          "label": "Idioma",
+          "description": "Idioma para la salida de voz",
+          "options": {
+            "en": "Inglés",
+            "de": "Alemán"
+          }
+        },
+        "volume": {
+          "label": "Volumen",
+          "description": "Volumen de audio (0 - 100)"
+        },
+        "delayMs": {
+          "label": "Retraso",
+          "description": "Retraso antes del anuncio (milisegundos)"
+        },
+        "ttsSettings": {
+          "label": "Ajustes de TTS del Navegador",
+          "description": "Ajustes para el texto a voz del navegador"
+        },
+        "voicepackSettings": {
+          "label": "Ajustes de Voice Pack",
+          "description": "Ajustes para los voice packs generados por IA"
+        },
+        "elevenlabsSettings": {
+          "label": "Ajustes de ElevenLabs",
+          "description": "Ajustes para la IA en vivo de ElevenLabs"
+        },
+        "audioSettings": {
+          "label": "Ajustes de Audio Personalizado",
+          "description": "Ajustes para archivos de audio personalizados"
+        },
+        "callSettings": {
+          "label": "Ajustes de Anuncios",
+          "description": "Configura qué se anuncia"
+        }
+      },
+      "strings": {
+        "gameOn": "¡Juego en marcha!",
+        "matchOn": "¡Partido en marcha!",
+        "gameShot": "¡Game shot!",
+        "matchShot": "¡Game shot y el partido!",
+        "oneHundredEighty": "¡Ciento ochenta!",
+        "bust": "¡Bust!",
+        "noScore": "Sin puntos",
+        "youRequire": "Necesitas"
       }
     }
   }

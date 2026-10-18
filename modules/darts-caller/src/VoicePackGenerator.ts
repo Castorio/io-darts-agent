@@ -7,6 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ElevenLabsService } from './ElevenLabsService.js';
+import { cricketPhrases } from './cricketPhrases.js';
 
 /**
  * Voice pack generation status
@@ -53,7 +54,7 @@ export interface VoicePackConfig {
 /**
  * Phrase entry for generation
  */
-interface PhraseEntry {
+export interface PhraseEntry {
   filename: string;
   text: string;
   category: string;
@@ -62,7 +63,7 @@ interface PhraseEntry {
 /**
  * Default phrases for a complete darts voice pack
  */
-function getDefaultPhrases(language: string): PhraseEntry[] {
+export function getDefaultPhrases(language: string): PhraseEntry[] {
   const phrases: PhraseEntry[] = [];
 
   // Game events
@@ -116,6 +117,9 @@ function getDefaultPhrases(language: string): PhraseEntry[] {
     });
   }
 
+  // Cricket: closed fields and strong turns
+  phrases.push(...cricketPhrases(language));
+
   return phrases;
 }
 
@@ -138,7 +142,7 @@ function getCheckoutScores(): number[] {
 /**
  * Convert number to English text
  */
-function scoreToEnglish(score: number): string {
+export function scoreToEnglish(score: number): string {
   if (score === 0) return 'No score';
 
   const ones = [
@@ -166,7 +170,7 @@ function scoreToEnglish(score: number): string {
 /**
  * Convert number to German text
  */
-function scoreToGerman(score: number): string {
+export function scoreToGerman(score: number): string {
   if (score === 0) return 'Null';
 
   const ones = [

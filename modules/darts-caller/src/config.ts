@@ -54,6 +54,12 @@ export interface CallSettings {
   busts: boolean;
   bulls: boolean;
   doubleBulls: boolean;
+  /** Announce when a Cricket field is closed (3 marks on it) */
+  cricketClosed: boolean;
+  /** Announce a strong Cricket turn once turnMarks reaches cricketMarksThreshold */
+  cricketMarks: boolean;
+  /** Marks threshold for cricketMarks (3 to 9) */
+  cricketMarksThreshold: number;
 }
 
 export interface NormalizedDartsCallerConfig {
@@ -93,6 +99,9 @@ export const DEFAULT_DARTS_CALLER_CONFIG: NormalizedDartsCallerConfig = Object.f
     busts: true,
     bulls: true,
     doubleBulls: true,
+    cricketClosed: true,
+    cricketMarks: true,
+    cricketMarksThreshold: 6,
   }),
 }) as NormalizedDartsCallerConfig;
 
@@ -217,7 +226,7 @@ function resolveCallSettings(raw: Raw): CallSettings {
 
   const result = { ...defaults };
   for (const key of Object.keys(defaults) as Array<keyof CallSettings>) {
-    if (key === 'checkoutThreshold') continue;
+    if (key === 'checkoutThreshold' || key === 'cricketMarksThreshold') continue;
     const flatKey = FLAT_CALL_KEYS[key];
     const value = firstBoolean(
       grouped[key],
@@ -232,6 +241,11 @@ function resolveCallSettings(raw: Raw): CallSettings {
   result.checkoutThreshold = threshold === undefined
     ? defaults.checkoutThreshold
     : Math.round(clamp(threshold, 2, 170));
+
+  const marksThreshold = firstNumber(grouped.cricketMarksThreshold);
+  result.cricketMarksThreshold = marksThreshold === undefined
+    ? defaults.cricketMarksThreshold
+    : Math.round(clamp(marksThreshold, 3, 9));
 
   return result;
 }

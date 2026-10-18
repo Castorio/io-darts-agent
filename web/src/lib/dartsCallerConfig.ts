@@ -32,6 +32,9 @@ export interface DartsCallerForm {
     busts: boolean
     bulls: boolean
     doubleBulls: boolean
+    cricketClosed: boolean
+    cricketMarks: boolean
+    cricketMarksThreshold: number
   }
 }
 
@@ -60,6 +63,9 @@ export const DARTS_CALLER_DEFAULTS: DartsCallerForm = {
     busts: true,
     bulls: true,
     doubleBulls: true,
+    cricketClosed: true,
+    cricketMarks: true,
+    cricketMarksThreshold: 6,
   },
 }
 

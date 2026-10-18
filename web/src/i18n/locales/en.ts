@@ -592,6 +592,11 @@ export default {
     callGameStartDesc: 'Announces the start of a match',
     callGameOver: 'Call Game Shot',
     callGameOverDesc: 'Announces the end of a leg and of the match',
+    callCricketClosed: 'Call Closed Fields',
+    callCricketClosedDesc: 'Announces when a Cricket field is closed',
+    callCricketMarks: 'Call Strong Turns',
+    callCricketMarksDesc: 'Announces a Cricket turn once it reaches the marks threshold',
+    cricketMarksThreshold: 'Strong turn from marks',
     // Voice Pack Generation
     voicePack: {
       title: 'Voice Packs',
@@ -631,6 +636,8 @@ export default {
       uploading: 'Uploading...',
       dropZipHere: 'Drop ZIP file here or click to select',
       needsElevenlabs: 'Creating new voice packs needs ElevenLabs. Uploading and selecting packs works without it.',
+      generateMissing: 'Generate Missing Announcements',
+      generateMissingHint: 'Generates only missing files, costs ElevenLabs credits',
     },
   },
 

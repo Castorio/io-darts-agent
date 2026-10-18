@@ -592,6 +592,11 @@ export default {
     callGameStartDesc: 'Sagt den Start eines Matches an',
     callGameOver: 'Game shot ansagen',
     callGameOverDesc: 'Sagt das Ende eines Legs und des Matches an',
+    callCricketClosed: 'Geschlossene Felder ansagen',
+    callCricketClosedDesc: 'Sagt an, wenn ein Cricket-Feld geschlossen wird',
+    callCricketMarks: 'Starke Aufnahmen ansagen',
+    callCricketMarksDesc: 'Sagt eine Cricket-Aufnahme ab der eingestellten Marks-Schwelle an',
+    cricketMarksThreshold: 'Starke Aufnahme ab Marks',
     // Voice Pack Generation
     voicePack: {
       title: 'Voice Packs',
@@ -631,6 +636,8 @@ export default {
       uploading: 'Wird hochgeladen...',
       dropZipHere: 'ZIP-Datei hierher ziehen oder klicken zum Auswählen',
       needsElevenlabs: 'Zum Erstellen neuer Voice Packs wird ElevenLabs benötigt. Hochladen und Auswählen funktioniert auch ohne.',
+      generateMissing: 'Fehlende Ansagen erzeugen',
+      generateMissingHint: 'Erzeugt nur fehlende Dateien, kostet ElevenLabs-Credits',
     },
   },
 

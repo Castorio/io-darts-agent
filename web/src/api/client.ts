@@ -621,9 +621,10 @@ export const api = {
     }>('/tts/voicepacks')
   },
 
-  async generateVoicePack(voiceId: string, language: 'de' | 'en' = 'de', voiceName?: string) {
-    // Generate a packId based on voiceId and language
-    const packId = `${voiceId}_${language}`
+  async generateVoicePack(voiceId: string, language: 'de' | 'en' = 'de', voiceName?: string, packId?: string) {
+    // Default packId based on voiceId and language; the hub still validates
+    // whatever packId is sent (isValidPackId), so this is just a default.
+    const resolvedPackId = packId || `${voiceId}_${language}`
     const packName = voiceName ? `${voiceName} (${language.toUpperCase()})` : `Voice Pack (${language.toUpperCase()})`
 
     return request<{
@@ -633,7 +634,7 @@ export const api = {
     }>('/tts/voicepacks/generate', {
       method: 'POST',
       body: JSON.stringify({
-        packId,
+        packId: resolvedPackId,
         packName,
         voiceId,
         language

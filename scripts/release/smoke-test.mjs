@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { findPackagedApp, waitForHealth } from './lib.mjs';
+import { findPackagedApp, waitForHealth, killWindowsProcessTree } from './lib.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HEALTH_TIMEOUT_MS = 90_000;
@@ -29,7 +29,7 @@ function killChild(child) {
     return;
   }
   if (process.platform === 'win32') {
-    spawn('taskkill', ['/pid', String(child.pid), '/t', '/f']);
+    killWindowsProcessTree(child);
     return;
   }
   child.kill('SIGTERM');

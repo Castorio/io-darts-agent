@@ -1,9 +1,11 @@
+import { EventEmitter } from 'node:events';
 import { describe, it, expect, vi } from 'vitest';
 import {
   versionFromTag,
   checkTagMatchesVersion,
   findPackagedApp,
   waitForHealth,
+  killWindowsProcessTree,
   // @ts-expect-error -- plain JS module, no type declarations
 } from '../../scripts/release/lib.mjs';
 
@@ -129,5 +131,43 @@ describe('waitForHealth', () => {
         fetchImpl,
       })
     ).rejects.toThrow();
+  });
+});
+
+describe('killWindowsProcessTree', () => {
+  it('spawns taskkill for the child pid', () => {
+    const fakeTaskkill = new EventEmitter();
+    const spawnImpl = vi.fn(() => fakeTaskkill);
+    const child = { pid: 1234 } as unknown as { pid: number };
+
+    killWindowsProcessTree(child, { spawnImpl, log: vi.fn() });
+
+    expect(spawnImpl).toHaveBeenCalledWith('taskkill', ['/pid', '1234', '/t', '/f']);
+  });
+
+  it('logs and does not throw when taskkill fails to start', () => {
+    const fakeTaskkill = new EventEmitter();
+    const spawnImpl = vi.fn(() => fakeTaskkill);
+    const log = vi.fn();
+    const child = { pid: 1234 } as unknown as { pid: number };
+
+    expect(() => killWindowsProcessTree(child, { spawnImpl, log })).not.toThrow();
+
+    expect(() => fakeTaskkill.emit('error', new Error('ENOENT: taskkill not found'))).not.toThrow();
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0][0]).toContain('ENOENT: taskkill not found');
+  });
+
+  it('defaults to console.error when no log function is given', () => {
+    const fakeTaskkill = new EventEmitter();
+    const spawnImpl = vi.fn(() => fakeTaskkill);
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const child = { pid: 1234 } as unknown as { pid: number };
+
+    killWindowsProcessTree(child, { spawnImpl });
+    fakeTaskkill.emit('error', new Error('boom'));
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    consoleErrorSpy.mockRestore();
   });
 });

@@ -6,6 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 
 const VERSION_TAG_PATTERN = /^(?:refs\/tags\/)?v(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$/;
 
@@ -122,4 +123,24 @@ export async function waitForHealth(baseUrl, options = {}) {
   }
 
   throw new Error(`Timed out waiting for ${baseUrl}/health to report ok after ${timeoutMs}ms: ${lastError.message}`);
+}
+
+/**
+ * Kills a child process tree on Windows, where `child.kill()` only signals
+ * the immediate process and leaves its children running. `taskkill` is
+ * spawned fire-and-forget (its own exit is not awaited); if it fails to
+ * start at all (e.g. missing from PATH) that must not crash the caller, so
+ * an `error` handler logs it instead of leaving it unhandled.
+ *
+ * @param {{ pid: number | undefined }} child
+ * @param {{ spawnImpl?: typeof spawn, log?: (msg: string) => void }} [options]
+ * @returns {import('node:child_process').ChildProcess}
+ */
+export function killWindowsProcessTree(child, options = {}) {
+  const { spawnImpl = spawn, log = (msg) => console.error(msg) } = options;
+  const killer = spawnImpl('taskkill', ['/pid', String(child.pid), '/t', '/f']);
+  killer.on('error', (err) => {
+    log(`[smoke-test] taskkill failed to start: ${err.message}`);
+  });
+  return killer;
 }

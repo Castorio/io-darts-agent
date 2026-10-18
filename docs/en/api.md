@@ -68,7 +68,7 @@ Routes marked **Public** in the tables below have no additional, route-specific 
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/match/current` | Session | Full current match state (players, scores, legs/sets, stats, settings) or an "inactive" shape if no match is running. |
+| GET | `/api/match/current` | Session | Full current match state (players, scores, legs/sets, stats, settings) or an "inactive" shape if no match is running. Also includes `cricket` (same shape as the `cricket.state` event, `null` outside Cricket/Tactics) and `turns` (array with the last turn). |
 | GET | `/api/match/current/players` | Session | Lightweight player list with per-player score and average. |
 | GET | `/api/match/current/scores` | Session | Lightweight scores only: `{ active, scores, gameScores, turnScore, currentPlayer }`. |
 | GET | `/api/match/status` | Session | Match status from the centralized `MatchStatusService` (includes player colors from the local player database). |
@@ -318,7 +318,7 @@ All messages are JSON-encoded, each with a `type` field.
 | `match.delete` | A match is cancelled | `matchId`, `boardId` |
 | `match.finish` | User dismisses the results screen | `matchId`, `boardId` |
 | `match.state` | Any match state update | `matchId`, `player`, `gameScores`, `round`, `leg`, `set`, `players`, `settings`, ... |
-| `throw.detected` | A dart is scored | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted` (the last two only for throws taken from `match.state`) |
+| `throw.detected` | A dart is scored | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted`, `turnId` (the last four only for throws taken from `match.state`); in Cricket/Tactics additionally `marks`, `turnMarks` |
 | `takeout.started` | Darts are being pulled | `boardId` |
 | `takeout.finished` | Darts have been pulled | `boardId` |
 
@@ -327,12 +327,16 @@ All messages are JSON-encoded, each with a `type` field.
 | Event | When | Key data |
 |-------|------|----------|
 | `player.change` | The active player index changes | `previousPlayer`, `currentPlayer`, `playerIndex`, `playerName`, `remaining` |
-| `turn.finished` | 3 darts thrown, a bust, or a round change | `matchId`, `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining`, `round`, `throws` |
+| `turn.finished` | 3 darts thrown, a bust, or a round change | `matchId`, `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining`, `round`, `throws`; in Cricket/Tactics additionally `turnMarks` |
 | `game.finished` | A leg is won | `matchId`, `winner`, `winnerName`, `winnerPlayerIndex`, `leg`, `set`, `players`, `scores` |
 | `match.finished` | The match is won | `matchId`, `winner`, `winnerName`, `winnerPlayerIndex`, `players`, `scores` |
 | `match.result` | Emitted right after `match.finished` | `winner`, `winnerName`, `chalkboards`, `stats`, `scores`, `settings` |
+| `cricket.state` | Marks or points change (Cricket/Tactics) | `matchId`, `set`, `leg`, `mode`, `cutThroat`, `fields`, `deadFields`, `players[].{index,name,points,marks}` |
+| `cricket.closed` | A player closes a field with the third mark (Cricket/Tactics) | `matchId`, `set`, `leg`, `field`, `playerIndex`, `playerName` |
 
 `raw` is used for anything the parser doesn't otherwise recognize.
+
+**Note on `game`:** `match.state`, `throw.detected`, `turn.finished`, `player.change`, `game.finished`, `match.finished`, `match.result`, `cricket.state`, and `cricket.closed` additionally carry `data.game: { variant: string; mode: 'x01' | 'cricket' | 'tactics' | 'other'; cutThroat: boolean }`. `match.start`, `match.delete`, and `match.finish` do not carry `game`.
 
 **Note:** Individual modules (for example WLED) further derive their own sub-keys - such as `throw.triple`, `throw.double`, `throw.180`, `throw.bullseye` - from the data inside a `throw.detected` event, purely for their own per-event action configuration. These sub-keys are not separate events on the bus or the WebSocket; see the module's own README and [Module SDK](module-sdk.md) for details.
 

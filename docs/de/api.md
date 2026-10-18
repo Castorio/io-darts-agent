@@ -68,7 +68,7 @@ Mit **Public** markierte Routen in den Tabellen unten haben keine zusätzliche, 
 
 | Methode | Pfad | Auth | Beschreibung |
 |---------|------|------|---------------|
-| GET | `/api/match/current` | Session | Vollständiger aktueller Match-Zustand (Spieler, Scores, Legs/Sets, Statistiken, Einstellungen) oder ein "inaktiv"-Zustand, wenn kein Match läuft. |
+| GET | `/api/match/current` | Session | Vollständiger aktueller Match-Zustand (Spieler, Scores, Legs/Sets, Statistiken, Einstellungen) oder ein "inaktiv"-Zustand, wenn kein Match läuft. Enthält zusätzlich `cricket` (gleiche Form wie das `cricket.state`-Event, `null` außerhalb von Cricket/Tactics) und `turns` (Array mit der letzten Aufnahme). |
 | GET | `/api/match/current/players` | Session | Schlanke Spielerliste mit Score und Average pro Spieler. |
 | GET | `/api/match/current/scores` | Session | Nur Scores: `{ active, scores, gameScores, turnScore, currentPlayer }`. |
 | GET | `/api/match/status` | Session | Match-Status aus dem zentralen `MatchStatusService` (inklusive Spielerfarben aus der lokalen Spielerdatenbank). |
@@ -318,7 +318,7 @@ Alle Nachrichten sind JSON-kodiert und haben jeweils ein `type`-Feld.
 | `match.delete` | Ein Match wird abgebrochen | `matchId`, `boardId` |
 | `match.finish` | Benutzer schließt die Ergebnisanzeige | `matchId`, `boardId` |
 | `match.state` | Jedes Match-Status-Update | `matchId`, `player`, `gameScores`, `round`, `leg`, `set`, `players`, `settings`, ... |
-| `throw.detected` | Ein Wurf wird gewertet | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted` (die letzten beiden nur bei Würfen aus `match.state`) |
+| `throw.detected` | Ein Wurf wird gewertet | `segment`, `coords?`, `throwNumber`, `boardId`, `points`, `turnPoints`, `busted`, `turnId` (die letzten vier nur bei Würfen aus `match.state`); in Cricket/Tactics zusätzlich `marks`, `turnMarks` |
 | `takeout.started` | Die Pfeile werden gezogen | `boardId` |
 | `takeout.finished` | Die Pfeile wurden gezogen | `boardId` |
 
@@ -327,12 +327,16 @@ Alle Nachrichten sind JSON-kodiert und haben jeweils ein `type`-Feld.
 | Event | Wann | Wichtige Daten |
 |-------|------|-----------------|
 | `player.change` | Der aktive Spieler-Index ändert sich | `previousPlayer`, `currentPlayer`, `playerIndex`, `playerName`, `remaining` |
-| `turn.finished` | 3 Darts geworfen, ein Bust oder ein Rundenwechsel | `matchId`, `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining`, `round`, `throws` |
+| `turn.finished` | 3 Darts geworfen, ein Bust oder ein Rundenwechsel | `matchId`, `playerIndex`, `playerName`, `turnScore`, `busted`, `remaining`, `round`, `throws`; in Cricket/Tactics zusätzlich `turnMarks` |
 | `game.finished` | Ein Leg wird gewonnen | `matchId`, `winner`, `winnerName`, `winnerPlayerIndex`, `leg`, `set`, `players`, `scores` |
 | `match.finished` | Das Match wird gewonnen | `matchId`, `winner`, `winnerName`, `winnerPlayerIndex`, `players`, `scores` |
 | `match.result` | Wird direkt nach `match.finished` gesendet | `winner`, `winnerName`, `chalkboards`, `stats`, `scores`, `settings` |
+| `cricket.state` | Treffer oder Punkte ändern sich (Cricket/Tactics) | `matchId`, `set`, `leg`, `mode`, `cutThroat`, `fields`, `deadFields`, `players[].{index,name,points,marks}` |
+| `cricket.closed` | Ein Spieler schließt ein Feld mit dem dritten Treffer (Cricket/Tactics) | `matchId`, `set`, `leg`, `field`, `playerIndex`, `playerName` |
 
 `raw` wird für alles verwendet, was der Parser sonst nicht erkennt.
+
+**Hinweis zu `game`:** `match.state`, `throw.detected`, `turn.finished`, `player.change`, `game.finished`, `match.finished`, `match.result`, `cricket.state` und `cricket.closed` tragen zusätzlich `data.game: { variant: string; mode: 'x01' | 'cricket' | 'tactics' | 'other'; cutThroat: boolean }`. `match.start`, `match.delete` und `match.finish` tragen kein `game`.
 
 **Hinweis:** Einzelne Module (zum Beispiel WLED) leiten intern noch eigene Unter-Schlüssel ab, etwa `throw.triple`, `throw.double`, `throw.180`, `throw.bullseye`, aus den Daten eines `throw.detected`-Events, rein für ihre eigene Aktionskonfiguration pro Ereignis. Diese Unter-Schlüssel sind keine eigenständigen Events auf dem Bus oder im WebSocket; Details stehen im README des jeweiligen Moduls und im [Module SDK](module-sdk.md).
 

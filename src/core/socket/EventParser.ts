@@ -62,6 +62,18 @@ export class EventParser {
   }
 
   /**
+   * Mark a connection gap (e.g. an Autodarts WebSocket reconnect). Clears the
+   * Cricket segment baseline used to diff newly-closed fields, so the first
+   * state received after the gap cannot be compared against stale,
+   * pre-outage segments and misreport fields as "just closed". The close
+   * dedupe set and the current match/leg identity are kept, so a field that
+   * was already reported closed before the gap is not re-reported.
+   */
+  markGap(): void {
+    this.lastCricketSegments = null;
+  }
+
+  /**
    * Get the current match ID (if any)
    */
   getMatchId(): string | null {

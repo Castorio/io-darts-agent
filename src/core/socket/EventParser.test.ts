@@ -422,6 +422,47 @@ describe('EventParser', () => {
       // Should NOT have another turn.finished event - the bust was already announced!
       expect(roundChangeTurnFinished.length).toBe(0);
     });
+
+    describe('Cricket reconnect gap (markGap)', () => {
+      const cricketState = (segments: Record<string, number[]>, overrides: Partial<MatchStateData> = {}): MatchStateData =>
+        createMatchState({ variant: 'Cricket', state: { segments }, player: 0, ...overrides });
+
+      it('should not emit cricket.closed from the first state after a gap, even if fields are newly closed', () => {
+        // Before the gap: field 20 has 2 marks for player 0 (not yet closed)
+        parser.parse({
+          channel: 'autodarts.matches',
+          topic: `${MATCH_ID}.state`,
+          data: cricketState({ '20': [2, 0] }),
+        });
+
+        // Connection gap (e.g. WebSocket reconnect) - the player may have closed
+        // fields while disconnected, so the next state must not be diffed against
+        // the pre-gap baseline.
+        parser.markGap();
+
+        // First state after the gap: field 20 AND 19 now show 3 marks (closed).
+        // Some of that may have happened during the outage - must not be reported.
+        const afterGap = parser.parse({
+          channel: 'autodarts.matches',
+          topic: `${MATCH_ID}.state`,
+          data: cricketState({ '20': [3, 0], '19': [3, 0] }),
+        });
+        const afterGapEvents = Array.isArray(afterGap) ? afterGap : [afterGap];
+        expect(afterGapEvents.filter((e) => e?.type === 'cricket.closed')).toHaveLength(0);
+
+        // A later, real close (field 18) builds on the post-gap baseline and must
+        // still be reported.
+        const realClose = parser.parse({
+          channel: 'autodarts.matches',
+          topic: `${MATCH_ID}.state`,
+          data: cricketState({ '20': [3, 0], '19': [3, 0], '18': [3, 0] }),
+        });
+        const realCloseEvents = Array.isArray(realClose) ? realClose : [realClose];
+        const closedEvents = realCloseEvents.filter((e) => e?.type === 'cricket.closed');
+        expect(closedEvents).toHaveLength(1);
+        expect(closedEvents[0]!.data).toMatchObject({ field: '18', playerIndex: 0 });
+      });
+    });
   });
 
   describe('Unknown Events', () => {

@@ -48,6 +48,7 @@ vi.mock('ws', async () => {
 // Import after mock
 import WebSocket from 'ws';
 import { SocketService } from './SocketService.js';
+import { EventParser } from './EventParser.js';
 
 type MockSocket = { url: string; options: unknown; emit: (event: string, ...args: unknown[]) => void };
 const sockets = (): MockSocket[] =>
@@ -258,6 +259,19 @@ describe('SocketService', () => {
 
       expect(provider).toHaveBeenCalledTimes(2);
       expect(socketService.getConnectionState()).toBe('connected');
+    });
+
+    it('marks a Cricket gap on the parser when the socket reconnects', async () => {
+      const markGapSpy = vi.spyOn(EventParser.prototype, 'markGap');
+      socketService.connect(ticketProvider);
+      await vi.advanceTimersByTimeAsync(50);
+
+      // Connection drops and is re-established
+      sockets()[0].emit('close', 1006, Buffer.from('gone'));
+      await vi.advanceTimersByTimeAsync(1100);
+
+      expect(socketService.getConnectionState()).toBe('connected');
+      expect(markGapSpy).toHaveBeenCalled();
     });
   });
 

@@ -256,6 +256,12 @@ export class SocketService {
     this.reconnectAttempts = 0;
     this.onConnectionChange?.(this.connectionState);
 
+    // A (re)established connection may have missed state while it was down
+    // (e.g. a mid-leg reconnect). Clear the Cricket comparison baseline so
+    // the first state received over this connection is never diffed against
+    // stale, pre-gap segments.
+    this.eventParser.markGap();
+
     // Resend pending subscriptions
     const pending = [...this.pendingSubscriptions];
     this.pendingSubscriptions = [];

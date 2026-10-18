@@ -50,6 +50,8 @@ export type AutodartsEventType =
   | 'turn.finished'
   | 'game.finished'
   | 'match.finished'
+  | 'cricket.state'
+  | 'cricket.closed'
   | 'raw';
 
 // WebSocket message from Autodarts

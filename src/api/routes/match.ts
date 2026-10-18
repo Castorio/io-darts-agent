@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { APIServer } from '../Server.js';
-import type { MatchStateData, MatchPlayer, MatchStats, MatchSettings } from '../../types/index.js';
+import type { MatchStateData, MatchPlayer, MatchStats, MatchSettings, MatchTurn, CricketStateData } from '../../types/index.js';
 import { getMatchStatusService, type MatchStatus } from '../../core/match/index.js';
+import { cricketStateOf } from '../../core/game/cricket.js';
 
 /**
  * Current match response
@@ -30,6 +31,8 @@ export interface CurrentMatchResponse {
   };
   settings: MatchSettings | null;
   lastUpdated: string | null;
+  cricket: CricketStateData | null;
+  turns: MatchTurn[];
 }
 
 export interface MatchPlayerInfo {
@@ -109,6 +112,8 @@ export function registerMatchRoutes(
         stats: { legStats: [], matchStats: [] },
         settings: null,
         lastUpdated: null,
+        cricket: null,
+        turns: [],
       };
     }
 
@@ -137,6 +142,8 @@ export function registerMatchRoutes(
         stats: { legStats: [], matchStats: [] },
         settings: null,
         lastUpdated: null,
+        cricket: null,
+        turns: [],
       };
     }
 
@@ -171,9 +178,9 @@ export function registerMatchRoutes(
         matchStats: match.stats?.matchStats ?? [],
       },
       settings: match.settings,
-      // Cricket marks per field and the running turn, so a display that
-      // (re)connects mid-leg can draw them before the next dart
-      segments: typeof match.state === 'object' && match.state ? match.state.segments ?? null : null,
+      // Cricket state and the running turn, so a display that (re)connects
+      // mid-leg can draw them before the next dart
+      cricket: cricketStateOf(match),
       turns: match.turns?.slice(-1) ?? [],
       lastUpdated: lastUpdated?.toISOString() ?? null,
     };

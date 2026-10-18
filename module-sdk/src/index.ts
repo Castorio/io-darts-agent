@@ -20,7 +20,20 @@ export type AutodartsEventType =
   | 'turn.finished'
   | 'game.finished'
   | 'match.finished'
+  | 'cricket.state'
+  | 'cricket.closed'
   | 'raw';
+
+// Game mode and Cricket types (duplicated from src/core/game/cricket.ts; keep in sync)
+export type GameMode = 'x01' | 'cricket' | 'tactics' | 'other';
+export interface GameContext { variant: string; mode: GameMode; cutThroat: boolean }
+export interface CricketPlayerState { index: number; name: string; points: number; marks: Record<string, number> }
+export interface CricketStateData {
+  matchId: string; set: number; leg: number;
+  mode: 'cricket' | 'tactics'; cutThroat: boolean;
+  fields: string[]; deadFields: string[]; players: CricketPlayerState[];
+}
+export interface CricketClosedData { matchId: string; set: number; leg: number; field: string; playerIndex: number; playerName: string }
 
 export interface ParsedEvent<T = unknown> {
   type: AutodartsEventType;
@@ -46,6 +59,13 @@ export interface ThrowData {
   coords?: ThrowCoords;
   throwNumber: number;
   boardId: string;
+  /** The turn this dart belongs to, when known from match.state (null otherwise) */
+  turnId?: string | null;
+  /** Marks scored by this dart (Cricket/Tactics only) */
+  marks?: number;
+  /** Running marks of the turn up to and including this dart (Cricket/Tactics only) */
+  turnMarks?: number;
+  game?: GameContext;
 }
 
 export interface MatchData {

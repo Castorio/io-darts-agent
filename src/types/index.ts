@@ -51,6 +51,11 @@ export interface WSUnsubscribeMessage {
 
 export type WSOutgoingMessage = WSSubscribeMessage | WSUnsubscribeMessage;
 
+// Game mode and Cricket types (defined in core/game/cricket.ts, re-exported here
+// for events so modules can import them from a single place)
+export type { GameMode, GameContext, CricketStateData, CricketClosedData } from '../core/game/cricket.js';
+import type { GameContext, CricketStateData, CricketClosedData } from '../core/game/cricket.js';
+
 // Autodarts Event Types
 export interface AutodartsMessage {
   channel: string;
@@ -284,6 +289,8 @@ export type AutodartsEventType =
   | 'turn.finished'
   | 'game.finished'
   | 'match.finished'
+  | 'cricket.state'
+  | 'cricket.closed'
   | 'raw';
 
 export interface ParsedEvent<T = unknown> {
@@ -299,6 +306,13 @@ export interface ThrowDetectedEvent extends ParsedEvent<{
   coords?: ThrowCoords;
   throwNumber: number;
   boardId: string;
+  /** The turn this dart belongs to, when known from match.state (null otherwise) */
+  turnId?: string | null;
+  /** Marks scored by this dart (Cricket/Tactics only) */
+  marks?: number;
+  /** Running marks of the turn up to and including this dart (Cricket/Tactics only) */
+  turnMarks?: number;
+  game?: GameContext;
 }> {
   type: 'throw.detected';
 }
@@ -321,6 +335,7 @@ export interface MatchStateEvent extends ParsedEvent<{
   winner: number | null;
   variant?: string;
   segments?: Record<string, number[]> | null;
+  game?: GameContext;
 }> {
   type: 'match.state';
 }
@@ -329,6 +344,7 @@ export interface PlayerChangeEvent extends ParsedEvent<{
   previousPlayer: number;
   currentPlayer: number;
   playerName: string;
+  game?: GameContext;
 }> {
   type: 'player.change';
 }
@@ -342,8 +358,19 @@ export interface TurnFinishedEvent extends ParsedEvent<{
   remaining: number;
   busted: boolean;
   round: number;
+  /** Marks scored in this turn (Cricket/Tactics only) */
+  turnMarks?: number;
+  game?: GameContext;
 }> {
   type: 'turn.finished';
+}
+
+export interface CricketStateEvent extends ParsedEvent<CricketStateData> {
+  type: 'cricket.state';
+}
+
+export interface CricketClosedEvent extends ParsedEvent<CricketClosedData> {
+  type: 'cricket.closed';
 }
 
 export interface MatchResultPlayerStats {

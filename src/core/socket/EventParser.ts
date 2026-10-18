@@ -10,7 +10,17 @@ import type {
   MatchResultData,
   ThrowSegment,
   ThrowCoords,
+  CricketClosedData,
 } from '../../types/index.js';
+import {
+  gameContextOf,
+  isCricketMode,
+  segmentsOf,
+  closedFields,
+  cricketStateOf,
+  throwMarks,
+  type CricketSegments,
+} from '../game/cricket.js';
 
 export interface EventParserOptions {
   debug?: boolean;
@@ -30,10 +40,25 @@ export class EventParser {
   private lastTurnBusted: boolean = false;
   private lastGameScores: number[] = [];
   private lastDartsInTurn: number = 0;
+  private lastCricketSegments: CricketSegments | null = null;
+  private lastCricketKey: string | null = null;
+  private lastCricketLegKey: string | null = null;
+  private cricketClosed = new Set<string>();
 
   constructor(boardId: string, options: EventParserOptions = {}) {
     this.boardId = boardId;
     this.debug = options.debug ?? false;
+  }
+
+  /**
+   * Reset Cricket tracking state (per-match/leg bookkeeping for cricket.state
+   * and cricket.closed deduplication)
+   */
+  private resetCricket(): void {
+    this.lastCricketSegments = null;
+    this.lastCricketKey = null;
+    this.lastCricketLegKey = null;
+    this.cricketClosed.clear();
   }
 
   /**
@@ -57,6 +82,7 @@ export class EventParser {
       this.lastTurnBusted = false;
       this.lastGameScores = [];
       this.lastDartsInTurn = 0;
+      this.resetCricket();
     }
   }
 
@@ -143,6 +169,7 @@ export class EventParser {
       this.lastTurnBusted = false;
       this.lastGameScores = [];
       this.lastDartsInTurn = 0;
+      this.resetCricket();
 
       return {
         type: 'match.start',
@@ -163,6 +190,7 @@ export class EventParser {
       this.lastTurnBusted = false;
       this.lastGameScores = [];
       this.lastDartsInTurn = 0;
+      this.resetCricket();
 
       return {
         type: 'match.delete',
@@ -186,6 +214,7 @@ export class EventParser {
       this.lastTurnBusted = false;
       this.lastGameScores = [];
       this.lastDartsInTurn = 0;
+      this.resetCricket();
 
       return {
         type: 'match.finish',
@@ -272,6 +301,8 @@ export class EventParser {
     data: MatchStateData,
     timestamp: Date
   ): ParsedEvent | ParsedEvent[] {
+    const game = gameContextOf(data);
+    const cricket = isCricketMode(game.mode);
     const events: ParsedEvent[] = [];
 
     // Store the current match state
@@ -313,9 +344,53 @@ export class EventParser {
               turnPoints,
               // Only the newest dart can have caused the bust reported in this update
               busted: data.turnBusted === true && i === dartsInCurrentTurn - 1,
+              turnId: currentTurn.id ?? null,
+              ...(cricket && {
+                marks: throwMarks(throwData),
+                turnMarks: currentTurn.throws.slice(0, i + 1).reduce((s, t) => s + throwMarks(t), 0),
+              }),
             },
           });
         }
+      }
+    }
+
+    // Cricket: closed fields and state (marks/points) publishing
+    if (cricket) {
+      // A new leg never produces a "closed" against marks carried over from the previous one
+      const legKey = `${data.id}:${data.set}:${data.leg}`;
+      if (this.lastCricketLegKey !== legKey) {
+        this.lastCricketLegKey = legKey;
+        this.lastCricketSegments = null;
+      }
+
+      const segments = segmentsOf(data);
+      const activePlayer = data.players[data.player];
+      for (const field of closedFields(this.lastCricketSegments, segments, data.player)) {
+        const key = `${data.id}:${data.set}:${data.leg}:${activePlayer?.index ?? data.player}:${field}`;
+        if (this.cricketClosed.has(key)) continue;
+        this.cricketClosed.add(key);
+        events.push({
+          type: 'cricket.closed',
+          timestamp,
+          raw,
+          data: {
+            matchId: data.id,
+            set: data.set,
+            leg: data.leg,
+            field,
+            playerIndex: activePlayer?.index ?? data.player,
+            playerName: activePlayer?.name ?? 'Unknown',
+          } satisfies CricketClosedData,
+        });
+      }
+      this.lastCricketSegments = segments;
+
+      const state = cricketStateOf(data);
+      const stateKey = JSON.stringify(state);
+      if (state && stateKey !== this.lastCricketKey) {
+        this.lastCricketKey = stateKey;
+        events.push({ type: 'cricket.state', timestamp, raw, data: state });
       }
     }
 
@@ -340,6 +415,7 @@ export class EventParser {
           busted: true,
           round: data.round,
           throws: currentTurn?.throws ?? [], // Include throws for bull/double bull detection
+          ...(cricket && { turnMarks: (currentTurn?.throws ?? []).reduce((s, t) => s + throwMarks(t), 0) }),
         },
       });
     }
@@ -367,6 +443,7 @@ export class EventParser {
           busted: false,
           round: data.round,
           throws: currentTurn?.throws ?? [], // Include throws for bull/double bull detection
+          ...(cricket && { turnMarks: (currentTurn?.throws ?? []).reduce((s, t) => s + throwMarks(t), 0) }),
         },
       });
     }
@@ -397,6 +474,7 @@ export class EventParser {
           busted: this.lastTurnBusted,
           round: this.lastRound!,
           throws: previousTurn?.throws ?? [], // Include throws for bull/double bull detection
+          ...(cricket && { turnMarks: (previousTurn?.throws ?? []).reduce((s, t) => s + throwMarks(t), 0) }),
         },
       });
     }
@@ -461,7 +539,7 @@ export class EventParser {
       // The player who checked out has 0 left; gameScores follows the players
       // order of the same state. gameWinner is the fallback (non-X01 variants).
       // Only X01 counts down to 0; in Cricket gameScores are points
-      const checkedOut = isX01(data)
+      const checkedOut = game.mode === 'x01'
         ? data.gameScores?.map((score, i) => (score === 0 ? i : -1)).filter((i) => i >= 0) ?? []
         : [];
       const gameWinnerPlayer = checkedOut.length === 1 ? data.players[checkedOut[0]] : gameWinnerByIndex;
@@ -488,7 +566,7 @@ export class EventParser {
     if (data.finished && data.winner !== null) {
       // The player who checked out the last leg has 0 left (players order of this
       // state); the index lookup is the fallback for non-X01 variants
-      const lastCheckout = isX01(data)
+      const lastCheckout = game.mode === 'x01'
         ? data.gameScores?.map((score, i) => (score === 0 ? i : -1)).filter((i) => i >= 0) ?? []
         : [];
       const matchWinnerPlayer = lastCheckout.length === 1
@@ -562,6 +640,7 @@ export class EventParser {
       this.lastTurnBusted = false;
       this.lastGameScores = [];
       this.lastDartsInTurn = 0;
+      this.resetCricket();
     }
 
     // Always emit match state event
@@ -595,15 +674,11 @@ export class EventParser {
       },
     });
 
+    // All events created here are match events, so they all carry the game context
+    for (const e of events) (e.data as Record<string, unknown>).game = game;
+
     return events.length === 1 ? events[0] : events;
   }
-}
-
-/**
- * X01 counts each player down to 0; other variants (Cricket) count points up
- */
-function isX01(state: MatchStateData): boolean {
-  return !state.variant || state.variant === 'X01';
 }
 
 /**

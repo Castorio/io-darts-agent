@@ -215,7 +215,7 @@ describe('Match Routes', () => {
       expect(body.lastUpdated).toBe('2024-01-01T12:05:00.000Z');
     });
 
-    it('includes the Cricket marks and the current turn, so a reloaded display can draw them', async () => {
+    it('includes the Cricket state and the current turn, so a reloaded display can draw them', async () => {
       const segments = { '20': [4, 1], '25': [0, 0] };
       const turns = [{ id: 'turn-1' }, { id: 'turn-2' }] as unknown as MatchStateData['turns'];
       getCurrentMatch.mockReturnValue(createMockMatchState({ variant: 'Cricket', state: { segments }, turns }));
@@ -223,8 +223,16 @@ describe('Match Routes', () => {
       const response = await fastify.inject({ method: 'GET', url: '/api/match/current' });
       const body = JSON.parse(response.body);
 
-      expect(body.segments).toEqual(segments);
+      expect(body.cricket).toMatchObject({
+        mode: 'cricket',
+        fields: ['20', '25'],
+        players: [
+          expect.objectContaining({ index: 0, marks: expect.objectContaining({ '20': 4 }) }),
+          expect.objectContaining({ index: 1, marks: expect.objectContaining({ '20': 1 }) }),
+        ],
+      });
       expect(body.turns).toEqual([{ id: 'turn-2' }]);
+      expect(body.segments).toBeUndefined();
     });
 
     it('should include player info with scores and averages', async () => {

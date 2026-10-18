@@ -3,7 +3,7 @@
  * announcements. Shared by the voice pack generator (getDefaultPhrases) and
  * the handler (text + audio file name for a live announcement).
  */
-import { scoreToEnglish, scoreToGerman, type PhraseEntry } from './VoicePackGenerator.js';
+import { scoreToEnglish, scoreToGerman, type PhraseEntry } from './numberWords.js';
 
 export type { PhraseEntry };
 

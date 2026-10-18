@@ -940,6 +940,22 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
   }
 
+  /**
+   * Drops everything that belongs to the previous match. Without this the
+   * winner of a finished match stayed set, so the first state of the next
+   * match was handled as a finished state and kept the old players.
+   */
+  function clearPreviousMatch() {
+    gameState.value.winner = null
+    gameState.value.players = []
+    gameState.value.activePlayerIndex = 0
+    gameState.value.cricket = null
+    lastProcessedDartsCount = 0
+    throwAnimationTracker.reset()
+    cricketAnimationTracker.reset()
+    playerResolver.reset()
+  }
+
   function handleMatchStart(data: Record<string, unknown>) {
     console.log('handleMatchStart data:', data)
 
@@ -950,15 +966,10 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     }
     showMatchResults.value = false
 
-    // Reset dart tracking for new match
-    lastProcessedDartsCount = 0
+    // Winner, players and trackers of the previous match must not carry over
+    // (also resets the PlayerResolver, so name -> index starts fresh)
+    clearPreviousMatch()
     lastGameIsCricket.value = false
-    cricketAnimationTracker.reset()
-
-    // WICHTIG: PlayerResolver für neues Match zurücksetzen
-    // Dies löscht die originalen Name->Index Zuordnungen, damit sie
-    // beim ersten handleMatchState neu initialisiert werden
-    playerResolver.reset()
 
     // Set match started state
     isMatchStarted.value = true
@@ -975,6 +986,13 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     // Clear match started state when we receive actual match data
     isMatchStarted.value = false
     matchStartedMatchId.value = null
+
+    // A different match (also when its match.start was missed, e.g. after a
+    // reconnect): the winner and players of the previous match must not carry over
+    const incomingMatchId = data.matchId as string | undefined
+    if (incomingMatchId && gameState.value.matchId && incomingMatchId !== gameState.value.matchId) {
+      clearPreviousMatch()
+    }
 
     gameState.value.matchId = data.matchId as string
     gameState.value.isActive = true

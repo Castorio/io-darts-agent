@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
+import fastifyCookie from '@fastify/cookie';
 import { ModuleRouteRegistry, type ModuleRouteRegistration } from './ModuleRouteRegistry.js';
 
 const registration: ModuleRouteRegistration = {
@@ -54,5 +55,48 @@ describe('ModuleRouteRegistry', () => {
     expect(registry.hasRoutes('demo')).toBe(false);
     const res = await fastify.inject({ method: 'GET', url: '/api/modules/demo/routes/ping' });
     expect(res.statusCode).toBe(404);
+  });
+
+  describe('authentication', () => {
+    const authedRegistration: ModuleRouteRegistration = {
+      moduleId: 'demo',
+      // requireAuth omitted -> defaults to true
+      routes: [{ method: 'GET', path: '/ping', handlerId: 'ping' }],
+    };
+
+    async function setupWithAuth(): Promise<ModuleRouteRegistry> {
+      fastify = Fastify();
+      await fastify.register(fastifyCookie);
+      const registry = new ModuleRouteRegistry();
+      registry.initialize(fastify, {
+        isAuthEnabled: () => true,
+        getSession: (sessionId) =>
+          sessionId === 'valid-session-id' ? { authenticated: true } : undefined,
+      });
+      registry.setRouteHandler('demo', () => Promise.resolve({ statusCode: 200, body: { pong: 1 } }));
+      await registry.registerRoutes(authedRegistration);
+      return registry;
+    }
+
+    it('lets a request through when it carries the cookie the hub login sets', async () => {
+      await setupWithAuth();
+
+      const res = await fastify.inject({
+        method: 'GET',
+        url: '/api/modules/demo/routes/ping',
+        headers: { cookie: 'autodarts_session=valid-session-id' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ pong: 1 });
+    });
+
+    it('rejects a request with no session cookie', async () => {
+      await setupWithAuth();
+
+      const res = await fastify.inject({ method: 'GET', url: '/api/modules/demo/routes/ping' });
+
+      expect(res.statusCode).toBe(401);
+    });
   });
 });

@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import type { APIServer } from '../Server.js';
 
-const SESSION_COOKIE = 'autodarts_session';
+export const SESSION_COOKIE = 'autodarts_session';
 
 declare module 'fastify' {
   interface FastifyRequest {

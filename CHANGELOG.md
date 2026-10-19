@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Modul-Routen mit aktivierter Web-Anmeldung**: Modul-Routen mit Login-Pflicht (`/api/modules/:id/routes/*`, Standard) lasen das Session-Cookie unter dem falschen Namen und lieferten bei eingeloggten Clients trotzdem `401`.
 - **Modul-Installation mit kollidierender Manifest-ID**: Die Installation eines Moduls, dessen Manifest-`id` bereits registriert ist, wird jetzt abgelehnt (`409`), statt die bestehende Registrierung zu überschreiben.
 - **Online-Matches mit Ausbullen**: Das Ausbullen (Variante "Bull-off") lief unter derselben Match-ID als "Leg 1" und verschluckte den Sieg des ersten X01-Legs. Es zählt nicht mehr als Leg und löst keine Leg-Animation und kein "Game Shot" mehr aus.
 - **Spielerwechsel nach dem Leg**: Nach dem Rotieren der Spieler wurde der Startspieler des nächsten Legs nicht gemeldet; Display, WLED und Darts Caller blieben beim vorherigen Spieler, bis dieser geworfen hatte.

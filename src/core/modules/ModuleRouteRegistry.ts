@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { EventEmitter } from 'events';
+import { SESSION_COOKIE } from '../../api/middleware/auth.js';
 
 /**
  * HTTP method types supported for module routes
@@ -421,8 +422,8 @@ export class ModuleRouteRegistry extends EventEmitter {
       return true;
     }
 
-    // Get session from cookie
-    const sessionId = (request.cookies as Record<string, string>)?.['session'];
+    // Get session from cookie (same cookie the hub login sets, see auth.ts)
+    const sessionId = (request.cookies as Record<string, string>)?.[SESSION_COOKIE];
     if (!sessionId) {
       return false;
     }

@@ -4,11 +4,13 @@ import { assignPlayerColors, DEFAULT_PLAYER_COLORS } from './core/players/player
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { APIServer } from './api/Server.js';
+import { StoreCatalog } from './core/store/catalog.js';
 import {
   registerSetupRoutes,
   registerAuthRoutes,
   registerStatusRoutes,
   registerModuleRoutes,
+  registerStoreRoutes,
   registerSettingsRoutes,
   registerWebSocketRoutes,
   registerPlayerRoutes,
@@ -1249,6 +1251,42 @@ async function main(): Promise<void> {
   }
   scanInstalledModules();
 
+  // Shared install implementation: used by the module management routes
+  // (git or local install) and the store routes (always git, url/branch
+  // supplied by the validated catalog entry).
+  const installModuleImpl = async (
+    source: 'git' | 'local',
+    url?: string,
+    modulePath?: string,
+    branch?: string
+  ): Promise<string> => {
+    console.log(`📥 Installing module from ${source}: ${url || modulePath}`);
+
+    const result = await moduleInstaller.install({
+      type: source,
+      url: source === 'git' ? url : undefined,
+      path: source === 'local' ? modulePath : undefined,
+      branch: branch,
+    });
+
+    if (!result.success || !result.manifest) {
+      throw new Error(result.error || 'Installation failed');
+    }
+
+    // Track the installed module with default config values
+    const defaultConfig = getDefaultConfig(result.manifest);
+    installedModules.set(result.moduleId, {
+      id: result.moduleId,
+      manifest: result.manifest,
+      path: result.path,
+      status: 'stopped',
+      configValues: defaultConfig,
+    });
+
+    console.log(`✅ Installed module: ${result.manifest.name} (${result.moduleId})`);
+    return result.moduleId;
+  };
+
   // Register Module Routes
   registerModuleRoutes(fastify, server, {
     listModules: (): ModuleListItem[] => {
@@ -1505,33 +1543,7 @@ async function main(): Promise<void> {
       console.log(`🔄 Restarted module: ${mod.manifest.name}`);
       resolve();
     }),
-    installModule: async (source: 'git' | 'local', url?: string, modulePath?: string, branch?: string): Promise<string> => {
-      console.log(`📥 Installing module from ${source}: ${url || modulePath}`);
-
-      const result = await moduleInstaller.install({
-        type: source,
-        url: source === 'git' ? url : undefined,
-        path: source === 'local' ? modulePath : undefined,
-        branch: branch,
-      });
-
-      if (!result.success || !result.manifest) {
-        throw new Error(result.error || 'Installation failed');
-      }
-
-      // Track the installed module with default config values
-      const defaultConfig = getDefaultConfig(result.manifest);
-      installedModules.set(result.moduleId, {
-        id: result.moduleId,
-        manifest: result.manifest,
-        path: result.path,
-        status: 'stopped',
-        configValues: defaultConfig,
-      });
-
-      console.log(`✅ Installed module: ${result.manifest.name} (${result.moduleId})`);
-      return result.moduleId;
-    },
+    installModule: installModuleImpl,
     uninstallModule: async (id: string): Promise<void> => {
       const mod = installedModules.get(id);
       if (!mod) throw new Error(`Module ${id} not found`);
@@ -1665,6 +1677,31 @@ async function main(): Promise<void> {
       }
       return settings;
     },
+  });
+
+  // Register Store Routes
+  const defaultStoreCatalogUrl = 'https://raw.githubusercontent.com/Castorio/io-darts-agent/main/store/modules.json';
+  let storeCatalogUrl = defaultStoreCatalogUrl;
+  if (process.env.IO_DARTS_STORE_URL) {
+    try {
+      if (new URL(process.env.IO_DARTS_STORE_URL).protocol === 'https:') {
+        storeCatalogUrl = process.env.IO_DARTS_STORE_URL;
+      } else {
+        console.warn('⚠️  IO_DARTS_STORE_URL must use https:, ignoring and using the default catalog URL');
+      }
+    } catch {
+      console.warn('⚠️  IO_DARTS_STORE_URL is not a valid URL, ignoring and using the default catalog URL');
+    }
+  }
+  const storeCatalog = new StoreCatalog({ url: storeCatalogUrl });
+  registerStoreRoutes(fastify, server, {
+    catalog: storeCatalog,
+    installedVersion: (id: string): string | null => {
+      const mod = installedModules.get(id);
+      return mod ? mod.manifest.version : null;
+    },
+    installModule: (url: string, branch: string): Promise<string> =>
+      installModuleImpl('git', url, undefined, branch),
   });
 
   // Register Settings Routes

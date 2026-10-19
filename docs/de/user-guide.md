@@ -624,7 +624,7 @@ So kannst du WLED, Game Display und Caller testen, ohne zu werfen.
 
 ## Neue Module installieren
 
-**Desktop-App:** Die Installation eines externen Moduls (aus dem Store oder per Git-/lokalem Pfad) braucht Git und Node.js auf dem Computer, auf dem die App läuft - die Desktop-App bringt keines von beiden mit. Eingebaute Module funktionieren ohne beide. Fehlt eines, bricht die Installation mit einer Meldung ab, die benennt, welches installiert werden muss.
+**Desktop-App:** Die Installation eines externen Moduls (aus dem Store oder per Git-/lokalem Pfad) braucht Git und Node.js auf dem Computer, auf dem die App läuft - die Desktop-App bringt keines von beiden mit. Eingebaute Module funktionieren ohne beide. Fehlt eines komplett, bricht die Installation mit einer Meldung ab, die benennt, welches installiert werden muss. Unter macOS kann ein noch nie benutztes `git` stattdessen zur Installation von Apples Command Line Tools auffordern - siehe [Installation](installation.md#externe-module-installieren), falls das passiert.
 
 1. Gehe zu **Module** und klicke auf **Modul installieren**
 

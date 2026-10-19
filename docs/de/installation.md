@@ -437,7 +437,9 @@ Die App nutzt Port 3000. Ist der Port belegt, starte sie mit der Umgebungsvariab
 
 ### Externe Module installieren
 
-Eingebaute Module (WLED, Darts Caller, Game Display) funktionieren ohne Zusätze. Die Installation eines externen Moduls - aus dem [Modul-Store](user-guide.md#modul-store) oder per Git/lokalem Pfad - führt `git` und `npm` auf deinem Computer aus; die Desktop-App bringt beides nicht mit. Installiere vorher [Git](https://git-scm.com/downloads) und [Node.js](https://nodejs.org/), falls noch nicht vorhanden; fehlt eines davon, bricht die Installation mit einer Meldung ab, die benennt, welches.
+Eingebaute Module (WLED, Darts Caller, Game Display) funktionieren ohne Zusätze. Die Installation eines externen Moduls - aus dem [Modul-Store](user-guide.md#modul-store) oder per Git/lokalem Pfad - führt `git` und `npm` auf deinem Computer aus; die Desktop-App bringt beides nicht mit. Installiere vorher [Git](https://git-scm.com/downloads) und [Node.js](https://nodejs.org/), falls noch nicht vorhanden; fehlt eines komplett, bricht die Installation mit einer Meldung ab, die benennt, welches.
+
+Unter macOS kann `git` auch als Platzhalter vorhanden sein, der erst funktioniert, wenn Apples Command Line Tools installiert sind - wurde `git` auf diesem Mac noch nie benutzt, kann die Installation stattdessen mit einem macOS-Dialog zur Installation der Command Line Tools fehlschlagen (oder mit einer allgemeinen Fehlermeldung, falls ohne Desktop-Sitzung ausgeführt), statt der obigen Meldung. Führe `xcode-select --install` aus und versuche es erneut, oder installiere Git direkt von [git-scm.com](https://git-scm.com/downloads).
 
 ### Selbst bauen
 

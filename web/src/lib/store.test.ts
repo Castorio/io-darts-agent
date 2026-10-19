@@ -4,6 +4,7 @@ import {
   normalizeLocale,
   isSafeExternalUrl,
   sortStoreModules,
+  isAlreadyInstalledError,
   type LocalizedText,
 } from './store'
 import de from '../i18n/locales/de'
@@ -99,15 +100,39 @@ describe('sortStoreModules', () => {
   })
 })
 
+describe('isAlreadyInstalledError', () => {
+  it('recognizes an APIError-shaped 409 (statusCode on the error object)', () => {
+    expect(isAlreadyInstalledError({ statusCode: 409, message: 'Module already installed' })).toBe(true)
+  })
+
+  it('rejects other status codes', () => {
+    expect(isAlreadyInstalledError({ statusCode: 404, message: 'Module not found in store' })).toBe(false)
+    expect(isAlreadyInstalledError({ statusCode: 500, message: 'boom' })).toBe(false)
+    expect(isAlreadyInstalledError({ statusCode: 503, message: 'unavailable' })).toBe(false)
+  })
+
+  it('rejects values that are not error-like objects', () => {
+    expect(isAlreadyInstalledError(null)).toBe(false)
+    expect(isAlreadyInstalledError(undefined)).toBe(false)
+    expect(isAlreadyInstalledError('409')).toBe(false)
+    expect(isAlreadyInstalledError(new Error('plain error, no statusCode'))).toBe(false)
+    expect(isAlreadyInstalledError({ message: 'no statusCode field' })).toBe(false)
+  })
+})
+
 describe('store i18n keys', () => {
   const keys = [
     'title',
     'subtitle',
+    'openStore',
+    'backToModules',
     'category',
     'byAuthor',
     'viewRepo',
+    'viewHomepage',
     'installed',
     'install',
+    'installing',
     'installFailed',
     'unavailable',
     'retry',

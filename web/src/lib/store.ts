@@ -45,6 +45,19 @@ export function isSafeExternalUrl(url: string | null | undefined): url is string
   }
 }
 
+/**
+ * Decides whether a thrown install error means "already installed" (the
+ * hub's POST /api/store/:id/install returns 409 for that case), as opposed
+ * to any other failure. Duck-typed against the shape of client.ts's
+ * APIError (a `statusCode` number on the thrown value) rather than
+ * importing that class, so this stays a dependency-free pure function.
+ */
+export function isAlreadyInstalledError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const statusCode = (error as { statusCode?: unknown }).statusCode
+  return statusCode === 409
+}
+
 export interface StoreModuleSummary {
   category: string
   name: LocalizedText

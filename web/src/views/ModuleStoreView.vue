@@ -2,7 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api, APIError } from '../api/client'
-import { localizedText, isSafeExternalUrl, sortStoreModules } from '../lib/store'
+import { localizedText, isSafeExternalUrl, sortStoreModules, isAlreadyInstalledError } from '../lib/store'
 import AppLayout from '../components/AppLayout.vue'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
@@ -83,9 +83,16 @@ async function installModule(module: StoreModule) {
       }
     }
   } catch (e) {
-    const message =
-      e instanceof APIError || e instanceof Error ? e.message : t('store.installFailed')
-    installErrors.value = { ...installErrors.value, [module.id]: message }
+    if (isAlreadyInstalledError(e)) {
+      // 409: the hub considers it already installed. Treat this the same as
+      // a successful install - reload so the card switches to the
+      // "Installiert" badge instead of getting stuck on a failed button.
+      await loadStore()
+    } else {
+      const message =
+        e instanceof APIError || e instanceof Error ? e.message : t('store.installFailed')
+      installErrors.value = { ...installErrors.value, [module.id]: message }
+    }
   } finally {
     installingId.value = null
   }

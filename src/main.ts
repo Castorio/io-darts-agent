@@ -44,6 +44,7 @@ import { getModuleRouteRegistry, type ModuleRouteRequest, type ModuleRouteRespon
 import {
   stopExternalModule,
   stopAllExternalModules as stopAllExternalModulesImpl,
+  restartExternalModule,
 } from './core/modules/externalModuleLifecycle.js';
 import type { RoutesRegisterPayload } from './types/modules.js';
 import { spawn, ChildProcess } from 'child_process';
@@ -1478,8 +1479,8 @@ async function main(): Promise<void> {
       mod.status = 'stopped';
       console.log(`⏹️  Stopped module: ${mod.manifest.name}`);
     },
-    // Promise executor: a throw (unknown module, handler setup) becomes a rejection
-    restartModule: (id: string): Promise<void> => new Promise<void>((resolve) => {
+    // A thrown error (unknown module, handler setup) rejects the returned promise.
+    restartModule: async (id: string): Promise<void> => {
       const mod = installedModules.get(id);
       if (!mod) throw new Error(`Module ${id} not found`);
 
@@ -1532,12 +1533,16 @@ async function main(): Promise<void> {
             await mod.dartsCallerHandler.handleEvent(event);
           }
         };
+      } else if (mod.manifest.entry && mod.manifest.entry !== 'internal') {
+        // External SDK-based module: it runs as its own process, so restart can't
+        // just swap a handler in place like the built-ins above - stop the old
+        // process (waiting for it to actually exit) and spawn a fresh one.
+        await restartExternalModule(mod, startExternalModule);
       }
 
       mod.status = 'running';
       console.log(`🔄 Restarted module: ${mod.manifest.name}`);
-      resolve();
-    }),
+    },
     installModule: installModuleImpl,
     uninstallModule: uninstallModuleImpl,
     updateModule: async (id: string): Promise<{ success: boolean; previousVersion?: string; newVersion?: string; error?: string }> => {

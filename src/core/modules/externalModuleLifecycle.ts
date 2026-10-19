@@ -98,3 +98,22 @@ export async function stopAllExternalModules(modules: Iterable<ExternalProcessMo
     )
   );
 }
+
+/**
+ * Restart an external module: stop its current process (waiting for it to
+ * actually exit) and then start a new one.
+ *
+ * Unlike built-in, in-process modules (which restart by swapping a handler in
+ * place), an external module runs as its own child process, so restarting it
+ * cannot just reconfigure something in-process — the old process/bridge must be
+ * torn down first, or `start` would see `mod.process` still set (via
+ * `createStartOnce`'s `isRunning` check) and treat the module as already
+ * running, making restart a no-op.
+ */
+export async function restartExternalModule<T extends ExternalProcessModule>(
+  mod: T,
+  start: (mod: T) => Promise<void>
+): Promise<void> {
+  await stopExternalModule(mod);
+  await start(mod);
+}

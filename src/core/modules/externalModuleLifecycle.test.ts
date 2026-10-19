@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'events';
 import {
   stopExternalModule,
+  restartExternalModule,
   type ExternalProcessModule,
   type ExternalProcessHandle,
 } from './externalModuleLifecycle.js';
@@ -68,5 +69,39 @@ describe('stopExternalModule', () => {
     proc.emit('exit', 0, null);
 
     await expect(stopPromise).resolves.toBeUndefined();
+  });
+});
+
+describe('restartExternalModule', () => {
+  it('waits for the old process to fully stop before starting a new one', async () => {
+    const { mod, proc } = makeRunningExternalModule();
+    const start = vi.fn().mockImplementation(async (m: ExternalProcessModule) => {
+      // By the time start() runs, the old process/bridge must already be gone -
+      // this is what makes restart actually restart an external module, instead
+      // of start() seeing mod.process still set and treating it as already running.
+      expect(m.process).toBeUndefined();
+      expect(m.bridge).toBeUndefined();
+    });
+
+    const restartPromise = restartExternalModule(mod, start);
+    // Let stopExternalModule's unregisterRoutes() await and its exit-wait
+    // registration settle before the process actually exits.
+    await new Promise((resolve) => setImmediate(resolve));
+    proc.emit('exit', 0, null);
+
+    await restartPromise;
+
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledWith(mod);
+  });
+
+  it('starts even when the module had nothing running (crashed/never started)', async () => {
+    const mod: ExternalProcessModule = { id: 'homeassistant', manifest: { name: 'Home Assistant' } };
+    const start = vi.fn().mockResolvedValue(undefined);
+
+    await restartExternalModule(mod, start);
+
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledWith(mod);
   });
 });

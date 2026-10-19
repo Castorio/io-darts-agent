@@ -10,6 +10,7 @@ import type {
   UpdateResult,
 } from '../../types/modules.js';
 import { copyModuleDir, readSimpleGitignoreNames } from './localInstallCopy.js';
+import { ensureSdkLink } from './sdkLink.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -458,38 +459,11 @@ export class ModuleInstaller extends EventEmitter {
    * After git clone, the relative path in package.json may point to wrong location
    */
   private async fixSdkLink(modulePath: string): Promise<void> {
-    const SDK_PACKAGE = '@autodarts-hub/module-sdk';
-    let declared = false;
-    try {
-      const pkg = JSON.parse(await fs.readFile(path.join(modulePath, 'package.json'), 'utf-8')) as {
-        dependencies?: Record<string, string>;
-        devDependencies?: Record<string, string>;
-      } | null;
-      declared = !!(pkg?.dependencies?.[SDK_PACKAGE] ?? pkg?.devDependencies?.[SDK_PACKAGE]);
-    } catch {
-      return; // no readable package.json, nothing to link
-    }
-    if (!declared) return;
-
-    // Modules often point to the SDK with a file: path of their author's
-    // machine; npm then leaves a missing link, a broken one or an empty folder
-    const sdkLinkPath = path.join(modulePath, 'node_modules', '@autodarts-hub', 'module-sdk');
-    if (await this.exists(path.join(sdkLinkPath, 'package.json'))) return;
-
     const sdkPath = this.options.sdkPath ?? path.resolve(this.options.modulesDir, '..', 'module-sdk');
-    if (!(await this.exists(path.join(sdkPath, 'package.json')))) {
-      this.emit('progress', {
-        step: 'fix-sdk-warning',
-        message: `Warning: module-sdk not found at ${sdkPath}, module may not build correctly`,
-      });
-      return;
-    }
-
-    await fs.rm(sdkLinkPath, { recursive: true, force: true });
-    await fs.mkdir(path.dirname(sdkLinkPath), { recursive: true });
-    // A junction needs no admin rights on Windows, so updates reach the module there too
-    await fs.symlink(sdkPath, sdkLinkPath, process.platform === 'win32' ? 'junction' : 'dir');
-    this.emit('progress', { step: 'fix-sdk', message: 'Linked the hub module SDK' });
+    await ensureSdkLink(modulePath, sdkPath, {
+      onWarning: (message) => this.emit('progress', { step: 'fix-sdk-warning', message }),
+      onLinked: (message) => this.emit('progress', { step: 'fix-sdk', message }),
+    });
   }
 
   private async exists(file: string): Promise<boolean> {

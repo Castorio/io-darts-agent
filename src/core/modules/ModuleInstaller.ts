@@ -56,6 +56,8 @@ function npmEnv(): NodeJS.ProcessEnv {
     npm_config_runtime: 'electron',
     npm_config_target: electron,
     npm_config_disturl: 'https://electronjs.org/headers',
+    // prebuilt binaries must match the app, not an x64/arm64 Node of the user
+    npm_config_arch: process.arch,
   };
 }
 

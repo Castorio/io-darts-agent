@@ -102,6 +102,16 @@ function hubUrl() {
   return `http://localhost:${hubPort()}`;
 }
 
+// Resolved once: asking the login shell can take seconds, and the backend is
+// started again on every restart from the settings page
+let cachedUserPath = null;
+function userPath() {
+  if (cachedUserPath === null) {
+    cachedUserPath = resolveUserPath({ platform: process.platform, env: process.env, execFileSync });
+  }
+  return cachedUserPath;
+}
+
 function startBackend() {
   const backendPath = getAppRoot('dist', 'src', 'main.js');
   const dataDir = hubDataDir();
@@ -113,7 +123,7 @@ function startBackend() {
     ...process.env,
     // Finder/desktop launches get a minimal PATH; module installs need the
     // user's git, node and npm (see userPath.cjs)
-    PATH: resolveUserPath({ platform: process.platform, env: process.env, execFileSync }),
+    PATH: userPath(),
     ELECTRON_RUN_AS_NODE: '1',
     IO_DARTS_DATA_DIR: dataDir,
     IO_DARTS_SUPERVISED: '1',
@@ -401,13 +411,17 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
+  // Keep the app (and so the backend's output pipes) alive until the backend
+  // has exited, then quit for real. A second quit while waiting must not
+  // slip through, or the SIGKILL fallback dies with the app.
+  let backendStop = null;
   app.on('before-quit', (event) => {
     isQuitting = true;
-    if (!backendProcess) return;
-    // Keep the app (and so the backend's output pipes) alive until the
-    // backend has exited, then quit for real
+    if (!backendProcess && !backendStop) return;
     event.preventDefault();
-    void stopBackend().finally(() => app.exit(0));
+    if (!backendStop) {
+      backendStop = stopBackend().finally(() => app.exit(0));
+    }
   });
 
   // Handle uncaught exceptions

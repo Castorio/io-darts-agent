@@ -347,6 +347,7 @@ describe('ModuleInstaller', () => {
           npm_config_runtime: 'electron',
           npm_config_target: '41.1.0',
           npm_config_disturl: 'https://electronjs.org/headers',
+          npm_config_arch: process.arch,
           PATH: process.env.PATH,
         });
       }

@@ -40,7 +40,12 @@ describe('resolveUserPath', () => {
     });
 
     expect(result).toBe('/Users/me/.nvm/versions/node/v22/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin');
-    expect(execFileSync).toHaveBeenCalledWith('/bin/zsh', ['-ilc', expect.any(String)], expect.objectContaining({ timeout: expect.any(Number) }));
+    expect(execFileSync).toHaveBeenCalledWith(
+      '/bin/zsh',
+      ['-ilc', expect.any(String)],
+      // interactive shells ignore SIGTERM, only SIGKILL makes the timeout real
+      expect.objectContaining({ timeout: expect.any(Number), killSignal: 'SIGKILL' })
+    );
   });
 
   it('falls back to the GUI PATH plus common install dirs when the shell fails', () => {

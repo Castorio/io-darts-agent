@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Desktop-App findet npm und Node.js**: Aus dem Finder (oder einem Linux-Starter) gestartet, bekam der Hub nur einen minimalen `PATH` und meldete bei jeder Modul-Installation, Node.js (npm) fehle, obwohl es per nvm oder Homebrew installiert war. Die App übernimmt jetzt beim Start den `PATH` der Login-Shell.
-- **Module mit nativen Abhängigkeiten in der Desktop-App** (z. B. der Trainer mit `better-sqlite3`): Sie wurden für das Node.js des Rechners gebaut, laufen aber auf dem Node.js von Electron und brachen mit `ERR_DLOPEN_FAILED` ab. npm baut sie in der Desktop-App jetzt für Electron.
+- **Module mit nativen Abhängigkeiten in der Desktop-App** (z. B. der Trainer mit `better-sqlite3`): Sie wurden für das Node.js des Rechners gebaut, laufen aber auf dem Node.js von Electron und brachen mit `ERR_DLOPEN_FAILED` ab. npm baut sie in der Desktop-App jetzt für Electron (passende Architektur). Schon installierte Module mit nativen Abhängigkeiten einmal deinstallieren und neu installieren.
 - **Beenden der Desktop-App**: Die App beendete sich, bevor der Hub-Prozess weg war. Der Hub lief dann verwaist weiter und hing mit 100 % CPU in einer Fehlerschleife, weil jede Log-Ausgabe an der geschlossenen Pipe scheiterte. Die App wartet jetzt, bis der Hub beendet ist, und der Hub fährt herunter, wenn seine Ausgabe nicht mehr gelesen wird.
 
 ## [1.0.2-beta] - 2026-10-19

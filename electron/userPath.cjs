@@ -48,6 +48,8 @@ function resolveUserPath({ platform, env, execFileSync, existsSync = fs.existsSy
     const output = execFileSync(shell, ['-ilc', `printf '${MARKER}%s${MARKER}' "$PATH"`], {
       encoding: 'utf8',
       timeout: SHELL_TIMEOUT_MS,
+      // interactive shells ignore SIGTERM, and execFileSync would wait for them
+      killSignal: 'SIGKILL',
       stdio: ['ignore', 'pipe', 'ignore'],
     });
     const shellPath = parseShellPath(String(output));

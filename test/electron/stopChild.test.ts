@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { createRequire } from 'module';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -28,10 +28,6 @@ class FakeChild extends EventEmitter {
 }
 
 describe('stopChild', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it('resolves once the child has exited after SIGTERM', async () => {
     const child = new FakeChild(['SIGTERM']);
     await stopChild(child, { timeoutMs: 1000 });
@@ -44,6 +40,15 @@ describe('stopChild', () => {
     await stopChild(child, { timeoutMs: 20 });
     expect(child.signals).toEqual(['SIGTERM', 'SIGKILL']);
     expect(child.signalCode).toBe('SIGKILL');
+  });
+
+  it('returns the same pending stop when asked twice, without signalling again', async () => {
+    const child = new FakeChild(['SIGTERM']);
+    const first = stopChild(child, { timeoutMs: 1000 });
+    const second = stopChild(child, { timeoutMs: 1000 });
+    expect(second).toBe(first);
+    await first;
+    expect(child.signals).toEqual(['SIGTERM']);
   });
 
   it('resolves at once for a child that already exited', async () => {

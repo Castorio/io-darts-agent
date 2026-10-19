@@ -82,6 +82,38 @@ function realTurnFinishedKeys(): string[] {
   return Object.keys(event.data as Record<string, unknown>).sort();
 }
 
+/** Key set a real EventParser produces for a game.finished event, as reference */
+function realGameFinishedKeys(): string[] {
+  const parser = new EventParser(MOCK_BOARD_ID);
+  parser.parse(mockMatchStart);
+  parser.parse(createMockMatchState({ gameFinished: false }));
+  const result = parser.parse(createMockMatchState({
+    gameFinished: true,
+    gameWinner: 0,
+    gameScores: [0, 301],
+  }));
+  const list = Array.isArray(result) ? result : result ? [result] : [];
+  const event = list.find((e) => e.type === 'game.finished')!;
+  return Object.keys(event.data as Record<string, unknown>).sort();
+}
+
+/** Key sets a real EventParser produces for match.finished and match.result, as reference */
+function realMatchEndKeys(): { matchFinished: string[]; matchResult: string[] } {
+  const parser = new EventParser(MOCK_BOARD_ID);
+  parser.parse(mockMatchStart);
+  parser.parse(createMockMatchState({ finished: false }));
+  const result = parser.parse(createMockMatchState({
+    finished: true,
+    winner: 0,
+    gameScores: [0, 301],
+  }));
+  const list = Array.isArray(result) ? result : result ? [result] : [];
+  return {
+    matchFinished: Object.keys(list.find((e) => e.type === 'match.finished')!.data as Record<string, unknown>).sort(),
+    matchResult: Object.keys(list.find((e) => e.type === 'match.result')!.data as Record<string, unknown>).sort(),
+  };
+}
+
 describe('developer simulator match state', () => {
   it('sends the remaining score in gameScores and the darts of the turn, like Autodarts', async () => {
     const { app, events } = startApp();
@@ -196,5 +228,50 @@ describe('developer simulator event shapes match the real EventParser output', (
     const finishedMatchId = (events[finishedIdx].data as Record<string, any>).matchId;
     const finishMatchId = (events[finishIdx].data as Record<string, any>).matchId;
     expect(finishMatchId).toBe(finishedMatchId);
+  });
+
+  it('checkout scenario\'s game.finished carries winnerPlayerIndex, scores and legsWon/setsWon, with the same key set as the real parser', async () => {
+    const { app, events } = startApp();
+    await app.ready();
+
+    await app.inject({ method: 'POST', url: '/api/developer/simulate/match/start', payload: {} });
+    await app.inject({ method: 'POST', url: '/api/developer/scenarios/checkout/run' });
+    await app.close();
+
+    const gameFinished = events.find((e) => e.type === 'game.finished')!;
+    const data = gameFinished.data as Record<string, any>;
+
+    expect(data.winnerPlayerIndex).toBe(0);
+    expect(data.scores).toEqual([{ legs: 0, sets: 0 }, { legs: 0, sets: 0 }]);
+    expect(data.legsWon).toBeTruthy();
+    expect(data.setsWon).toBeTruthy();
+    expect(Object.keys(data).sort()).toEqual(realGameFinishedKeys());
+  });
+
+  it('simulate/match/end: match.finished carries winnerPlayerIndex and scores, and is followed by match.result, both with the same key sets as the real parser', async () => {
+    const { app, events } = startApp();
+    await app.ready();
+
+    await app.inject({ method: 'POST', url: '/api/developer/simulate/match/start', payload: {} });
+    await app.inject({ method: 'POST', url: '/api/developer/simulate/match/end', payload: { winner: 0 } });
+    await app.close();
+
+    const types = events.map((e) => e.type);
+    const finishedIdx = types.indexOf('match.finished');
+    const resultIdx = types.indexOf('match.result');
+    const finishIdx = types.indexOf('match.finish');
+
+    expect(resultIdx).toBeGreaterThan(finishedIdx);
+    expect(finishIdx).toBeGreaterThan(resultIdx);
+
+    const finishedData = events[finishedIdx].data as Record<string, any>;
+    const resultData = events[resultIdx].data as Record<string, any>;
+
+    expect(finishedData.winnerPlayerIndex).toBe(0);
+    expect(finishedData.scores).toEqual([{ legs: 0, sets: 0 }, { legs: 0, sets: 0 }]);
+
+    const realKeys = realMatchEndKeys();
+    expect(Object.keys(finishedData).sort()).toEqual(realKeys.matchFinished);
+    expect(Object.keys(resultData).sort()).toEqual(realKeys.matchResult);
   });
 });

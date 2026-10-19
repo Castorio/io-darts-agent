@@ -156,6 +156,60 @@ function buildTurnFinishedEvent(
 }
 
 /**
+ * Legs/sets won per player, in Autodarts' `scores` shape (array position like
+ * gameScores). The simulator does not track leg/set progression, so this is
+ * always zero - same simplification emitMatchState already makes.
+ */
+function buildScoresArray(state: SimulatedMatchState): Array<{ legs: number; sets: number }> {
+  return state.players.map(() => ({ legs: 0, sets: 0 }));
+}
+
+/**
+ * Legs/sets won per player.index, the shape the hub's own LegTally reports
+ * (EventParser.ts getWonCounts/legTally.snapshot). Always zero, for the same
+ * reason as buildScoresArray.
+ */
+function buildLegTallySnapshot(state: SimulatedMatchState): { legsWon: Record<number, number>; setsWon: Record<number, number> } {
+  const legsWon: Record<number, number> = {};
+  const setsWon: Record<number, number> = {};
+  for (const player of state.players) {
+    legsWon[player.index] = 0;
+    setsWon[player.index] = 0;
+  }
+  return { legsWon, setsWon };
+}
+
+/**
+ * Build a match.result event shaped like EventParser's MatchResultData,
+ * emitted right after match.finished once the match is over.
+ */
+function buildMatchResultEvent(state: SimulatedMatchState, winner: number): ParsedEvent {
+  const winnerPlayer = state.players[winner];
+  return {
+    type: 'match.result',
+    timestamp: new Date(),
+    raw: { channel: 'simulated', topic: 'match.result', data: {} },
+    data: {
+      matchId: state.matchId,
+      winner,
+      winnerName: winnerPlayer?.name ?? 'Unknown',
+      winnerPlayerIndex: winnerPlayer?.index ?? winner,
+      variant: SIM_GAME.variant,
+      type: 'Local',
+      leg: state.leg,
+      set: state.set,
+      round: state.round,
+      players: state.players.map((p) => ({ index: p.index, name: p.name, userId: null })),
+      scores: buildScoresArray(state),
+      chalkboards: [],
+      stats: [],
+      settings: { baseScore: 501, bullMode: 'none', inMode: 'straight', maxRounds: 100, outMode: 'double' },
+      game: SIM_GAME,
+    },
+  };
+}
+
+/**
  * Helper to check if developer mode is enabled
  */
 function isDeveloperModeEnabled(server: APIServer): boolean {
@@ -314,14 +368,21 @@ export function registerDeveloperRoutes(
           matchId,
           winner,
           winnerName: currentSimState.players[winner]?.name || 'Unknown',
+          winnerPlayerIndex: currentSimState.players[winner]?.index ?? winner,
           players: currentSimState.players,
+          scores: buildScoresArray(currentSimState),
           game: SIM_GAME,
         },
       };
       deps.emitEvent(event);
       console.log(`🎯 [DEV] Simulated match finished: ${matchId}, winner: ${winner}`);
 
-      // Real flow: once the results screen is dismissed, Autodarts reports the
+      // Real flow: match.finished is followed by match.result (full result
+      // data: chalkboards, stats, scores), same as EventParser's own match
+      // state handling
+      deps.emitEvent(buildMatchResultEvent(currentSimState, winner));
+
+      // Later, once the results screen is dismissed, Autodarts reports the
       // match as closed with match.finish (no game context, like match.start)
       const finishEvent: ParsedEvent = {
         type: 'match.finish',
@@ -759,9 +820,12 @@ async function runCheckoutScenario(deps: DeveloperDependencies): Promise<void> {
       matchId: currentSimState.matchId,
       winner: checkoutPlayer,
       winnerName: currentSimState.players[checkoutPlayer]?.name || 'Unknown',
+      winnerPlayerIndex: currentSimState.players[checkoutPlayer]?.index ?? checkoutPlayer,
       leg: currentSimState.leg,
       set: currentSimState.set,
       players: currentSimState.players,
+      scores: buildScoresArray(currentSimState),
+      ...buildLegTallySnapshot(currentSimState),
       game: SIM_GAME,
     },
   };

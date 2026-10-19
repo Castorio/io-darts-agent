@@ -234,6 +234,33 @@ export const api = {
     )
   },
 
+  // Module Store
+  async getStore() {
+    return request<{
+      available: boolean
+      error?: string
+      modules: Array<{
+        id: string
+        name: { de: string; en: string }
+        description: { de: string; en: string }
+        category: string
+        author: string
+        repo: string
+        branch: string
+        homepage?: string
+        installed: boolean
+        installedVersion: string | null
+      }>
+    }>('/store')
+  },
+
+  async installFromStore(id: string) {
+    return request<{ success: boolean; moduleId?: string; error?: string }>(
+      `/store/${encodeURIComponent(id)}/install`,
+      { method: 'POST' }
+    )
+  },
+
   // Available (Built-in) Modules
   async getAvailableModules() {
     return request<{

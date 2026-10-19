@@ -263,6 +263,27 @@ export default {
     requirementIpc: 'Das Modul muss die IPC-Schnittstelle für die Kommunikation mit dem Hub implementieren',
   },
 
+  // Module Store
+  store: {
+    title: 'Store',
+    subtitle: 'Module aus dem Katalog installieren',
+    openStore: 'Store',
+    backToModules: 'Zurück zu Module',
+    category: 'Kategorie',
+    byAuthor: 'von {author}',
+    viewRepo: 'Repository ansehen',
+    viewHomepage: 'Homepage ansehen',
+    installed: 'Installiert',
+    install: 'Installieren',
+    installing: 'Wird installiert...',
+    installFailed: 'Installation fehlgeschlagen',
+    unavailable: 'Der Store ist derzeit nicht erreichbar.',
+    retry: 'Erneut versuchen',
+    installSuccessHint: 'Modul installiert. {link}',
+    viewModule: 'Zur Modulseite',
+    noModules: 'Der Katalog enthält derzeit keine Module.',
+  },
+
   // Players
   players: {
     title: 'Spieler',

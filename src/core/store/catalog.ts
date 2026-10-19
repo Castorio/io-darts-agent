@@ -5,7 +5,7 @@
  */
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,63}$/;
-const BRANCH_RE = /^[A-Za-z0-9._/-]{1,100}$/;
+const BRANCH_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
 const REPO_RE = /^https:\/\/github\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/;
 const DEFAULT_BRANCH = 'main';
 const NAME_MAX = 200;
@@ -193,10 +193,18 @@ export class StoreCatalog {
     const timeout = setTimeout(() => controller.abort(), LOAD_TIMEOUT_MS);
 
     try {
-      const response = await this.fetchImpl(this.url, { signal: controller.signal });
+      // redirect: 'error' stops the catalog host from redirecting this
+      // request to another host (or from https to http): a real fetch()
+      // rejects outright rather than following it. The `redirected` check
+      // below is defense in depth for a fetchImpl that doesn't honor that.
+      const response = await this.fetchImpl(this.url, { signal: controller.signal, redirect: 'error' });
 
       if (!response.ok) {
         return { available: false, error: `Catalog request failed with status ${response.status}` };
+      }
+
+      if (response.redirected || response.type === 'opaqueredirect') {
+        return { available: false, error: 'Catalog request was redirected' };
       }
 
       const contentLength = response.headers.get('content-length');

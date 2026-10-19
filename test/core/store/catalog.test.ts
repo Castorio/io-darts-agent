@@ -89,6 +89,12 @@ describe('parseCatalog', () => {
     expect(result.rejected).toBe(1);
   });
 
+  it('rejects a branch that does not start with an alphanumeric character', () => {
+    const result = parseCatalog(catalogOf(validModule({ branch: '-x' })));
+    expect(result.modules).toHaveLength(0);
+    expect(result.rejected).toBe(1);
+  });
+
   it('rejects both entries when ids are duplicated', () => {
     const result = parseCatalog(catalogOf(
       validModule({ id: 'mqtt', author: 'First' }),
@@ -258,6 +264,48 @@ describe('StoreCatalog', () => {
     if (!result.available) {
       expect(result.error).toContain('network down');
     }
+  });
+
+  it('requests the catalog with redirect: "error" so it cannot be redirected to another host', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okResponse(JSON.stringify(catalogOf(validModule()))));
+    const catalog = new StoreCatalog({ url: 'https://example.com/modules.json', fetchImpl: fetchImpl as unknown as typeof fetch });
+
+    await catalog.load();
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://example.com/modules.json',
+      expect.objectContaining({ redirect: 'error' })
+    );
+  });
+
+  it('returns available false when fetch rejects due to a blocked redirect', async () => {
+    // With redirect: "error", a real fetch() implementation rejects with a
+    // TypeError instead of returning a response when the server tries to
+    // redirect - it never gets the chance to follow it to another host.
+    const redirectError = new TypeError('Failed to fetch');
+    const fetchImpl = vi.fn().mockRejectedValue(redirectError);
+    const catalog = new StoreCatalog({ url: 'https://example.com/modules.json', fetchImpl: fetchImpl as unknown as typeof fetch });
+
+    const result = await catalog.load();
+
+    expect(result.available).toBe(false);
+  });
+
+  it('returns available false when the response reports itself as redirected', async () => {
+    // Defense in depth for a fetchImpl that doesn't strictly honor
+    // redirect: "error" and instead returns a redirected response.
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      redirected: true,
+      headers: { get: () => null },
+      text: async () => JSON.stringify(catalogOf(validModule())),
+    });
+    const catalog = new StoreCatalog({ url: 'https://example.com/modules.json', fetchImpl: fetchImpl as unknown as typeof fetch });
+
+    const result = await catalog.load();
+
+    expect(result.available).toBe(false);
   });
 
   it('returns available false when the body is not valid JSON', async () => {

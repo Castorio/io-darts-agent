@@ -41,6 +41,7 @@ import { resolveSdkPath } from './core/modules/sdkPath.js';
 import { runtimePath } from './core/runtimePaths.js';
 import { restartProcess } from './core/system/restart.js';
 import { createStartOnce } from './core/modules/startOnce.js';
+import { autostartModules, connectThenAutostart } from './core/modules/autostart.js';
 import { isValidModuleId, resolveModuleUiFile } from './core/modules/moduleUiPath.js';
 import { getModuleRouteRegistry, type ModuleRouteRequest, type ModuleRouteResponse } from './core/modules/ModuleRouteRegistry.js';
 import {
@@ -882,103 +883,121 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
     }
   });
 
-  try {
-    await hub.start();
-    addLog('system', 'hub', 'IO-Darts-Agent connected successfully');
-    console.log('🎯 IO-Darts-Agent started successfully');
-
-    // Auto-start modules based on autostart settings
-    for (const mod of installedModules.values()) {
-      if (shouldModuleAutostart(mod) && mod.status === 'stopped') {
-        try {
-          // Setup handler based on module type
-          if (mod.id === 'wled') {
-            // Create WLED handler with full configuration
-            mod.wledHandler = createWledHandler(mod.configValues);
-            mod.wledHandler.setPlayerService(playerService);
-            mod.wledHandler.setLogger(createModuleLogger('wled'));
-
-            mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
-              if (mod.wledHandler) {
-                // Debug: Log before calling handler
-                if (event.type === 'throw.detected') {
-                  console.log(`🎨 WLED [main.ts]: Calling handleEvent for ${event.type}`);
-                }
-                await mod.wledHandler.handleEvent(event);
-                // Debug: Log after calling handler
-                if (event.type === 'throw.detected') {
-                  console.log(`🎨 WLED [main.ts]: handleEvent completed for ${event.type}`);
-                }
-              }
-            };
-          } else if (mod.id === 'game-display') {
-            // Create Game Display handler for statistics and animation tracking
-            mod.gameDisplayHandler = createGameDisplayHandler(mod.configValues);
-            mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
-              if (mod.gameDisplayHandler) {
-                await mod.gameDisplayHandler.handleEvent(event);
-              }
-            };
-          } else if (mod.id === 'darts-caller') {
-            // Create Darts Caller handler with voice packs directory
-            const callerVoicePacksDir = runtimePath('data', 'voicepacks');
-            mod.dartsCallerHandler = createDartsCallerHandler({
-              ...mod.configValues,
-              voicePacksDir: callerVoicePacksDir,
-            });
-            // Register callback to forward call requests to WebSocket
-            mod.dartsCallerHandler.onCallRequest((request) => {
-              console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
-              eventSystem.emitCallerRequest(request);
-            });
-            // Initialize ElevenLabs service and VoicePackGenerator if API key is configured
-            const elevenLabsApiKey = resolveProviderApiKey(
-              getAIProviderService(),
-              'elevenlabs',
-              (config as unknown as { aiProviders?: { elevenlabs?: { apiKey?: string } } })?.aiProviders?.elevenlabs
-            );
-            if (elevenLabsApiKey) {
-              const service = new ElevenLabsService({
-                apiKey: elevenLabsApiKey,
-                cacheDir: runtimePath('data', 'tts-cache'),
-                enableCache: true,
-              });
-              service.init().catch((err) => {
-                console.error('Failed to initialize ElevenLabs service:', err);
-              });
-              const generator = new VoicePackGenerator(service, callerVoicePacksDir);
-              mod.dartsCallerHandler.setElevenLabsService(service);
-              mod.dartsCallerHandler.setVoicePackGenerator(generator);
-              console.log('🎙️  Darts Caller configured with ElevenLabs for player name generation');
-            }
-            mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
-              if (mod.dartsCallerHandler) {
-                await mod.dartsCallerHandler.handleEvent(event);
-              }
-            };
-          } else if (mod.manifest.entry && mod.manifest.entry !== 'internal') {
-            // External SDK-based module - spawn as separate process
-            await startExternalModule(mod);
-          }
-
-          // Register module intents
-          registerModuleIntents(mod);
-
-          mod.status = 'running';
-          addLog('module', mod.id, `Auto-started module: ${mod.manifest.name}`);
-          console.log(`▶️  Auto-started module: ${mod.manifest.name}`);
-        } catch (err) {
-          addLog('module', mod.id, `Failed to auto-start: ${err instanceof Error ? err.message : String(err)}`);
-          console.error(`Failed to auto-start ${mod.id}:`, err);
-        }
+  // Autostart modules even if the Autodarts login fails: they work without
+  // game events (e.g. board status, lights) and get events once connected.
+  const currentHub = hub;
+  await connectThenAutostart(
+    async () => {
+      try {
+        await currentHub.start();
+      } catch (error) {
+        addLog('system', 'hub', `Failed to connect: ${error instanceof Error ? error.message : String(error)}`);
+        console.error('Failed to start hub:', error);
+        if (hub === currentHub) hub = null;
+        throw error;
       }
+      addLog('system', 'hub', 'IO-Darts-Agent connected successfully');
+      console.log('🎯 IO-Darts-Agent started successfully');
+    },
+    () => autostartInstalledModules(config)
+  );
+}
+
+/**
+ * Auto-start installed modules based on their autostart settings.
+ * Only stopped modules are started, so repeated calls never double-start.
+ */
+function autostartInstalledModules(config: HubConfiguration): Promise<void> {
+  return autostartModules(installedModules.values(), {
+    shouldAutostart: shouldModuleAutostart,
+    start: (mod) => startModuleForAutostart(mod, config),
+    onStarted: (mod) => {
+      addLog('module', mod.id, `Auto-started module: ${mod.manifest.name}`);
+      console.log(`▶️  Auto-started module: ${mod.manifest.name}`);
+    },
+    onFailed: (mod, err) => {
+      addLog('module', mod.id, `Failed to auto-start: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(`Failed to auto-start ${mod.id}:`, err);
+    },
+  });
+}
+
+/**
+ * Set up the handler of one module and start it (status is set by the caller)
+ */
+async function startModuleForAutostart(mod: InstalledModule, config: HubConfiguration): Promise<void> {
+    // Setup handler based on module type
+    if (mod.id === 'wled') {
+      // Create WLED handler with full configuration
+      mod.wledHandler = createWledHandler(mod.configValues);
+      mod.wledHandler.setPlayerService(playerService);
+      mod.wledHandler.setLogger(createModuleLogger('wled'));
+
+      mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
+        if (mod.wledHandler) {
+          // Debug: Log before calling handler
+          if (event.type === 'throw.detected') {
+            console.log(`🎨 WLED [main.ts]: Calling handleEvent for ${event.type}`);
+          }
+          await mod.wledHandler.handleEvent(event);
+          // Debug: Log after calling handler
+          if (event.type === 'throw.detected') {
+            console.log(`🎨 WLED [main.ts]: handleEvent completed for ${event.type}`);
+          }
+        }
+      };
+    } else if (mod.id === 'game-display') {
+      // Create Game Display handler for statistics and animation tracking
+      mod.gameDisplayHandler = createGameDisplayHandler(mod.configValues);
+      mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
+        if (mod.gameDisplayHandler) {
+          await mod.gameDisplayHandler.handleEvent(event);
+        }
+      };
+    } else if (mod.id === 'darts-caller') {
+      // Create Darts Caller handler with voice packs directory
+      const callerVoicePacksDir = runtimePath('data', 'voicepacks');
+      mod.dartsCallerHandler = createDartsCallerHandler({
+        ...mod.configValues,
+        voicePacksDir: callerVoicePacksDir,
+      });
+      // Register callback to forward call requests to WebSocket
+      mod.dartsCallerHandler.onCallRequest((request) => {
+        console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
+        eventSystem.emitCallerRequest(request);
+      });
+      // Initialize ElevenLabs service and VoicePackGenerator if API key is configured
+      const elevenLabsApiKey = resolveProviderApiKey(
+        getAIProviderService(),
+        'elevenlabs',
+        (config as unknown as { aiProviders?: { elevenlabs?: { apiKey?: string } } })?.aiProviders?.elevenlabs
+      );
+      if (elevenLabsApiKey) {
+        const service = new ElevenLabsService({
+          apiKey: elevenLabsApiKey,
+          cacheDir: runtimePath('data', 'tts-cache'),
+          enableCache: true,
+        });
+        service.init().catch((err) => {
+          console.error('Failed to initialize ElevenLabs service:', err);
+        });
+        const generator = new VoicePackGenerator(service, callerVoicePacksDir);
+        mod.dartsCallerHandler.setElevenLabsService(service);
+        mod.dartsCallerHandler.setVoicePackGenerator(generator);
+        console.log('🎙️  Darts Caller configured with ElevenLabs for player name generation');
+      }
+      mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
+        if (mod.dartsCallerHandler) {
+          await mod.dartsCallerHandler.handleEvent(event);
+        }
+      };
+    } else if (mod.manifest.entry && mod.manifest.entry !== 'internal') {
+      // External SDK-based module - spawn as separate process
+      await startExternalModule(mod);
     }
-  } catch (error) {
-    addLog('system', 'hub', `Failed to connect: ${error instanceof Error ? error.message : String(error)}`);
-    console.error('Failed to start hub:', error);
-    hub = null;
-    throw error;
-  }
+
+  // Register module intents
+  registerModuleIntents(mod);
 }
 
 /**

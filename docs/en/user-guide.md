@@ -177,7 +177,7 @@ Modules add functions to the hub. Built in are **WLED**, **Game Display** and **
 Clicking a module opens its detail page:
 
 - **Start**, **Stop**, **Restart**
-- **Autostart**: the module starts together with the hub
+- **Autostart**: the module starts together with the hub, even if the Autodarts login fails. The module only receives game events once the Autodarts connection is up.
 - Link to the module's own configuration page (WLED, Game Display, Darts Caller)
 - **Configuration**: general module settings (for modules without their own configuration page; for the Darts Caller the same values as on the caller page)
 - **Intent Reactions**: how the module reacts to intents from other modules (if supported)

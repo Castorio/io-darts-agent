@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Modul-Autostart ohne Autodarts-Verbindung**: Schlug die Anmeldung bei Autodarts fehl (z. B. falsches Passwort, kein Internet), startete kein einziges Modul mit Autostart, auch keines, das ohne Spiel-Events nützlich ist (Home Assistant mit dem Board-Status, WLED). Der Autostart läuft jetzt unabhängig vom Verbindungsergebnis; die Module bekommen Spiel-Events, sobald die Verbindung steht. Ein späterer erneuter Verbindungsaufbau startet bereits laufende Module nicht doppelt.
 - **Passwort ändern** (`POST /api/auth/change-password`): Das neue Passwort wurde nur im Speicher gesetzt und nie in die Konfiguration geschrieben, nach einem Hub-Neustart galt wieder das alte Passwort, obwohl die Oberfläche Erfolg meldete. Der neue Hash wird jetzt gespeichert; scheitert das Speichern, bleibt das alte Passwort aktiv und die Route antwortet mit `500`. Bestehende Sessions bleiben nach der Änderung weiterhin gültig.
 - **Modul-Routen mit aktivierter Web-Anmeldung**: Modul-Routen mit Login-Pflicht (`/api/modules/:id/routes/*`, Standard) lasen das Session-Cookie unter dem falschen Namen und lieferten bei eingeloggten Clients trotzdem `401`.
 - **Stoppen eines externen Moduls**: Lieferte teils `500 Internal Server Error`, wenn der Modul-Prozess zu diesem Zeitpunkt schon beendet war, weil dessen eigener Exit-Handler die IPC-Bridge bereits geleert hatte, bevor der Stop-Vorgang selbst noch darauf zugreifen wollte.

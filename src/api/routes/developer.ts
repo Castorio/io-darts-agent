@@ -62,6 +62,99 @@ function createDefaultMatchState(): SimulatedMatchState {
 // Current simulated match state
 let currentSimState: SimulatedMatchState | null = null;
 
+/** The hub's EventParser only adds `game` for X01, which is all the simulator plays */
+const SIM_GAME = { variant: 'X01', mode: 'x01', cutThroat: false } as const;
+
+const SIM_BOARD_ID = 'sim-board';
+
+/** Same id scheme as emitMatchState's `turns[-1].id`, so throw.detected.turnId lines up */
+function currentTurnId(state: SimulatedMatchState): string {
+  return `${state.matchId}:${state.round}:${state.currentPlayerIndex}`;
+}
+
+/**
+ * Build a throw.detected event shaped like the one EventParser derives from
+ * match.state: segment (with its display name), the running turn total,
+ * which turn it belongs to, and the game context.
+ */
+function buildThrowEvent(
+  state: SimulatedMatchState,
+  number: number,
+  multiplier: number,
+  opts: { turnPoints: number; busted: boolean }
+): ParsedEvent {
+  return {
+    type: 'throw.detected',
+    timestamp: new Date(),
+    raw: { channel: 'simulated', topic: 'throw.detected', data: {} },
+    data: {
+      segment: {
+        number,
+        multiplier,
+        bed: getBedName(number, multiplier),
+        name: segmentName(number, multiplier),
+      },
+      coords: { x: 0, y: 0 },
+      throwNumber: state.turnThrows.length + 1,
+      boardId: SIM_BOARD_ID,
+      points: number * multiplier,
+      turnPoints: opts.turnPoints,
+      busted: opts.busted,
+      turnId: currentTurnId(state),
+      game: SIM_GAME,
+    },
+  };
+}
+
+/** Build a player.change event shaped like EventParser's: stable playerIndex, game context */
+function buildPlayerChangeEvent(
+  state: SimulatedMatchState,
+  previousPlayer: number,
+  currentPlayer: number
+): ParsedEvent {
+  const nextPlayer = state.players[currentPlayer];
+  return {
+    type: 'player.change',
+    timestamp: new Date(),
+    raw: { channel: 'simulated', topic: 'player.change', data: {} },
+    data: {
+      previousPlayer,
+      currentPlayer,
+      playerIndex: nextPlayer?.index ?? currentPlayer,
+      playerName: nextPlayer?.name ?? 'Unknown',
+      remaining: state.scores[currentPlayer],
+      game: SIM_GAME,
+    },
+  };
+}
+
+/** Build a turn.finished event shaped like EventParser's, including the game context */
+function buildTurnFinishedEvent(
+  state: SimulatedMatchState,
+  playerIdx: number,
+  opts: { turnScore: number; remaining: number; busted: boolean }
+): ParsedEvent {
+  const player = state.players[playerIdx];
+  return {
+    type: 'turn.finished',
+    timestamp: new Date(),
+    raw: { channel: 'simulated', topic: 'turn.finished', data: {} },
+    data: {
+      matchId: state.matchId,
+      playerIndex: player?.index ?? playerIdx,
+      playerName: player?.name ?? 'Unknown',
+      turnScore: opts.turnScore,
+      turnPoints: opts.turnScore,
+      remaining: opts.remaining,
+      busted: opts.busted,
+      round: state.round,
+      // Darts of the finished turn, for bull/double bull detection like EventParser
+      throws: state.turnThrows,
+      game: SIM_GAME,
+    },
+  };
+}
+
 /**
  * Helper to check if developer mode is enabled
  */
@@ -222,10 +315,24 @@ export function registerDeveloperRoutes(
           winner,
           winnerName: currentSimState.players[winner]?.name || 'Unknown',
           players: currentSimState.players,
+          game: SIM_GAME,
         },
       };
       deps.emitEvent(event);
       console.log(`🎯 [DEV] Simulated match finished: ${matchId}, winner: ${winner}`);
+
+      // Real flow: once the results screen is dismissed, Autodarts reports the
+      // match as closed with match.finish (no game context, like match.start)
+      const finishEvent: ParsedEvent = {
+        type: 'match.finish',
+        timestamp: new Date(),
+        raw: { channel: 'simulated', topic: 'match.finish', data: {} },
+        data: {
+          matchId,
+          boardId: SIM_BOARD_ID,
+        },
+      };
+      deps.emitEvent(finishEvent);
     }
 
     currentSimState = null;
@@ -260,31 +367,19 @@ export function registerDeveloperRoutes(
     const points = number * multiplier;
     const playerIdx = currentSimState.currentPlayerIndex;
 
+    const newScore = currentSimState.scores[playerIdx] - points;
+    const busted = newScore < 0 || newScore === 1 || (newScore === 0 && multiplier !== 2);
+
     // Emit throw.detected event
-    const throwEvent: ParsedEvent = {
-      type: 'throw.detected',
-      timestamp: new Date(),
-      raw: { channel: 'simulated', topic: 'throw.detected', data: {} },
-      data: {
-        segment: {
-          number,
-          multiplier,
-          bed: getBedName(number, multiplier),
-        },
-        coords: { x: 0, y: 0 },
-        throwNumber: 1,
-        boardId: 'sim-board',
-        points,
-        turnPoints: currentSimState.turnScore + points,
-      },
-    };
+    const throwEvent = buildThrowEvent(currentSimState, number, multiplier, {
+      turnPoints: busted ? 0 : currentSimState.turnScore + points,
+      busted,
+    });
     deps.emitEvent(throwEvent);
 
     // Update state
     currentSimState.turnThrows.push({ segment: { number, multiplier, bed: getBedName(number, multiplier), name: segmentName(number, multiplier) } });
-    const newScore = currentSimState.scores[playerIdx] - points;
-    if (newScore < 0 || (newScore === 1) || (newScore === 0 && multiplier !== 2)) {
-      // Bust
+    if (busted) {
       currentSimState.turnBusted = true;
       currentSimState.turnScore = 0;
     } else {
@@ -327,21 +422,11 @@ export function registerDeveloperRoutes(
     const prevPlayerName = currentSimState.players[prevPlayer]?.name || 'Unknown';
 
     // Emit turn.finished event
-    const turnFinishedEvent: ParsedEvent = {
-      type: 'turn.finished',
-      timestamp: new Date(),
-      raw: { channel: 'simulated', topic: 'turn.finished', data: {} },
-      data: {
-        matchId: currentSimState.matchId,
-        playerIndex: prevPlayer,
-        playerName: prevPlayerName,
-        turnScore: currentSimState.turnScore,
-        turnPoints: currentSimState.turnScore,
-        remaining: currentSimState.scores[prevPlayer],
-        busted: currentSimState.turnBusted,
-        round: currentSimState.round,
-      },
-    };
+    const turnFinishedEvent = buildTurnFinishedEvent(currentSimState, prevPlayer, {
+      turnScore: currentSimState.turnScore,
+      remaining: currentSimState.scores[prevPlayer],
+      busted: currentSimState.turnBusted,
+    });
     deps.emitEvent(turnFinishedEvent);
 
     // Emit takeout.started event
@@ -349,7 +434,7 @@ export function registerDeveloperRoutes(
       type: 'takeout.started',
       timestamp: new Date(),
       raw: { channel: 'simulated', topic: 'takeout.started', data: {} },
-      data: { boardId: 'sim-board' },
+      data: { boardId: SIM_BOARD_ID },
     };
     deps.emitEvent(takeoutStartEvent);
 
@@ -373,24 +458,13 @@ export function registerDeveloperRoutes(
         type: 'takeout.finished',
         timestamp: new Date(),
         raw: { channel: 'simulated', topic: 'takeout.finished', data: {} },
-        data: { boardId: 'sim-board' },
+        data: { boardId: SIM_BOARD_ID },
       };
       deps.emitEvent(takeoutFinishEvent);
 
       // Emit player.change event
       if (currentSimState && currentSimState.players.length > 1) {
-        const playerChangeEvent: ParsedEvent = {
-          type: 'player.change',
-          timestamp: new Date(),
-          raw: { channel: 'simulated', topic: 'player.change', data: {} },
-          data: {
-            previousPlayer: prevPlayer,
-            currentPlayer: nextPlayer,
-            playerName: nextPlayerName,
-            remaining: currentSimState.scores[nextPlayer],
-          },
-        };
-        deps.emitEvent(playerChangeEvent);
+        deps.emitEvent(buildPlayerChangeEvent(currentSimState, prevPlayer, nextPlayer));
       }
 
       // Emit updated match.state
@@ -536,8 +610,10 @@ function emitMatchState(deps: DeveloperDependencies): void {
       winner: null,
       gameFinished: false,
       gameWinner: null,
-      turns: [{ id: `${currentSimState.matchId}:${currentSimState.round}:${currentSimState.currentPlayerIndex}`, throws: currentSimState.turnThrows }],
+      turns: [{ id: currentTurnId(currentSimState), throws: currentSimState.turnThrows }],
       settings: { startScore: 501 },
+      variant: SIM_GAME.variant,
+      game: SIM_GAME,
     },
   };
   deps.emitEvent(event);
@@ -589,19 +665,10 @@ async function run180Scenario(deps: DeveloperDependencies): Promise<void> {
 
   // Throw 3x Triple 20
   for (let i = 0; i < 3; i++) {
-    const throwEvent: ParsedEvent = {
-      type: 'throw.detected',
-      timestamp: new Date(),
-      raw: { channel: 'simulated', topic: 'throw.detected', data: {} },
-      data: {
-        segment: { number: 20, multiplier: 3, bed: 'T20' },
-        coords: { x: 0, y: 0 },
-        throwNumber: i + 1,
-        boardId: 'sim-board',
-        points: 60,
-        turnPoints: (i + 1) * 60,
-      },
-    };
+    const throwEvent = buildThrowEvent(currentSimState, 20, 3, {
+      turnPoints: (i + 1) * 60,
+      busted: false,
+    });
     deps.emitEvent(throwEvent);
 
     currentSimState.turnScore += 60;
@@ -634,25 +701,20 @@ async function runBustScenario(deps: DeveloperDependencies): Promise<void> {
   }
 
   // Throw Triple 20 (60 points) to cause bust
-  const throwEvent: ParsedEvent = {
-    type: 'throw.detected',
-    timestamp: new Date(),
-    raw: { channel: 'simulated', topic: 'throw.detected', data: {} },
-    data: {
-      segment: { number: 20, multiplier: 3, bed: 'T20' },
-      coords: { x: 0, y: 0 },
-      throwNumber: 1,
-      boardId: 'sim-board',
-      points: 60,
-      turnPoints: 60,
-      busted: true,
-    },
-  };
+  const throwEvent = buildThrowEvent(currentSimState, 20, 3, { turnPoints: 0, busted: true });
   deps.emitEvent(throwEvent);
 
+  currentSimState.turnThrows.push({ segment: { number: 20, multiplier: 3, bed: 'Triple', name: 'T20' } });
   currentSimState.turnBusted = true;
   currentSimState.turnScore = 0;
   emitMatchState(deps);
+
+  // Turn finished: a bust ends the turn with nothing scored
+  deps.emitEvent(buildTurnFinishedEvent(currentSimState, currentSimState.currentPlayerIndex, {
+    turnScore: 0,
+    remaining: currentSimState.scores[currentSimState.currentPlayerIndex],
+    busted: true,
+  }));
 }
 
 /**
@@ -668,26 +730,25 @@ async function runCheckoutScenario(deps: DeveloperDependencies): Promise<void> {
   await delay(500);
 
   // Throw D20 for checkout
-  const throwEvent: ParsedEvent = {
-    type: 'throw.detected',
-    timestamp: new Date(),
-    raw: { channel: 'simulated', topic: 'throw.detected', data: {} },
-    data: {
-      segment: { number: 20, multiplier: 2, bed: 'D20' },
-      coords: { x: 0, y: 0 },
-      throwNumber: 1,
-      boardId: 'sim-board',
-      points: 40,
-      turnPoints: 40,
-    },
-  };
+  const checkoutPlayer = currentSimState.currentPlayerIndex;
+  const throwEvent = buildThrowEvent(currentSimState, 20, 2, { turnPoints: 40, busted: false });
   deps.emitEvent(throwEvent);
 
-  currentSimState.scores[currentSimState.currentPlayerIndex] = 0;
+  currentSimState.turnThrows.push({ segment: { number: 20, multiplier: 2, bed: 'Double', name: 'D20' } });
+  currentSimState.scores[checkoutPlayer] = 0;
   currentSimState.turnScore = 40;
   emitMatchState(deps);
 
   await delay(300);
+
+  // Turn finished: the checkout throw leaves 0 remaining
+  deps.emitEvent(buildTurnFinishedEvent(currentSimState, checkoutPlayer, {
+    turnScore: 40,
+    remaining: 0,
+    busted: false,
+  }));
+
+  await delay(100);
 
   // Game finished event
   const gameFinishedEvent: ParsedEvent = {
@@ -696,11 +757,12 @@ async function runCheckoutScenario(deps: DeveloperDependencies): Promise<void> {
     raw: { channel: 'simulated', topic: 'game.finished', data: {} },
     data: {
       matchId: currentSimState.matchId,
-      winner: currentSimState.currentPlayerIndex,
-      winnerName: currentSimState.players[currentSimState.currentPlayerIndex]?.name || 'Unknown',
+      winner: checkoutPlayer,
+      winnerName: currentSimState.players[checkoutPlayer]?.name || 'Unknown',
       leg: currentSimState.leg,
       set: currentSimState.set,
       players: currentSimState.players,
+      game: SIM_GAME,
     },
   };
   deps.emitEvent(gameFinishedEvent);
@@ -726,21 +788,10 @@ async function runBullseyeScenario(deps: DeveloperDependencies): Promise<void> {
   }
 
   // Throw Double Bull
-  const throwEvent: ParsedEvent = {
-    type: 'throw.detected',
-    timestamp: new Date(),
-    raw: { channel: 'simulated', topic: 'throw.detected', data: {} },
-    data: {
-      segment: { number: 25, multiplier: 2, bed: 'DoubleBull' },
-      coords: { x: 0, y: 0 },
-      throwNumber: 1,
-      boardId: 'sim-board',
-      points: 50,
-      turnPoints: 50,
-    },
-  };
+  const throwEvent = buildThrowEvent(currentSimState, 25, 2, { turnPoints: 50, busted: false });
   deps.emitEvent(throwEvent);
 
+  currentSimState.turnThrows.push({ segment: { number: 25, multiplier: 2, bed: 'DoubleBull', name: 'Bull' } });
   currentSimState.turnScore += 50;
   currentSimState.scores[currentSimState.currentPlayerIndex] -= 50;
   emitMatchState(deps);
@@ -772,21 +823,13 @@ async function runFullLegScenario(deps: DeveloperDependencies): Promise<void> {
 
   for (const t of throws) {
     const points = t.number * t.multiplier;
-    const throwEvent: ParsedEvent = {
-      type: 'throw.detected',
-      timestamp: new Date(),
-      raw: { channel: 'simulated', topic: 'throw.detected', data: {} },
-      data: {
-        segment: { number: t.number, multiplier: t.multiplier, bed: getBedName(t.number, t.multiplier) },
-        coords: { x: 0, y: 0 },
-        throwNumber: 1,
-        boardId: 'sim-board',
-        points,
-        turnPoints: currentSimState.turnScore + points,
-      },
-    };
+    const throwEvent = buildThrowEvent(currentSimState, t.number, t.multiplier, {
+      turnPoints: currentSimState.turnScore + points,
+      busted: false,
+    });
     deps.emitEvent(throwEvent);
 
+    currentSimState.turnThrows.push({ segment: { number: t.number, multiplier: t.multiplier, bed: getBedName(t.number, t.multiplier), name: segmentName(t.number, t.multiplier) } });
     currentSimState.turnScore += points;
     currentSimState.scores[currentSimState.currentPlayerIndex] -= points;
     emitMatchState(deps);
@@ -795,40 +838,21 @@ async function runFullLegScenario(deps: DeveloperDependencies): Promise<void> {
   }
 
   // End turn
-  const turnEndEvent: ParsedEvent = {
-    type: 'turn.finished',
-    timestamp: new Date(),
-    raw: { channel: 'simulated', topic: 'turn.finished', data: {} },
-    data: {
-      matchId: currentSimState.matchId,
-      playerIndex: 0,
-      playerName: currentSimState.players[0]?.name || 'Unknown',
-      turnScore: currentSimState.turnScore,
-      turnPoints: currentSimState.turnScore,
-      remaining: currentSimState.scores[0],
-      busted: false,
-      round: currentSimState.round,
-    },
-  };
+  const turnEndEvent = buildTurnFinishedEvent(currentSimState, 0, {
+    turnScore: currentSimState.turnScore,
+    remaining: currentSimState.scores[0],
+    busted: false,
+  });
   deps.emitEvent(turnEndEvent);
 
   await delay(500);
 
   // Player change
+  const playerChangeEvent = buildPlayerChangeEvent(currentSimState, 0, 1);
   currentSimState.currentPlayerIndex = 1;
   currentSimState.turnScore = 0;
+  currentSimState.turnThrows = [];
 
-  const playerChangeEvent: ParsedEvent = {
-    type: 'player.change',
-    timestamp: new Date(),
-    raw: { channel: 'simulated', topic: 'player.change', data: {} },
-    data: {
-      previousPlayer: 0,
-      currentPlayer: 1,
-      playerName: currentSimState.players[1]?.name || 'Unknown',
-      remaining: currentSimState.scores[1],
-    },
-  };
   deps.emitEvent(playerChangeEvent);
 
   emitMatchState(deps);

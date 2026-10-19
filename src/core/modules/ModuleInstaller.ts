@@ -9,6 +9,7 @@ import type {
   InstallResult,
   UpdateResult,
 } from '../../types/modules.js';
+import { copyModuleDir, readSimpleGitignoreNames } from './localInstallCopy.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -350,22 +351,34 @@ export class ModuleInstaller extends EventEmitter {
     // Create symlink for development or copy for production
     const useSymlink = process.env.NODE_ENV === 'development';
 
-    if (useSymlink) {
-      this.emit('progress', { step: 'symlink', message: 'Creating symlink...' });
-      await fs.symlink(sourcePath, targetPath, 'dir');
-    } else {
-      this.emit('progress', { step: 'copy', message: 'Copying files...' });
-      await this.copyDir(sourcePath, targetPath);
+    try {
+      if (useSymlink) {
+        this.emit('progress', { step: 'symlink', message: 'Creating symlink...' });
+        await fs.symlink(sourcePath, targetPath, 'dir');
+      } else {
+        this.emit('progress', { step: 'copy', message: 'Copying files...' });
+        const skipNames = new Set(await readSimpleGitignoreNames(sourcePath));
+        await copyModuleDir(sourcePath, targetPath, skipNames);
 
-      // Run npm install in copied directory
-      this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
-      await this.execCommand('npm', NPM_INSTALL_WITH_DEV, targetPath);
+        // Run npm install in copied directory
+        this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
+        await this.execCommand('npm', NPM_INSTALL_WITH_DEV, targetPath);
 
-      // Fix SDK symlink if it uses relative path
-      await this.fixSdkLink(targetPath);
+        // Fix SDK symlink if it uses relative path
+        await this.fixSdkLink(targetPath);
 
-      // Build the module
-      await this.buildModule(targetPath);
+        // Build the module
+        await this.buildModule(targetPath);
+      }
+    } catch (err) {
+      // The existence check above confirmed targetPath didn't exist before
+      // this install, so it's safe to remove on failure - this never
+      // touches a pre-existing directory, only what this install just
+      // created. Without this, a failed local install (e.g. npm install or
+      // the build failing) leaves the half-installed folder behind, so a
+      // retry fails with "already exists".
+      await fs.rm(targetPath, { recursive: true, force: true });
+      throw err;
     }
 
     return {
@@ -561,29 +574,4 @@ export class ModuleInstaller extends EventEmitter {
     }
   }
 
-
-  /**
-   * Copy directory recursively
-   */
-  private async copyDir(src: string, dest: string): Promise<void> {
-    await fs.mkdir(dest, { recursive: true });
-
-    const entries = await fs.readdir(src, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const srcPath = path.join(src, entry.name);
-      const destPath = path.join(dest, entry.name);
-
-      // Skip node_modules and .git
-      if (entry.name === 'node_modules' || entry.name === '.git') {
-        continue;
-      }
-
-      if (entry.isDirectory()) {
-        await this.copyDir(srcPath, destPath);
-      } else {
-        await fs.copyFile(srcPath, destPath);
-      }
-    }
-  }
 }

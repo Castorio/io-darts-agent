@@ -264,6 +264,24 @@ describe('ModuleInstaller', () => {
       expect(result.success).toBe(false);
       expect(fs.rm).toHaveBeenCalledWith(path.join(testModulesDir, 'broken-module'), { recursive: true, force: true });
     });
+
+    it('removes the folder it created when a local install fails to build, so a retry does not see "already exists"', async () => {
+      vi.mocked(fs.access)
+        .mockResolvedValueOnce(undefined) // source exists
+        .mockRejectedValueOnce({ code: 'ENOENT' }); // target doesn't exist yet - this install creates it
+      vi.mocked(fs.readFile).mockImplementation(async (file) =>
+        String(file).endsWith('package.json') ? JSON.stringify({ scripts: { build: 'tsc' } }) : JSON.stringify(TEST_MANIFEST)
+      );
+      vi.mocked(execFile).mockImplementation(((file: string, args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
+        if (file === 'npm' && args[0] === 'run') cb(Object.assign(new Error('tsc: not found'), { stderr: 'tsc: not found' }));
+        else cb(null, { stdout: '', stderr: '' });
+      }) as never);
+
+      const result = await installer.install({ type: 'local', path: '/path/to/local/module' });
+
+      expect(result.success).toBe(false);
+      expect(fs.rm).toHaveBeenCalledWith(path.join(testModulesDir, 'test-module'), { recursive: true, force: true });
+    });
   });
 
   describe('module SDK link', () => {

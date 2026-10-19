@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import * as path from 'path';
+import { assignPlayerColors, DEFAULT_PLAYER_COLORS } from './core/players/playerColors.js';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { APIServer } from './api/Server.js';
@@ -846,14 +847,7 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
   hub = new AutodartsHub(hubConfig);
 
   // Default player colors for fallback
-  const defaultPlayerColors = [
-    '#3b82f6', // Blue
-    '#ef4444', // Red
-    '#22c55e', // Green
-    '#f59e0b', // Amber
-    '#8b5cf6', // Purple
-    '#ec4899', // Pink
-  ];
+  const defaultPlayerColors = DEFAULT_PLAYER_COLORS;
 
   // Function to enrich events with player colors from the local player database
   async function enrichEventWithPlayerColors(event: ParsedEvent): Promise<ParsedEvent> {
@@ -869,38 +863,14 @@ async function startHub(config: HubConfiguration, configService: APIConfigServic
       return event;
     }
 
-    // Enrich each player with their color from the local database
-    const enrichedPlayers = await Promise.all(
-      players.map(async (player, index) => {
-        const playerName = player.name as string;
-        if (!playerName) {
-          return {
-            ...player,
-            color: player.color || defaultPlayerColors[index % defaultPlayerColors.length],
-          };
-        }
-
-        try {
-          // Try to match player by name (case-insensitive)
-          const matchedPlayer = await playerService!.matchPlayer(playerName);
-          if (matchedPlayer && matchedPlayer.color) {
-            console.log(`🎨 Matched player "${playerName}" with color ${matchedPlayer.color}`);
-            return {
-              ...player,
-              color: matchedPlayer.color,
-            };
-          }
-        } catch (err) {
-          console.error(`Error matching player color for ${playerName}:`, err);
-        }
-
-        // Fallback to default color
-        return {
-          ...player,
-          color: player.color || defaultPlayerColors[index % defaultPlayerColors.length],
-        };
-      })
+    // Profile colors for known players; others get a stable default color
+    // by player.index that no known player in this match uses
+    const colors = await assignPlayerColors(
+      players as Array<{ name?: string; index?: number; color?: string }>,
+      (name) => playerService!.matchPlayer(name),
+      defaultPlayerColors,
     );
+    const enrichedPlayers = players.map((player, position) => ({ ...player, color: colors[position] }));
 
     // Return enriched event
     return {
@@ -1962,6 +1932,7 @@ async function main(): Promise<void> {
   registerMatchRoutes(fastify, server, {
     getCurrentMatch: () => hub?.getCurrentMatchState() ?? null,
     getLastMatchUpdate: () => hub?.getLastMatchUpdate() ?? null,
+    getWonCounts: () => hub?.getWonCounts() ?? null,
   });
 
   // Register WebSocket Routes - using EventSystem for subscriptions

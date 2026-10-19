@@ -231,6 +231,10 @@ export class SocketService {
   /**
    * Get timestamp of last match update
    */
+  getWonCounts(): import('../game/legTally.js').LegTallySnapshot | null {
+    return this.eventParser.getWonCounts();
+  }
+
   getLastMatchUpdate(): Date | null {
     return this.eventParser.getLastMatchUpdate();
   }

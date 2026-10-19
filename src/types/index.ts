@@ -240,6 +240,12 @@ export interface MatchGameState {
   segments?: Record<string, number[]>;
 }
 
+/** Legs and sets a player has won (Autodarts `scores`) */
+export interface MatchScore {
+  legs: number;
+  sets: number;
+}
+
 export interface MatchStateData {
   id: string;
   createdAt: string;
@@ -257,7 +263,7 @@ export interface MatchStateData {
   winner: number | null;
   settings: MatchSettings;
   state?: MatchGameState | string | null;
-  scores: number[];
+  scores: MatchScore[]; // Legs and sets won, per array position like gameScores
   chalkboards: Chalkboard[];
   gameScores: number[];
   stats: {

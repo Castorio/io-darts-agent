@@ -125,6 +125,10 @@ export class AutodartsHub {
   /**
    * Get timestamp of last match update
    */
+  getWonCounts(): import('./core/game/legTally.js').LegTallySnapshot | null {
+    return this.socketService.getWonCounts();
+  }
+
   getLastMatchUpdate(): Date | null {
     return this.socketService.getLastMatchUpdate();
   }

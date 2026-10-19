@@ -33,6 +33,8 @@ interface SimulatedMatchState {
   set: number;
   turnScore: number;
   turnBusted: boolean;
+  /** Darts of the current turn, sent as turns[-1].throws like Autodarts */
+  turnThrows: Array<{ segment: { number: number; multiplier: number; bed: string; name: string } }>;
 }
 
 /**
@@ -53,6 +55,7 @@ function createDefaultMatchState(): SimulatedMatchState {
     set: 1,
     turnScore: 0,
     turnBusted: false,
+    turnThrows: [],
   };
 }
 
@@ -278,6 +281,7 @@ export function registerDeveloperRoutes(
     deps.emitEvent(throwEvent);
 
     // Update state
+    currentSimState.turnThrows.push({ segment: { number, multiplier, bed: getBedName(number, multiplier), name: segmentName(number, multiplier) } });
     const newScore = currentSimState.scores[playerIdx] - points;
     if (newScore < 0 || (newScore === 1) || (newScore === 0 && multiplier !== 2)) {
       // Bust
@@ -353,6 +357,7 @@ export function registerDeveloperRoutes(
     currentSimState.currentPlayerIndex = (prevPlayer + 1) % currentSimState.players.length;
     currentSimState.turnScore = 0;
     currentSimState.turnBusted = false;
+    currentSimState.turnThrows = [];
 
     // Increment round if we're back to player 0
     if (currentSimState.currentPlayerIndex === 0) {
@@ -519,8 +524,9 @@ function emitMatchState(deps: DeveloperDependencies): void {
         index: p.index,
         color: p.color,
       })),
-      scores: currentSimState.scores,
-      gameScores: currentSimState.gameScores,
+      // Same shape as Autodarts: gameScores = remaining points, scores = legs/sets won
+      scores: currentSimState.players.map(() => ({ legs: 0, sets: 0 })),
+      gameScores: currentSimState.scores,
       turnScore: currentSimState.turnScore,
       turnBusted: currentSimState.turnBusted,
       round: currentSimState.round,
@@ -530,11 +536,18 @@ function emitMatchState(deps: DeveloperDependencies): void {
       winner: null,
       gameFinished: false,
       gameWinner: null,
-      turns: [],
+      turns: [{ id: `${currentSimState.matchId}:${currentSimState.round}:${currentSimState.currentPlayerIndex}`, throws: currentSimState.turnThrows }],
       settings: { startScore: 501 },
     },
   };
   deps.emitEvent(event);
+}
+
+/** Segment name as Autodarts writes it (S20, D16, T19, 25, Bull) */
+function segmentName(number: number, multiplier: number): string {
+  if (number === 25) return multiplier === 2 ? 'Bull' : '25';
+  if (number === 0) return 'Miss';
+  return `${multiplier === 3 ? 'T' : multiplier === 2 ? 'D' : 'S'}${number}`;
 }
 
 /**
@@ -593,6 +606,7 @@ async function run180Scenario(deps: DeveloperDependencies): Promise<void> {
 
     currentSimState.turnScore += 60;
     currentSimState.scores[currentSimState.currentPlayerIndex] -= 60;
+    currentSimState.turnThrows.push({ segment: { number: 20, multiplier: 3, bed: 'Triple', name: 'T20' } });
     emitMatchState(deps);
 
     await delay(300);

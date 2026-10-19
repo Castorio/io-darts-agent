@@ -56,4 +56,17 @@ describe('game display remaining score while throwing', () => {
     }
     expect(store.remainingScore).toBe(321);
   });
+
+  it('takes the remaining score only from Autodarts, a throw event alone changes nothing', () => {
+    const store = useGameDisplayStore();
+    const parser = new EventParser(MOCK_BOARD_ID);
+    for (const e of list(parser.parse(mockMatchStart))) store.handleEvent({ type: e.type, data: e.data });
+    for (const e of list(parser.parse(createMockMatchState({ gameScores: [501] })))) store.handleEvent({ type: e.type, data: e.data });
+
+    store.handleEvent({ type: 'throw.detected', data: { segment: T20, throwNumber: 1, points: 60 } });
+    store.handleEvent({ type: 'throw.detected', data: { segment: T20, throwNumber: 1, points: 60 } });
+
+    expect(store.remainingScore).toBe(501);
+    expect(store.currentDarts).toHaveLength(0);
+  });
 });

@@ -3,6 +3,7 @@ import type {
   MatchSettings,
   MatchStats,
   ParsedEvent,
+  MatchScore,
 } from '../../types/index.js';
 
 /**
@@ -30,7 +31,7 @@ export interface MatchStatus {
   /** All players in the match */
   players: MatchPlayerStatus[];
   /** Overall match scores (legs/sets won) */
-  scores: number[];
+  scores: MatchScore[];
   /** Current game scores (remaining points) */
   gameScores: number[];
   /** Current turn score */

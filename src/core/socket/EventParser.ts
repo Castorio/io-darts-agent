@@ -1,3 +1,4 @@
+import { LegTally, type LegTallySnapshot } from '../game/legTally.js';
 import type {
   AutodartsMessage,
   ParsedEvent,
@@ -31,6 +32,12 @@ export class EventParser {
   private debug: boolean;
   private currentMatchId: string | null = null;
   private lastPlayerIndex: number | null = null;
+  // Who was at the board, by stable player.index within variant/set/leg:
+  // the players array rotates between legs, so array positions alone miss
+  // the change to the starting player of the next leg
+  private lastTurnOwnerKey: string | null = null;
+  // Legs and sets won per player.index, counted by the hub
+  private readonly legTally = new LegTally();
   // Leg (match:set:leg) whose game.finished was already reported
   private lastFinishedLegKey: string | null = null;
   private currentMatchState: MatchStateData | null = null;
@@ -87,6 +94,7 @@ export class EventParser {
     this.currentMatchId = matchId;
     if (!matchId) {
       this.lastPlayerIndex = null;
+      this.lastTurnOwnerKey = null;
       this.currentMatchState = null;
       this.lastMatchUpdate = null;
       this.lastRound = null;
@@ -103,6 +111,11 @@ export class EventParser {
    */
   getCurrentMatchState(): MatchStateData | null {
     return this.currentMatchState;
+  }
+
+  /** Legs/sets won per player.index for the current match, counted by the hub */
+  getWonCounts(): LegTallySnapshot | null {
+    return this.currentMatchState ? this.legTally.snapshot(this.currentMatchState) : null;
   }
 
   /**
@@ -176,6 +189,7 @@ export class EventParser {
     if (data.event === 'start') {
       this.currentMatchId = data.id;
       this.lastPlayerIndex = null;
+      this.lastTurnOwnerKey = null;
       this.lastRound = null;
       this.lastTurnScore = null;
       this.lastTurnBusted = false;
@@ -197,6 +211,7 @@ export class EventParser {
     if (data.event === 'delete') {
       this.currentMatchId = null;
       this.lastPlayerIndex = null;
+      this.lastTurnOwnerKey = null;
       this.lastRound = null;
       this.lastTurnScore = null;
       this.lastTurnBusted = false;
@@ -219,6 +234,7 @@ export class EventParser {
     if (data.event === 'finish') {
       this.currentMatchId = null;
       this.lastPlayerIndex = null;
+      this.lastTurnOwnerKey = null;
       this.currentMatchState = null;
       this.lastMatchUpdate = null;
       this.lastRound = null;
@@ -256,6 +272,13 @@ export class EventParser {
     timestamp: Date
   ): ParsedEvent {
     const event = data.event;
+
+    // During a match every dart also arrives with the next match state, which
+    // emits throw.detected with points and turn data; a second one from the
+    // board event counted each dart twice
+    if (event === 'Throw detected' && this.currentMatchId) {
+      return { type: 'board.event', timestamp, raw, data };
+    }
 
     if (event === 'Throw detected') {
       const segment = data.throw.segment;
@@ -319,6 +342,7 @@ export class EventParser {
 
     // Store the current match state
     this.currentMatchState = data;
+    this.legTally.sync(data);
     this.lastMatchUpdate = timestamp;
 
     // Check for turn finished
@@ -497,8 +521,14 @@ export class EventParser {
     this.lastGameScores = [...data.gameScores];
     this.lastDartsInTurn = dartsInCurrentTurn;
 
-    // Check for player change
-    if (this.lastPlayerIndex !== null && this.lastPlayerIndex !== data.player) {
+    // Check for player change: a different player (stable index) or a new
+    // leg/variant. Finished states of a leg are skipped, Autodarts already
+    // rotates the players in them.
+    const turnOwner = data.players[data.player];
+    const turnOwnerKey = `${data.variant}:${data.set}:${data.leg}:${turnOwner?.index ?? data.player}`;
+    const ownerChanged = !data.gameFinished && this.lastTurnOwnerKey !== null && this.lastTurnOwnerKey !== turnOwnerKey;
+    if (!data.gameFinished) this.lastTurnOwnerKey = turnOwnerKey;
+    if (ownerChanged) {
       // FIXED: data.player IS the ARRAY POSITION (0-based), not the index field value!
       // After each leg, Autodarts rotates the players array, so array positions change.
       // This matches how GameDisplay handles it - using the position directly.
@@ -524,8 +554,14 @@ export class EventParser {
     // Check for game finished. Autodarts keeps sending finished states for the
     // same leg (also after rotating the players for the next leg), so report
     // each leg once, from its first finished state.
-    const legKey = `${data.id}:${data.set}:${data.leg}`;
-    if (data.gameFinished && data.gameWinner !== null && this.lastFinishedLegKey !== legKey) {
+    // The variant is part of the key: an online match plays a Bull-off as
+    // "leg 1" before the first X01 leg 1 under the same match id
+    const legKey = `${data.id}:${data.variant}:${data.set}:${data.leg}`;
+    // The bull-off only decides who starts, it is not a leg
+    const isBullOff = data.variant?.toLowerCase() === 'bull-off';
+    // Back in progress after a finish (corrected checkout): the real finish is reported again
+    if (!data.gameFinished && this.lastFinishedLegKey === legKey) this.lastFinishedLegKey = null;
+    if (!isBullOff && data.gameFinished && data.gameWinner !== null && this.lastFinishedLegKey !== legKey) {
       this.lastFinishedLegKey = legKey;
       // IMPORTANT: gameWinner from Autodarts is the player's INDEX field value, not array position!
       // When a leg ends, Autodarts rotates the players array for the next leg.
@@ -556,6 +592,7 @@ export class EventParser {
         : [];
       const gameWinnerPlayer = checkedOut.length === 1 ? data.players[checkedOut[0]] : gameWinnerByIndex;
 
+      this.legTally.recordLeg(data, gameWinnerPlayer?.index ?? data.gameWinner);
       events.push({
         type: 'game.finished',
         timestamp,
@@ -570,6 +607,8 @@ export class EventParser {
           players: data.players,
           // Include scores array so frontend can extract legs/sets won
           scores: data.scores,
+          // Legs/sets won per player.index, counted by the hub
+          ...this.legTally.snapshot(data),
         },
       });
     }
@@ -645,6 +684,7 @@ export class EventParser {
 
       this.currentMatchId = null;
       this.lastPlayerIndex = null;
+      this.lastTurnOwnerKey = null;
       this.currentMatchState = null;
       this.lastMatchUpdate = null;
       this.lastRound = null;
@@ -673,6 +713,14 @@ export class EventParser {
         winner: data.winner,
         leg: data.leg,
         set: data.set,
+        // Legs/sets needed to win (null = single leg/set) and legs/sets won
+        // per player, for the game info and the legs won display
+        legs: data.legs,
+        sets: data.sets,
+        scores: data.scores,
+        // Legs/sets won per player.index, counted by the hub (use these)
+        ...this.legTally.snapshot(data),
+        gameFinished: data.gameFinished,
         players: data.players.map((p) => ({
           index: p.index,
           name: p.name,

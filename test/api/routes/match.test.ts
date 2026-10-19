@@ -31,9 +31,10 @@ function createMockMatchState(overrides: Partial<MatchStateData> = {}): MatchSta
       outMode: 'double',
     },
     state: 'playing',
-    scores: [301, 342],
+    // Real Autodarts shape: legs/sets won per player; remaining points in gameScores
+    scores: [{ legs: 0, sets: 0 }, { legs: 1, sets: 0 }],
     chalkboards: [],
-    gameScores: [0, 0],
+    gameScores: [301, 342],
     stats: {
       legStats: [
         {
@@ -207,8 +208,8 @@ describe('Match Routes', () => {
       expect(body.set).toBe(1);
       expect(body.round).toBe(3);
       expect(body.player).toBe(0);
-      expect(body.scores).toEqual([301, 342]);
-      expect(body.gameScores).toEqual([0, 0]);
+      expect(body.scores).toEqual([{ legs: 0, sets: 0 }, { legs: 1, sets: 0 }]);
+      expect(body.gameScores).toEqual([301, 342]);
       expect(body.turnScore).toBe(45);
       expect(body.turnBusted).toBe(false);
       expect(body.finished).toBe(false);
@@ -233,6 +234,28 @@ describe('Match Routes', () => {
       });
       expect(body.turns).toEqual([{ id: 'turn-2' }]);
       expect(body.segments).toBeUndefined();
+    });
+
+    it('returns the legs and sets needed to win, so a reloaded display shows the format', async () => {
+      getCurrentMatch.mockReturnValue(createMockMatchState({ legs: 3, sets: null as never }));
+      const response = await fastify.inject({ method: 'GET', url: '/api/match/current' });
+      const body = JSON.parse(response.body);
+      expect(body.legs).toBe(3);
+      expect(body.sets).toBeNull();
+    });
+
+    it('returns the legs and sets won as counted by the hub', async () => {
+      const app = Fastify();
+      registerMatchRoutes(app, mockServer as any, {
+        getCurrentMatch: () => createMockMatchState(),
+        getLastMatchUpdate: () => null,
+        getWonCounts: () => ({ legsWon: { 0: 1, 1: 0 }, setsWon: { 0: 0, 1: 0 } }),
+      });
+      await app.ready();
+      const body = JSON.parse((await app.inject({ method: 'GET', url: '/api/match/current' })).body);
+      await app.close();
+      expect(body.legsWon).toEqual({ 0: 1, 1: 0 });
+      expect(body.setsWon).toEqual({ 0: 0, 1: 0 });
     });
 
     it('should include player info with scores and averages', async () => {
@@ -355,8 +378,8 @@ describe('Match Routes', () => {
 
       const body = JSON.parse(response.body);
       expect(body.active).toBe(true);
-      expect(body.scores).toEqual([301, 342]);
-      expect(body.gameScores).toEqual([0, 0]);
+      expect(body.scores).toEqual([{ legs: 0, sets: 0 }, { legs: 1, sets: 0 }]);
+      expect(body.gameScores).toEqual([301, 342]);
       expect(body.turnScore).toBe(45);
       expect(body.currentPlayer).toBe(0);
     });

@@ -90,13 +90,12 @@ describe('Integration: Hub Core Components', () => {
       });
     });
 
-    it('should parse and emit throw detected event', async () => {
+    it('should parse and emit throw detected event (board throw outside a match)', async () => {
       const handler = vi.fn();
       eventBus.on('throw.detected', handler);
 
-      // Need to set match first
-      eventParser.setMatchId(MOCK_MATCH_ID);
-
+      // During a match throws come from the match state (one event per dart);
+      // the board event path only reports throws outside a match
       const event = eventParser.parse(mockThrowT20);
       if (event && !Array.isArray(event)) {
         await eventBus.emit(event);
@@ -175,7 +174,9 @@ describe('Integration: Hub Core Components', () => {
       }
 
       const eventTypes = events.map((e) => e.type);
-      expect(eventTypes).toContain('throw.detected');
+      // The board throw during a match is passed on as board.event only
+      expect(eventTypes).toContain('board.event');
+      expect(eventTypes).not.toContain('throw.detected');
       expect(eventTypes).toContain('match.state');
       expect(eventTypes).toContain('takeout.started');
       expect(eventTypes).toContain('takeout.finished');
@@ -282,9 +283,7 @@ describe('Integration: Hub Core Components', () => {
       const throws: ParsedEvent[] = [];
       eventBus.on('throw.detected', (e) => throws.push(e));
 
-      eventParser.setMatchId(MOCK_MATCH_ID);
-
-      // Three T20 throws
+      // Three T20 throws from the board (outside a match)
       for (let i = 1; i <= 3; i++) {
         const throwMsg = {
           ...mockThrowT20,

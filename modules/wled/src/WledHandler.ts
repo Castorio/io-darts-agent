@@ -509,9 +509,14 @@ export class WledHandler {
     let playerName = options.playerName ?? this.currentMatchState?.playerName;
     const players = options.players ?? this.currentMatchState?.players ?? null;
 
-    // Get player info from players array
-    if (players && players[playerIdx]) {
-      const player = players[playerIdx];
+    // Get player info from players array. By name first: the players array
+    // rotates after each leg, and a player change can arrive before the
+    // stored list has the new order, so the array position may be stale.
+    const byName = playerName
+      ? players?.find((p) => p.name?.toLowerCase() === playerName!.toLowerCase())
+      : undefined;
+    const player = byName ?? players?.[playerIdx];
+    if (player) {
       if (!playerName) playerName = player.name;
 
       // Check for enriched color

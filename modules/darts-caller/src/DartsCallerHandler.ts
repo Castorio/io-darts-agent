@@ -630,7 +630,8 @@ export class DartsCallerHandler {
         {
           const players = eventData.players as Array<{ name: string; remaining?: number; color?: string; [key: string]: unknown }> | undefined;
           const currentPlayerIndex = eventData.player as number ?? 0;
-          const scores = eventData.scores as number[] | undefined;
+          // Remaining points per array position; `scores` are legs/sets won, not points
+          const remainingScores = eventData.gameScores as number[] | undefined;
           const startScore = eventData.startScore as number | undefined;
 
           if (players && players.length > 0) {
@@ -638,7 +639,7 @@ export class DartsCallerHandler {
             this.currentMatchState = {
               players: players.map((p, idx) => ({
                 name: p.name,
-                remaining: scores ? scores[idx] : p.remaining,
+                remaining: typeof remainingScores?.[idx] === 'number' ? remainingScores[idx] : p.remaining,
                 color: p.color,
               })),
               currentPlayerIndex,

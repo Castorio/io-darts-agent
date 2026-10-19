@@ -941,6 +941,22 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   }
 
   /**
+   * Legs and sets won as counted by the hub (keyed by player.index, so the
+   * rotating players array of Autodarts does not matter). Returns false when
+   * the event carries no counts.
+   */
+  function applyWonCounts(data: Record<string, unknown>): boolean {
+    const legsWon = data.legsWon as Record<string, number> | undefined
+    const setsWon = data.setsWon as Record<string, number> | undefined
+    if (!legsWon) return false
+    for (const player of gameState.value.players) {
+      if (typeof legsWon[player.index] === 'number') player.legsWon = legsWon[player.index]
+      if (typeof setsWon?.[player.index] === 'number') player.setsWon = setsWon[player.index]
+    }
+    return true
+  }
+
+  /**
    * Drops everything that belongs to the previous match. Without this the
    * winner of a finished match stayed set, so the first state of the next
    * match was handled as a finished state and kept the old players.
@@ -1179,6 +1195,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       }
     }
 
+    applyWonCounts(data)
+
     // ========================================================================
     // ACTIVE PLAYER INDEX (nur wenn nicht finished)
     // ========================================================================
@@ -1316,62 +1334,24 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   }
 
   function handleThrow(data: Record<string, unknown>) {
-    // throw.detected events only have segment info, no scores
-    // The next match.state event will have the complete data including scores
-    // We just add the dart visually here for immediate feedback
-    const segment = data.segment as Record<string, unknown> | undefined
-    const dartIndex = gameState.value.currentTurn.darts.length
+    // Darts, turn score and remaining score come from the next match.state
+    // (the hub sends it right after every throw.detected). Adding the dart
+    // and subtracting here as well counted darts twice whenever a throw was
+    // reported more than once.
 
-    if (dartIndex < 3 && segment) {
-      const number = (segment.number as number) || 0
-      const multiplier = (segment.multiplier as number) || 1
-      const calculatedPoints = number * multiplier
-      // Use 'name' field for display (e.g. "S1", "T20", "D16")
-      const name = (segment.name as string) || ''
-
-      const dart: DartThrow = {
-        segment: {
-          number,
-          multiplier,
-          bed: name, // Store name in bed field for getDartLabel()
-        },
-        points: calculatedPoints,
-        index: dartIndex,
+    // Cricket: a strong turn (from the configured mark threshold) fires here,
+    // once per turnId, since this is the only event carrying turnMarks live.
+    if (isCricketGame.value) {
+      const turnMarksValue = data.turnMarks
+      const turnId = data.turnId as string | null | undefined
+      if (
+        typeof turnMarksValue === 'number'
+        && turnMarksValue >= config.value.cricketMarksThreshold
+        && turnId
+        && cricketAnimationTracker.take(`${turnId}:marks`)
+      ) {
+        triggerAnimation('cricketMarks', activePlayer.value ?? undefined)
       }
-
-      gameState.value.currentTurn.darts.push(dart)
-
-      // Cricket points depend on the marks: wait for the next match.state.
-      // A strong turn (from the configured mark threshold) fires here, once
-      // per turnId, since this is the only event carrying turnMarks live.
-      if (isCricketGame.value) {
-        const turnMarksValue = data.turnMarks
-        const turnId = data.turnId as string | null | undefined
-        if (
-          typeof turnMarksValue === 'number'
-          && turnMarksValue >= config.value.cricketMarksThreshold
-          && turnId
-          && cricketAnimationTracker.take(`${turnId}:marks`)
-        ) {
-          triggerAnimation('cricketMarks', activePlayer.value ?? undefined)
-        }
-        return
-      }
-
-      // Update turn score for immediate visual feedback
-      // The next match.state will provide the authoritative values
-      const newTurnScore = gameState.value.currentTurn.darts.reduce((sum, d) => sum + d.points, 0)
-      gameState.value.currentTurn.turnScore = newTurnScore
-
-      // Throw animations are triggered in handleMatchState only (the hub
-      // sends match.state right after every throw.detected), so a dart never
-      // fires twice.
-
-      // Subtract the thrown points from the CURRENT remaining score
-      // (not from activePlayer.score, which already reflects the server state)
-      gameState.value.currentTurn.remaining -= calculatedPoints
-
-      updateCheckoutStatus()
     }
   }
 
@@ -1552,8 +1532,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     const scores = data.scores as Array<{ legs: number; sets: number }> | undefined
 
     if (winner) {
-      // Update alle Spieler-Scores
-      if (scores) {
+      // Legs/sets won: the hub's own count per player.index, Autodarts' scores as fallback
+      if (!applyWonCounts(data) && scores) {
         gameState.value.players.forEach(player => {
           if (scores[player.index]) {
             player.legsWon = scores[player.index].legs
@@ -1656,8 +1636,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     const scores = data.scores as Array<{ legs: number; sets: number }> | undefined
 
     if (winner) {
-      // Update alle Spieler-Scores
-      if (scores) {
+      // Legs/sets won: the hub's own count per player.index, Autodarts' scores as fallback
+      if (!applyWonCounts(data) && scores) {
         gameState.value.players.forEach(player => {
           if (scores[player.index]) {
             player.legsWon = scores[player.index].legs

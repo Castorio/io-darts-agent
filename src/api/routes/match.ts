@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { APIServer } from '../Server.js';
-import type { MatchStateData, MatchPlayer, MatchStats, MatchSettings, MatchTurn, CricketStateData } from '../../types/index.js';
+import type { MatchStateData, MatchPlayer, MatchStats, MatchSettings, MatchTurn, CricketStateData, MatchScore } from '../../types/index.js';
 import { getMatchStatusService, type MatchStatus } from '../../core/match/index.js';
+import type { LegTallySnapshot } from '../../core/game/legTally.js';
 import { cricketStateOf } from '../../core/game/cricket.js';
 
 /**
@@ -14,10 +15,15 @@ export interface CurrentMatchResponse {
   type: string | null;
   leg: number;
   set: number;
+  legs: number | null;
+  sets: number | null;
+  /** Legs/sets won per player.index, counted by the hub */
+  legsWon?: Record<number, number>;
+  setsWon?: Record<number, number>;
   round: number;
   player: number;
   players: MatchPlayerInfo[];
-  scores: number[];
+  scores: MatchScore[];
   gameScores: number[];
   turnScore: number;
   turnBusted: boolean;
@@ -46,6 +52,8 @@ export interface MatchPlayerInfo {
 export interface MatchDependencies {
   getCurrentMatch: () => MatchStateData | null;
   getLastMatchUpdate: () => Date | null;
+  /** Legs/sets won per player.index, counted by the hub */
+  getWonCounts?: () => LegTallySnapshot | null;
 }
 
 /**
@@ -61,12 +69,13 @@ function isAuthorized(server: APIServer, session: { authenticated?: boolean } | 
 /**
  * Build player info from match state
  */
-function buildPlayerInfo(players: MatchPlayer[], scores: number[], stats: MatchStats[]): MatchPlayerInfo[] {
+// `remaining` are the points left per array position (Autodarts gameScores)
+function buildPlayerInfo(players: MatchPlayer[], remaining: number[], stats: MatchStats[]): MatchPlayerInfo[] {
   return players.map((player, index) => ({
     id: player.id,
     index: player.index,
     name: player.name,
-    score: scores[index] ?? 0,
+    score: remaining[index] ?? 0,
     average: stats[index]?.average ?? 0,
   }));
 }
@@ -113,6 +122,8 @@ export function registerMatchRoutes(
         settings: null,
         lastUpdated: null,
         cricket: null,
+        legs: null,
+        sets: null,
         turns: [],
       };
     }
@@ -143,6 +154,8 @@ export function registerMatchRoutes(
         settings: null,
         lastUpdated: null,
         cricket: null,
+        legs: null,
+        sets: null,
         turns: [],
       };
     }
@@ -151,7 +164,7 @@ export function registerMatchRoutes(
     // match.stats may be undefined at the start of a match
     const playerInfo = buildPlayerInfo(
       match.players,
-      match.scores,
+      match.gameScores ?? [],
       match.stats?.legStats ?? []
     );
 
@@ -162,6 +175,11 @@ export function registerMatchRoutes(
       type: match.type,
       leg: match.leg,
       set: match.set,
+      // Legs/sets needed to win (null = single leg/set)
+      legs: match.legs ?? null,
+      sets: match.sets ?? null,
+      // Legs/sets won per player.index as counted by the hub (same as in match.state)
+      ...(deps.getWonCounts?.() ?? {}),
       round: match.round,
       player: match.player,
       players: playerInfo,
@@ -206,7 +224,7 @@ export function registerMatchRoutes(
 
     const playerInfo = buildPlayerInfo(
       match.players,
-      match.scores,
+      match.gameScores ?? [],
       match.stats?.legStats ?? []
     );
 
@@ -220,7 +238,7 @@ export function registerMatchRoutes(
   fastify.get<{
     Reply: {
       active: boolean;
-      scores: number[];
+      scores: MatchScore[];
       gameScores: number[];
       turnScore: number;
       currentPlayer: number;

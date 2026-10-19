@@ -34,6 +34,7 @@ import { HiggsfieldProvider } from './core/ai/providers/HiggsfieldProvider.js';
 import { APIConfigService } from './core/config/ConfigService.js';
 import { AuthService } from './core/auth/AuthService.js';
 import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
+import { computeModuleStats } from './core/modules/moduleStats.js';
 import { ModuleBridge } from './core/modules/ModuleBridge.js';
 import { resolveBuiltinModulesDir } from './core/modules/BuiltinModuleInstaller.js';
 import { resolveSdkPath } from './core/modules/sdkPath.js';
@@ -1065,10 +1066,7 @@ async function main(): Promise<void> {
       userId: undefined,
       boardId: config?.autodarts?.boardId,
     }),
-    getModuleStats: () => ({
-      total: 0,
-      running: 0,
-    }),
+    getModuleStats: () => computeModuleStats(installedModules.values()),
   });
 
   // Module Installer

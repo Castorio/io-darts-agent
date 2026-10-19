@@ -1,8 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { APIServer } from '../Server.js';
 import type { HubStatusResponse } from '../../types/api.js';
-
-const PACKAGE_VERSION = '1.0.0';
+import { hubVersion } from '../../core/hubVersion.js';
 
 export interface StatusDependencies {
   getUptime: () => number;
@@ -45,7 +44,7 @@ export function registerStatusRoutes(
     Reply: HubStatusResponse;
   }>('/api/status', async (_request, _reply) => {
     return {
-      version: PACKAGE_VERSION,
+      version: hubVersion(),
       uptime: deps.getUptime(),
       setupCompleted: !server.isSetupRequired(),
       autodarts: deps.getAutodartsStatus(),

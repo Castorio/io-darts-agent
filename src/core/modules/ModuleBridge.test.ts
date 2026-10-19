@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as net from 'net';
 import * as fs from 'fs';
 import { ModuleBridge } from './ModuleBridge.js';
+import { hubVersion } from '../hubVersion.js';
 import { ModuleProtocol } from './ModuleProtocol.js';
 import type { IPCMessage, ErrorPayload } from '../../types/modules.js';
 
@@ -328,6 +329,7 @@ describe('ModuleBridge', () => {
       expect(result).toBe(true);
       expect(receivedData).toContain('"type":"init"');
       expect(receivedData).toContain('throw.detected');
+      expect(receivedData).toContain(`"hubVersion":"${hubVersion()}"`);
     });
 
     it('should send config update', async () => {

@@ -9,8 +9,7 @@ import type {
   TestConnectionResponse,
   HubConfiguration,
 } from '../../types/api.js';
-
-const PACKAGE_VERSION = '1.0.0';
+import { hubVersion } from '../../core/hubVersion.js';
 
 /**
  * Register setup wizard routes
@@ -36,7 +35,7 @@ export function registerSetupRoutes(
   }>('/api/setup/status', async (_request, _reply) => {
     return {
       setupRequired: server.isSetupRequired(),
-      version: PACKAGE_VERSION,
+      version: hubVersion(),
     };
   });
 

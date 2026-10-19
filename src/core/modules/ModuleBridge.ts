@@ -1,6 +1,7 @@
 import * as net from 'net';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
+import { hubVersion } from '../hubVersion.js';
 import { ModuleProtocol } from './ModuleProtocol.js';
 import { moduleSocketPath } from './socketPath.js';
 import type {
@@ -202,7 +203,7 @@ export class ModuleBridge extends EventEmitter {
       this.moduleId,
       config,
       subscribedEvents as ParsedEvent['type'][],
-      '1.0.0'
+      hubVersion()
     );
     return this.send(message);
   }

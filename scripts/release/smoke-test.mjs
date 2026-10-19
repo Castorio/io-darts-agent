@@ -3,7 +3,8 @@
  * Smoke-tests a packaged (electron-builder `--dir` or installed) build of
  * IO-Darts-Agent: starts the backend the same way the Electron shell does
  * (ELECTRON_RUN_AS_NODE, a fresh data dir, supervised mode), waits for
- * /health, checks that / serves the web UI, then stops it again.
+ * /health, checks that / serves the web UI and that the hub reports the
+ * version from its packaged package.json, then stops it again.
  *
  * Usage: node scripts/release/smoke-test.mjs [releasesDir]
  * releasesDir defaults to "<repo>/releases" (electron-builder's output dir).
@@ -127,7 +128,22 @@ async function main() {
     return;
   }
 
-  console.log('[smoke-test] OK: /health reported ok and / served the web UI');
+  // The web UI and /api/status show the version the hub reads from the
+  // packaged package.json; it must be the version being released.
+  try {
+    const expected = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8')).version;
+    const res = await fetch(`${baseUrl}/api/setup/status`);
+    const body = await res.json();
+    if (body.version !== expected) {
+      fail(`GET /api/setup/status reported version "${body.version}", expected "${expected}"`);
+      return;
+    }
+  } catch (err) {
+    fail(`GET /api/setup/status: ${err.message}`);
+    return;
+  }
+
+  console.log('[smoke-test] OK: /health reported ok, / served the web UI and the hub reports its packaged version');
   cleanup();
 }
 

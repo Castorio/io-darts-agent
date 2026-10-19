@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { APIServer } from '../../../src/api/Server.js';
 import { registerSetupRoutes } from '../../../src/api/routes/setup.js';
+import { readFileSync } from 'fs';
+import * as path from 'path';
+
+const PACKAGE_VERSION = (JSON.parse(readFileSync(path.join(__dirname, '../../../package.json'), 'utf-8')) as { version: string }).version;
 
 describe('Setup Routes', () => {
   let server: APIServer;
@@ -37,7 +41,7 @@ describe('Setup Routes', () => {
 
       const data = await response.json();
       expect(data.setupRequired).toBe(true);
-      expect(data.version).toBeDefined();
+      expect(data.version).toBe(PACKAGE_VERSION);
     });
 
     it('should return setup not required when configured', async () => {

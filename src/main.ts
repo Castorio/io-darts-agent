@@ -49,6 +49,7 @@ import {
   restartExternalModule,
   handleExternalModuleExit,
 } from './core/modules/externalModuleLifecycle.js';
+import { stopForMaintenance, restartAfterMaintenance } from './core/modules/moduleMaintenance.js';
 import type { RoutesRegisterPayload } from './types/modules.js';
 import { spawn, ChildProcess } from 'child_process';
 import {
@@ -1221,6 +1222,105 @@ async function main(): Promise<void> {
   }
   scanInstalledModules();
 
+  // Start a module: shared by the start route and by maintenance operations
+  // (update) that must bring a module back up after touching its files.
+  const startModuleImpl = async (id: string): Promise<void> => {
+    const mod = installedModules.get(id);
+    if (!mod) throw new Error(`Module ${id} not found`);
+
+    // Setup handler based on module type
+    if (id === 'wled') {
+      mod.wledHandler = createWledHandler(mod.configValues);
+      mod.wledHandler.setPlayerService(playerService);
+      mod.wledHandler.setLogger(createModuleLogger('wled'));
+
+      mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
+        if (mod.wledHandler) {
+          await mod.wledHandler.handleEvent(event);
+        }
+      };
+
+      console.log(`▶️  Started module: ${mod.manifest.name}`);
+      console.log(`   Host: ${mod.wledHandler.getHost() || 'not configured'}`);
+    } else if (id === 'game-display') {
+      mod.gameDisplayHandler = createGameDisplayHandler(mod.configValues);
+      mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
+        if (mod.gameDisplayHandler) {
+          await mod.gameDisplayHandler.handleEvent(event);
+        }
+      };
+      console.log(`▶️  Started module: ${mod.manifest.name}`);
+    } else if (id === 'darts-caller') {
+      const callerVoicePacksDir = runtimePath('data', 'voicepacks');
+      mod.dartsCallerHandler = createDartsCallerHandler({
+        ...mod.configValues,
+        voicePacksDir: callerVoicePacksDir,
+      });
+      // Register callback to forward call requests to WebSocket
+      mod.dartsCallerHandler.onCallRequest((request) => {
+        console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
+        eventSystem.emitCallerRequest(request);
+      });
+      // Initialize ElevenLabs service and VoicePackGenerator if API key is configured
+      const config = server.getConfig();
+      const elevenLabsApiKey = resolveProviderApiKey(getAIProviderService(), 'elevenlabs', config?.aiProviders?.elevenlabs);
+      if (elevenLabsApiKey) {
+        const service = new ElevenLabsService({
+          apiKey: elevenLabsApiKey,
+          cacheDir: runtimePath('data', 'tts-cache'),
+          enableCache: true,
+        });
+        service.init().catch((err) => {
+          console.error('Failed to initialize ElevenLabs service:', err);
+        });
+        const generator = new VoicePackGenerator(service, callerVoicePacksDir);
+        mod.dartsCallerHandler.setElevenLabsService(service);
+        mod.dartsCallerHandler.setVoicePackGenerator(generator);
+        console.log('🎙️  Darts Caller configured with ElevenLabs for player name generation');
+      }
+      mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
+        if (mod.dartsCallerHandler) {
+          await mod.dartsCallerHandler.handleEvent(event);
+        }
+      };
+      console.log(`▶️  Started module: ${mod.manifest.name}`);
+    } else if (mod.manifest.entry && mod.manifest.entry !== 'internal') {
+      // External SDK-based module - spawn as separate process
+      await startExternalModule(mod);
+    } else {
+      console.log(`▶️  Started module: ${mod.manifest.name}`);
+    }
+
+    // Register module intents
+    registerModuleIntents(mod);
+
+    mod.status = 'running';
+  };
+
+  // Stop a module: shared by the stop route and by maintenance operations
+  // (uninstall, update) that must not leave a running external process (or
+  // registered intents) behind when the module's files are removed/replaced.
+  const stopModuleImpl = async (id: string): Promise<void> => {
+    const mod = installedModules.get(id);
+    if (!mod) throw new Error(`Module ${id} not found`);
+
+    // Unregister intents
+    unregisterModuleIntents(mod);
+
+    // Stop external process if running
+    if (mod.isExternalProcess) {
+      await stopExternalModule(mod);
+    }
+
+    // Remove event handler and handlers
+    mod.eventHandler = undefined;
+    mod.wledHandler = undefined;
+    mod.gameDisplayHandler = undefined;
+    mod.dartsCallerHandler = undefined;
+    mod.status = 'stopped';
+    console.log(`⏹️  Stopped module: ${mod.manifest.name}`);
+  };
+
   // Shared install implementation: used by the module management routes
   // (git or local install) and the store routes (always git, url/branch
   // supplied by the validated catalog entry).
@@ -1267,10 +1367,10 @@ async function main(): Promise<void> {
     const mod = installedModules.get(id);
     if (!mod) throw new Error(`Module ${id} not found`);
 
-    // Stop module first if running
-    if (mod.status === 'running') {
-      mod.status = 'stopped';
-    }
+    // Stop module first if running - otherwise its external process (or
+    // registered intents) would be left running while its install
+    // directory is removed out from under it.
+    await stopForMaintenance(mod, (m) => stopModuleImpl(m.id));
 
     // Use the stored path directly instead of relying on moduleId matching directory name
     // This fixes the issue where git-installed modules have directory names different from their module ID
@@ -1394,98 +1494,8 @@ async function main(): Promise<void> {
       }
       resolve();
     }),
-    startModule: async (id: string): Promise<void> => {
-      const mod = installedModules.get(id);
-      if (!mod) throw new Error(`Module ${id} not found`);
-
-      // Setup handler based on module type
-      if (id === 'wled') {
-        mod.wledHandler = createWledHandler(mod.configValues);
-        mod.wledHandler.setPlayerService(playerService);
-        mod.wledHandler.setLogger(createModuleLogger('wled'));
-
-        mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
-          if (mod.wledHandler) {
-            await mod.wledHandler.handleEvent(event);
-          }
-        };
-
-        console.log(`▶️  Started module: ${mod.manifest.name}`);
-        console.log(`   Host: ${mod.wledHandler.getHost() || 'not configured'}`);
-      } else if (id === 'game-display') {
-        mod.gameDisplayHandler = createGameDisplayHandler(mod.configValues);
-        mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
-          if (mod.gameDisplayHandler) {
-            await mod.gameDisplayHandler.handleEvent(event);
-          }
-        };
-        console.log(`▶️  Started module: ${mod.manifest.name}`);
-      } else if (id === 'darts-caller') {
-        const callerVoicePacksDir = runtimePath('data', 'voicepacks');
-        mod.dartsCallerHandler = createDartsCallerHandler({
-          ...mod.configValues,
-          voicePacksDir: callerVoicePacksDir,
-        });
-        // Register callback to forward call requests to WebSocket
-        mod.dartsCallerHandler.onCallRequest((request) => {
-          console.log(`🎙️  Caller request: ${request.type} - "${request.text}"`);
-          eventSystem.emitCallerRequest(request);
-        });
-        // Initialize ElevenLabs service and VoicePackGenerator if API key is configured
-        const config = server.getConfig();
-        const elevenLabsApiKey = resolveProviderApiKey(getAIProviderService(), 'elevenlabs', config?.aiProviders?.elevenlabs);
-        if (elevenLabsApiKey) {
-          const service = new ElevenLabsService({
-            apiKey: elevenLabsApiKey,
-            cacheDir: runtimePath('data', 'tts-cache'),
-            enableCache: true,
-          });
-          service.init().catch((err) => {
-            console.error('Failed to initialize ElevenLabs service:', err);
-          });
-          const generator = new VoicePackGenerator(service, callerVoicePacksDir);
-          mod.dartsCallerHandler.setElevenLabsService(service);
-          mod.dartsCallerHandler.setVoicePackGenerator(generator);
-          console.log('🎙️  Darts Caller configured with ElevenLabs for player name generation');
-        }
-        mod.eventHandler = async (event: ParsedEvent): Promise<void> => {
-          if (mod.dartsCallerHandler) {
-            await mod.dartsCallerHandler.handleEvent(event);
-          }
-        };
-        console.log(`▶️  Started module: ${mod.manifest.name}`);
-      } else if (mod.manifest.entry && mod.manifest.entry !== 'internal') {
-        // External SDK-based module - spawn as separate process
-        await startExternalModule(mod);
-      } else {
-        console.log(`▶️  Started module: ${mod.manifest.name}`);
-      }
-
-      // Register module intents
-      registerModuleIntents(mod);
-
-      mod.status = 'running';
-    },
-    stopModule: async (id: string): Promise<void> => {
-      const mod = installedModules.get(id);
-      if (!mod) throw new Error(`Module ${id} not found`);
-
-      // Unregister intents
-      unregisterModuleIntents(mod);
-
-      // Stop external process if running
-      if (mod.isExternalProcess) {
-        await stopExternalModule(mod);
-      }
-
-      // Remove event handler and handlers
-      mod.eventHandler = undefined;
-      mod.wledHandler = undefined;
-      mod.gameDisplayHandler = undefined;
-      mod.dartsCallerHandler = undefined;
-      mod.status = 'stopped';
-      console.log(`⏹️  Stopped module: ${mod.manifest.name}`);
-    },
+    startModule: startModuleImpl,
+    stopModule: stopModuleImpl,
     // A thrown error (unknown module, handler setup) rejects the returned promise.
     restartModule: async (id: string): Promise<void> => {
       const mod = installedModules.get(id);
@@ -1566,11 +1576,11 @@ async function main(): Promise<void> {
 
       const previousVersion = mod.manifest.version;
 
-      // Stop module if running
-      const wasRunning = mod.status === 'running';
+      // Stop module if running - otherwise its external process (or
+      // registered intents) would keep running the OLD code underneath
+      // while refreshAt() pulls and rebuilds the new version on disk.
+      const wasRunning = await stopForMaintenance(mod, (m) => stopModuleImpl(m.id));
       if (wasRunning) {
-        mod.status = 'stopped';
-        mod.eventHandler = undefined;
         console.log(`⏸️  Stopped module ${id} for update`);
       }
 
@@ -1589,10 +1599,19 @@ async function main(): Promise<void> {
 
         console.log(`✅ Updated module ${id}: ${previousVersion} → ${newManifest.version}`);
 
-        // Restart if it was running before
-        if (wasRunning) {
-          // The module will be auto-started on next hub connect or can be manually started
-          console.log(`ℹ️  Module ${id} was stopped for update. Please restart it manually.`);
+        // Restart if it was running before - matches the user-visible
+        // behavior of an update: a module that was running keeps running
+        // afterwards, now with the new version.
+        await restartAfterMaintenance(
+          wasRunning,
+          mod,
+          (m) => startModuleImpl(m.id),
+          (startError) => {
+            console.error(`⚠️  Module ${id} updated but failed to restart:`, startError);
+          }
+        );
+        if (wasRunning && mod.status === 'running') {
+          console.log(`▶️  Module ${id} restarted after update`);
         }
 
         return {

@@ -321,6 +321,49 @@ describe('ModuleInstaller', () => {
     });
   });
 
+  describe('native dependencies in the desktop app', () => {
+    function npmEnvs(): Array<Record<string, string | undefined> | undefined> {
+      return vi
+        .mocked(execFile)
+        .mock.calls.filter(([file]) => file === 'npm')
+        .map(([, , opts]) => (opts as { env?: Record<string, string | undefined> }).env);
+    }
+
+    afterEach(() => {
+      delete (process.versions as Record<string, string | undefined>).electron;
+    });
+
+    it('builds native modules against Electron when the hub runs inside the desktop app', async () => {
+      Object.defineProperty(process.versions, 'electron', { value: '41.1.0', configurable: true, enumerable: true });
+      vi.mocked(execFile).mockImplementation(((_file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) =>
+        cb(null, { stdout: '', stderr: '' })) as never);
+
+      await installer.install({ type: 'git', url: 'https://github.com/user/native-module.git' });
+
+      const envs = npmEnvs();
+      expect(envs.length).toBeGreaterThan(0);
+      for (const env of envs) {
+        expect(env).toMatchObject({
+          npm_config_runtime: 'electron',
+          npm_config_target: '41.1.0',
+          npm_config_disturl: 'https://electronjs.org/headers',
+          PATH: process.env.PATH,
+        });
+      }
+    });
+
+    it('leaves npm on the plain Node runtime outside the desktop app', async () => {
+      vi.mocked(execFile).mockImplementation(((_file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) =>
+        cb(null, { stdout: '', stderr: '' })) as never);
+
+      await installer.install({ type: 'git', url: 'https://github.com/user/native-module.git' });
+
+      for (const env of npmEnvs()) {
+        expect(env?.npm_config_runtime).toBeUndefined();
+      }
+    });
+  });
+
   describe('failed installation', () => {
     it('removes the cloned folder when the build fails', async () => {
       vi.mocked(fs.readFile).mockImplementation(async (file) =>

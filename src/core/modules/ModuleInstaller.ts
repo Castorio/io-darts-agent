@@ -41,6 +41,24 @@ const MISSING_TOOL_MESSAGES: Record<'git' | 'npm', string> = {
 // resolver before either conclusion is drawn.
 const WINDOWS_COMMAND_NOT_FOUND_EXIT_CODE = 9009;
 
+/**
+ * Environment for npm. In the desktop app the hub, and so every external
+ * module, runs on Electron's bundled Node, whose native ABI differs from the
+ * user's own Node that npm uses. Native dependencies (e.g. better-sqlite3)
+ * must then be fetched or built for Electron, or the module fails to load
+ * with ERR_DLOPEN_FAILED.
+ */
+function npmEnv(): NodeJS.ProcessEnv {
+  const electron = process.versions.electron;
+  if (!electron) return process.env;
+  return {
+    ...process.env,
+    npm_config_runtime: 'electron',
+    npm_config_target: electron,
+    npm_config_disturl: 'https://electronjs.org/headers',
+  };
+}
+
 // Module ids and repository names become directory names below modulesDir,
 // so they must not contain path separators or be "." / "..".
 const MODULE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -606,6 +624,7 @@ export class ModuleInstaller extends EventEmitter {
         cwd,
         timeout: this.options.timeout,
         maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        ...(file === 'npm' ? { env: npmEnv() } : {}),
       });
 
       if (stderr) {

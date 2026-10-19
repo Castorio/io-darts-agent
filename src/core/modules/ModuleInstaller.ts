@@ -29,10 +29,16 @@ const MISSING_TOOL_MESSAGES: Record<'git' | 'npm', string> = {
 };
 
 // cmd.exe's documented exit code when it could not find the program it was
-// told to run (our own direct invocation of "npm", not a command that npm
-// itself later spawns - npm translates a failing child/script into its own
-// exit code, normally 1, so this doesn't fire on e.g. a module's build
-// script missing its own tool).
+// told to run. This fires both when OUR OWN direct `cmd.exe ... npm ...`
+// invocation can't find npm itself, AND when npm ran fine but a script IT
+// spawned (e.g. a module's build script calling a missing local tool) hit
+// the same cmd.exe "not found" - npm passes a failing script's exit code
+// straight through as its own (verified: `npm run <script-that-exits-N>`
+// exits N; a script naming an unknown command exits 127 on POSIX, and the
+// Windows equivalent is this same 9009 from the nested cmd.exe). So this
+// exit code alone never proves npm itself is missing - see
+// npmIsOnWindowsPath, which disambiguates the two with Windows' own PATH
+// resolver before either conclusion is drawn.
 const WINDOWS_COMMAND_NOT_FOUND_EXIT_CODE = 9009;
 
 // Module ids and repository names become directory names below modulesDir,
@@ -621,7 +627,12 @@ export class ModuleInstaller extends EventEmitter {
         if ((file === 'git' || file === 'npm') && error.code === 'ENOENT') {
           throw new Error(MISSING_TOOL_MESSAGES[file]);
         }
-        if (file === 'npm' && process.platform === 'win32' && error.code === WINDOWS_COMMAND_NOT_FOUND_EXIT_CODE) {
+        if (
+          file === 'npm' &&
+          process.platform === 'win32' &&
+          error.code === WINDOWS_COMMAND_NOT_FOUND_EXIT_CODE &&
+          !(await this.npmIsOnWindowsPath())
+        ) {
           throw new Error(MISSING_TOOL_MESSAGES.npm);
         }
       }
@@ -631,4 +642,19 @@ export class ModuleInstaller extends EventEmitter {
     }
   }
 
+  /**
+   * Confirms (on Windows only) whether npm is actually reachable on PATH,
+   * using the OS's own file-on-PATH resolver (no shell, no locale-specific
+   * text to parse). Only called to disambiguate cmd.exe's 9009 "command not
+   * found" exit code - which npm also exits with when IT runs a script that
+   * hits the same cmd.exe error - from npm itself being genuinely absent.
+   */
+  private async npmIsOnWindowsPath(): Promise<boolean> {
+    try {
+      await execFileAsync('where.exe', ['npm'], { timeout: this.options.timeout });
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }

@@ -411,7 +411,7 @@ describe('ModuleInstaller', () => {
       expect(result.error).toContain('Command failed: git');
     });
 
-    it('gives a clear error when npm is not installed on Windows (cmd.exe exits 9009 because it could not find npm)', async () => {
+    it('gives a clear error when npm is not installed on Windows (cmd.exe exits 9009 AND "where npm" also fails to confirm it)', async () => {
       Object.defineProperty(process, 'platform', { value: 'win32' });
       vi.mocked(fs.access).mockRejectedValueOnce({ code: 'ENOENT' }).mockResolvedValueOnce(undefined);
       vi.mocked(execFile).mockImplementation(((file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
@@ -423,6 +423,8 @@ describe('ModuleInstaller', () => {
               stderr: '',
             })
           );
+        } else if (file === 'where.exe') {
+          cb(Object.assign(new Error('INFO: Could not find files for the given pattern(s).'), { code: 1 }));
         } else cb(null, { stdout: '', stderr: '' });
       }) as never);
 
@@ -432,7 +434,7 @@ describe('ModuleInstaller', () => {
       expect(result.error).toBe(NPM_MISSING);
     });
 
-    it('does not report npm as missing when a module\'s own build script fails on Windows (npm exits 1, not 9009 - e.g. its "tsc" is not found, not npm itself)', async () => {
+    it('does not report npm as missing when a module\'s own build script fails on Windows (npm passes the script\'s exit code - e.g. cmd.exe\'s 9009 for a missing "tsc" - straight through as its own, so npm exiting 9009 does not by itself mean npm is missing)', async () => {
       Object.defineProperty(process, 'platform', { value: 'win32' });
       vi.mocked(fs.access).mockRejectedValueOnce({ code: 'ENOENT' }).mockResolvedValueOnce(undefined);
       vi.mocked(fs.readFile).mockImplementation(async (file) =>
@@ -442,11 +444,13 @@ describe('ModuleInstaller', () => {
         if (file === 'cmd.exe' && args.includes('build')) {
           cb(
             Object.assign(new Error('Command failed'), {
-              code: 1,
+              code: 9009,
               stdout: "'tsc' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
               stderr: '',
             })
           );
+        } else if (file === 'where.exe') {
+          cb(null, { stdout: 'C:\\Program Files\\nodejs\\npm.cmd\r\n', stderr: '' });
         } else cb(null, { stdout: '', stderr: '' });
       }) as never);
 
@@ -455,6 +459,7 @@ describe('ModuleInstaller', () => {
       expect(result.success).toBe(false);
       expect(result.error).not.toBe(NPM_MISSING);
       expect(result.error).toContain('Command failed: npm run build');
+      expect(result.error).toContain("'tsc' is not recognized");
     });
   });
 

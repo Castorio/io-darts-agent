@@ -36,6 +36,7 @@ import { AuthService } from './core/auth/AuthService.js';
 import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
 import { ModuleBridge } from './core/modules/ModuleBridge.js';
 import { resolveBuiltinModulesDir } from './core/modules/BuiltinModuleInstaller.js';
+import { resolveSdkPath } from './core/modules/sdkPath.js';
 import { runtimePath } from './core/runtimePaths.js';
 import { restartProcess } from './core/system/restart.js';
 import { createStartOnce } from './core/modules/startOnce.js';
@@ -1073,10 +1074,13 @@ async function main(): Promise<void> {
   // Module Installer
   const modulesDir = runtimePath('modules_installed');
   const builtinModulesDir = resolveBuiltinModulesDir(path.join(__dirname, '..'));
-  // The hub's own module SDK next to dist/, for modules that point to an SDK path of their author's machine
+  // The hub's own module SDK at the repo root, for modules that point to an
+  // SDK path of their author's machine. Resolved relative to this file's own
+  // directory, which differs between a compiled build (dist/src) and running
+  // from source via tsx (src) - see resolveSdkPath.
   const moduleInstaller = new ModuleInstaller({
     modulesDir,
-    sdkPath: path.resolve(__dirname, '..', '..', 'module-sdk'),
+    sdkPath: resolveSdkPath(__dirname),
     // A git repo clones into a directory named after the repo, not its
     // manifest id, so the installer can't tell from the directory alone
     // whether the manifest id collides with an already-registered module

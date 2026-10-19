@@ -10,8 +10,9 @@
 const { app, BrowserWindow, Tray, Menu, shell, nativeImage, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
 const http = require('http');
+const { resolveUserPath } = require('./userPath.cjs');
 
 // Configuration
 const PORT = parseInt(process.env.IO_DARTS_PORT || process.env.PORT || '3000', 10);
@@ -109,6 +110,9 @@ function startBackend() {
 
   const env = {
     ...process.env,
+    // Finder/desktop launches get a minimal PATH; module installs need the
+    // user's git, node and npm (see userPath.cjs)
+    PATH: resolveUserPath({ platform: process.platform, env: process.env, execFileSync }),
     ELECTRON_RUN_AS_NODE: '1',
     IO_DARTS_DATA_DIR: dataDir,
     IO_DARTS_SUPERVISED: '1',

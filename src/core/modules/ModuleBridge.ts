@@ -2,6 +2,7 @@ import * as net from 'net';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
 import { ModuleProtocol } from './ModuleProtocol.js';
+import { moduleSocketPath } from './socketPath.js';
 import type {
   IPCMessage,
   BridgeOptions,
@@ -60,8 +61,7 @@ export class ModuleBridge extends EventEmitter {
    * Get the default socket path for this module
    */
   private getDefaultSocketPath(): string {
-    const tmpDir = process.env.TMPDIR || '/tmp';
-    return `${tmpDir}/autodarts-hub-${this.moduleId}.sock`;
+    return moduleSocketPath(this.moduleId);
   }
 
   /**

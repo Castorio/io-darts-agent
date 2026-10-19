@@ -36,6 +36,7 @@ import { AuthService } from './core/auth/AuthService.js';
 import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
 import { computeModuleStats } from './core/modules/moduleStats.js';
 import { ModuleBridge } from './core/modules/ModuleBridge.js';
+import { moduleSocketPath } from './core/modules/socketPath.js';
 import { resolveBuiltinModulesDir } from './core/modules/BuiltinModuleInstaller.js';
 import { resolveSdkPath } from './core/modules/sdkPath.js';
 import { runtimePath } from './core/runtimePaths.js';
@@ -276,7 +277,7 @@ async function spawnExternalModule(mod: InstalledModule): Promise<void> {
   const entryPoint = fs.realpathSync(linkedEntry);
 
   // Create IPC bridge for communication
-  const socketPath = path.join(process.env.TMPDIR || '/tmp', `autodarts-hub-${mod.id}.sock`);
+  const socketPath = moduleSocketPath(mod.id);
   const bridge = new ModuleBridge(mod.id, { socketPath });
 
   // Setup bridge event handlers

@@ -1,10 +1,12 @@
 import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as os from 'os';
 import { EventEmitter } from 'events';
 import { ModuleBridge } from './ModuleBridge.js';
 import { EventBus } from '../events/EventBus.js';
 import { getModuleRouteRegistry } from './ModuleRouteRegistry.js';
+import { moduleSocketPath } from './socketPath.js';
 import type {
   ModuleManifest,
   ModuleState,
@@ -19,7 +21,7 @@ import type {
 
 const DEFAULT_OPTIONS: ModuleManagerOptions = {
   modulesDir: './modules',
-  socketDir: process.env.TMPDIR || '/tmp',
+  socketDir: os.tmpdir(),
   maxRestarts: 3,
   restartDelay: 5000,
   shutdownTimeout: 5000,
@@ -110,7 +112,7 @@ export class ModuleManager extends EventEmitter {
       return Promise.reject(new Error(`Module ${manifest.id} is already registered`));
     }
 
-    const socketPath = path.join(this.options.socketDir, `autodarts-hub-${manifest.id}.sock`);
+    const socketPath = moduleSocketPath(manifest.id, process.platform, this.options.socketDir);
     const bridge = new ModuleBridge(manifest.id, { socketPath });
 
     // Setup bridge event handlers

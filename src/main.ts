@@ -47,6 +47,7 @@ import {
   stopExternalModule,
   stopAllExternalModules as stopAllExternalModulesImpl,
   restartExternalModule,
+  handleExternalModuleExit,
 } from './core/modules/externalModuleLifecycle.js';
 import type { RoutesRegisterPayload } from './types/modules.js';
 import { spawn, ChildProcess } from 'child_process';
@@ -320,16 +321,20 @@ async function spawnExternalModule(mod: InstalledModule): Promise<void> {
 
   // Handle process exit
   proc.on('exit', (code, signal) => {
+    // A graceful shutdown that timed out (SIGKILL -> start() spawns a new
+    // process) can still deliver this OLD process's 'exit' afterwards; by
+    // then mod.process/mod.bridge already point at the new process, and this
+    // exit must not wipe them out or mark the new module 'crashed'.
+    const wasCrash = mod.status === 'running';
+    const handled = handleExternalModuleExit(mod, proc);
+    if (!handled) {
+      console.log(`[${mod.id}] Ignoring exit of a stale process (code ${code}, signal ${signal})`);
+      return;
+    }
     console.log(`[${mod.id}] Process exited with code ${code}, signal ${signal}`);
-    if (mod.status === 'running') {
-      mod.status = 'crashed';
+    if (wasCrash) {
       addLog('module', mod.id, `Process crashed: code=${code}, signal=${signal}`);
     }
-    // Cleanup
-    mod.process = undefined;
-    mod.bridge?.stop().catch(() => {});
-    mod.bridge = undefined;
-    mod.isExternalProcess = false;
   });
 
   // Wait for module to send ready signal

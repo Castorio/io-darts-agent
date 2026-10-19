@@ -29,6 +29,8 @@ export interface ExternalProcessModule {
   process?: ExternalProcessHandle;
   bridge?: ExternalModuleBridge;
   isExternalProcess?: boolean;
+  /** 'running' | 'stopping' | 'crashed' | ... - kept as `string` so callers can pass their own ModuleStatus type. */
+  status?: string;
 }
 
 /**
@@ -49,6 +51,12 @@ export async function stopExternalModule(mod: ExternalProcessModule): Promise<vo
   if (!mod.process || !mod.bridge) {
     return;
   }
+
+  // Mark the stop as intentional before sending the shutdown signal, so the
+  // process's own 'exit' handler (registered when it was spawned) does not
+  // see `status === 'running'`, log "Process crashed" and flip it to
+  // 'crashed' for what is actually a requested stop.
+  mod.status = 'stopping';
 
   console.log(`⏹️  Stopping external module: ${mod.manifest.name}`);
 
@@ -82,6 +90,36 @@ export async function stopExternalModule(mod: ExternalProcessModule): Promise<vo
   mod.process = undefined;
   mod.bridge = undefined;
   mod.isExternalProcess = false;
+}
+
+/**
+ * Handle a spawned external module process's 'exit' event.
+ *
+ * Guards against a late exit from a STALE process: when a graceful shutdown
+ * times out, the module is SIGKILLed, and `start()` spawns a new process
+ * before the old one has actually been reaped, the old process's 'exit'
+ * event can still arrive afterwards (Node delivers it asynchronously). By
+ * then `mod.process`/`mod.bridge` already point at the new process. Without
+ * this guard, the old exit handler would wipe those out and could even mark
+ * the freshly-started module 'crashed'.
+ *
+ * Returns true when this call belongs to the module's current process (and
+ * therefore actually cleaned it up), false when it was ignored as stale.
+ */
+export function handleExternalModuleExit(mod: ExternalProcessModule, proc: ExternalProcessHandle): boolean {
+  if (mod.process !== proc) {
+    return false;
+  }
+
+  if (mod.status === 'running') {
+    mod.status = 'crashed';
+  }
+
+  mod.process = undefined;
+  mod.bridge?.stop().catch(() => {});
+  mod.bridge = undefined;
+  mod.isExternalProcess = false;
+  return true;
 }
 
 /**

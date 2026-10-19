@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import {
   stopExternalModule,
   restartExternalModule,
+  handleExternalModuleExit,
   type ExternalProcessModule,
   type ExternalProcessHandle,
 } from './externalModuleLifecycle.js';
@@ -69,6 +70,65 @@ describe('stopExternalModule', () => {
     proc.emit('exit', 0, null);
 
     await expect(stopPromise).resolves.toBeUndefined();
+  });
+
+  it('marks the module "stopping" before sending the shutdown, so an intentional stop is not logged as a crash', async () => {
+    const { mod, proc } = makeRunningExternalModule();
+    mod.status = 'running';
+
+    const stopPromise = stopExternalModule(mod);
+    // mod.status must already be 'stopping' by the time sendShutdown goes out,
+    // i.e. before the process has had any chance to exit.
+    expect(mod.status).toBe('stopping');
+
+    await new Promise((resolve) => setImmediate(resolve));
+    proc.emit('exit', 0, null);
+    await stopPromise;
+  });
+});
+
+describe('handleExternalModuleExit', () => {
+  it('ignores the exit of a process that is no longer mod.process (stale exit after a restart)', () => {
+    const { mod, proc, bridgeStop } = makeRunningExternalModule();
+    const newProc = new EventEmitter() as EventEmitter & ExternalProcessHandle;
+    const newBridge = { sendShutdown: vi.fn().mockReturnValue(true), stop: vi.fn().mockResolvedValue(undefined) };
+    // Simulate: the old process was replaced by a new one (restart already ran).
+    mod.process = newProc;
+    mod.bridge = newBridge;
+    mod.status = 'running';
+
+    const handled = handleExternalModuleExit(mod, proc);
+
+    expect(handled).toBe(false);
+    expect(mod.process).toBe(newProc);
+    expect(mod.bridge).toBe(newBridge);
+    expect(mod.status).toBe('running');
+    expect(bridgeStop).not.toHaveBeenCalled();
+  });
+
+  it('cleans up and marks the module crashed when its current process exits unexpectedly', () => {
+    const { mod, proc, bridgeStop } = makeRunningExternalModule();
+    mod.status = 'running';
+
+    const handled = handleExternalModuleExit(mod, proc);
+
+    expect(handled).toBe(true);
+    expect(mod.status).toBe('crashed');
+    expect(mod.process).toBeUndefined();
+    expect(mod.bridge).toBeUndefined();
+    expect(mod.isExternalProcess).toBe(false);
+    expect(bridgeStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans up without marking "crashed" when the exit follows an intentional stop (status already "stopping")', () => {
+    const { mod, proc } = makeRunningExternalModule();
+    mod.status = 'stopping';
+
+    const handled = handleExternalModuleExit(mod, proc);
+
+    expect(handled).toBe(true);
+    expect(mod.status).toBe('stopping');
+    expect(mod.process).toBeUndefined();
   });
 });
 

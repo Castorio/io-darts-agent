@@ -7,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Legs und Sets zählt der Hub selbst**, pro Spieler (stabil über `player.index`), auch über das Rotieren der Spieler zwischen den Legs hinweg. Ein korrigierter Checkout nimmt den Leg-Sieg zurück, beim Einstieg in ein laufendes Match zählt der Hub ab dem Stand von Autodarts. Veröffentlicht als `legsWon`/`setsWon` in `match.state`, `game.finished` und `/api/match/current`.
+
 ### Changed
 
 - README weist auf den Beta-Status hin.
+- Das Game Display nimmt Darts und Restpunkte nur noch aus dem Spielstand von Autodarts und zieht nicht mehr selbst ab.
+- `match.state` enthält jetzt Legs/Sets zum Sieg (`legs`, `sets`), die Autodarts-`scores` und `gameFinished`; `/api/match/current` liefert `legs` und `sets`. `scores` sind als Legs/Sets pro Spieler typisiert, Restpunkte stehen in `gameScores`.
+
+### Fixed
+
+- **Online-Matches mit Ausbullen**: Das Ausbullen (Variante "Bull-off") lief unter derselben Match-ID als "Leg 1" und verschluckte den Sieg des ersten X01-Legs. Es zählt nicht mehr als Leg und löst keine Leg-Animation und kein "Game Shot" mehr aus.
+- **Spielerwechsel nach dem Leg**: Nach dem Rotieren der Spieler wurde der Startspieler des nächsten Legs nicht gemeldet; Display, WLED und Darts Caller blieben beim vorherigen Spieler, bis dieser geworfen hatte.
+- **Farben von Spielern ohne Profil** (z. B. Online-Gegner) sind stabil und nie die Profilfarbe eines anderen Spielers; vorher wechselten sie mit dem Platz in der Liste. WLED sucht die Farbe zuerst über den Namen.
+- **Spielinfo** zeigt die echten Legs zum Sieg statt immer "1 Leg".
+- **Jeder Dart am eigenen Board kam doppelt an** (Board-Meldung und Spielstand); das Display zog dadurch kurz doppelt ab. Während eines Matches meldet der Hub jeden Dart nur noch einmal.
+- Darts Caller las für "You require" die Legs/Sets statt der Restpunkte; der Simulator im Entwicklermodus schickt dasselbe Datenformat wie Autodarts.
 
 ## [1.0.1-beta] - 2026-10-18
 

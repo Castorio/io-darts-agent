@@ -322,6 +322,13 @@ export interface InstallResult {
   path: string;
   manifest?: ModuleManifest;
   error?: string;
+  /**
+   * Stable machine-readable code for a failure, e.g. 'MODULE_ALREADY_INSTALLED'
+   * (see ModuleAlreadyInstalledError). Only set for failures callers may need
+   * to branch on; absent for anything that should just be surfaced as a
+   * generic error.
+   */
+  errorCode?: string;
 }
 
 export interface UpdateResult {

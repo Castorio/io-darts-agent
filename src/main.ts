@@ -1278,7 +1278,11 @@ async function main(): Promise<void> {
     });
 
     if (!result.success || !result.manifest) {
-      throw new Error(result.error || 'Installation failed');
+      const error = new Error(result.error || 'Installation failed') as Error & { code?: string };
+      if (result.errorCode) {
+        error.code = result.errorCode;
+      }
+      throw error;
     }
 
     // Track the installed module with default config values

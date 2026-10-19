@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execFile } from 'child_process';
-import { ModuleInstaller } from './ModuleInstaller.js';
+import { ModuleInstaller, ModuleAlreadyInstalledError } from './ModuleInstaller.js';
 import type { ModuleManifest } from '../../types/modules.js';
 
 vi.mock('fs/promises');
@@ -22,6 +22,15 @@ const TEST_MANIFEST: ModuleManifest = {
   entry: 'index.js',
   events: ['throw.detected'],
 };
+
+describe('ModuleAlreadyInstalledError', () => {
+  it('carries a stable MODULE_ALREADY_INSTALLED code', () => {
+    const error = new ModuleAlreadyInstalledError("Module 'x' is already installed");
+    expect(error).toBeInstanceOf(Error);
+    expect(error.code).toBe('MODULE_ALREADY_INSTALLED');
+    expect(error.message).toBe("Module 'x' is already installed");
+  });
+});
 
 describe('ModuleInstaller', () => {
   let installer: ModuleInstaller;
@@ -83,6 +92,7 @@ describe('ModuleInstaller', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('already exists');
+      expect(result.errorCode).toBe('MODULE_ALREADY_INSTALLED');
     });
 
     it('should fail without url', async () => {
@@ -92,6 +102,7 @@ describe('ModuleInstaller', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('requires url');
+      expect(result.errorCode).toBeUndefined();
     });
   });
 
@@ -130,6 +141,21 @@ describe('ModuleInstaller', () => {
       expect(result.error).toContain('does not exist');
     });
 
+    it('should fail if the target directory already exists', async () => {
+      vi.mocked(fs.access)
+        .mockResolvedValueOnce(undefined) // source exists
+        .mockResolvedValueOnce(undefined); // target already exists
+
+      const result = await installer.install({
+        type: 'local',
+        path: '/path/to/local/module',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('already exists');
+      expect(result.errorCode).toBe('MODULE_ALREADY_INSTALLED');
+    });
+
     it('should fail without path', async () => {
       const result = await installer.install({
         type: 'local',
@@ -162,6 +188,7 @@ describe('ModuleInstaller', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain("'test-module'");
       expect(result.error).toContain('already installed');
+      expect(result.errorCode).toBe('MODULE_ALREADY_INSTALLED');
       expect(fs.rm).toHaveBeenCalledWith(
         path.join(testModulesDir, 'fresh-repo'),
         { recursive: true, force: true }
@@ -189,6 +216,7 @@ describe('ModuleInstaller', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain("'test-module'");
       expect(result.error).toContain('already installed');
+      expect(result.errorCode).toBe('MODULE_ALREADY_INSTALLED');
       expect(fs.symlink).not.toHaveBeenCalled();
       expect(fs.copyFile).not.toHaveBeenCalled();
     });

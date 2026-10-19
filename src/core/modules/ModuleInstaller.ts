@@ -30,6 +30,25 @@ function assertValidModuleId(moduleId: string): void {
   }
 }
 
+/**
+ * Thrown when an install collides with something already present: either
+ * the target directory already exists, or the manifest id resolves to a
+ * module that's already registered with the hub. Carries a stable `code`
+ * instead of relying on message text or `instanceof` (which breaks across
+ * module/bundle boundaries) so callers such as the store route can
+ * distinguish this from any other install failure - including an unrelated
+ * error (e.g. npm's own EEXIST) whose message happens to contain the same
+ * words.
+ */
+export class ModuleAlreadyInstalledError extends Error {
+  readonly code = 'MODULE_ALREADY_INSTALLED';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'ModuleAlreadyInstalledError';
+  }
+}
+
 interface InstallerOptions {
   modulesDir: string;
   timeout: number;
@@ -100,13 +119,17 @@ export class ModuleInstaller extends EventEmitter {
 
       return result;
     } catch (err) {
-      const error = err as Error;
-      return {
+      const error = err as Error & { code?: unknown };
+      const failure: InstallResult = {
         success: false,
         moduleId: '',
         path: '',
         error: error.message,
       };
+      if (typeof error.code === 'string') {
+        failure.errorCode = error.code;
+      }
+      return failure;
     }
   }
 
@@ -225,7 +248,7 @@ export class ModuleInstaller extends EventEmitter {
     // Check if already exists
     try {
       await fs.access(targetPath);
-      throw new Error(`Module directory already exists: ${repoName}`);
+      throw new ModuleAlreadyInstalledError(`Module directory already exists: ${repoName}`);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw err;
@@ -266,7 +289,7 @@ export class ModuleInstaller extends EventEmitter {
       // already installed elsewhere. Catch that here, before registering -
       // the catch block below removes only this freshly cloned directory.
       if (this.options.isModuleIdInstalled?.(manifest.id)) {
-        throw new Error(`Module '${manifest.id}' is already installed`);
+        throw new ModuleAlreadyInstalledError(`Module '${manifest.id}' is already installed`);
       }
     } catch (err) {
       // A half installed clone would show up as a broken module and block a retry
@@ -308,7 +331,7 @@ export class ModuleInstaller extends EventEmitter {
     // Check if already exists
     try {
       await fs.access(targetPath);
-      throw new Error(`Module directory already exists: ${manifest.id}`);
+      throw new ModuleAlreadyInstalledError(`Module directory already exists: ${manifest.id}`);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw err;
@@ -321,7 +344,7 @@ export class ModuleInstaller extends EventEmitter {
     // would slip through. Nothing has been created yet at this point, so
     // there's nothing to clean up.
     if (this.options.isModuleIdInstalled?.(manifest.id)) {
-      throw new Error(`Module '${manifest.id}' is already installed`);
+      throw new ModuleAlreadyInstalledError(`Module '${manifest.id}' is already installed`);
     }
 
     // Create symlink for development or copy for production

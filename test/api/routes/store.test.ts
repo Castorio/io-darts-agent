@@ -172,9 +172,11 @@ describe('Store Routes', () => {
       expect(uninstallModule).not.toHaveBeenCalled();
     });
 
-    it('treats an "already exists" installer error as already installed (409), not a 500', async () => {
+    it('treats a typed ModuleAlreadyInstalledError-style error (code) as already installed (409), not a 500', async () => {
       installedVersion.mockReturnValue(null);
-      installModule.mockRejectedValue(new Error('Module directory already exists'));
+      const error = new Error('Module directory already exists') as Error & { code: string };
+      error.code = 'MODULE_ALREADY_INSTALLED';
+      installModule.mockRejectedValue(error);
 
       const response = await fastify.inject({ method: 'POST', url: '/api/store/mqtt/install' });
 
@@ -184,13 +186,39 @@ describe('Store Routes', () => {
       expect(uninstallModule).not.toHaveBeenCalled();
     });
 
-    it('treats a manifest-id collision error ("already installed") from the installer as 409, not a 500', async () => {
+    it('treats a manifest-id collision error (code MODULE_ALREADY_INSTALLED) from the installer as 409, not a 500', async () => {
       installedVersion.mockReturnValue(null);
-      installModule.mockRejectedValue(new Error("Module 'wled' is already installed"));
+      const error = new Error("Module 'wled' is already installed") as Error & { code: string };
+      error.code = 'MODULE_ALREADY_INSTALLED';
+      installModule.mockRejectedValue(error);
 
       const response = await fastify.inject({ method: 'POST', url: '/api/store/mqtt/install' });
 
       expect(response.statusCode).toBe(409);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(false);
+      expect(uninstallModule).not.toHaveBeenCalled();
+    });
+
+    it('stays a 500 for an unrelated error whose message merely contains "already exists" (e.g. npm EEXIST)', async () => {
+      installedVersion.mockReturnValue(null);
+      installModule.mockRejectedValue(new Error('EEXIST: file already exists, mkdir \'/tmp/node_modules/foo\''));
+
+      const response = await fastify.inject({ method: 'POST', url: '/api/store/mqtt/install' });
+
+      expect(response.statusCode).toBe(500);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(false);
+      expect(uninstallModule).not.toHaveBeenCalled();
+    });
+
+    it('stays a 500 for an unrelated error whose message merely contains "already installed"', async () => {
+      installedVersion.mockReturnValue(null);
+      installModule.mockRejectedValue(new Error('some dependency is already installed at a conflicting version'));
+
+      const response = await fastify.inject({ method: 'POST', url: '/api/store/mqtt/install' });
+
+      expect(response.statusCode).toBe(500);
       const body = JSON.parse(response.body);
       expect(body.success).toBe(false);
       expect(uninstallModule).not.toHaveBeenCalled();

@@ -39,13 +39,23 @@ function isAuthorized(server: APIServer, session: { authenticated?: boolean } | 
  * The installer tracks installed modules by the directory/manifest id it
  * resolves, not by the catalog id used in the store route param - those can
  * differ. If the installer itself reports a conflict (the target directory
- * already exists, e.g. "Module directory already exists", or a manifest id
- * collision it caught on the hub's behalf, e.g. "Module 'x' is already
- * installed"), treat that the same as the 409 case below rather than
- * surfacing it as a generic 500.
+ * already exists, or a manifest id collision it caught on the hub's
+ * behalf), treat that the same as the 409 case below rather than surfacing
+ * it as a generic 500.
+ *
+ * This checks the error's `code` (set by ModuleInstaller's
+ * ModuleAlreadyInstalledError, and threaded through by the hub's install
+ * wiring) rather than matching on the message text: matching text like
+ * /already (exists|installed)/i also matches unrelated failures (e.g. an
+ * npm EEXIST error), and `instanceof` would fail if the error crossed a
+ * module/bundle boundary, so a plain `code` check is the robust option here.
  */
-function looksLikeAlreadyInstalled(message: string): boolean {
-  return /already (exists|installed)/i.test(message);
+function isAlreadyInstalledError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === 'MODULE_ALREADY_INSTALLED'
+  );
 }
 
 /**
@@ -121,7 +131,7 @@ export function registerStoreRoutes(
       moduleId = await deps.installModule(storeModule.repo, storeModule.branch);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to install module';
-      if (looksLikeAlreadyInstalled(message)) {
+      if (isAlreadyInstalledError(error)) {
         void reply.code(409);
         return { success: false, error: 'Module already installed' };
       }

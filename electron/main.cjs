@@ -13,6 +13,7 @@ const fs = require('fs');
 const { spawn, execFileSync } = require('child_process');
 const http = require('http');
 const { resolveUserPath } = require('./userPath.cjs');
+const { stopChild } = require('./stopChild.cjs');
 
 // Configuration
 const PORT = parseInt(process.env.IO_DARTS_PORT || process.env.PORT || '3000', 10);
@@ -187,10 +188,11 @@ function showCrashAndQuit() {
 /**
  * Stop the backend server
  */
+// Resolves once the backend is gone, so the app never quits before it
 function stopBackend() {
   const child = backendProcess;
   if (!child) {
-    return;
+    return Promise.resolve();
   }
   console.log('[Electron] Stopping backend server...');
   isQuitting = true;
@@ -198,16 +200,11 @@ function stopBackend() {
 
   if (process.platform === 'win32') {
     spawn('taskkill', ['/pid', String(child.pid), '/f', '/t']);
-    return;
+    return Promise.resolve();
   }
 
-  child.kill('SIGTERM');
-  // Force kill after timeout
-  setTimeout(() => {
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill('SIGKILL');
-    }
-  }, 3000).unref();
+  // The hub needs up to 7 s to stop external modules, give it a little more
+  return stopChild(child, { timeoutMs: 8000 });
 }
 
 /**
@@ -404,9 +401,13 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
     isQuitting = true;
-    stopBackend();
+    if (!backendProcess) return;
+    // Keep the app (and so the backend's output pipes) alive until the
+    // backend has exited, then quit for real
+    event.preventDefault();
+    void stopBackend().finally(() => app.exit(0));
   });
 
   // Handle uncaught exceptions

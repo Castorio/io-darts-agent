@@ -41,6 +41,7 @@ import { refreshSdkLinkBeforeSpawn } from './core/modules/sdkLink.js';
 import { resolveBuiltinModulesDir } from './core/modules/BuiltinModuleInstaller.js';
 import { resolveSdkPath } from './core/modules/sdkPath.js';
 import { runtimePath } from './core/runtimePaths.js';
+import { guardBrokenPipes, isBrokenPipe } from './core/brokenPipe.js';
 import { restartProcess } from './core/system/restart.js';
 import { createStartOnce } from './core/modules/startOnce.js';
 import { autostartModules, connectThenAutostart } from './core/modules/autostart.js';
@@ -2167,6 +2168,12 @@ async function main(): Promise<void> {
     });
   };
 
+  // Output pipe closed (the desktop app that supervises the hub is gone):
+  // nobody reads the logs any more, so shut down instead of looping on EPIPE
+  guardBrokenPipes([process.stdout, process.stderr], () => {
+    if (process.env.IO_DARTS_SUPERVISED === '1') shutdown('EPIPE');
+  });
+
   // Restart from the settings page: answer the request first, free the port, then restart
   server.on('restartRequested', () => {
     if (isShuttingDown) return;
@@ -2195,6 +2202,7 @@ async function main(): Promise<void> {
 
   // Handle uncaught errors to ensure cleanup
   process.on('uncaughtException', (error) => {
+    if (isBrokenPipe(error)) return; // logging it would fail the same way
     console.error('Uncaught exception:', error);
     shutdown('uncaughtException');
   });

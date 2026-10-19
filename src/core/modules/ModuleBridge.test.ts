@@ -62,6 +62,27 @@ describe('ModuleBridge', () => {
 
       expect(fs.existsSync(socketPath)).toBe(false);
     });
+
+    it('does not try to remove a stale socket file on Windows before starting (named pipes are not filesystem entries there)', async () => {
+      const originalPlatform = process.platform;
+      // A stray file left at the socket path (e.g. from an unclean previous
+      // exit) - start() cleans this up before listen() on real platforms.
+      fs.writeFileSync(socketPath, '');
+      bridge.on('error', () => {
+        // A real caller always attaches one; EventEmitter throws on an
+        // unhandled 'error' event otherwise, which start()'s own emit would
+        // trigger here and mask the rejection this test checks for.
+      });
+
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      try {
+        // Cleanup skipped -> the stale file is still in the way, so
+        // binding to it fails, proving the unlink call never happened.
+        await expect(bridge.start()).rejects.toThrow();
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform });
+      }
+    });
   });
 
   describe('Client Connection', () => {

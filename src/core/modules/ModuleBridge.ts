@@ -464,6 +464,11 @@ export class ModuleBridge extends EventEmitter {
    * Clean up socket file
    */
   private cleanupSocketFile(): void {
+    // Windows IPC uses a named pipe (\\.\pipe\<name>, see moduleSocketPath),
+    // which isn't a filesystem entry - there's nothing to unlink there.
+    if (process.platform === 'win32') {
+      return;
+    }
     try {
       if (fs.existsSync(this.options.socketPath)) {
         fs.unlinkSync(this.options.socketPath);

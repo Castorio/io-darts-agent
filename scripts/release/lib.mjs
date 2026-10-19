@@ -87,6 +87,30 @@ export function findPackagedApp(releasesDir, platform, arch, fsApi = fs) {
   return { executable, appRoot };
 }
 
+/**
+ * Asserts that module-sdk - linked into every external module
+ * (ModuleInstaller.fixSdkLink) - was actually packaged into the app, with
+ * its compiled JS, type declarations (modules compile against them) and
+ * package.json all present. Catches an electron-builder config regression
+ * (it ships via `extraResources`, not `files`, because electron-builder's
+ * main file matcher unconditionally strips `.d.ts`) before it reaches a
+ * release.
+ *
+ * @param {string} appRoot
+ * @param {{ existsSync: (p: string) => boolean }} [fsApi]
+ */
+export function assertModuleSdkShipped(appRoot, fsApi = fs) {
+  const required = [
+    path.join(appRoot, 'module-sdk', 'dist', 'index.js'),
+    path.join(appRoot, 'module-sdk', 'dist', 'index.d.ts'),
+    path.join(appRoot, 'module-sdk', 'package.json'),
+  ];
+  const missing = required.filter((file) => !fsApi.existsSync(file));
+  if (missing.length > 0) {
+    throw new Error(`module-sdk is not fully packaged under "${appRoot}" - missing: ${missing.join(', ')}`);
+  }
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

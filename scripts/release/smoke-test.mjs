@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { findPackagedApp, waitForHealth, killWindowsProcessTree } from './lib.mjs';
+import { findPackagedApp, assertModuleSdkShipped, waitForHealth, killWindowsProcessTree } from './lib.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HEALTH_TIMEOUT_MS = 90_000;
@@ -43,6 +43,7 @@ function killChild(child) {
 async function main() {
   const releasesDir = process.argv[2] || path.join(__dirname, '..', '..', 'releases');
   const { executable, appRoot } = findPackagedApp(releasesDir, process.platform, process.arch);
+  assertModuleSdkShipped(appRoot);
   const backendPath = path.join(appRoot, 'dist', 'src', 'main.js');
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'io-darts-smoke-'));
 

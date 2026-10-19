@@ -4,6 +4,7 @@ import {
   versionFromTag,
   checkTagMatchesVersion,
   findPackagedApp,
+  assertModuleSdkShipped,
   waitForHealth,
   killWindowsProcessTree,
   // @ts-expect-error -- plain JS module, no type declarations
@@ -91,6 +92,29 @@ describe('findPackagedApp', () => {
   it('throws when the packaged app is missing', () => {
     const releasesDir = '/releases';
     expect(() => findPackagedApp(releasesDir, 'darwin', 'arm64', fakeFs([]))).toThrow();
+  });
+});
+
+describe('assertModuleSdkShipped', () => {
+  const appRoot = '/releases/mac-arm64/IO-Darts-Agent.app/Contents/Resources/app';
+  const sdkJs = `${appRoot}/module-sdk/dist/index.js`;
+  const sdkDts = `${appRoot}/module-sdk/dist/index.d.ts`;
+  const sdkPkg = `${appRoot}/module-sdk/package.json`;
+
+  it('does not throw when module-sdk is fully shipped (dist/index.js, dist/index.d.ts and package.json)', () => {
+    expect(() => assertModuleSdkShipped(appRoot, fakeFs([sdkJs, sdkDts, sdkPkg]))).not.toThrow();
+  });
+
+  it('throws when module-sdk/dist/index.js is missing', () => {
+    expect(() => assertModuleSdkShipped(appRoot, fakeFs([sdkDts, sdkPkg]))).toThrow(/module-sdk/);
+  });
+
+  it('throws when module-sdk/dist/index.d.ts is missing (modules compile against the SDK types)', () => {
+    expect(() => assertModuleSdkShipped(appRoot, fakeFs([sdkJs, sdkPkg]))).toThrow(/module-sdk/);
+  });
+
+  it('throws when module-sdk/package.json is missing', () => {
+    expect(() => assertModuleSdkShipped(appRoot, fakeFs([sdkJs, sdkDts]))).toThrow(/module-sdk/);
   });
 });
 

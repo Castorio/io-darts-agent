@@ -41,6 +41,10 @@ import { restartProcess } from './core/system/restart.js';
 import { createStartOnce } from './core/modules/startOnce.js';
 import { isValidModuleId, resolveModuleUiFile } from './core/modules/moduleUiPath.js';
 import { getModuleRouteRegistry, type ModuleRouteRequest, type ModuleRouteResponse } from './core/modules/ModuleRouteRegistry.js';
+import {
+  stopExternalModule,
+  stopAllExternalModules as stopAllExternalModulesImpl,
+} from './core/modules/externalModuleLifecycle.js';
 import type { RoutesRegisterPayload } from './types/modules.js';
 import { spawn, ChildProcess } from 'child_process';
 import {
@@ -355,57 +359,7 @@ const startExternalModule = createStartOnce<InstalledModule>(
  * attaches to the next hub instance (restart, shutdown)
  */
 async function stopAllExternalModules(): Promise<void> {
-  const running = [...installedModules.values()].filter((mod) => mod.process);
-  await Promise.all(
-    running.map((mod) =>
-      stopExternalModule(mod).catch((error) => {
-        console.error(`Error stopping module ${mod.id}:`, error);
-      })
-    )
-  );
-}
-
-/**
- * Stop an external module gracefully
- */
-async function stopExternalModule(mod: InstalledModule): Promise<void> {
-  if (!mod.process || !mod.bridge) {
-    return;
-  }
-
-  console.log(`⏹️  Stopping external module: ${mod.manifest.name}`);
-
-  // Unregister routes for this module
-  const registry = getModuleRouteRegistry();
-  await registry.unregisterRoutes(mod.id);
-  console.log(`🛣️  [${mod.id}] Routes unregistered`);
-
-  try {
-    // Send shutdown signal
-    mod.bridge.sendShutdown('user', 5000);
-
-    // Wait for process to exit gracefully
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Shutdown timeout'));
-      }, 6000);
-
-      mod.process!.once('exit', () => {
-        clearTimeout(timeout);
-        resolve();
-      });
-    });
-  } catch {
-    // Force kill if graceful shutdown fails
-    console.log(`⚠️  Force killing module: ${mod.manifest.name}`);
-    mod.process?.kill('SIGKILL');
-  }
-
-  // Cleanup
-  await mod.bridge.stop();
-  mod.process = undefined;
-  mod.bridge = undefined;
-  mod.isExternalProcess = false;
+  await stopAllExternalModulesImpl(installedModules.values());
 }
 
 /**

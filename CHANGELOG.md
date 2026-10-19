@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3-beta] - 2026-10-19
+
 ### Fixed
 
 - **Desktop-App findet npm und Node.js**: Aus dem Finder (oder einem Linux-Starter) gestartet, bekam der Hub nur einen minimalen `PATH` und meldete bei jeder Modul-Installation, Node.js (npm) fehle, obwohl es per nvm oder Homebrew installiert war. Die App übernimmt jetzt beim Start den `PATH` der Login-Shell.
@@ -162,7 +164,8 @@ Die bisherigen internen Stände (vor dem öffentlichen Repository, Frühjahr 202
 - **Ergebnistabelle** nach Match-Ende mit Chalkboard und Statistiken, Anzeigedauer einstellbar.
 - Modul-Konfigurationsoberfläche und erste Dokumentation.
 
-[Unreleased]: https://github.com/Castorio/io-darts-agent/compare/v1.0.2-beta...HEAD
+[Unreleased]: https://github.com/Castorio/io-darts-agent/compare/v1.0.3-beta...HEAD
+[1.0.3-beta]: https://github.com/Castorio/io-darts-agent/compare/v1.0.2-beta...v1.0.3-beta
 [1.0.2-beta]: https://github.com/Castorio/io-darts-agent/compare/v1.0.1-beta...v1.0.2-beta
 [1.0.1-beta]: https://github.com/Castorio/io-darts-agent/compare/v1.0.0...v1.0.1-beta
 [1.0.0]: https://github.com/Castorio/io-darts-agent/releases/tag/v1.0.0

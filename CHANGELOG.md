@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Passwort ändern** (`POST /api/auth/change-password`): Das neue Passwort wurde nur im Speicher gesetzt und nie in die Konfiguration geschrieben, nach einem Hub-Neustart galt wieder das alte Passwort, obwohl die Oberfläche Erfolg meldete. Der neue Hash wird jetzt gespeichert; scheitert das Speichern, bleibt das alte Passwort aktiv und die Route antwortet mit `500`. Bestehende Sessions bleiben nach der Änderung weiterhin gültig.
 - **Modul-Routen mit aktivierter Web-Anmeldung**: Modul-Routen mit Login-Pflicht (`/api/modules/:id/routes/*`, Standard) lasen das Session-Cookie unter dem falschen Namen und lieferten bei eingeloggten Clients trotzdem `401`.
 - **Stoppen eines externen Moduls**: Lieferte teils `500 Internal Server Error`, wenn der Modul-Prozess zu diesem Zeitpunkt schon beendet war, weil dessen eigener Exit-Handler die IPC-Bridge bereits geleert hatte, bevor der Stop-Vorgang selbst noch darauf zugreifen wollte.
 - **Neustart eines externen Moduls**: Der Neustart-Button startete ein als eigener Prozess laufendes Modul nicht neu, weil der alte Prozess beim erneuten Start noch als laufend galt. Außerdem konnte ein verspätetes Exit-Ereignis des ALTEN Prozesses (nach erzwungenem Beenden) den gerade neu gestarteten Prozess versehentlich als abgestürzt markieren oder dessen Zustand löschen; ein beabsichtigtes Stoppen wird dabei nicht mehr fälschlich als Absturz geloggt.

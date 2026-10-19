@@ -3,10 +3,12 @@ import * as bcrypt from 'bcryptjs';
 import { APIServer } from '../../../src/api/Server.js';
 import { registerAuthRoutes } from '../../../src/api/routes/auth.js';
 import { createAuthMiddleware } from '../../../src/api/middleware/auth.js';
+import type { HubConfiguration } from '../../../src/types/api.js';
 
 describe('Auth Routes', () => {
   let server: APIServer;
   let passwordHash: string;
+  let saveConfig: ReturnType<typeof vi.fn<[HubConfiguration], Promise<void>>>;
 
   beforeEach(async () => {
     passwordHash = await bcrypt.hash('testpassword', 10);
@@ -28,8 +30,11 @@ describe('Auth Routes', () => {
     // Register auth middleware
     fastify.addHook('preHandler', createAuthMiddleware(server));
 
-    // Register routes
-    registerAuthRoutes(fastify, server);
+    // Register routes; the save stub mirrors main.ts (persist, then swap the live config)
+    saveConfig = vi.fn(async (newConfig: HubConfiguration) => {
+      server.setConfig(newConfig);
+    });
+    registerAuthRoutes(fastify, server, { saveConfig });
 
     await server.start();
   });
@@ -184,6 +189,76 @@ describe('Auth Routes', () => {
 
       const sessionData = await sessionResponse.json();
       expect(sessionData.authenticated).toBe(false);
+    });
+  });
+  describe('POST /api/auth/change-password', () => {
+    const login = async (password: string): Promise<Response> =>
+      fetch('http://127.0.0.1:3097/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password }),
+      });
+
+    const changePassword = async (
+      cookie: string,
+      currentPassword: string,
+      newPassword: string
+    ): Promise<Response> =>
+      fetch('http://127.0.0.1:3097/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: cookie },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+    it('persists the new password hash through saveConfig', async () => {
+      const cookie = (await login('testpassword')).headers.get('set-cookie')!;
+
+      const response = await changePassword(cookie, 'testpassword', 'newsecret');
+
+      expect(response.status).toBe(200);
+      expect((await response.json()).success).toBe(true);
+      expect(saveConfig).toHaveBeenCalledTimes(1);
+      const saved = saveConfig.mock.calls[0]![0];
+      expect(await bcrypt.compare('newsecret', saved.webAuth.passwordHash)).toBe(true);
+      expect(saved.webAuth.username).toBe('admin');
+      expect(saved.webAuth.enabled).toBe(true);
+
+      expect((await login('newsecret')).status).toBe(200);
+      expect((await login('testpassword')).status).toBe(401);
+    });
+
+    it('keeps the old password and returns 500 when saving fails', async () => {
+      const cookie = (await login('testpassword')).headers.get('set-cookie')!;
+      saveConfig.mockRejectedValueOnce(new Error('EACCES: permission denied'));
+
+      const response = await changePassword(cookie, 'testpassword', 'newsecret');
+
+      expect(response.status).toBe(500);
+      const data = await response.json();
+      expect(data.success).toBe(false);
+      expect(server.getConfig()!.webAuth.passwordHash).toBe(passwordHash);
+      expect((await login('testpassword')).status).toBe(200);
+      expect((await login('newsecret')).status).toBe(401);
+    });
+
+    it('does not save when the current password is wrong', async () => {
+      const cookie = (await login('testpassword')).headers.get('set-cookie')!;
+
+      const response = await changePassword(cookie, 'wrong', 'newsecret');
+
+      expect(response.status).toBe(401);
+      expect(saveConfig).not.toHaveBeenCalled();
+    });
+
+    it('keeps existing sessions valid after a password change', async () => {
+      const cookie = (await login('testpassword')).headers.get('set-cookie')!;
+
+      await changePassword(cookie, 'testpassword', 'newsecret');
+
+      const session = await fetch('http://127.0.0.1:3097/api/auth/session', {
+        headers: { Cookie: cookie },
+      });
+      expect((await session.json()).authenticated).toBe(true);
     });
   });
 });

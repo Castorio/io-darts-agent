@@ -1061,7 +1061,13 @@ async function main(): Promise<void> {
   });
 
   // Register Auth Routes
-  registerAuthRoutes(fastify, server);
+  registerAuthRoutes(fastify, server, {
+    saveConfig: async (newConfig: HubConfiguration) => {
+      await configService.saveConfig(newConfig);
+      config = newConfig;
+      server.setConfig(newConfig);
+    },
+  });
 
   // Register Status Routes
   registerStatusRoutes(fastify, server, {

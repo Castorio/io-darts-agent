@@ -1287,6 +1287,35 @@ async function main(): Promise<void> {
     return result.moduleId;
   };
 
+  // Shared uninstall implementation: used by the module management routes
+  // and the store routes (to roll back a mismatched install).
+  const uninstallModuleImpl = async (id: string): Promise<void> => {
+    const mod = installedModules.get(id);
+    if (!mod) throw new Error(`Module ${id} not found`);
+
+    // Stop module first if running
+    if (mod.status === 'running') {
+      mod.status = 'stopped';
+    }
+
+    // Use the stored path directly instead of relying on moduleId matching directory name
+    // This fixes the issue where git-installed modules have directory names different from their module ID
+    // e.g., directory "autodarts-mqtt-module" but module ID "mqtt"
+    console.log(`🗑️  Uninstalling module ${id} from path: ${mod.path}`);
+    await fs.promises.rm(mod.path, { recursive: true, force: true });
+
+    // Also remove the module config file
+    const configPath = path.join(getConfigDir(), `${id}.json`);
+    try {
+      await fs.promises.rm(configPath, { force: true });
+    } catch {
+      // Config file may not exist, that's fine
+    }
+
+    installedModules.delete(id);
+    console.log(`🗑️  Uninstalled module: ${id}`);
+  };
+
   // Register Module Routes
   registerModuleRoutes(fastify, server, {
     listModules: (): ModuleListItem[] => {
@@ -1544,32 +1573,7 @@ async function main(): Promise<void> {
       resolve();
     }),
     installModule: installModuleImpl,
-    uninstallModule: async (id: string): Promise<void> => {
-      const mod = installedModules.get(id);
-      if (!mod) throw new Error(`Module ${id} not found`);
-
-      // Stop module first if running
-      if (mod.status === 'running') {
-        mod.status = 'stopped';
-      }
-
-      // Use the stored path directly instead of relying on moduleId matching directory name
-      // This fixes the issue where git-installed modules have directory names different from their module ID
-      // e.g., directory "autodarts-mqtt-module" but module ID "mqtt"
-      console.log(`🗑️  Uninstalling module ${id} from path: ${mod.path}`);
-      await fs.promises.rm(mod.path, { recursive: true, force: true });
-
-      // Also remove the module config file
-      const configPath = path.join(getConfigDir(), `${id}.json`);
-      try {
-        await fs.promises.rm(configPath, { force: true });
-      } catch {
-        // Config file may not exist, that's fine
-      }
-
-      installedModules.delete(id);
-      console.log(`🗑️  Uninstalled module: ${id}`);
-    },
+    uninstallModule: uninstallModuleImpl,
     updateModule: async (id: string): Promise<{ success: boolean; previousVersion?: string; newVersion?: string; error?: string }> => {
       const mod = installedModules.get(id);
       if (!mod) {
@@ -1702,6 +1706,7 @@ async function main(): Promise<void> {
     },
     installModule: (url: string, branch: string): Promise<string> =>
       installModuleImpl('git', url, undefined, branch),
+    uninstallModule: uninstallModuleImpl,
   });
 
   // Register Settings Routes

@@ -8,6 +8,8 @@ export interface StoreDependencies {
   installedVersion: (id: string) => string | null;
   /** Installs a module from a (catalog-provided) git repo URL and branch, returning the installed module id. */
   installModule: (url: string, branch: string) => Promise<string>;
+  /** Uninstalls a module by id. Used to roll back an install whose reported id doesn't match the catalog id. */
+  uninstallModule: (id: string) => Promise<void>;
 }
 
 export interface StoreListResponse {
@@ -31,6 +33,17 @@ function isAuthorized(server: APIServer, session: { authenticated?: boolean } | 
     return true;
   }
   return session?.authenticated === true;
+}
+
+/**
+ * The installer tracks installed modules by the directory/manifest id it
+ * resolves, not by the catalog id used in the store route param - those can
+ * differ. If the installer itself reports the target already exists (e.g.
+ * "Module directory already exists"), treat that the same as the 409 case
+ * below rather than surfacing it as a generic 500.
+ */
+function looksLikeAlreadyInstalled(message: string): boolean {
+  return /already exists/i.test(message);
 }
 
 /**
@@ -101,15 +114,40 @@ export function registerStoreRoutes(
       return { success: false, error: 'Module already installed' };
     }
 
+    let moduleId: string;
     try {
-      const moduleId = await deps.installModule(storeModule.repo, storeModule.branch);
-      return { success: true, moduleId };
+      moduleId = await deps.installModule(storeModule.repo, storeModule.branch);
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to install module';
+      if (looksLikeAlreadyInstalled(message)) {
+        void reply.code(409);
+        return { success: false, error: 'Module already installed' };
+      }
+      void reply.code(500);
+      return { success: false, error: message };
+    }
+
+    // The installer resolves its own module/manifest id, which can differ
+    // from the catalog id used in the route (see ModuleDependencies vs.
+    // installedModules keying in main.ts). Installing under a mismatched id
+    // could silently overwrite - or masquerade as - a different module, so
+    // roll the install back rather than leaving it in place.
+    if (moduleId !== id) {
+      try {
+        await deps.uninstallModule(moduleId);
+      } catch (rollbackError) {
+        console.error(
+          `Failed to roll back mismatched store install "${moduleId}" (expected "${id}"):`,
+          rollbackError
+        );
+      }
       void reply.code(500);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to install module',
+        error: `Installed module id "${moduleId}" does not match the catalog id "${id}"; installation was rolled back`,
       };
     }
+
+    return { success: true, moduleId };
   });
 }

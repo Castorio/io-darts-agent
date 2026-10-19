@@ -28,6 +28,7 @@ describe('Store Routes', () => {
   let find: ReturnType<typeof vi.fn>;
   let installedVersion: ReturnType<typeof vi.fn>;
   let installModule: ReturnType<typeof vi.fn>;
+  let uninstallModule: ReturnType<typeof vi.fn>;
   let deps: StoreDependencies;
 
   beforeEach(async () => {
@@ -35,8 +36,9 @@ describe('Store Routes', () => {
     find = vi.fn();
     installedVersion = vi.fn().mockReturnValue(null);
     installModule = vi.fn().mockResolvedValue('mqtt');
+    uninstallModule = vi.fn().mockResolvedValue(undefined);
 
-    deps = { catalog: { load, find }, installedVersion, installModule };
+    deps = { catalog: { load, find }, installedVersion, installModule, uninstallModule };
 
     fastify = Fastify();
     registerStoreRoutes(fastify, mockServer as any, deps);
@@ -167,6 +169,47 @@ describe('Store Routes', () => {
       const body = JSON.parse(response.body);
       expect(body.success).toBe(false);
       expect(body.error).toContain('git clone failed');
+      expect(uninstallModule).not.toHaveBeenCalled();
+    });
+
+    it('treats an "already exists" installer error as already installed (409), not a 500', async () => {
+      installedVersion.mockReturnValue(null);
+      installModule.mockRejectedValue(new Error('Module directory already exists'));
+
+      const response = await fastify.inject({ method: 'POST', url: '/api/store/mqtt/install' });
+
+      expect(response.statusCode).toBe(409);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(false);
+      expect(uninstallModule).not.toHaveBeenCalled();
+    });
+
+    it('rolls back and errors when the installer reports a different module id than the catalog id', async () => {
+      installedVersion.mockReturnValue(null);
+      installModule.mockResolvedValue('autodarts-mqtt-module');
+
+      const response = await fastify.inject({ method: 'POST', url: '/api/store/mqtt/install' });
+
+      expect(response.statusCode).toBe(500);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(false);
+      expect(body.error).toContain('autodarts-mqtt-module');
+      expect(body.error).toContain('mqtt');
+      expect(uninstallModule).toHaveBeenCalledWith('autodarts-mqtt-module');
+      expect(uninstallModule).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not report success when the installed id mismatches, even if rollback itself fails', async () => {
+      installedVersion.mockReturnValue(null);
+      installModule.mockResolvedValue('autodarts-mqtt-module');
+      uninstallModule.mockRejectedValue(new Error('rm failed'));
+
+      const response = await fastify.inject({ method: 'POST', url: '/api/store/mqtt/install' });
+
+      expect(response.statusCode).toBe(500);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(false);
+      expect(uninstallModule).toHaveBeenCalledWith('autodarts-mqtt-module');
     });
   });
 });

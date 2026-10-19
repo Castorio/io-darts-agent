@@ -108,20 +108,26 @@ function parseModule(raw: unknown): StoreModule | null {
 /**
  * Validates the raw catalog JSON and returns the accepted modules plus how
  * many entries were rejected. Invalid entries and duplicate ids are dropped
- * rather than failing the whole catalog.
+ * rather than failing the whole catalog. `rejectedIds` carries the id of
+ * each rejected entry when one was identifiable (best effort: an entry
+ * whose `id` field itself is missing/invalid is reported as `(unknown id)`),
+ * purely for logging - it's not used to decide what gets rejected.
  */
-export function parseCatalog(raw: unknown): { modules: StoreModule[]; rejected: number } {
-  if (!isPlainObject(raw)) return { modules: [], rejected: 0 };
-  if (raw.version !== 1) return { modules: [], rejected: 0 };
-  if (!Array.isArray(raw.modules)) return { modules: [], rejected: 0 };
+export function parseCatalog(raw: unknown): { modules: StoreModule[]; rejected: number; rejectedIds: string[] } {
+  if (!isPlainObject(raw)) return { modules: [], rejected: 0, rejectedIds: [] };
+  if (raw.version !== 1) return { modules: [], rejected: 0, rejectedIds: [] };
+  if (!Array.isArray(raw.modules)) return { modules: [], rejected: 0, rejectedIds: [] };
 
   let rejected = 0;
+  const rejectedIds: string[] = [];
   const byId = new Map<string, StoreModule[]>();
 
   for (const entry of raw.modules) {
     const parsed = parseModule(entry);
     if (!parsed) {
       rejected += 1;
+      const entryId = isPlainObject(entry) && typeof entry.id === 'string' ? entry.id : '(unknown id)';
+      rejectedIds.push(entryId);
       continue;
     }
     const existing = byId.get(parsed.id);
@@ -133,15 +139,18 @@ export function parseCatalog(raw: unknown): { modules: StoreModule[]; rejected: 
   }
 
   const modules: StoreModule[] = [];
-  for (const entries of byId.values()) {
+  for (const [id, entries] of byId.entries()) {
     if (entries.length === 1) {
       modules.push(entries[0]);
     } else {
       rejected += entries.length;
+      for (let i = 0; i < entries.length; i += 1) {
+        rejectedIds.push(id);
+      }
     }
   }
 
-  return { modules, rejected };
+  return { modules, rejected, rejectedIds };
 }
 
 export type CatalogLoadResult =
@@ -207,7 +216,12 @@ export class StoreCatalog {
         return { available: false, error: 'Catalog response is not valid JSON' };
       }
 
-      const { modules } = parseCatalog(json);
+      const { modules, rejected, rejectedIds } = parseCatalog(json);
+      if (rejected > 0) {
+        const entryWord = rejected === 1 ? 'entry' : 'entries';
+        const idList = rejectedIds.length > 0 ? ` (${rejectedIds.join(', ')})` : '';
+        console.warn(`Store catalog: rejected ${rejected} invalid or duplicate ${entryWord}${idList}`);
+      }
       this.cache = { modules, fetchedAt: this.now() };
       return { available: true, modules };
     } catch (error) {

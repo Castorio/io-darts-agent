@@ -293,6 +293,40 @@ describe('StoreCatalog', () => {
     expect(result.available).toBe(false);
   });
 
+  it('logs a warning with the count and ids of rejected entries', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const body = catalogOf(
+      validModule({ id: 'mqtt' }),
+      validModule({ id: 'broken-module', author: '' }),
+      validModule({ id: 'dup', author: 'First' }),
+      validModule({ id: 'dup', author: 'Second' }),
+    );
+    const fetchImpl = vi.fn().mockResolvedValue(okResponse(JSON.stringify(body)));
+    const catalog = new StoreCatalog({ url: 'https://example.com/modules.json', fetchImpl: fetchImpl as unknown as typeof fetch });
+
+    const result = await catalog.load();
+
+    expect(result.available).toBe(true);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const [message] = warnSpy.mock.calls[0]!;
+    expect(message).toContain('3');
+    expect(message).toContain('broken-module');
+    expect(message).toContain('dup');
+
+    warnSpy.mockRestore();
+  });
+
+  it('does not log a warning when every entry is valid', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetchImpl = vi.fn().mockResolvedValue(okResponse(JSON.stringify(catalogOf(validModule()))));
+    const catalog = new StoreCatalog({ url: 'https://example.com/modules.json', fetchImpl: fetchImpl as unknown as typeof fetch });
+
+    await catalog.load();
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   describe('find', () => {
     it('returns the module matching the id', async () => {
       const fetchImpl = vi.fn().mockResolvedValue(okResponse(JSON.stringify(catalogOf(validModule()))));

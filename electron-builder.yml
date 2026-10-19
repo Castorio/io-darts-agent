@@ -38,6 +38,14 @@ files:
   - "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}"
 
 # Extra resources (copied to resources folder)
+# module-sdk/ is linked into every external module (ModuleInstaller.fixSdkLink)
+# via resolveSdkPath, which expects it at <appRoot>/module-sdk - "app/" is
+# where electron-builder puts the unpacked app (asar is disabled, see below),
+# matching mainDir's "../../module-sdk" for the compiled dist/src layout.
+# This ships as extraResources rather than through `files` above because
+# electron-builder's main file matcher unconditionally strips *.d.ts
+# (app-builder-lib's excludedExts), which would break builds of modules that
+# compile against the SDK's types; extraResources isn't subject to that.
 extraResources:
   - from: "build/"
     to: "icons"
@@ -45,6 +53,12 @@ extraResources:
       - "*.png"
       - "*.ico"
       - "*.icns"
+  - from: "module-sdk"
+    to: "app/module-sdk"
+    filter:
+      - "package.json"
+      - "dist/**/*"
+      - "!dist/**/*.map"
 
 # No asar archive: the backend runs as a separate Node process (Electron in
 # ELECTRON_RUN_AS_NODE mode) with the ESM loader, resolves web/dist and the

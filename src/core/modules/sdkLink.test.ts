@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
-import { ensureSdkLink } from './sdkLink.js';
+import { ensureSdkLink, refreshSdkLinkBeforeSpawn } from './sdkLink.js';
 
 function writeModule(modulePath: string, declaresSdk: boolean): void {
   mkdirSync(modulePath, { recursive: true });
@@ -113,5 +113,49 @@ describe('ensureSdkLink', () => {
 
     expect(warned).toHaveBeenCalledWith(expect.stringContaining(missingSdkPath));
     expect(existsSync(linkPath)).toBe(false);
+  });
+});
+
+describe('refreshSdkLinkBeforeSpawn', () => {
+  let root: string;
+  let modulePath: string;
+  let linkPath: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'sdk-link-spawn-'));
+    modulePath = path.join(root, 'module');
+    linkPath = path.join(modulePath, 'node_modules', '@autodarts-hub', 'module-sdk');
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('resolves the sdkPath from mainDir (compiled layout) and links it, logging through the given logger', async () => {
+    writeModule(modulePath, true);
+    // resolveSdkPath's compiled-layout case: <root>/dist/src -> <root>/module-sdk
+    const mainDir = path.join(root, 'dist', 'src');
+    mkdirSync(mainDir, { recursive: true });
+    writeSdk(path.join(root, 'module-sdk'), 'resolved-via-maindir');
+    const logger = { warn: vi.fn(), info: vi.fn() };
+
+    await refreshSdkLinkBeforeSpawn(modulePath, mainDir, logger);
+
+    expect(linkedSdkMarker(linkPath)).toBe('resolved-via-maindir');
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Linked the hub module SDK'));
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('logs a warning through the given logger when the resolved sdkPath has no module-sdk', async () => {
+    writeModule(modulePath, true);
+    const mainDir = path.join(root, 'dist', 'src');
+    mkdirSync(mainDir, { recursive: true });
+    // No module-sdk written at <root>/module-sdk
+    const logger = { warn: vi.fn(), info: vi.fn() };
+
+    await refreshSdkLinkBeforeSpawn(modulePath, mainDir, logger);
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(path.join(root, 'module-sdk')));
+    expect(logger.info).not.toHaveBeenCalled();
   });
 });

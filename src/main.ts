@@ -37,7 +37,7 @@ import { ModuleInstaller } from './core/modules/ModuleInstaller.js';
 import { computeModuleStats } from './core/modules/moduleStats.js';
 import { ModuleBridge } from './core/modules/ModuleBridge.js';
 import { moduleSocketPath } from './core/modules/socketPath.js';
-import { ensureSdkLink } from './core/modules/sdkLink.js';
+import { refreshSdkLinkBeforeSpawn } from './core/modules/sdkLink.js';
 import { resolveBuiltinModulesDir } from './core/modules/BuiltinModuleInstaller.js';
 import { resolveSdkPath } from './core/modules/sdkPath.js';
 import { runtimePath } from './core/runtimePaths.js';
@@ -273,10 +273,7 @@ async function spawnExternalModule(mod: InstalledModule): Promise<void> {
   // longer exists) by the time it's spawned again. Re-check/re-point it
   // against this run's resolveSdkPath before every spawn, not just at
   // install time.
-  await ensureSdkLink(mod.path, resolveSdkPath(__dirname), {
-    onWarning: (message) => console.warn(`⚠️  ${message}`),
-    onLinked: (message) => console.log(`🔗 ${message}`),
-  });
+  await refreshSdkLinkBeforeSpawn(mod.path, __dirname);
 
   const linkedEntry = path.join(mod.path, mod.manifest.entry);
 

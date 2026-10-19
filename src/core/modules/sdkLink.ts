@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { resolveSdkPath } from './sdkPath.js';
 
 const SDK_PACKAGE = '@autodarts-hub/module-sdk';
 
@@ -57,4 +58,38 @@ export async function ensureSdkLink(modulePath: string, sdkPath: string, events:
   // A junction needs no admin rights on Windows, so updates reach the module there too
   await fs.symlink(sdkPath, sdkLinkPath, process.platform === 'win32' ? 'junction' : 'dir');
   events.onLinked?.('Linked the hub module SDK');
+}
+
+export interface Logger {
+  warn: (message: string) => void;
+  info: (message: string) => void;
+}
+
+const consoleLogger: Logger = {
+  warn: (message) => console.warn(message),
+  info: (message) => console.log(message),
+};
+
+/**
+ * The pre-spawn step src/main.ts's spawnExternalModule runs before every
+ * external module start: resolves the hub's current module-sdk path from
+ * mainDir (the running main.ts/main.js's own directory - see
+ * resolveSdkPath) and re-points modulePath's SDK link against it if
+ * needed (see ensureSdkLink's doc comment for why this has to happen on
+ * every spawn, not just at install time - the AppImage remount case).
+ *
+ * Pulled out of main.ts as its own small, independently testable step
+ * (real caller wiring, i.e. actually running a spawned module process,
+ * stays in main.ts) rather than inlined there.
+ */
+export async function refreshSdkLinkBeforeSpawn(
+  modulePath: string,
+  mainDir: string,
+  logger: Logger = consoleLogger
+): Promise<void> {
+  const sdkPath = resolveSdkPath(mainDir);
+  await ensureSdkLink(modulePath, sdkPath, {
+    onWarning: (message) => logger.warn(`⚠️  ${message}`),
+    onLinked: (message) => logger.info(`🔗 ${message}`),
+  });
 }

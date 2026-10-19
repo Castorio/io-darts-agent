@@ -177,7 +177,7 @@ Unter **Module** siehst du alle installierten Module mit Status und den Buttons 
 Ein Klick auf ein Modul öffnet die Detailseite:
 
 - **Starten**, **Stoppen**, **Neustarten**
-- **Autostart**: Modul startet automatisch mit dem Hub
+- **Autostart**: Modul startet automatisch mit dem Hub, auch wenn die Anmeldung bei Autodarts fehlschlägt. Spiel-Events bekommt das Modul erst, sobald die Verbindung zu Autodarts steht.
 - Link zur modulspezifischen Konfiguration (WLED, Game Display, Darts Caller)
 - **Konfiguration**: Allgemeine Moduleinstellungen (bei Modulen ohne eigene Konfigurationsseite; beim Darts Caller dieselben Werte wie auf der Caller-Seite)
 - **Intent-Reaktionen**: Wie das Modul auf Intents anderer Module reagiert (falls unterstützt)

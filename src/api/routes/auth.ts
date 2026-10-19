@@ -3,17 +3,24 @@ import bcrypt from 'bcryptjs';
 import type { APIServer } from '../Server.js';
 import { setSessionCookie, clearSessionCookie } from '../middleware/auth.js';
 import type {
+  HubConfiguration,
   LoginRequest,
   LoginResponse,
   SessionResponse,
 } from '../../types/api.js';
+
+export interface AuthRouteDependencies {
+  /** Persists the config and makes it the live config. Must reject if the write fails. */
+  saveConfig: (config: HubConfiguration) => Promise<void>;
+}
 
 /**
  * Register authentication routes
  */
 export function registerAuthRoutes(
   fastify: FastifyInstance,
-  server: APIServer
+  server: APIServer,
+  deps: AuthRouteDependencies
 ): void {
   /**
    * GET /api/auth/session - Check current session status
@@ -177,13 +184,26 @@ export function registerAuthRoutes(
       };
     }
 
-    // Hash new password and update config
+    // Persist a copy first; the live config only changes once the write succeeded,
+    // so a failed save never leaves a password that is lost on the next restart.
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
-    config.webAuth.passwordHash = newPasswordHash;
+    const updatedConfig: HubConfiguration = {
+      ...config,
+      webAuth: { ...config.webAuth, passwordHash: newPasswordHash },
+    };
 
-    // Note: Caller needs to save the config
-    // This route emits an event that the hub can listen to
+    try {
+      await deps.saveConfig(updatedConfig);
+    } catch (error) {
+      console.error('Failed to save changed password:', error);
+      void reply.code(500);
+      return {
+        success: false,
+        message: 'Password could not be saved',
+      };
+    }
 
+    // Existing sessions stay valid (unchanged behaviour)
     return {
       success: true,
       message: 'Password changed successfully',

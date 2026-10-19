@@ -46,7 +46,7 @@ Mit **Public** markierte Routen in den Tabellen unten haben keine zusätzliche, 
 | GET | `/api/auth/session` | Public | Aktueller Session-Status: `{ authenticated, authRequired, username? }`. |
 | POST | `/api/auth/login` | Public | Body: `{ username, password }`. Setzt bei Erfolg das `autodarts_session`-Cookie. Liefert `success: true` ohne Wirkung, wenn Web-Auth deaktiviert ist. |
 | POST | `/api/auth/logout` | Public | Löscht das Session-Cookie. |
-| POST | `/api/auth/change-password` | Session | Body: `{ currentPassword, newPassword }`. Erfordert eine authentifizierte Session und aktivierte Web-Auth. |
+| POST | `/api/auth/change-password` | Session | Body: `{ currentPassword, newPassword }`. Erfordert eine authentifizierte Session und aktivierte Web-Auth. Der neue Hash wird in der Konfiguration gespeichert; scheitert das Speichern, bleibt das alte Passwort gültig und die Antwort ist `500`. Bestehende Sessions bleiben gültig. |
 
 ### Hub-Status & Verbindung
 

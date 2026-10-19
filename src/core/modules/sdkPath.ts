@@ -10,35 +10,21 @@
  * - src, one level below the repo root, when running from source via
  *   tsx/ts-node (e.g. `npm run dev`)
  *
- * Resolving purely from the compiled-build assumption (always two levels
- * up) lands one directory too high when running from source. Pick whichever
- * candidate actually has a module-sdk package, preferring the compiled
- * layout so existing production/packaged behavior is unchanged; fall back
- * to the compiled-layout path if neither exists, so callers get a
- * predictable (if missing) path instead of silently preferring an
- * unrelated directory that happens to exist.
+ * The layout is picked by WHERE mainDir sits (is its parent directory named
+ * "dist"?), not by probing the filesystem for a `module-sdk/package.json`
+ * at each candidate. Probing used to prefer the compiled-layout candidate
+ * whenever it had a package.json, with no check that it was actually the
+ * real module-sdk package - so a sibling repo checked out next to this one
+ * and coincidentally (or deliberately) named "module-sdk" could hijack a
+ * dev run and get linked into modules instead of the real SDK. Deciding
+ * from mainDir's own location is unambiguous and can't be influenced by
+ * what else happens to exist on disk.
  */
-import * as fs from 'fs';
 import * as path from 'path';
 
-function hasPackageJson(dir: string): boolean {
-  try {
-    return fs.existsSync(path.join(dir, 'package.json'));
-  } catch {
-    return false;
-  }
-}
-
 export function resolveSdkPath(mainDir: string): string {
-  const compiledLayout = path.resolve(mainDir, '..', '..', 'module-sdk');
-  if (hasPackageJson(compiledLayout)) {
-    return compiledLayout;
-  }
-
-  const sourceLayout = path.resolve(mainDir, '..', 'module-sdk');
-  if (hasPackageJson(sourceLayout)) {
-    return sourceLayout;
-  }
-
-  return compiledLayout;
+  const isCompiledLayout = path.basename(path.dirname(mainDir)) === 'dist';
+  return isCompiledLayout
+    ? path.resolve(mainDir, '..', '..', 'module-sdk')
+    : path.resolve(mainDir, '..', 'module-sdk');
 }

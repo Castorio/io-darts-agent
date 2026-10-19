@@ -484,7 +484,8 @@ export class ModuleInstaller extends EventEmitter {
 
     await fs.rm(sdkLinkPath, { recursive: true, force: true });
     await fs.mkdir(path.dirname(sdkLinkPath), { recursive: true });
-    await fs.symlink(sdkPath, sdkLinkPath, 'dir');
+    // A junction needs no admin rights on Windows, so updates reach the module there too
+    await fs.symlink(sdkPath, sdkLinkPath, process.platform === 'win32' ? 'junction' : 'dir');
     this.emit('progress', { step: 'fix-sdk', message: 'Linked the hub module SDK' });
   }
 

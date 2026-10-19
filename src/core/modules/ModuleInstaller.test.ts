@@ -438,6 +438,23 @@ describe('ModuleInstaller', () => {
       expect(fs.symlink).toHaveBeenCalledWith(sdkPath, link, 'dir');
     });
 
+    it('links the hub SDK with a junction on Windows (a "dir" symlink needs admin rights there)', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      try {
+        vi.mocked(fs.access).mockImplementation(async (p) => {
+          if (String(p) === sdkPath || String(p) === path.join(sdkPath, 'package.json')) return
+          throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+        });
+
+        await installer.refreshAt(modulePath);
+
+        expect(fs.symlink).toHaveBeenCalledWith(sdkPath, link, 'junction');
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform });
+      }
+    });
+
     it('keeps a working SDK link', async () => {
       vi.mocked(fs.access).mockResolvedValue(undefined);
 

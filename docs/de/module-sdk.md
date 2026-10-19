@@ -795,7 +795,7 @@ Der Modul-Store im Hub zeigt einen Katalog offiziell betreuter Module (`store/mo
 
 - Das Modul ist ein SDK-konformes Modul (siehe oben), kein Fork des Hubs selbst.
 - Der Code liegt in einem öffentlichen GitHub-Repository.
-- Die `id` im Katalog-Eintrag ist identisch mit der `id` in der `module.json` des Moduls. Der Hub lehnt eine Installation ab (409), wenn die vom Installer zurückgemeldete Manifest-`id` nicht zur angeforderten Katalog-`id` passt, und macht die Installation rückgängig.
+- Die `id` im Katalog-Eintrag ist identisch mit der `id` in der `module.json` des Moduls. Passt die vom Installer zurückgemeldete Manifest-`id` nicht zur angeforderten Katalog-`id`, macht der Hub die Installation rückgängig und meldet einen Fehler (500).
 - Der Eintrag wird von den Maintainern geprüft, bevor er aufgenommen wird.
 
 **Eintragsformat**, ein Objekt pro Modul in `store/modules.json`:

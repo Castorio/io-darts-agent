@@ -795,7 +795,7 @@ The hub's module store shows a catalog of officially maintained modules (`store/
 
 - The module is an SDK-conformant module (see above), not a fork of the hub itself.
 - Its code lives in a public GitHub repository.
-- The catalog entry's `id` is identical to the `id` in the module's `module.json`. The hub rejects an install (409) when the manifest `id` the installer reports back doesn't match the requested catalog `id`, and rolls the installation back.
+- The catalog entry's `id` is identical to the `id` in the module's `module.json`. If the manifest `id` the installer reports back doesn't match the requested catalog `id`, the hub rolls the installation back and reports an error (500).
 - The entry is reviewed by the maintainers before it's accepted.
 
 **Entry format**, one object per module in `store/modules.json`:

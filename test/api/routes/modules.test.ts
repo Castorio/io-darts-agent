@@ -3,6 +3,7 @@ import { APIServer } from '../../../src/api/Server.js';
 import { registerModuleRoutes, type ModuleDependencies } from '../../../src/api/routes/modules.js';
 import { createAuthMiddleware } from '../../../src/api/middleware/auth.js';
 import type { ModuleListItem, ModuleDetailResponse } from '../../../src/types/api.js';
+import { serverUrl } from '../../helpers/serverUrl.js';
 
 describe('Module Routes', () => {
   let server: APIServer;
@@ -50,7 +51,7 @@ describe('Module Routes', () => {
   };
 
   beforeEach(async () => {
-    server = new APIServer({ port: 3096, logger: false });
+    server = new APIServer({ port: 0, logger: false });
 
     moduleDeps = {
       listModules: vi.fn().mockReturnValue(mockModules),
@@ -85,7 +86,7 @@ describe('Module Routes', () => {
 
   describe('GET /api/modules', () => {
     it('should list all modules', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules');
+      const response = await fetch(`${serverUrl(server)}/api/modules`);
       expect(response.ok).toBe(true);
 
       const data = await response.json();
@@ -97,7 +98,7 @@ describe('Module Routes', () => {
 
   describe('GET /api/modules/:id', () => {
     it('should return module details', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/caller-module');
+      const response = await fetch(`${serverUrl(server)}/api/modules/caller-module`);
       expect(response.ok).toBe(true);
 
       const data = await response.json();
@@ -107,14 +108,14 @@ describe('Module Routes', () => {
     });
 
     it('should return 404 for unknown module', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/unknown-module');
+      const response = await fetch(`${serverUrl(server)}/api/modules/unknown-module`);
       expect(response.status).toBe(404);
     });
   });
 
   describe('PUT /api/modules/:id/config', () => {
     it('should update module config', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/caller-module/config', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/caller-module/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config: { enabled: false, language: 'de' } }),
@@ -127,7 +128,7 @@ describe('Module Routes', () => {
     });
 
     it('should return 404 for unknown module', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/unknown-module/config', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/unknown-module/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config: { enabled: false } }),
@@ -139,7 +140,7 @@ describe('Module Routes', () => {
 
   describe('POST /api/modules/:id/start', () => {
     it('should start module', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/caller-module/start', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/caller-module/start`, {
         method: 'POST',
       });
 
@@ -152,7 +153,7 @@ describe('Module Routes', () => {
 
   describe('POST /api/modules/:id/stop', () => {
     it('should stop module', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/caller-module/stop', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/caller-module/stop`, {
         method: 'POST',
       });
 
@@ -165,7 +166,7 @@ describe('Module Routes', () => {
 
   describe('POST /api/modules/:id/restart', () => {
     it('should restart module', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/caller-module/restart', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/caller-module/restart`, {
         method: 'POST',
       });
 
@@ -178,7 +179,7 @@ describe('Module Routes', () => {
 
   describe('POST /api/modules/install', () => {
     it('should install module from git', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/install', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/install`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -196,7 +197,7 @@ describe('Module Routes', () => {
     });
 
     it('should install module from local path', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/install', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/install`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -210,7 +211,7 @@ describe('Module Routes', () => {
     });
 
     it('should reject git install without url', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/install', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/install`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source: 'git' }),
@@ -220,7 +221,7 @@ describe('Module Routes', () => {
     });
 
     it('should reject local install without path', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/install', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/install`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source: 'local' }),
@@ -232,7 +233,7 @@ describe('Module Routes', () => {
 
   describe('DELETE /api/modules/:id', () => {
     it('should uninstall module', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/caller-module', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/caller-module`, {
         method: 'DELETE',
       });
 
@@ -243,7 +244,7 @@ describe('Module Routes', () => {
     });
 
     it('should return 404 for unknown module', async () => {
-      const response = await fetch('http://127.0.0.1:3096/api/modules/unknown-module', {
+      const response = await fetch(`${serverUrl(server)}/api/modules/unknown-module`, {
         method: 'DELETE',
       });
 

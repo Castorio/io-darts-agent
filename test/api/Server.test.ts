@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { APIServer, isLocalOrigin } from '../../src/api/Server.js';
+import { serverUrl } from '../helpers/serverUrl.js';
 
 describe('APIServer', () => {
   let server: APIServer;
 
   beforeEach(() => {
-    server = new APIServer({ port: 3099, logger: false }); // Use different port for tests, disable logger
+    server = new APIServer({ port: 0, logger: false });
   });
 
   afterEach(async () => {
@@ -152,7 +153,7 @@ describe('APIServer', () => {
       await server.start();
 
       // Try to start another server on same port
-      const server2 = new APIServer({ port: 3099, logger: false });
+      const server2 = new APIServer({ port: Number(new URL(serverUrl(server)).port), logger: false });
       await server2.initialize(null);
 
       const errorHandler = vi.fn();
@@ -168,7 +169,7 @@ describe('APIServer', () => {
       await server.initialize(null);
       await server.start();
 
-      const response = await fetch('http://127.0.0.1:3099/health');
+      const response = await fetch(`${serverUrl(server)}/health`);
       expect(response.ok).toBe(true);
 
       const data = await response.json();

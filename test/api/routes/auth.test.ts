@@ -4,6 +4,7 @@ import { APIServer } from '../../../src/api/Server.js';
 import { registerAuthRoutes } from '../../../src/api/routes/auth.js';
 import { createAuthMiddleware } from '../../../src/api/middleware/auth.js';
 import type { HubConfiguration } from '../../../src/types/api.js';
+import { serverUrl } from '../../helpers/serverUrl.js';
 
 describe('Auth Routes', () => {
   let server: APIServer;
@@ -12,7 +13,7 @@ describe('Auth Routes', () => {
 
   beforeEach(async () => {
     passwordHash = await bcrypt.hash('testpassword', 10);
-    server = new APIServer({ port: 3097, logger: false });
+    server = new APIServer({ port: 0, logger: false });
 
     await server.initialize({
       setupCompleted: true,
@@ -45,7 +46,7 @@ describe('Auth Routes', () => {
 
   describe('GET /api/auth/session', () => {
     it('should return unauthenticated when no session', async () => {
-      const response = await fetch('http://127.0.0.1:3097/api/auth/session');
+      const response = await fetch(`${serverUrl(server)}/api/auth/session`);
       expect(response.ok).toBe(true);
 
       const data = await response.json();
@@ -55,7 +56,7 @@ describe('Auth Routes', () => {
 
     it('should return authenticated when valid session', async () => {
       // First login
-      const loginResponse = await fetch('http://127.0.0.1:3097/api/auth/login', {
+      const loginResponse = await fetch(`${serverUrl(server)}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'admin', password: 'testpassword' }),
@@ -65,7 +66,7 @@ describe('Auth Routes', () => {
       expect(setCookie).toBeTruthy();
 
       // Check session with cookie
-      const sessionResponse = await fetch('http://127.0.0.1:3097/api/auth/session', {
+      const sessionResponse = await fetch(`${serverUrl(server)}/api/auth/session`, {
         headers: { Cookie: setCookie! },
       });
 
@@ -83,7 +84,7 @@ describe('Auth Routes', () => {
         server: { port: 3000, host: '0.0.0.0' },
       });
 
-      const response = await fetch('http://127.0.0.1:3097/api/auth/session');
+      const response = await fetch(`${serverUrl(server)}/api/auth/session`);
       const data = await response.json();
       expect(data.authenticated).toBe(true);
       expect(data.authRequired).toBe(false);
@@ -92,7 +93,7 @@ describe('Auth Routes', () => {
 
   describe('POST /api/auth/login', () => {
     it('should login with correct credentials', async () => {
-      const response = await fetch('http://127.0.0.1:3097/api/auth/login', {
+      const response = await fetch(`${serverUrl(server)}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'admin', password: 'testpassword' }),
@@ -108,7 +109,7 @@ describe('Auth Routes', () => {
     });
 
     it('should reject incorrect username', async () => {
-      const response = await fetch('http://127.0.0.1:3097/api/auth/login', {
+      const response = await fetch(`${serverUrl(server)}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'wrong', password: 'testpassword' }),
@@ -120,7 +121,7 @@ describe('Auth Routes', () => {
     });
 
     it('should reject incorrect password', async () => {
-      const response = await fetch('http://127.0.0.1:3097/api/auth/login', {
+      const response = await fetch(`${serverUrl(server)}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'admin', password: 'wrongpassword' }),
@@ -132,7 +133,7 @@ describe('Auth Routes', () => {
     });
 
     it('should reject missing credentials', async () => {
-      const response = await fetch('http://127.0.0.1:3097/api/auth/login', {
+      const response = await fetch(`${serverUrl(server)}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'admin' }),
@@ -149,7 +150,7 @@ describe('Auth Routes', () => {
         server: { port: 3000, host: '0.0.0.0' },
       });
 
-      const response = await fetch('http://127.0.0.1:3097/api/auth/login', {
+      const response = await fetch(`${serverUrl(server)}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -164,7 +165,7 @@ describe('Auth Routes', () => {
   describe('POST /api/auth/logout', () => {
     it('should logout and clear session', async () => {
       // First login
-      const loginResponse = await fetch('http://127.0.0.1:3097/api/auth/login', {
+      const loginResponse = await fetch(`${serverUrl(server)}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'admin', password: 'testpassword' }),
@@ -173,7 +174,7 @@ describe('Auth Routes', () => {
       const setCookie = loginResponse.headers.get('set-cookie');
 
       // Logout
-      const logoutResponse = await fetch('http://127.0.0.1:3097/api/auth/logout', {
+      const logoutResponse = await fetch(`${serverUrl(server)}/api/auth/logout`, {
         method: 'POST',
         headers: { Cookie: setCookie! },
       });
@@ -183,7 +184,7 @@ describe('Auth Routes', () => {
       expect(data.success).toBe(true);
 
       // Session should be invalid now
-      const sessionResponse = await fetch('http://127.0.0.1:3097/api/auth/session', {
+      const sessionResponse = await fetch(`${serverUrl(server)}/api/auth/session`, {
         headers: { Cookie: setCookie! },
       });
 
@@ -193,7 +194,7 @@ describe('Auth Routes', () => {
   });
   describe('POST /api/auth/change-password', () => {
     const login = async (password: string): Promise<Response> =>
-      fetch('http://127.0.0.1:3097/api/auth/login', {
+      fetch(`${serverUrl(server)}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'admin', password }),
@@ -204,7 +205,7 @@ describe('Auth Routes', () => {
       currentPassword: string,
       newPassword: string
     ): Promise<Response> =>
-      fetch('http://127.0.0.1:3097/api/auth/change-password', {
+      fetch(`${serverUrl(server)}/api/auth/change-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: cookie },
         body: JSON.stringify({ currentPassword, newPassword }),
@@ -255,7 +256,7 @@ describe('Auth Routes', () => {
 
       await changePassword(cookie, 'testpassword', 'newsecret');
 
-      const session = await fetch('http://127.0.0.1:3097/api/auth/session', {
+      const session = await fetch(`${serverUrl(server)}/api/auth/session`, {
         headers: { Cookie: cookie },
       });
       expect((await session.json()).authenticated).toBe(true);

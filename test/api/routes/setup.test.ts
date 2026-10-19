@@ -3,6 +3,7 @@ import { APIServer } from '../../../src/api/Server.js';
 import { registerSetupRoutes } from '../../../src/api/routes/setup.js';
 import { readFileSync } from 'fs';
 import * as path from 'path';
+import { serverUrl } from '../../helpers/serverUrl.js';
 
 const PACKAGE_VERSION = (JSON.parse(readFileSync(path.join(__dirname, '../../../package.json'), 'utf-8')) as { version: string }).version;
 
@@ -12,7 +13,7 @@ describe('Setup Routes', () => {
   let testConnection: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
-    server = new APIServer({ port: 3098, logger: false });
+    server = new APIServer({ port: 0, logger: false });
     saveConfig = vi.fn().mockResolvedValue(undefined);
     testConnection = vi.fn().mockResolvedValue({
       success: true,
@@ -36,7 +37,7 @@ describe('Setup Routes', () => {
 
   describe('GET /api/setup/status', () => {
     it('should return setup required when not configured', async () => {
-      const response = await fetch('http://127.0.0.1:3098/api/setup/status');
+      const response = await fetch(`${serverUrl(server)}/api/setup/status`);
       expect(response.ok).toBe(true);
 
       const data = await response.json();
@@ -52,7 +53,7 @@ describe('Setup Routes', () => {
         server: { port: 3000, host: '0.0.0.0' },
       });
 
-      const response = await fetch('http://127.0.0.1:3098/api/setup/status');
+      const response = await fetch(`${serverUrl(server)}/api/setup/status`);
       const data = await response.json();
       expect(data.setupRequired).toBe(false);
     });
@@ -60,7 +61,7 @@ describe('Setup Routes', () => {
 
   describe('POST /api/setup/test-connection', () => {
     it('should test connection with valid credentials', async () => {
-      const response = await fetch('http://127.0.0.1:3098/api/setup/test-connection', {
+      const response = await fetch(`${serverUrl(server)}/api/setup/test-connection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -78,7 +79,7 @@ describe('Setup Routes', () => {
     });
 
     it('should return error for missing fields', async () => {
-      const response = await fetch('http://127.0.0.1:3098/api/setup/test-connection', {
+      const response = await fetch(`${serverUrl(server)}/api/setup/test-connection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: 'test@test.com' }),
@@ -95,7 +96,7 @@ describe('Setup Routes', () => {
         error: 'Invalid credentials',
       });
 
-      const response = await fetch('http://127.0.0.1:3098/api/setup/test-connection', {
+      const response = await fetch(`${serverUrl(server)}/api/setup/test-connection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -113,7 +114,7 @@ describe('Setup Routes', () => {
 
   describe('POST /api/setup/complete', () => {
     it('should complete setup without web auth', async () => {
-      const response = await fetch('http://127.0.0.1:3098/api/setup/complete', {
+      const response = await fetch(`${serverUrl(server)}/api/setup/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -138,7 +139,7 @@ describe('Setup Routes', () => {
     });
 
     it('should complete setup with web auth', async () => {
-      const response = await fetch('http://127.0.0.1:3098/api/setup/complete', {
+      const response = await fetch(`${serverUrl(server)}/api/setup/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -167,7 +168,7 @@ describe('Setup Routes', () => {
     });
 
     it('keeps the port the hub is running on', async () => {
-      const response = await fetch('http://127.0.0.1:3098/api/setup/complete', {
+      const response = await fetch(`${serverUrl(server)}/api/setup/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -177,7 +178,7 @@ describe('Setup Routes', () => {
       });
 
       expect((await response.json()).success).toBe(true);
-      expect(saveConfig.mock.calls[0][0].server.port).toBe(3098);
+      expect(saveConfig.mock.calls[0][0].server.port).toBe(server.getPort());
     });
 
     it('should reject if setup already completed', async () => {
@@ -188,7 +189,7 @@ describe('Setup Routes', () => {
         server: { port: 3000, host: '0.0.0.0' },
       });
 
-      const response = await fetch('http://127.0.0.1:3098/api/setup/complete', {
+      const response = await fetch(`${serverUrl(server)}/api/setup/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -207,7 +208,7 @@ describe('Setup Routes', () => {
     });
 
     it('should reject missing autodarts credentials', async () => {
-      const response = await fetch('http://127.0.0.1:3098/api/setup/complete', {
+      const response = await fetch(`${serverUrl(server)}/api/setup/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -222,7 +223,7 @@ describe('Setup Routes', () => {
     });
 
     it('should reject enabled web auth without credentials', async () => {
-      const response = await fetch('http://127.0.0.1:3098/api/setup/complete', {
+      const response = await fetch(`${serverUrl(server)}/api/setup/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

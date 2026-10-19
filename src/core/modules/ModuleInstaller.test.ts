@@ -140,6 +140,75 @@ describe('ModuleInstaller', () => {
     });
   });
 
+  describe('install() - manifest id already registered', () => {
+    // The directory existence check for git installs is keyed by the repo
+    // name, not the manifest id - a repo that clones into a brand new
+    // directory can still declare a manifest.id that collides with an
+    // already-installed module (installed under a different directory
+    // name). The installer must catch that after reading the manifest,
+    // clean up only the directory it just created, and never touch the
+    // pre-existing module.
+    it('rejects a git install whose manifest id is already installed, removing only the freshly cloned directory', async () => {
+      installer = new ModuleInstaller({
+        modulesDir: testModulesDir,
+        isModuleIdInstalled: (id) => id === 'test-module',
+      });
+
+      const result = await installer.install({
+        type: 'git',
+        url: 'https://github.com/user/fresh-repo.git',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("'test-module'");
+      expect(result.error).toContain('already installed');
+      expect(fs.rm).toHaveBeenCalledWith(
+        path.join(testModulesDir, 'fresh-repo'),
+        { recursive: true, force: true }
+      );
+      expect(fs.rm).not.toHaveBeenCalledWith(
+        path.join(testModulesDir, 'test-module'),
+        expect.anything()
+      );
+    });
+
+    it('rejects a local install whose manifest id is already installed, without creating anything', async () => {
+      vi.mocked(fs.access)
+        .mockResolvedValueOnce(undefined) // source exists
+        .mockRejectedValueOnce({ code: 'ENOENT' }); // target doesn't exist yet
+      installer = new ModuleInstaller({
+        modulesDir: testModulesDir,
+        isModuleIdInstalled: (id) => id === 'test-module',
+      });
+
+      const result = await installer.install({
+        type: 'local',
+        path: '/path/to/local/module',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("'test-module'");
+      expect(result.error).toContain('already installed');
+      expect(fs.symlink).not.toHaveBeenCalled();
+      expect(fs.copyFile).not.toHaveBeenCalled();
+    });
+
+    it('still installs normally when the manifest id is not registered', async () => {
+      installer = new ModuleInstaller({
+        modulesDir: testModulesDir,
+        isModuleIdInstalled: (id) => id === 'some-other-module',
+      });
+
+      const result = await installer.install({
+        type: 'git',
+        url: 'https://github.com/user/test-repo.git',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.moduleId).toBe('test-module');
+    });
+  });
+
   describe('install() - NPM', () => {
     it('should throw not implemented error', async () => {
       const result = await installer.install({

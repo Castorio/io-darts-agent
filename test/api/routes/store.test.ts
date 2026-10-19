@@ -184,6 +184,18 @@ describe('Store Routes', () => {
       expect(uninstallModule).not.toHaveBeenCalled();
     });
 
+    it('treats a manifest-id collision error ("already installed") from the installer as 409, not a 500', async () => {
+      installedVersion.mockReturnValue(null);
+      installModule.mockRejectedValue(new Error("Module 'wled' is already installed"));
+
+      const response = await fastify.inject({ method: 'POST', url: '/api/store/mqtt/install' });
+
+      expect(response.statusCode).toBe(409);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(false);
+      expect(uninstallModule).not.toHaveBeenCalled();
+    });
+
     it('rolls back and errors when the installer reports a different module id than the catalog id', async () => {
       installedVersion.mockReturnValue(null);
       installModule.mockResolvedValue('autodarts-mqtt-module');

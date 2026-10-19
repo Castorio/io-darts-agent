@@ -38,12 +38,14 @@ function isAuthorized(server: APIServer, session: { authenticated?: boolean } | 
 /**
  * The installer tracks installed modules by the directory/manifest id it
  * resolves, not by the catalog id used in the store route param - those can
- * differ. If the installer itself reports the target already exists (e.g.
- * "Module directory already exists"), treat that the same as the 409 case
- * below rather than surfacing it as a generic 500.
+ * differ. If the installer itself reports a conflict (the target directory
+ * already exists, e.g. "Module directory already exists", or a manifest id
+ * collision it caught on the hub's behalf, e.g. "Module 'x' is already
+ * installed"), treat that the same as the 409 case below rather than
+ * surfacing it as a generic 500.
  */
 function looksLikeAlreadyInstalled(message: string): boolean {
-  return /already exists/i.test(message);
+  return /already (exists|installed)/i.test(message);
 }
 
 /**
@@ -129,9 +131,11 @@ export function registerStoreRoutes(
 
     // The installer resolves its own module/manifest id, which can differ
     // from the catalog id used in the route (see ModuleDependencies vs.
-    // installedModules keying in main.ts). Installing under a mismatched id
-    // could silently overwrite - or masquerade as - a different module, so
-    // roll the install back rather than leaving it in place.
+    // installedModules keying in main.ts). The installer itself guarantees
+    // it never returns success for an id that's already registered (it
+    // throws "already installed" instead, handled above as a 409), so a
+    // mismatch here always means a brand-new id was registered - rolling it
+    // back can never remove a module that existed before this call.
     if (moduleId !== id) {
       try {
         await deps.uninstallModule(moduleId);

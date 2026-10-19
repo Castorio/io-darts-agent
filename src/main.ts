@@ -1119,7 +1119,15 @@ async function main(): Promise<void> {
   const modulesDir = runtimePath('modules_installed');
   const builtinModulesDir = resolveBuiltinModulesDir(path.join(__dirname, '..'));
   // The hub's own module SDK next to dist/, for modules that point to an SDK path of their author's machine
-  const moduleInstaller = new ModuleInstaller({ modulesDir, sdkPath: path.resolve(__dirname, '..', '..', 'module-sdk') });
+  const moduleInstaller = new ModuleInstaller({
+    modulesDir,
+    sdkPath: path.resolve(__dirname, '..', '..', 'module-sdk'),
+    // A git repo clones into a directory named after the repo, not its
+    // manifest id, so the installer can't tell from the directory alone
+    // whether the manifest id collides with an already-registered module
+    // (including built-ins). Give it the registry to check against.
+    isModuleIdInstalled: (id: string): boolean => installedModules.has(id),
+  });
 
   // Built-in modules that should be auto-installed on first run
   const BUILTIN_MODULES = ['wled', 'darts-caller', 'game-display'];

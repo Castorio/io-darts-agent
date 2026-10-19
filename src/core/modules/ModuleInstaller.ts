@@ -35,6 +35,15 @@ interface InstallerOptions {
   timeout: number;
   /** The hub's module SDK, linked into modules that cannot resolve their own */
   sdkPath?: string;
+  /**
+   * Reports whether a module id is already registered by the hub (installed
+   * modules, including built-ins). Checked against the manifest id after
+   * it's read from the source - a git repo clones into a directory named
+   * after the repo, not the manifest id, so this is the only place that
+   * catches a manifest id colliding with an already-installed module whose
+   * on-disk directory happens to have a different name.
+   */
+  isModuleIdInstalled?: (moduleId: string) => boolean;
 }
 
 const DEFAULT_OPTIONS: InstallerOptions = {
@@ -251,6 +260,14 @@ export class ModuleInstaller extends EventEmitter {
 
       // Read and validate manifest
       manifest = await this.readManifest(targetPath);
+
+      // The directory-existence check above is keyed by the repo name, not
+      // the manifest id, so a fresh clone can still declare an id that's
+      // already installed elsewhere. Catch that here, before registering -
+      // the catch block below removes only this freshly cloned directory.
+      if (this.options.isModuleIdInstalled?.(manifest.id)) {
+        throw new Error(`Module '${manifest.id}' is already installed`);
+      }
     } catch (err) {
       // A half installed clone would show up as a broken module and block a retry
       await fs.rm(targetPath, { recursive: true, force: true });
@@ -296,6 +313,15 @@ export class ModuleInstaller extends EventEmitter {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw err;
       }
+    }
+
+    // The directory check above only catches a collision when the existing
+    // module happens to live at modulesDir/<manifest.id>; an already
+    // installed module registered under a differently-named directory
+    // would slip through. Nothing has been created yet at this point, so
+    // there's nothing to clean up.
+    if (this.options.isModuleIdInstalled?.(manifest.id)) {
+      throw new Error(`Module '${manifest.id}' is already installed`);
     }
 
     // Create symlink for development or copy for production

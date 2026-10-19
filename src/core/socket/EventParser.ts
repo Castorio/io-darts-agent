@@ -1,4 +1,5 @@
 import { LegTally, type LegTallySnapshot } from '../game/legTally.js';
+import { BullOffTracker } from '../game/bullOff.js';
 import type {
   AutodartsMessage,
   ParsedEvent,
@@ -38,6 +39,8 @@ export class EventParser {
   private lastTurnOwnerKey: string | null = null;
   // Legs and sets won per player.index, counted by the hub
   private readonly legTally = new LegTally();
+  // Bull-off darts per player.index (Autodarts only sends the current turn)
+  private readonly bullOff = new BullOffTracker();
   // Leg (match:set:leg) whose game.finished was already reported
   private lastFinishedLegKey: string | null = null;
   private currentMatchState: MatchStateData | null = null;
@@ -712,6 +715,8 @@ export class EventParser {
         // Legs/sets won per player.index, counted by the hub (use these)
         ...this.legTally.snapshot(data),
         gameFinished: data.gameFinished,
+        // Bull-off darts and distances, null outside the bull-off
+        bullOff: this.bullOff.update(data),
         players: data.players.map((p) => ({
           index: p.index,
           name: p.name,

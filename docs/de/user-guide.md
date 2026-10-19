@@ -330,6 +330,8 @@ Ersetze `192.168.1.100` durch die IP deines Hub-Rechners. Das Gerät muss im sel
 
 Bei einem **Cricket**-Spiel schaltet das Display automatisch auf die Cricket-Ansicht: groß die Punkte des aktiven Spielers (bei Cut Throat "Punkte gegen"), darunter seine Treffer pro Feld von 20 bis 15 und Bull (`/` ein Treffer, `X` zwei, `⊗` geschlossen). Felder, die alle Spieler geschlossen haben, sind abgedunkelt. Die Mitspieler stehen mit Punkten und Treffern klein darunter.
 
+Vor einem **Online-Match** spielt Autodarts das **Ausbullen**: Jeder Spieler wirft einen Dart aufs Bull, wer näher dran ist, beginnt. Das Display zeigt dabei die ganze Dartscheibe mit jedem Dart in der Spielerfarbe, einer Linie zum Bull und dem Abstand in mm, daneben die Rangliste und danach "<Name> beginnt". Die Spielinfo zeigt "Ausbullen".
+
 Nach Match-Ende zeigt das Display eine Ergebnistabelle mit Chalkboard, Statistiken (z.B. Durchschnitt, geworfene Darts) und finalen Punkteständen.
 
 ### Animationen

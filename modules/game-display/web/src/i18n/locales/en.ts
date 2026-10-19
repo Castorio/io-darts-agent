@@ -100,4 +100,12 @@ export default {
     bull: 'Bull',
     marks: 'Marks',
   },
+
+  // Bull-off
+  bullOff: {
+    title: 'Bull-off',
+    throwing: '{name} is throwing',
+    starts: '{name} starts',
+    notThrown: 'not thrown',
+  },
 }

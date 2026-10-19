@@ -535,6 +535,8 @@ Modules can react to the following Autodarts events. `type` is one of a fixed `A
 
 > **Note on `game`:** `match.state`, `throw.detected`, `turn.finished`, `player.change`, `game.finished`, `match.finished`, `match.result`, `cricket.state` and `cricket.closed` additionally carry `data.game: { variant: string; mode: 'x01' | 'cricket' | 'tactics' | 'other'; cutThroat: boolean }`. `match.start`, `match.delete` and `match.finish` do not carry `game`.
 
+> **Bull-off:** during the Autodarts variant "Bull-off" `match.state` carries `bullOff: { players: [{ index, name, distance, x, y }], finished, winnerIndex }` (distance to the bull in mm, `null` until thrown; `x`/`y` normalized, radius 1 = 170 mm; `winnerIndex` = `player.index` of the player who starts), otherwise `null`. The bull-off never emits `game.finished`.
+
 ### Cricket and Tactics Data
 
 Cricket and Tactics (a Cricket variant using fields 10 to 20 instead of 15 to 20) run over the same events as X01, with the extra fields above. Fields are strings `'10'` to `'20'` plus `'25'` for Bull. Players are keyed by the stable `index` (not the array position), so they stay identifiable across the player array rotation after a leg.

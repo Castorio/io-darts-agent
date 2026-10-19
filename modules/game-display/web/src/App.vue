@@ -7,6 +7,7 @@ import { getCheckoutSuggestion, getDartLabel } from './utils/checkouts'
 import AnimationOverlay from './components/AnimationOverlay.vue'
 import WinAnimation from './components/WinAnimation.vue'
 import CricketBoard from './components/CricketBoard.vue'
+import BullOffBoard from './components/BullOffBoard.vue'
 
 const { t } = useI18n()
 const store = useGameDisplayStore()
@@ -31,6 +32,7 @@ const turnScore = computed(() => store.turnScore)
 const remainingScore = computed(() => store.remainingScore)
 const isBusted = computed(() => store.isBusted)
 const isCricketGame = computed(() => store.isCricketGame)
+const isBullOff = computed(() => store.isBullOff)
 
 // Match started state
 const isMatchStarted = computed(() => store.isMatchStarted)
@@ -645,6 +647,16 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <!-- Bull-off before an online match: board with every dart and its distance -->
+        <BullOffBoard
+          v-if="isBullOff"
+          :bull-off="gameState.bullOff"
+          :players="gameState.players"
+          :active-player="activePlayer"
+          :winner="store.bullOffWinner"
+        />
+
+        <template v-else>
         <!-- Header: Player Name + Status -->
         <header class="text-center mb-6 lg:mb-10">
           <!-- Player Name -->
@@ -818,6 +830,7 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
+        </template>
       </template>
     </div>
 

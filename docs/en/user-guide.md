@@ -330,6 +330,8 @@ Replace `192.168.1.100` with the IP of your hub machine. The device must be in t
 
 In a **Cricket** game the display switches to the Cricket view by itself: the points of the active player large ("Points against" in Cut Throat), below them the marks per field from 20 to 15 and Bull (`/` one mark, `X` two, `⊗` closed). Fields every player has closed are dimmed. The other players are listed small below with points and marks.
 
+Before an **online match** Autodarts plays the **bull-off**: every player throws one dart at the bull, the closest starts. The display then shows the whole dartboard with every dart in the player colour, a line to the bull and the distance in mm, next to it the ranking and afterwards "<name> starts". The game info shows "Bull-off".
+
 After the match ends the display shows a results table with chalkboard, statistics (e.g. averages, darts thrown) and final scores.
 
 ### Animations

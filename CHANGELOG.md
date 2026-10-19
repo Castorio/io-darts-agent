@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Ausbullen im Game Display**: Vor Online-Matches zeigt das Display die ganze Dartscheibe mit jedem Ausbull-Dart (Spielerfarbe, Linie zum Bull, Abstand in mm), die Rangliste und wer beginnt. Der Hub merkt sich die Würfe pro Spieler und veröffentlicht sie als `bullOff` in `match.state`.
 - **Legs und Sets zählt der Hub selbst**, pro Spieler (stabil über `player.index`), auch über das Rotieren der Spieler zwischen den Legs hinweg. Ein korrigierter Checkout nimmt den Leg-Sieg zurück, beim Einstieg in ein laufendes Match zählt der Hub ab dem Stand von Autodarts. Veröffentlicht als `legsWon`/`setsWon` in `match.state`, `game.finished` und `/api/match/current`.
 
 ### Changed

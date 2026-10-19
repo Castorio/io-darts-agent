@@ -1,4 +1,5 @@
 import { isCricket } from './cricket'
+import { isBullOffVariant } from './bullOff'
 
 /**
  * Game info lines for the display (game, legs/sets, in mode)
@@ -48,6 +49,11 @@ function formatMode(mode: string, isIn: boolean, t: Translate): string {
 
 export function gameInfoLines(info: GameInfoData, t: Translate): GameInfoLine[] {
   const lines: GameInfoLine[] = []
+
+  // Bull-off: only decides who starts, no score, legs or modes
+  if (isBullOffVariant(info.variant)) {
+    return [{ label: t('gameInfo.game'), value: t('bullOff.title') }]
+  }
 
   const cricket = isCricket(info.variant)
   if (cricket) {

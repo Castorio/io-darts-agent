@@ -86,4 +86,12 @@ export default {
     bull: 'Bull',
     marks: 'Marcas',
   },
+
+  // Bull-off
+  bullOff: {
+    title: 'Bull-off',
+    throwing: 'Lanza {name}',
+    starts: 'Empieza {name}',
+    notThrown: 'pendiente',
+  },
 }

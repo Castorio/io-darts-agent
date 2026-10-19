@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { legsAndSetsFrom } from '../utils/gameInfo'
+import { isBullOffVariant, type BullOffState } from '../utils/bullOff'
 import { ref, shallowRef, computed } from 'vue'
 import { DEFAULT_HIGH_SCORE_THRESHOLD, ThrowAnimationTracker, throwAnimationsForDart } from '../utils/throwAnimations'
 import {
@@ -475,6 +476,8 @@ export interface GameState {
   gameInfo: GameInfo | null
   /** Cricket state as pushed by the hub (null outside Cricket/Tactics) */
   cricket: CricketState | null
+  /** Bull-off darts and distances as pushed by the hub (null outside the bull-off) */
+  bullOff: BullOffState | null
 }
 
 export interface DisplayConfig {
@@ -546,6 +549,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     winner: null,
     gameInfo: null,
     cricket: null,
+    bullOff: null,
   })
 
   // shallowRef: a reactive proxy would make the socket identity check in onclose fail
@@ -641,6 +645,16 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
   })
 
   const isCricketGame = computed(() => lastGameIsCricket.value)
+
+  // Autodarts plays a bull-off before online matches (who starts)
+  const isBullOff = computed(() => isBullOffVariant(gameState.value.gameMode))
+
+  const bullOffWinner = computed(() => {
+    const bullOff = gameState.value.bullOff
+    if (!bullOff?.finished || bullOff.winnerIndex === null) return null
+    return gameState.value.players.find((p) => p.index === bullOff.winnerIndex)
+      ?? bullOff.players.find((p) => p.index === bullOff.winnerIndex) ?? null
+  })
 
   const cricketDeadFields = computed(() => gameState.value.cricket?.deadFields ?? [])
 
@@ -966,6 +980,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     gameState.value.players = []
     gameState.value.activePlayerIndex = 0
     gameState.value.cricket = null
+    gameState.value.bullOff = null
     lastProcessedDartsCount = 0
     throwAnimationTracker.reset()
     cricketAnimationTracker.reset()
@@ -1024,6 +1039,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       : isCricket(variant)
     lastGameIsCricket.value = cricket
     gameState.value.gameMode = variant
+    gameState.value.bullOff = (data.bullOff as BullOffState | null | undefined) ?? null
     // null from Autodarts means a single leg match, not "best of 3"
     const { legsToWin, setsToWin } = legsAndSetsFrom({
       legs: data.legs ?? settings?.legs,
@@ -1270,7 +1286,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       for (let i = lastProcessedDartsCount; i < newDartsCount; i++) {
         // Cricket keeps Bull and Bullseye; 180 and high score are X01 only
         const types = throwAnimationsForDart(segments, i, turnScore, config.value.highScoreThreshold)
-          .filter((type) => !cricket || type === 'bull' || type === 'doubleBull')
+          .filter((type) => !isBullOffVariant(variant) && (!cricket || type === 'bull' || type === 'doubleBull'))
         for (const type of throwAnimationTracker.take(turnKey, i, types)) {
           triggerAnimation(type, player || undefined)
         }
@@ -1427,7 +1443,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
 
     // Check for checkout (remaining = 0 and finished with double)
     // In Cricket a score of 0 just means no points yet
-    if (newScore === 0 && !isCricketGame.value) {
+    if (newScore === 0 && !isCricketGame.value && !isBullOff.value) {
       const player = gameState.value.players[playerArrayIndex]
       triggerAnimation('checkout', player || undefined)
     }
@@ -2053,6 +2069,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
       winner: null,
       gameInfo: null,
       cricket: null,
+      bullOff: null,
     }
     lastGameIsCricket.value = false
     cricketAnimationTracker.reset()
@@ -2117,6 +2134,7 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
         legsToWin: 3,
       },
       cricket: null,
+      bullOff: null,
     }
   }
 
@@ -2149,6 +2167,8 @@ export const useGameDisplayStore = defineStore('gameDisplay', () => {
     remainingScore,
     isBusted,
     isCricketGame,
+    isBullOff,
+    bullOffWinner,
     cricketDeadFields,
     cricketFields,
     cricketMarksByIndex,

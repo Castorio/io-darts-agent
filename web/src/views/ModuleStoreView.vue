@@ -2,7 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api, APIError } from '../api/client'
-import { localizedText, isSafeExternalUrl, sortStoreModules, isAlreadyInstalledError } from '../lib/store'
+import { localizedText, sortStoreModules, isAlreadyInstalledError, storeModuleLinks } from '../lib/store'
 import AppLayout from '../components/AppLayout.vue'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
@@ -40,9 +40,8 @@ function moduleDescription(module: StoreModule): string {
   return localizedText(module.description, locale.value)
 }
 
-function moduleLink(module: StoreModule): string | null {
-  const url = module.homepage || module.repo
-  return isSafeExternalUrl(url) ? url : null
+function moduleLinks(module: StoreModule) {
+  return storeModuleLinks(module)
 }
 
 async function loadStore() {
@@ -217,24 +216,46 @@ onMounted(loadStore)
           <p class="text-dark-400 text-sm mt-3 flex-1">{{ moduleDescription(module) }}</p>
 
           <div class="flex items-center justify-between gap-3 mt-4">
-            <a
-              v-if="moduleLink(module)"
-              :href="moduleLink(module)!"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-sm text-autodarts-400 hover:text-autodarts-300 inline-flex items-center gap-1"
-            >
-              {{ module.homepage ? t('store.viewHomepage') : t('store.viewRepo') }}
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                />
-              </svg>
-            </a>
-            <span v-else class="text-sm text-dark-500">&nbsp;</span>
+            <div class="flex items-center gap-3">
+              <a
+                v-if="moduleLinks(module).repo"
+                :href="moduleLinks(module).repo!"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-sm text-autodarts-400 hover:text-autodarts-300 inline-flex items-center gap-1"
+              >
+                {{ t('store.viewRepo') }}
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
+                </svg>
+              </a>
+              <a
+                v-if="moduleLinks(module).homepage"
+                :href="moduleLinks(module).homepage!"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-sm text-autodarts-400 hover:text-autodarts-300 inline-flex items-center gap-1"
+              >
+                {{ t('store.viewHomepage') }}
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
+                </svg>
+              </a>
+              <span
+                v-if="!moduleLinks(module).repo && !moduleLinks(module).homepage"
+                class="text-sm text-dark-500"
+              >&nbsp;</span>
+            </div>
 
             <BaseButton
               v-if="!module.installed"
@@ -242,7 +263,7 @@ onMounted(loadStore)
               :loading="installingId === module.id"
               @click="installModule(module)"
             >
-              {{ t('store.install') }}
+              {{ installingId === module.id ? t('store.installing') : t('store.install') }}
             </BaseButton>
           </div>
 

@@ -58,6 +58,25 @@ export function isAlreadyInstalledError(error: unknown): boolean {
   return statusCode === 409
 }
 
+export interface StoreModuleLinks {
+  repo: string | null
+  homepage: string | null
+}
+
+/**
+ * Decides which external links to show on a module card: the repository
+ * link whenever the module has one (every catalog entry does) and,
+ * additionally, the homepage link when the module declares one. Each is
+ * validated independently through isSafeExternalUrl, so an unsafe/missing
+ * value on one never suppresses a valid link on the other.
+ */
+export function storeModuleLinks(module: { repo: string; homepage?: string }): StoreModuleLinks {
+  return {
+    repo: isSafeExternalUrl(module.repo) ? module.repo : null,
+    homepage: isSafeExternalUrl(module.homepage) ? module.homepage : null,
+  }
+}
+
 export interface StoreModuleSummary {
   category: string
   name: LocalizedText

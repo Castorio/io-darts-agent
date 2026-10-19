@@ -5,6 +5,7 @@ import {
   isSafeExternalUrl,
   sortStoreModules,
   isAlreadyInstalledError,
+  storeModuleLinks,
   type LocalizedText,
 } from './store'
 import de from '../i18n/locales/de'
@@ -117,6 +118,46 @@ describe('isAlreadyInstalledError', () => {
     expect(isAlreadyInstalledError('409')).toBe(false)
     expect(isAlreadyInstalledError(new Error('plain error, no statusCode'))).toBe(false)
     expect(isAlreadyInstalledError({ message: 'no statusCode field' })).toBe(false)
+  })
+})
+
+describe('storeModuleLinks', () => {
+  it('always returns the repo link when it is safe', () => {
+    const links = storeModuleLinks({ repo: 'https://github.com/user/repo' })
+    expect(links.repo).toBe('https://github.com/user/repo')
+    expect(links.homepage).toBeNull()
+  })
+
+  it('returns both the repo and homepage links when both are safe', () => {
+    const links = storeModuleLinks({
+      repo: 'https://github.com/user/repo',
+      homepage: 'https://example.com',
+    })
+    expect(links.repo).toBe('https://github.com/user/repo')
+    expect(links.homepage).toBe('https://example.com')
+  })
+
+  it('omits the homepage link when none is set', () => {
+    const links = storeModuleLinks({ repo: 'https://github.com/user/repo', homepage: undefined })
+    expect(links.homepage).toBeNull()
+  })
+
+  it('drops an unsafe homepage without affecting the repo link', () => {
+    const links = storeModuleLinks({
+      repo: 'https://github.com/user/repo',
+      homepage: 'javascript:alert(1)',
+    })
+    expect(links.repo).toBe('https://github.com/user/repo')
+    expect(links.homepage).toBeNull()
+  })
+
+  it('drops an unsafe repo without affecting the homepage link', () => {
+    const links = storeModuleLinks({
+      repo: 'javascript:alert(1)',
+      homepage: 'https://example.com',
+    })
+    expect(links.repo).toBeNull()
+    expect(links.homepage).toBe('https://example.com')
   })
 })
 

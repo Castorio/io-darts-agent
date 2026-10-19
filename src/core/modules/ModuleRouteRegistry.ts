@@ -1,6 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { EventEmitter } from 'events';
-import { SESSION_COOKIE } from '../../api/middleware/auth.js';
 
 /**
  * HTTP method types supported for module routes
@@ -91,7 +90,6 @@ export class ModuleRouteRegistry extends EventEmitter {
   private routes = new Map<string, RegisteredRoute[]>(); // moduleId -> routes
   private routeHandlers = new Map<string, ModuleRouteHandler>(); // moduleId -> handler
   private isAuthEnabled: () => boolean = () => false;
-  private getSession: (sessionId: string) => { authenticated?: boolean } | undefined = () => undefined;
   private wildcardRegistered = false;
 
   /**
@@ -102,12 +100,10 @@ export class ModuleRouteRegistry extends EventEmitter {
     fastify: FastifyInstance,
     authConfig: {
       isAuthEnabled: () => boolean;
-      getSession: (sessionId: string) => { authenticated?: boolean } | undefined;
     }
   ): void {
     this.fastify = fastify;
     this.isAuthEnabled = authConfig.isAuthEnabled;
-    this.getSession = authConfig.getSession;
 
     // Register wildcard catch-all route for all module API requests
     // This MUST happen before fastify.listen()
@@ -414,7 +410,13 @@ export class ModuleRouteRegistry extends EventEmitter {
   }
 
   /**
-   * Check if request is authenticated
+   * Check if request is authenticated.
+   *
+   * Reads `request.session`, set by the global auth middleware (an
+   * onRequest hook, see src/api/middleware/auth.ts) that runs before this
+   * wildcard route handler for every request. Reading the cookie/session
+   * store directly here used to look it up under the wrong cookie name and
+   * duplicated logic the middleware already does correctly.
    */
   private checkAuth(request: FastifyRequest): boolean {
     // If auth is disabled, always allow
@@ -422,14 +424,7 @@ export class ModuleRouteRegistry extends EventEmitter {
       return true;
     }
 
-    // Get session from cookie (same cookie the hub login sets, see auth.ts)
-    const sessionId = (request.cookies as Record<string, string>)?.[SESSION_COOKIE];
-    if (!sessionId) {
-      return false;
-    }
-
-    const session = this.getSession(sessionId);
-    return session?.authenticated === true;
+    return request.session?.authenticated === true;
   }
 }
 

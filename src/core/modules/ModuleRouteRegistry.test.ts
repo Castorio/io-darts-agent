@@ -18,7 +18,7 @@ describe('ModuleRouteRegistry', () => {
   function setup(): ModuleRouteRegistry {
     fastify = Fastify();
     const registry = new ModuleRouteRegistry();
-    registry.initialize(fastify, { isAuthEnabled: () => false, getSession: () => undefined });
+    registry.initialize(fastify, { isAuthEnabled: () => false });
     return registry;
   }
 
@@ -64,35 +64,46 @@ describe('ModuleRouteRegistry', () => {
       routes: [{ method: 'GET', path: '/ping', handlerId: 'ping' }],
     };
 
-    async function setupWithAuth(): Promise<ModuleRouteRegistry> {
+    // The real hub sets request.session via a global onRequest auth
+    // middleware (src/api/middleware/auth.ts) registered before any route
+    // runs. ModuleRouteRegistry.checkAuth now reads that instead of the
+    // session cookie itself, so tests simulate the middleware the same way.
+    async function setupWithAuth(authenticated: boolean): Promise<ModuleRouteRegistry> {
       fastify = Fastify();
       await fastify.register(fastifyCookie);
-      const registry = new ModuleRouteRegistry();
-      registry.initialize(fastify, {
-        isAuthEnabled: () => true,
-        getSession: (sessionId) =>
-          sessionId === 'valid-session-id' ? { authenticated: true } : undefined,
+      fastify.addHook('onRequest', async (request) => {
+        request.session = { authenticated };
       });
+      const registry = new ModuleRouteRegistry();
+      registry.initialize(fastify, { isAuthEnabled: () => true });
       registry.setRouteHandler('demo', () => Promise.resolve({ statusCode: 200, body: { pong: 1 } }));
       await registry.registerRoutes(authedRegistration);
       return registry;
     }
 
-    it('lets a request through when it carries the cookie the hub login sets', async () => {
-      await setupWithAuth();
+    it('lets a request through when the auth middleware marked it authenticated', async () => {
+      await setupWithAuth(true);
 
-      const res = await fastify.inject({
-        method: 'GET',
-        url: '/api/modules/demo/routes/ping',
-        headers: { cookie: 'autodarts_session=valid-session-id' },
-      });
+      const res = await fastify.inject({ method: 'GET', url: '/api/modules/demo/routes/ping' });
 
       expect(res.statusCode).toBe(200);
       expect(res.json()).toEqual({ pong: 1 });
     });
 
-    it('rejects a request with no session cookie', async () => {
-      await setupWithAuth();
+    it('rejects a request the auth middleware did not mark authenticated', async () => {
+      await setupWithAuth(false);
+
+      const res = await fastify.inject({ method: 'GET', url: '/api/modules/demo/routes/ping' });
+
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('rejects a request with no session set at all', async () => {
+      fastify = Fastify();
+      const registry = new ModuleRouteRegistry();
+      registry.initialize(fastify, { isAuthEnabled: () => true });
+      registry.setRouteHandler('demo', () => Promise.resolve({ statusCode: 200, body: { pong: 1 } }));
+      await registry.registerRoutes(authedRegistration);
 
       const res = await fastify.inject({ method: 'GET', url: '/api/modules/demo/routes/ping' });
 

@@ -1037,7 +1037,6 @@ async function main(): Promise<void> {
   const moduleRouteRegistry = getModuleRouteRegistry();
   moduleRouteRegistry.initialize(fastify, {
     isAuthEnabled: () => server.isAuthEnabled(),
-    getSession: (sessionId: string) => server.getSession(sessionId),
   });
   console.log('🛣️  Module route registry initialized');
 

@@ -390,7 +390,12 @@ export class ModuleInstaller extends EventEmitter {
 
     try {
       const skipNames = new Set(await readSimpleGitignoreNames(sourcePath));
-      await copyModuleDir(sourcePath, targetPath, skipNames);
+      await copyModuleDir(sourcePath, targetPath, skipNames, true, (relativePath) => {
+        this.emit('progress', {
+          step: 'copy-symlink-warning',
+          message: `Warning: skipped symlink "${relativePath}" (symlinks are never followed when copying a local install)`,
+        });
+      });
 
       // Run npm install in copied directory
       this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });

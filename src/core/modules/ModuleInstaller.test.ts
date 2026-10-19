@@ -130,6 +130,30 @@ describe('ModuleInstaller', () => {
       expect(result.moduleId).toBe('test-module');
     });
 
+    it('emits a progress warning naming each symlink skipped while copying (regression: silently dropped in-tree symlinks)', async () => {
+      vi.mocked(fs.access).mockResolvedValueOnce(undefined); // source exists
+      vi.mocked(fs.readdir).mockResolvedValueOnce([
+        { name: 'linked-assets', isSymbolicLink: () => true, isDirectory: () => false, isFile: () => false },
+        { name: 'index.js', isSymbolicLink: () => false, isDirectory: () => false, isFile: () => true },
+      ] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+
+      const progressHandler = vi.fn();
+      installer.on('progress', progressHandler);
+
+      const result = await installer.install({
+        type: 'local',
+        path: '/path/to/local/module',
+      });
+
+      expect(result.success).toBe(true);
+      expect(progressHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          step: 'copy-symlink-warning',
+          message: expect.stringContaining('linked-assets') as string,
+        })
+      );
+    });
+
     it('should fail if source path does not exist', async () => {
       vi.mocked(fs.access)
         .mockRejectedValueOnce({ code: 'ENOENT' }) // modules dir

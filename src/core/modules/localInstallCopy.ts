@@ -82,13 +82,18 @@ export async function readSimpleGitignoreNames(sourceDir: string): Promise<strin
  * Symlinked entries are never followed (copied or recursed into): a
  * symlink inside the source tree can point anywhere on disk, including
  * outside the module being installed, and following it would copy (or walk
- * into) files the install has no business touching.
+ * into) files the install has no business touching. Each skipped symlink is
+ * reported via `onSkippedSymlink` (path relative to the source root), so a
+ * module that relies on one (e.g. an in-tree relative symlink) doesn't fail
+ * silently - the installer logs it as a warning instead.
  */
 export async function copyModuleDir(
   src: string,
   dest: string,
   extraSkipNames: ReadonlySet<string> = new Set(),
-  isRoot = true
+  isRoot = true,
+  onSkippedSymlink?: (relativePath: string) => void,
+  rootSrc: string = src
 ): Promise<void> {
   await fs.mkdir(dest, { recursive: true });
 
@@ -99,15 +104,18 @@ export async function copyModuleDir(
     if (!protectedAtRoot && shouldSkipCopyEntry(entry.name, extraSkipNames)) {
       continue;
     }
+
+    const srcPath = path.join(src, entry.name);
+
     if (entry.isSymbolicLink()) {
+      onSkippedSymlink?.(path.relative(rootSrc, srcPath));
       continue;
     }
 
-    const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
 
     if (entry.isDirectory()) {
-      await copyModuleDir(srcPath, destPath, extraSkipNames, false);
+      await copyModuleDir(srcPath, destPath, extraSkipNames, false, onSkippedSymlink, rootSrc);
     } else if (entry.isFile()) {
       await fs.copyFile(srcPath, destPath);
     }

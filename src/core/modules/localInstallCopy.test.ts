@@ -108,6 +108,33 @@ describe('copyModuleDir', () => {
     expect(existsSync(path.join(dest, 'linked-file.txt'))).toBe(false);
   });
 
+  it('reports each skipped symlink via onSkippedSymlink, naming it with its path relative to the source root', async () => {
+    const outside = path.join(root, 'outside');
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(path.join(outside, 'secret.txt'), 'top secret');
+    symlinkSync(outside, path.join(src, 'linked-dir'), 'dir');
+    symlinkSync(path.join(outside, 'secret.txt'), path.join(src, 'linked-file.txt'));
+    mkdirSync(path.join(src, 'nested'), { recursive: true });
+    symlinkSync(path.join(outside, 'secret.txt'), path.join(src, 'nested', 'linked-nested.txt'));
+
+    const skipped: string[] = [];
+    await copyModuleDir(src, dest, new Set(), true, (relativePath) => skipped.push(relativePath));
+
+    expect(skipped.sort()).toEqual(
+      ['linked-dir', 'linked-file.txt', path.join('nested', 'linked-nested.txt')].sort()
+    );
+  });
+
+  it('does not call onSkippedSymlink for regular files and directories', async () => {
+    writeFileSync(path.join(src, 'keep.txt'), 'keep');
+    mkdirSync(path.join(src, 'lib'), { recursive: true });
+
+    const onSkippedSymlink = () => {
+      throw new Error('should not be called');
+    };
+    await expect(copyModuleDir(src, dest, new Set(), true, onSkippedSymlink)).resolves.toBeUndefined();
+  });
+
   it('never skips module.json or package.json at the module root, even if the gitignore (or default list) names them', async () => {
     writeFileSync(path.join(src, 'module.json'), '{"id":"m"}');
     writeFileSync(path.join(src, 'package.json'), '{"name":"m"}');

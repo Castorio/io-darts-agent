@@ -30,6 +30,21 @@
       "author": "IO-Darts-Agent Team",
       "repo": "https://github.com/Castorio/autodarts-ai-trainer",
       "branch": "master"
+    },
+    {
+      "id": "homeassistant",
+      "name": {
+        "de": "Home Assistant",
+        "en": "Home Assistant"
+      },
+      "description": {
+        "de": "Macht das Autodarts-Board zu einem Home-Assistant-Gerät: Spielstand, Spielerfarben, Modul-Steuerung und Auslöser für Automationen (zusammen mit der HA-Integration io_darts über HACS).",
+        "en": "Makes the Autodarts board a Home Assistant device: match state, player colors, module control and automation triggers (together with the io_darts integration from HACS)."
+      },
+      "category": "integration",
+      "author": "castor.io / Christoph Castor",
+      "repo": "https://github.com/Castorio/autodarts-home-assistant-module",
+      "branch": "main"
     }
   ]
 }

@@ -25,9 +25,9 @@ describe('store/modules.json', () => {
     expect(result.rejectedIds).toEqual([]);
   });
 
-  it('contains the mqtt and autodarts-trainer modules', () => {
+  it('contains the official modules', () => {
     const result = parseCatalog(parsed);
     const ids = result.modules.map((module) => module.id).sort();
-    expect(ids).toEqual(['autodarts-trainer', 'mqtt']);
+    expect(ids).toEqual(['autodarts-trainer', 'homeassistant', 'mqtt']);
   });
 });

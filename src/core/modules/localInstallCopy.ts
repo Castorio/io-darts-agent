@@ -35,6 +35,16 @@ export function shouldSkipCopyEntry(name: string, extraSkipNames: ReadonlySet<st
 }
 
 /**
+ * Names that must always be copied at the module's root, regardless of the
+ * default skip list or anything the module's own .gitignore says - a
+ * .gitignore that (accidentally or not) excludes its own manifest must not
+ * silently produce an uninstallable module. Only applies at the source
+ * root: a same-named file nested in a subdirectory (e.g. a vendored
+ * dependency's own module.json) is not special and can still be skipped.
+ */
+const NEVER_SKIP_AT_ROOT: ReadonlySet<string> = new Set(['module.json', 'package.json']);
+
+/**
  * Parse a .gitignore's content into plain names to skip, keeping only
  * patterns simple enough to match safely by basename:
  * - a bare name ("node_modules") or a directory pattern ("dist/")
@@ -77,14 +87,16 @@ export async function readSimpleGitignoreNames(sourceDir: string): Promise<strin
 export async function copyModuleDir(
   src: string,
   dest: string,
-  extraSkipNames: ReadonlySet<string> = new Set()
+  extraSkipNames: ReadonlySet<string> = new Set(),
+  isRoot = true
 ): Promise<void> {
   await fs.mkdir(dest, { recursive: true });
 
   const entries = await fs.readdir(src, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (shouldSkipCopyEntry(entry.name, extraSkipNames)) {
+    const protectedAtRoot = isRoot && NEVER_SKIP_AT_ROOT.has(entry.name);
+    if (!protectedAtRoot && shouldSkipCopyEntry(entry.name, extraSkipNames)) {
       continue;
     }
     if (entry.isSymbolicLink()) {
@@ -95,7 +107,7 @@ export async function copyModuleDir(
     const destPath = path.join(dest, entry.name);
 
     if (entry.isDirectory()) {
-      await copyModuleDir(srcPath, destPath, extraSkipNames);
+      await copyModuleDir(srcPath, destPath, extraSkipNames, false);
     } else if (entry.isFile()) {
       await fs.copyFile(srcPath, destPath);
     }

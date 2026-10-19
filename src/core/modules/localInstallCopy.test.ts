@@ -77,8 +77,10 @@ describe('copyModuleDir', () => {
 
     await copyModuleDir(src, dest, new Set());
 
-    expect(readdirSync(dest)).toEqual(['keep.txt', 'nested']);
-    expect(readdirSync(path.join(dest, 'nested'))).toEqual([]);
+    // readdirSync's order is filesystem-dependent (e.g. hash order on
+    // ext4/Linux, not insertion order), so sort before comparing.
+    expect(readdirSync(dest).sort()).toEqual(['keep.txt', 'nested'].sort());
+    expect(readdirSync(path.join(dest, 'nested')).sort()).toEqual([]);
   });
 
   it('skips extra names given by the caller (e.g. from the module .gitignore)', async () => {
@@ -88,7 +90,7 @@ describe('copyModuleDir', () => {
 
     await copyModuleDir(src, dest, new Set(['secrets']));
 
-    expect(readdirSync(dest)).toEqual(['keep.txt']);
+    expect(readdirSync(dest).sort()).toEqual(['keep.txt'].sort());
   });
 
   it('does not follow a symlink that points outside the source tree', async () => {
@@ -101,8 +103,24 @@ describe('copyModuleDir', () => {
 
     await copyModuleDir(src, dest, new Set());
 
-    expect(readdirSync(dest)).toEqual(['keep.txt']);
+    expect(readdirSync(dest).sort()).toEqual(['keep.txt'].sort());
     expect(existsSync(path.join(dest, 'linked-dir'))).toBe(false);
     expect(existsSync(path.join(dest, 'linked-file.txt'))).toBe(false);
+  });
+
+  it('never skips module.json or package.json at the module root, even if the gitignore (or default list) names them', async () => {
+    writeFileSync(path.join(src, 'module.json'), '{"id":"m"}');
+    writeFileSync(path.join(src, 'package.json'), '{"name":"m"}');
+    // A nested module.json/package.json (e.g. inside a dependency the
+    // module vendored) is not special - only the module's own root files
+    // are protected.
+    mkdirSync(path.join(src, 'vendored'), { recursive: true });
+    writeFileSync(path.join(src, 'vendored', 'module.json'), '{"id":"vendored"}');
+
+    await copyModuleDir(src, dest, new Set(['module.json', 'package.json']));
+
+    expect(readFileSync(path.join(dest, 'module.json'), 'utf-8')).toBe('{"id":"m"}');
+    expect(readFileSync(path.join(dest, 'package.json'), 'utf-8')).toBe('{"name":"m"}');
+    expect(existsSync(path.join(dest, 'vendored', 'module.json'))).toBe(false);
   });
 });

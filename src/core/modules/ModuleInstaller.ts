@@ -329,21 +329,21 @@ export class ModuleInstaller extends EventEmitter {
 
     this.emit('installing', { type: 'local', path: sourcePath });
 
-    // Check if already exists
-    try {
-      await fs.access(targetPath);
+    // Fast existence pre-check. This is a courtesy for the common case (a
+    // quick, friendly error without attempting a claim) - it is NOT what
+    // makes concurrent installs of the same id safe; see the atomic claim
+    // below for that. lstat (not access/stat) so a dangling symlink at the
+    // target still counts as "already exists" instead of being silently
+    // treated as free space.
+    if (await this.lexists(targetPath)) {
       throw new ModuleAlreadyInstalledError(`Module directory already exists: ${manifest.id}`);
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw err;
-      }
     }
 
-    // The directory check above only catches a collision when the existing
-    // module happens to live at modulesDir/<manifest.id>; an already
-    // installed module registered under a differently-named directory
-    // would slip through. Nothing has been created yet at this point, so
-    // there's nothing to clean up.
+    // The check above only catches a collision when the existing module
+    // happens to live at modulesDir/<manifest.id>; an already installed
+    // module registered under a differently-named directory would slip
+    // through. Nothing has been created yet at this point, so there's
+    // nothing to clean up.
     if (this.options.isModuleIdInstalled?.(manifest.id)) {
       throw new ModuleAlreadyInstalledError(`Module '${manifest.id}' is already installed`);
     }
@@ -351,30 +351,60 @@ export class ModuleInstaller extends EventEmitter {
     // Create symlink for development or copy for production
     const useSymlink = process.env.NODE_ENV === 'development';
 
+    // Atomically claim targetPath before doing any other work. The
+    // existence check above only looked at a snapshot in time - a
+    // concurrent install of the same manifest id can still create
+    // targetPath between that check and here. fs.mkdir/fs.symlink either
+    // create targetPath exclusively or fail with EEXIST; nothing else is
+    // created or removed until the claim itself has succeeded. Without
+    // this, a copy-path install's recursive `fs.mkdir(dest, {recursive:
+    // true})` would silently merge into a concurrent install's
+    // already-created folder instead of failing, and either install's
+    // failure cleanup could then delete the other install's data.
+    this.emit('progress', useSymlink
+      ? { step: 'symlink', message: 'Creating symlink...' }
+      : { step: 'copy', message: 'Copying files...' });
     try {
       if (useSymlink) {
-        this.emit('progress', { step: 'symlink', message: 'Creating symlink...' });
         await fs.symlink(sourcePath, targetPath, 'dir');
       } else {
-        this.emit('progress', { step: 'copy', message: 'Copying files...' });
-        const skipNames = new Set(await readSimpleGitignoreNames(sourcePath));
-        await copyModuleDir(sourcePath, targetPath, skipNames);
-
-        // Run npm install in copied directory
-        this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
-        await this.execCommand('npm', NPM_INSTALL_WITH_DEV, targetPath);
-
-        // Fix SDK symlink if it uses relative path
-        await this.fixSdkLink(targetPath);
-
-        // Build the module
-        await this.buildModule(targetPath);
+        await fs.mkdir(targetPath);
       }
     } catch (err) {
-      // The existence check above confirmed targetPath didn't exist before
-      // this install, so it's safe to remove on failure - this never
-      // touches a pre-existing directory, only what this install just
-      // created. Without this, a failed local install (e.g. npm install or
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+        // Lost the race to a concurrent install (or a leftover this
+        // process didn't create) - never touch what's there.
+        throw new ModuleAlreadyInstalledError(`Module directory already exists: ${manifest.id}`);
+      }
+      throw err;
+    }
+
+    if (useSymlink) {
+      return {
+        success: true,
+        moduleId: manifest.id,
+        path: targetPath,
+        manifest,
+      };
+    }
+
+    try {
+      const skipNames = new Set(await readSimpleGitignoreNames(sourcePath));
+      await copyModuleDir(sourcePath, targetPath, skipNames);
+
+      // Run npm install in copied directory
+      this.emit('progress', { step: 'npm-install', message: 'Installing dependencies...' });
+      await this.execCommand('npm', NPM_INSTALL_WITH_DEV, targetPath);
+
+      // Fix SDK symlink if it uses relative path
+      await this.fixSdkLink(targetPath);
+
+      // Build the module
+      await this.buildModule(targetPath);
+    } catch (err) {
+      // The claim above succeeded exclusively, so this install - and only
+      // this install - created targetPath; it's always safe to remove on
+      // failure. Without this, a failed local install (e.g. npm install or
       // the build failing) leaves the half-installed folder behind, so a
       // retry fails with "already exists".
       await fs.rm(targetPath, { recursive: true, force: true });
@@ -442,6 +472,20 @@ export class ModuleInstaller extends EventEmitter {
   private async exists(file: string): Promise<boolean> {
     try {
       await fs.access(file);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Like exists(), but using lstat instead of access/stat: a dangling
+   * symlink (one whose target is missing) still "exists" here, where
+   * access() would follow the link and report it as absent.
+   */
+  private async lexists(file: string): Promise<boolean> {
+    try {
+      await fs.lstat(file);
       return true;
     } catch {
       return false;

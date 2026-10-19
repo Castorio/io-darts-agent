@@ -43,7 +43,16 @@ describe('ModuleInstaller', () => {
     // Default mocks
     vi.mocked(fs.mkdir).mockResolvedValue(undefined);
     vi.mocked(fs.access).mockRejectedValue({ code: 'ENOENT' });
-    vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(TEST_MANIFEST));
+    // Explicit per-file dispatch rather than one blanket resolved value, so
+    // a .gitignore read (local install) is deterministically "not found"
+    // instead of relying on the manifest JSON happening to fail the
+    // simple-pattern filter.
+    vi.mocked(fs.readFile).mockImplementation(async (file) => {
+      if (String(file).endsWith('.gitignore')) {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      }
+      return JSON.stringify(TEST_MANIFEST);
+    });
     vi.mocked(fs.rm).mockResolvedValue(undefined);
     vi.mocked(fs.symlink).mockResolvedValue(undefined);
     vi.mocked(fs.readdir).mockResolvedValue([]);
@@ -108,15 +117,9 @@ describe('ModuleInstaller', () => {
 
   describe('install() - Local', () => {
     it('should install from local path', async () => {
-      // Setup mocks in order they will be called:
-      // 1. mkdir for modules dir
-      // 2. access for source path check
-      // 3. readFile for manifest
-      // 4. access for target path check (should not exist)
-      // 5. symlink or copy
-      vi.mocked(fs.access)
-        .mockResolvedValueOnce(undefined) // source exists
-        .mockRejectedValueOnce({ code: 'ENOENT' }); // target doesn't exist
+      vi.mocked(fs.access).mockResolvedValueOnce(undefined); // source exists
+      // Target pre-check (fs.lstat) and the atomic claim (fs.mkdir) both
+      // default to "free" (lstat rejects ENOENT; mkdir resolves).
 
       const result = await installer.install({
         type: 'local',
@@ -142,9 +145,10 @@ describe('ModuleInstaller', () => {
     });
 
     it('should fail if the target directory already exists', async () => {
-      vi.mocked(fs.access)
-        .mockResolvedValueOnce(undefined) // source exists
-        .mockResolvedValueOnce(undefined); // target already exists
+      vi.mocked(fs.access).mockResolvedValueOnce(undefined); // source exists
+      // lstat (not access/stat) so a dangling symlink at the target still
+      // counts as "already exists".
+      vi.mocked(fs.lstat).mockResolvedValueOnce(undefined as never); // target already exists
 
       const result = await installer.install({
         type: 'local',
@@ -154,6 +158,7 @@ describe('ModuleInstaller', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('already exists');
       expect(result.errorCode).toBe('MODULE_ALREADY_INSTALLED');
+      expect(fs.rm).not.toHaveBeenCalled();
     });
 
     it('should fail without path', async () => {
@@ -163,6 +168,49 @@ describe('ModuleInstaller', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('requires path');
+    });
+
+    describe('concurrent install of the same manifest id (claim race)', () => {
+      // The lstat pre-check only catches a race that's already lost by the
+      // time it runs. The real guard is the atomic claim (fs.mkdir/symlink
+      // on targetPath): if a concurrent install got there first, the claim
+      // itself fails with EEXIST - and that must never be treated as "this
+      // install's own failure" (which would delete the other install's
+      // folder, or a merge of both installs' files for the copy path's
+      // recursive mkdir).
+      it('does not remove the other install when the copy-path claim (fs.mkdir) races and hits EEXIST', async () => {
+        vi.mocked(fs.access).mockResolvedValueOnce(undefined); // source exists
+        // lstat pre-check still reports "free" - the race happens after it
+        vi.mocked(fs.mkdir)
+          .mockResolvedValueOnce(undefined) // ensure modulesDir (install())
+          .mockRejectedValueOnce(Object.assign(new Error('EEXIST'), { code: 'EEXIST' })); // claim loses the race
+
+        const result = await installer.install({ type: 'local', path: '/path/to/local/module' });
+
+        expect(result.success).toBe(false);
+        expect(result.errorCode).toBe('MODULE_ALREADY_INSTALLED');
+        expect(fs.rm).not.toHaveBeenCalled();
+        expect(fs.readdir).not.toHaveBeenCalled(); // never started copying into the other install's folder
+      });
+
+      it('does not remove the other install when the symlink-path claim races and hits EEXIST', async () => {
+        const previousEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'development'; // selects the symlink branch
+        try {
+          vi.mocked(fs.access).mockResolvedValueOnce(undefined); // source exists
+          vi.mocked(fs.symlink).mockRejectedValueOnce(
+            Object.assign(new Error('EEXIST'), { code: 'EEXIST' })
+          );
+
+          const result = await installer.install({ type: 'local', path: '/path/to/local/module' });
+
+          expect(result.success).toBe(false);
+          expect(result.errorCode).toBe('MODULE_ALREADY_INSTALLED');
+          expect(fs.rm).not.toHaveBeenCalled();
+        } finally {
+          process.env.NODE_ENV = previousEnv;
+        }
+      });
     });
   });
 
@@ -200,9 +248,8 @@ describe('ModuleInstaller', () => {
     });
 
     it('rejects a local install whose manifest id is already installed, without creating anything', async () => {
-      vi.mocked(fs.access)
-        .mockResolvedValueOnce(undefined) // source exists
-        .mockRejectedValueOnce({ code: 'ENOENT' }); // target doesn't exist yet
+      vi.mocked(fs.access).mockResolvedValueOnce(undefined); // source exists
+      // target pre-check (fs.lstat) defaults to "free" (ENOENT)
       installer = new ModuleInstaller({
         modulesDir: testModulesDir,
         isModuleIdInstalled: (id) => id === 'test-module',
@@ -219,6 +266,7 @@ describe('ModuleInstaller', () => {
       expect(result.errorCode).toBe('MODULE_ALREADY_INSTALLED');
       expect(fs.symlink).not.toHaveBeenCalled();
       expect(fs.copyFile).not.toHaveBeenCalled();
+      expect(fs.rm).not.toHaveBeenCalled();
     });
 
     it('still installs normally when the manifest id is not registered', async () => {

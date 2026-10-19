@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Spielinfo** zeigt die echten Legs zum Sieg statt immer "1 Leg".
 - **Jeder Dart am eigenen Board kam doppelt an** (Board-Meldung und Spielstand); das Display zog dadurch kurz doppelt ab. Während eines Matches meldet der Hub jeden Dart nur noch einmal.
 - Darts Caller las für "You require" die Legs/Sets statt der Restpunkte; der Simulator im Entwicklermodus schickt dasselbe Datenformat wie Autodarts.
+- Leg- und Match-Gewinner bei Cricket und anderen Nicht-X01-Varianten nach dem Rotieren der Spieler: `gameWinner`/`winner` von Autodarts sind Array-Positionen (belegt mit einem aufgezeichneten Online-Match), nicht `player.index`.
 
 ## [1.0.1-beta] - 2026-10-18
 

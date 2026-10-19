@@ -563,24 +563,15 @@ export class EventParser {
     if (!data.gameFinished && this.lastFinishedLegKey === legKey) this.lastFinishedLegKey = null;
     if (!isBullOff && data.gameFinished && data.gameWinner !== null && this.lastFinishedLegKey !== legKey) {
       this.lastFinishedLegKey = legKey;
-      // IMPORTANT: gameWinner from Autodarts is the player's INDEX field value, not array position!
-      // When a leg ends, Autodarts rotates the players array for the next leg.
-      // The gameWinner value stays the same (it's the player.index, not array position).
-      //
-      // Example scenario:
-      // - Leg 1: players = [{index:0, name:'A'}, {index:1, name:'B'}]
-      // - Player A (index=0) wins leg 1
-      // - gameWinner = 0 (player A's index field)
-      // - For leg 2, array rotates: players = [{index:1, name:'B'}, {index:0, name:'A'}]
-      // - Using find(p => p.index === gameWinner) correctly finds player A
-      const gameWinnerByIndex = data.players.find(p => p.index === data.gameWinner);
+      // gameWinner is the ARRAY POSITION in the players array of this state
+      // (verified with a recorded online match: after the rotation for leg 2,
+      // gameWinner 1 was the player at position 1 with 0 left, not index 1)
       const gameWinnerByArrayPos = data.players[data.gameWinner];
 
       if (this.debug) {
         console.log('🎯 DEBUG EventParser - GAME FINISHED:');
         console.log('  data.gameWinner:', data.gameWinner);
         console.log('  data.players:', JSON.stringify(data.players.map(p => ({ index: p.index, name: p.name })), null, 2));
-        console.log('  Found by p.index:', gameWinnerByIndex?.name);
         console.log('  Found by array position:', gameWinnerByArrayPos?.name);
       }
 
@@ -590,7 +581,7 @@ export class EventParser {
       const checkedOut = game.mode === 'x01'
         ? data.gameScores?.map((score, i) => (score === 0 ? i : -1)).filter((i) => i >= 0) ?? []
         : [];
-      const gameWinnerPlayer = checkedOut.length === 1 ? data.players[checkedOut[0]] : gameWinnerByIndex;
+      const gameWinnerPlayer = checkedOut.length === 1 ? data.players[checkedOut[0]] : gameWinnerByArrayPos;
 
       this.legTally.recordLeg(data, gameWinnerPlayer?.index ?? data.gameWinner);
       events.push({
@@ -622,7 +613,7 @@ export class EventParser {
         : [];
       const matchWinnerPlayer = lastCheckout.length === 1
         ? data.players[lastCheckout[0]]
-        : data.players.find(p => p.index === data.winner);
+        : data.players[data.winner]; // winner is an array position like gameWinner
 
       if (this.debug) {
         console.log('🏆 DEBUG EventParser - MATCH FINISHED RAW DATA:');

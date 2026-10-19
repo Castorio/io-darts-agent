@@ -20,16 +20,19 @@ const NPM_INSTALL_WITH_DEV = ['install', '--include=dev'];
 // The desktop app does not bundle Git or Node.js/npm, so an install can fail
 // because the tool itself is missing from the computer rather than because
 // of anything module-specific. Surface that plainly instead of a raw ENOENT
-// or (on Windows, where npm runs through cmd.exe - see execCommand) a
-// "is not recognized" shell error.
+// or (on Windows, where npm runs through cmd.exe - see execCommand) cmd.exe's
+// own "command not found" exit code.
 const MISSING_TOOL_MESSAGES: Record<'git' | 'npm', string> = {
   git: 'Module installation needs Git, which was not found on this computer. Install Git and try again.',
   npm: 'Module installation needs Node.js (npm), which was not found on this computer. Install Node.js and try again.',
 };
 
-// cmd.exe's own "command/program not found" message, emitted on stdout with
-// exit code 1 rather than as an ENOENT (cmd.exe itself was found and ran)
-const WINDOWS_COMMAND_NOT_FOUND = /is not recognized as an internal or external command/i;
+// cmd.exe's documented exit code when it could not find the program it was
+// told to run (our own direct invocation of "npm", not a command that npm
+// itself later spawns - npm translates a failing child/script into its own
+// exit code, normally 1, so this doesn't fire on e.g. a module's build
+// script missing its own tool).
+const WINDOWS_COMMAND_NOT_FOUND_EXIT_CODE = 9009;
 
 // Module ids and repository names become directory names below modulesDir,
 // so they must not contain path separators or be "." / "..".
@@ -631,12 +634,22 @@ export class ModuleInstaller extends EventEmitter {
 
       return stdout;
     } catch (err) {
-      const error = err as NodeJS.ErrnoException & { stderr?: string; stdout?: string };
-      if ((file === 'git' || file === 'npm') && error.code === 'ENOENT') {
-        throw new Error(MISSING_TOOL_MESSAGES[file]);
-      }
-      if (file === 'npm' && WINDOWS_COMMAND_NOT_FOUND.test(`${error.stdout ?? ''}${error.stderr ?? ''}`)) {
-        throw new Error(MISSING_TOOL_MESSAGES.npm);
+      // execFile's rejection has `.code` as a string (e.g. 'ENOENT') when the
+      // executable itself couldn't be spawned, but as the process's numeric
+      // exit code when it ran and exited non-zero (e.g. cmd.exe's 9009) -
+      // NodeJS.ErrnoException only types the string case.
+      const error = err as Error & { code?: string | number; stderr?: string; stdout?: string };
+      // A bad/missing cwd also throws ENOENT (or, via cmd.exe on Windows, the
+      // same "command not found" exit) for reasons that have nothing to do
+      // with git or npm being absent - only read either as the tool itself
+      // missing when the directory we tried to run it in actually exists.
+      if (await this.exists(cwd)) {
+        if ((file === 'git' || file === 'npm') && error.code === 'ENOENT') {
+          throw new Error(MISSING_TOOL_MESSAGES[file]);
+        }
+        if (file === 'npm' && process.platform === 'win32' && error.code === WINDOWS_COMMAND_NOT_FOUND_EXIT_CODE) {
+          throw new Error(MISSING_TOOL_MESSAGES.npm);
+        }
       }
       // tsc reports its errors on stdout, so include the end of it
       const output = [error.stderr, error.stdout?.slice(-2000)].filter((part) => part && part.trim()).join('\n');

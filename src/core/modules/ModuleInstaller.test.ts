@@ -358,12 +358,18 @@ describe('ModuleInstaller', () => {
 
   describe('missing git or npm', () => {
     const originalPlatform = process.platform;
+    const GIT_MISSING = 'Module installation needs Git, which was not found on this computer. Install Git and try again.';
+    const NPM_MISSING =
+      'Module installation needs Node.js (npm), which was not found on this computer. Install Node.js and try again.';
 
     afterEach(() => {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     });
 
     it('gives a clear error when git is not installed', async () => {
+      // 1st fs.access: install()'s own "target doesn't exist yet" pre-check.
+      // 2nd: execCommand's "does the cwd we tried to run git in exist" check.
+      vi.mocked(fs.access).mockRejectedValueOnce({ code: 'ENOENT' }).mockResolvedValueOnce(undefined);
       vi.mocked(execFile).mockImplementation(((file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
         if (file === 'git') cb(Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' }));
         else cb(null, { stdout: '', stderr: '' });
@@ -372,10 +378,11 @@ describe('ModuleInstaller', () => {
       const result = await installer.install({ type: 'git', url: 'https://github.com/user/test-repo.git' });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Module installation needs Git, which was not found on this computer. Install Git and try again.');
+      expect(result.error).toBe(GIT_MISSING);
     });
 
     it('gives a clear error when npm (Node.js) is not installed on macOS/Linux', async () => {
+      vi.mocked(fs.access).mockRejectedValueOnce({ code: 'ENOENT' }).mockResolvedValueOnce(undefined);
       vi.mocked(execFile).mockImplementation(((file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
         if (file === 'npm') cb(Object.assign(new Error('spawn npm ENOENT'), { code: 'ENOENT' }));
         else cb(null, { stdout: '', stderr: '' });
@@ -384,19 +391,35 @@ describe('ModuleInstaller', () => {
       const result = await installer.install({ type: 'git', url: 'https://github.com/user/test-repo.git' });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe(
-        'Module installation needs Node.js (npm), which was not found on this computer. Install Node.js and try again.'
-      );
+      expect(result.error).toBe(NPM_MISSING);
     });
 
-    it('gives a clear error when npm is not installed on Windows (routed through cmd.exe)', async () => {
+    it('does not map a plain ENOENT to a "missing tool" message when the working directory itself does not exist', async () => {
+      // Both calls reject: the target doesn't exist (expected - it's a fresh
+      // install) AND the cwd check fails too, which must NOT be read as "git
+      // is missing" - it's the generic fallback instead.
+      vi.mocked(fs.access).mockRejectedValue({ code: 'ENOENT' });
+      vi.mocked(execFile).mockImplementation(((file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
+        if (file === 'git') cb(Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' }));
+        else cb(null, { stdout: '', stderr: '' });
+      }) as never);
+
+      const result = await installer.install({ type: 'git', url: 'https://github.com/user/test-repo.git' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).not.toBe(GIT_MISSING);
+      expect(result.error).toContain('Command failed: git');
+    });
+
+    it('gives a clear error when npm is not installed on Windows (cmd.exe exits 9009 because it could not find npm)', async () => {
       Object.defineProperty(process, 'platform', { value: 'win32' });
+      vi.mocked(fs.access).mockRejectedValueOnce({ code: 'ENOENT' }).mockResolvedValueOnce(undefined);
       vi.mocked(execFile).mockImplementation(((file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
         if (file === 'cmd.exe') {
           cb(
             Object.assign(new Error('Command failed'), {
-              code: 1,
-              stdout: "'npm' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+              code: 9009,
+              stdout: '',
               stderr: '',
             })
           );
@@ -406,9 +429,32 @@ describe('ModuleInstaller', () => {
       const result = await installer.install({ type: 'git', url: 'https://github.com/user/test-repo.git' });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe(
-        'Module installation needs Node.js (npm), which was not found on this computer. Install Node.js and try again.'
+      expect(result.error).toBe(NPM_MISSING);
+    });
+
+    it('does not report npm as missing when a module\'s own build script fails on Windows (npm exits 1, not 9009 - e.g. its "tsc" is not found, not npm itself)', async () => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      vi.mocked(fs.access).mockRejectedValueOnce({ code: 'ENOENT' }).mockResolvedValueOnce(undefined);
+      vi.mocked(fs.readFile).mockImplementation(async (file) =>
+        String(file).endsWith('package.json') ? JSON.stringify({ scripts: { build: 'tsc' } }) : JSON.stringify(TEST_MANIFEST)
       );
+      vi.mocked(execFile).mockImplementation(((file: string, args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
+        if (file === 'cmd.exe' && args.includes('build')) {
+          cb(
+            Object.assign(new Error('Command failed'), {
+              code: 1,
+              stdout: "'tsc' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+              stderr: '',
+            })
+          );
+        } else cb(null, { stdout: '', stderr: '' });
+      }) as never);
+
+      const result = await installer.install({ type: 'git', url: 'https://github.com/user/test-repo.git' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).not.toBe(NPM_MISSING);
+      expect(result.error).toContain('Command failed: npm run build');
     });
   });
 

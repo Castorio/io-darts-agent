@@ -26,8 +26,9 @@ Dieses Handbuch führt dich durch Einrichtung und Nutzung des IO-Darts-Agent, vo
 16. [Einstellungen](#einstellungen)
 17. [Entwickler-Tools](#entwickler-tools)
 18. [Neue Module installieren](#neue-module-installieren)
-19. [Häufige Fragen (FAQ)](#faq)
-20. [Problemlösung](#problemlösung)
+19. [Modul-Store](#modul-store)
+20. [Häufige Fragen (FAQ)](#faq)
+21. [Problemlösung](#problemlösung)
 
 ---
 
@@ -641,6 +642,20 @@ So kannst du WLED, Game Display und Caller testen, ohne zu werfen.
 3. Klicke auf **Installieren**
 
 Installiere nur Module aus Quellen, denen du vertraust. Ein Modul läuft mit den Rechten des Hubs.
+
+---
+
+## Modul-Store
+
+Unter **Module** führt der Button **Store** zu einer Liste offiziell betreuter Module.
+
+"Offiziell betreut" heißt: Das Modul ist im Store-Katalog von IO-Darts-Agent gelistet, verwendet das Module SDK und wurde von den Maintainern geprüft, bevor sein Eintrag aufgenommen wurde - es läuft aber wie jedes andere Modul mit den Rechten des Hubs.
+
+Der Store lädt seinen Katalog online; ohne Internetverbindung erscheint die Meldung **"Der Store ist derzeit nicht erreichbar."** mit einem Button **Erneut versuchen**.
+
+Eine Karte zeigt Name, Beschreibung, Kategorie, Autor sowie einen Link zum Repository (und, falls vorhanden, zur Homepage). Ein Klick auf **Installieren** installiert den aktuellen Stand des hinterlegten Repository-Branches, genauso wie bei **Aus Git installieren** - nur dass Repository und Branch aus dem Katalog kommen, nicht manuell eingegeben werden. Ist das Modul bereits installiert, zeigt die Karte stattdessen das Abzeichen **Installiert** mit der installierten Version.
+
+Nach der Installation geht es mit einem Hinweis und Link **Zur Modulseite** weiter; Updates und Deinstallation laufen danach genau wie bei jedem anderen Modul über die [Modul-Detailseite](#modul-detailseite).
 
 ---
 

@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "id": "mqtt",
+      "name": {
+        "de": "MQTT-Integration",
+        "en": "MQTT Integration"
+      },
+      "description": {
+        "de": "Veröffentlicht Autodarts-Spielereignisse an einen MQTT-Broker, für Home Assistant und andere Smart-Home-Systeme.",
+        "en": "Publishes Autodarts game events to an MQTT broker for Home Assistant and other smart home integrations."
+      },
+      "category": "integration",
+      "author": "IO-Darts-Agent Team",
+      "repo": "https://github.com/castorio/autodarts-mqtt-module",
+      "branch": "master"
+    },
+    {
+      "id": "autodarts-trainer",
+      "name": {
+        "de": "Autodarts Trainer",
+        "en": "Autodarts Trainer"
+      },
+      "description": {
+        "de": "Intelligenter Trainingscoach mit Echtzeit-Empfehlungen, Tipps und Leistungsvergleichen während deiner Dartspiele.",
+        "en": "Intelligent training coach that provides real-time recommendations, tips, and performance comparisons during your darts games."
+      },
+      "category": "training",
+      "author": "IO-Darts-Agent Team",
+      "repo": "https://github.com/Castorio/autodarts-ai-trainer",
+      "branch": "master"
+    }
+  ]
+}

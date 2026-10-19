@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Modul-Store**: Unter **Module** zeigt der Button **Store** einen online geladenen Katalog offiziell betreuter Module (`GET /api/store`), mit Installationsstatus pro Modul und Installation per Klick (`POST /api/store/:id/install`), ohne Repository-URL von Hand einzugeben. Repository und Branch kommen dabei immer aus dem Katalog, nie vom Client. Der Katalog liegt in `store/modules.json`, Standard-Quelle ist `Castorio/io-darts-agent` auf GitHub (10 Minuten Cache), überschreibbar per `IO_DARTS_STORE_URL` (nur `https:`). Erster Katalog mit dem MQTT-Modul und dem Autodarts Trainer.
 - **Ausbullen im Game Display**: Vor Online-Matches zeigt das Display die ganze Dartscheibe mit jedem Ausbull-Dart (Spielerfarbe, Linie zum Bull, Abstand in mm), die Rangliste und wer beginnt. Der Hub merkt sich die Würfe pro Spieler und veröffentlicht sie als `bullOff` in `match.state`.
 - **Legs und Sets zählt der Hub selbst**, pro Spieler (stabil über `player.index`), auch über das Rotieren der Spieler zwischen den Legs hinweg. Ein korrigierter Checkout nimmt den Leg-Sieg zurück, beim Einstieg in ein laufendes Match zählt der Hub ab dem Stand von Autodarts. Veröffentlicht als `legsWon`/`setsWon` in `match.state`, `game.finished` und `/api/match/current`.
 
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Modul-Installation mit kollidierender Manifest-ID**: Die Installation eines Moduls, dessen Manifest-`id` bereits registriert ist, wird jetzt abgelehnt (`409`), statt die bestehende Registrierung zu überschreiben.
 - **Online-Matches mit Ausbullen**: Das Ausbullen (Variante "Bull-off") lief unter derselben Match-ID als "Leg 1" und verschluckte den Sieg des ersten X01-Legs. Es zählt nicht mehr als Leg und löst keine Leg-Animation und kein "Game Shot" mehr aus.
 - **Spielerwechsel nach dem Leg**: Nach dem Rotieren der Spieler wurde der Startspieler des nächsten Legs nicht gemeldet; Display, WLED und Darts Caller blieben beim vorherigen Spieler, bis dieser geworfen hatte.
 - **Farben von Spielern ohne Profil** (z. B. Online-Gegner) sind stabil und nie die Profilfarbe eines anderen Spielers; vorher wechselten sie mit dem Platz in der Liste. WLED sucht die Farbe zuerst über den Namen.

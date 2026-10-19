@@ -108,6 +108,15 @@ Mit **Public** markierte Routen in den Tabellen unten haben keine zusätzliche, 
 
 Modul-UIs werden statisch unter `/module-ui/:moduleId/` ausgeliefert (z.B. `/module-ui/game-display/`), eigene API-Routen eines Moduls (über das Module SDK registriert) sind unter `/api/modules/:moduleId/routes/*` erreichbar; siehe [Module SDK](module-sdk.md).
 
+### Modul-Store
+
+| Methode | Pfad | Auth | Beschreibung |
+|---------|------|------|---------------|
+| GET | `/api/store` | Session | Katalog offiziell betreuter Module mit Installationsstatus: `{ available, error?, modules: Array<StoreModule & { installed, installedVersion }> }`. Ist der Katalog nicht erreichbar, liefert die Antwort `available: false` mit `error` (Status bleibt `200`). |
+| POST | `/api/store/:id/install` | Session | Installiert ein Modul aus dem Katalog; Repository und Branch kommen ausschließlich aus dem Katalog-Eintrag, ein im Body mitgeschickter `url`/`branch` wird ignoriert. Antwort: `{ success, moduleId?, error? }`. `404` wenn `id` nicht im Katalog steht, `409` wenn das Modul bereits installiert ist, `503` wenn der Katalog gerade nicht erreichbar ist, `401` ohne gültige Session. |
+
+Die Katalog-URL (Standard: `store/modules.json` im Repository [`Castorio/io-darts-agent`](https://github.com/Castorio/io-darts-agent), siehe [Module SDK](module-sdk.md#modul-in-den-store-aufnehmen)) lässt sich über die Umgebungsvariable `IO_DARTS_STORE_URL` überschreiben (nur `https:`).
+
 ### Spieler
 
 | Methode | Pfad | Auth | Beschreibung |

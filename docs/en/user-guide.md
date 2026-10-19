@@ -26,8 +26,9 @@ This guide walks you through setting up and using IO-Darts-Agent, from the first
 16. [Settings](#settings)
 17. [Developer Tools](#developer-tools)
 18. [Installing New Modules](#installing-new-modules)
-19. [FAQ](#faq)
-20. [Troubleshooting](#troubleshooting)
+19. [Module Store](#module-store)
+20. [FAQ](#faq)
+21. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -641,6 +642,20 @@ This lets you test WLED, Game Display and the caller without throwing.
 3. Click **Install**
 
 Only install modules from sources you trust. A module runs with the permissions of the hub.
+
+---
+
+## Module Store
+
+Under **Modules**, the **Store** button opens a list of officially maintained modules.
+
+"Officially maintained" means the module is listed in IO-Darts-Agent's store catalog, uses the Module SDK, and was reviewed by the maintainers before its entry was accepted - it still runs like any other module, with the permissions of the hub.
+
+The store loads its catalog online; without an internet connection it shows **"The store is currently unavailable."** with a **Retry** button.
+
+Each card shows name, description, category, author, and a link to the repository (and, if set, the homepage). Clicking **Install** installs the current state of the listed repository branch, the same as **Install from Git** - except the repository and branch come from the catalog instead of being entered by hand. If the module is already installed, the card shows an **Installed** badge with the installed version instead.
+
+After installing, a hint with a **View Module** link follows; updates and uninstalling work exactly as for any other module, via the [module detail page](#module-detail-page).
 
 ---
 

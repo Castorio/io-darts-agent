@@ -789,6 +789,56 @@ Für Entwicklung können Module lokal installiert werden:
 ln -s /path/to/my-module modules_installed/my-module
 ```
 
+### Modul in den Store aufnehmen
+
+Der Modul-Store im Hub zeigt einen Katalog offiziell betreuter Module (`store/modules.json` im Repository [`Castorio/io-darts-agent`](https://github.com/Castorio/io-darts-agent), Branch `main`), von dem aus Nutzer mit einem Klick installieren können. Für die Aufnahme gilt:
+
+- Das Modul ist ein SDK-konformes Modul (siehe oben), kein Fork des Hubs selbst.
+- Der Code liegt in einem öffentlichen GitHub-Repository.
+- Die `id` im Katalog-Eintrag ist identisch mit der `id` in der `module.json` des Moduls. Der Hub lehnt eine Installation ab (409), wenn die vom Installer zurückgemeldete Manifest-`id` nicht zur angeforderten Katalog-`id` passt, und macht die Installation rückgängig.
+- Der Eintrag wird von den Maintainern geprüft, bevor er aufgenommen wird.
+
+**Eintragsformat**, ein Objekt pro Modul in `store/modules.json`:
+
+```json
+{
+  "version": 1,
+  "modules": [
+    {
+      "id": "mqtt",
+      "name": { "de": "MQTT-Integration", "en": "MQTT Integration" },
+      "description": {
+        "de": "Veröffentlicht Autodarts-Spielereignisse an einen MQTT-Broker.",
+        "en": "Publishes Autodarts game events to an MQTT broker."
+      },
+      "category": "integration",
+      "author": "Dein Name oder Team",
+      "repo": "https://github.com/<owner>/<repo>",
+      "branch": "main",
+      "homepage": "https://example.com"
+    }
+  ]
+}
+```
+
+**Validierungsregeln** (ungültige Einträge und doppelte IDs werden beim Laden verworfen und geloggt, ohne den restlichen Katalog ungültig zu machen):
+
+| Feld | Regel |
+|------|-------|
+| `id` | `/^[a-z0-9][a-z0-9-]{1,63}$/`, muss zur Modul-`id` passen |
+| `name`, `description` | Objekt `{ de, en }`, beide Strings, nicht leer, `name` max. 200, `description` max. 1000 Zeichen |
+| `category` | String, 1-40 Zeichen |
+| `author` | String, 1-80 Zeichen |
+| `repo` | Exakt `https://github.com/<owner>/<repo>` (ohne `.git`, keine Query/Fragment/Zugangsdaten in der URL) |
+| `branch` | Optional, `/^[A-Za-z0-9._/-]{1,100}$/`, Standard `main` |
+| `homepage` | Optional, `https://`-URL |
+
+Installiert wird immer der aktuelle Stand des angegebenen Branches, kein fixierter Commit.
+
+**Aufnahme beantragen:** Pull Request oder Commit auf `main` im Repository `Castorio/io-darts-agent`, der den Eintrag zu `store/modules.json` hinzufügt.
+
+**Eigener Katalog:** Ein Hub kann mit der Umgebungsvariable `IO_DARTS_STORE_URL` auf einen anderen Katalog zeigen (Standard: der Katalog oben). Nur `https:`-URLs werden akzeptiert.
+
 ## Best Practices
 
 ### 1. Fehlerbehandlung

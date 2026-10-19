@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2-beta] - 2026-10-19
+
 ### Added
 
 - **Modul-Store**: Unter **Module** zeigt der Button **Store** einen online geladenen Katalog offiziell betreuter Module (`GET /api/store`), mit Installationsstatus pro Modul und Installation per Klick (`POST /api/store/:id/install`), ohne Repository-URL von Hand einzugeben. Repository und Branch kommen dabei immer aus dem Katalog, nie vom Client. Der Katalog liegt in `store/modules.json`, Standard-Quelle ist `Castorio/io-darts-agent` auf GitHub (10 Minuten Cache), überschreibbar per `IO_DARTS_STORE_URL` (nur `https:`). Erster Katalog mit dem MQTT-Modul und dem Autodarts Trainer.
@@ -21,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Angezeigte Hub-Version**: Web-Oberfläche (Seitenleiste, Login), `/api/status`, `/api/setup/status` und die Init-Nachricht an externe Module zeigten fest `1.0.0`. Die Version kommt jetzt aus der `package.json` des Hubs.
 - **Modul-Autostart ohne Autodarts-Verbindung**: Schlug die Anmeldung bei Autodarts fehl (z. B. falsches Passwort, kein Internet), startete kein einziges Modul mit Autostart, auch keines, das ohne Spiel-Events nützlich ist (Home Assistant mit dem Board-Status, WLED). Der Autostart läuft jetzt unabhängig vom Verbindungsergebnis; die Module bekommen Spiel-Events, sobald die Verbindung steht. Ein späterer erneuter Verbindungsaufbau startet bereits laufende Module nicht doppelt.
 - **Passwort ändern** (`POST /api/auth/change-password`): Das neue Passwort wurde nur im Speicher gesetzt und nie in die Konfiguration geschrieben, nach einem Hub-Neustart galt wieder das alte Passwort, obwohl die Route Erfolg meldete. Die Passwortänderung in den Einstellungen der Web-Oberfläche war nicht betroffen. Der neue Hash wird jetzt gespeichert; scheitert das Speichern, bleibt das alte Passwort aktiv und die Route antwortet mit `500`. Bestehende Sessions bleiben nach der Änderung weiterhin gültig.
 - **Modul-Routen mit aktivierter Web-Anmeldung**: Modul-Routen mit Login-Pflicht (`/api/modules/:id/routes/*`, Standard) lasen das Session-Cookie unter dem falschen Namen und lieferten bei eingeloggten Clients trotzdem `401`.
@@ -153,6 +156,7 @@ Die bisherigen internen Stände (vor dem öffentlichen Repository, Frühjahr 202
 - **Ergebnistabelle** nach Match-Ende mit Chalkboard und Statistiken, Anzeigedauer einstellbar.
 - Modul-Konfigurationsoberfläche und erste Dokumentation.
 
-[Unreleased]: https://github.com/Castorio/io-darts-agent/compare/v1.0.1-beta...HEAD
+[Unreleased]: https://github.com/Castorio/io-darts-agent/compare/v1.0.2-beta...HEAD
+[1.0.2-beta]: https://github.com/Castorio/io-darts-agent/compare/v1.0.1-beta...v1.0.2-beta
 [1.0.1-beta]: https://github.com/Castorio/io-darts-agent/compare/v1.0.0...v1.0.1-beta
 [1.0.0]: https://github.com/Castorio/io-darts-agent/releases/tag/v1.0.0

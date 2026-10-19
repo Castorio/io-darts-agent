@@ -435,6 +435,10 @@ Die Desktop-App startet den Hub im Hintergrund, öffnet die Weboberfläche in ei
 
 Die App nutzt Port 3000. Ist der Port belegt, starte sie mit der Umgebungsvariable `IO_DARTS_PORT` auf einem anderen Port. Der Einrichtungsassistent speichert den Port, auf dem der Hub läuft. Änderst du den Port später in den Einstellungen und startest den Hub neu, folgt die App automatisch.
 
+### Externe Module installieren
+
+Eingebaute Module (WLED, Darts Caller, Game Display) funktionieren ohne Zusätze. Die Installation eines externen Moduls - aus dem [Modul-Store](user-guide.md#modul-store) oder per Git/lokalem Pfad - führt `git` und `npm` auf deinem Computer aus; die Desktop-App bringt beides nicht mit. Installiere vorher [Git](https://git-scm.com/downloads) und [Node.js](https://nodejs.org/), falls noch nicht vorhanden; fehlt eines davon, bricht die Installation mit einer Meldung ab, die benennt, welches.
+
 ### Selbst bauen
 
 Alternativ zum Download baust du die App selbst aus dem Quellcode, auf der Plattform, für die das Paket gedacht ist (auf dem Build-Rechner ist Node.js 22 nötig):

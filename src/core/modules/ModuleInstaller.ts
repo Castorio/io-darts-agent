@@ -17,6 +17,20 @@ const execFileAsync = promisify(execFile);
 // devDependencies; modules need them (e.g. typescript) for npm run build
 const NPM_INSTALL_WITH_DEV = ['install', '--include=dev'];
 
+// The desktop app does not bundle Git or Node.js/npm, so an install can fail
+// because the tool itself is missing from the computer rather than because
+// of anything module-specific. Surface that plainly instead of a raw ENOENT
+// or (on Windows, where npm runs through cmd.exe - see execCommand) a
+// "is not recognized" shell error.
+const MISSING_TOOL_MESSAGES: Record<'git' | 'npm', string> = {
+  git: 'Module installation needs Git, which was not found on this computer. Install Git and try again.',
+  npm: 'Module installation needs Node.js (npm), which was not found on this computer. Install Node.js and try again.',
+};
+
+// cmd.exe's own "command/program not found" message, emitted on stdout with
+// exit code 1 rather than as an ENOENT (cmd.exe itself was found and ran)
+const WINDOWS_COMMAND_NOT_FOUND = /is not recognized as an internal or external command/i;
+
 // Module ids and repository names become directory names below modulesDir,
 // so they must not contain path separators or be "." / "..".
 const MODULE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -616,7 +630,13 @@ export class ModuleInstaller extends EventEmitter {
 
       return stdout;
     } catch (err) {
-      const error = err as Error & { stderr?: string; stdout?: string };
+      const error = err as NodeJS.ErrnoException & { stderr?: string; stdout?: string };
+      if ((file === 'git' || file === 'npm') && error.code === 'ENOENT') {
+        throw new Error(MISSING_TOOL_MESSAGES[file]);
+      }
+      if (file === 'npm' && WINDOWS_COMMAND_NOT_FOUND.test(`${error.stdout ?? ''}${error.stderr ?? ''}`)) {
+        throw new Error(MISSING_TOOL_MESSAGES.npm);
+      }
       // tsc reports its errors on stdout, so include the end of it
       const output = [error.stderr, error.stdout?.slice(-2000)].filter((part) => part && part.trim()).join('\n');
       throw new Error(`Command failed: ${file} ${args.join(' ')}\n${output || error.message}`);

@@ -356,6 +356,62 @@ describe('ModuleInstaller', () => {
     });
   });
 
+  describe('missing git or npm', () => {
+    const originalPlatform = process.platform;
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    });
+
+    it('gives a clear error when git is not installed', async () => {
+      vi.mocked(execFile).mockImplementation(((file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
+        if (file === 'git') cb(Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' }));
+        else cb(null, { stdout: '', stderr: '' });
+      }) as never);
+
+      const result = await installer.install({ type: 'git', url: 'https://github.com/user/test-repo.git' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Module installation needs Git, which was not found on this computer. Install Git and try again.');
+    });
+
+    it('gives a clear error when npm (Node.js) is not installed on macOS/Linux', async () => {
+      vi.mocked(execFile).mockImplementation(((file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
+        if (file === 'npm') cb(Object.assign(new Error('spawn npm ENOENT'), { code: 'ENOENT' }));
+        else cb(null, { stdout: '', stderr: '' });
+      }) as never);
+
+      const result = await installer.install({ type: 'git', url: 'https://github.com/user/test-repo.git' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(
+        'Module installation needs Node.js (npm), which was not found on this computer. Install Node.js and try again.'
+      );
+    });
+
+    it('gives a clear error when npm is not installed on Windows (routed through cmd.exe)', async () => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      vi.mocked(execFile).mockImplementation(((file: string, _args: string[], _opts: unknown, cb: (err: Error | null, out?: unknown) => void) => {
+        if (file === 'cmd.exe') {
+          cb(
+            Object.assign(new Error('Command failed'), {
+              code: 1,
+              stdout: "'npm' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+              stderr: '',
+            })
+          );
+        } else cb(null, { stdout: '', stderr: '' });
+      }) as never);
+
+      const result = await installer.install({ type: 'git', url: 'https://github.com/user/test-repo.git' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(
+        'Module installation needs Node.js (npm), which was not found on this computer. Install Node.js and try again.'
+      );
+    });
+  });
+
   describe('module SDK link', () => {
     const sdkPath = '/hub/module-sdk';
     const modulePath = path.join(testModulesDir, 'autodarts-mqtt-module');

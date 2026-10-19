@@ -624,6 +624,8 @@ This lets you test WLED, Game Display and the caller without throwing.
 
 ## Installing New Modules
 
+**Desktop app:** installing an external module (from the Store or a Git/local URL) needs Git and Node.js installed on the computer running the app - the desktop app does not bundle either. Built-in modules work without them. If one is missing, the install fails with a message naming which one to install.
+
 1. Go to **Modules** and click **Install module**
 
 ![Module Installation](../images/14-module-install.png)

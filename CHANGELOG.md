@@ -37,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Jeder Dart am eigenen Board kam doppelt an** (Board-Meldung und Spielstand); das Display zog dadurch kurz doppelt ab. Während eines Matches meldet der Hub jeden Dart nur noch einmal.
 - Darts Caller las für "You require" die Legs/Sets statt der Restpunkte; der Simulator im Entwicklermodus schickt dasselbe Datenformat wie Autodarts.
 - Leg- und Match-Gewinner bei Cricket und anderen Nicht-X01-Varianten nach dem Rotieren der Spieler: `gameWinner`/`winner` von Autodarts sind Array-Positionen (belegt mit einem aufgezeichneten Online-Match), nicht `player.index`.
+- **Modul-SDK fehlte im Desktop-Paket**: `module-sdk/`, das bei jeder Installation eines externen Moduls in dessen Ordner verlinkt wird, war in der electron-builder-Konfiguration nicht enthalten - der Build eines extern installierten Moduls schlug in der Desktop-App fehl. Wird jetzt als Extra-Ressource mitgepackt (inklusive `.d.ts`, gegen die Module kompilieren); mit einem echten `--mac --dir`-Build geprüft.
+- **IPC-Socket externer Module unter Windows**: Hub und Modul verständigten sich über einen Unix-Domain-Socket-Pfad (`/tmp/autodarts-hub-<id>.sock`), den es unter Windows so nicht gibt - jedes extern laufende Modul wäre dort nie verbunden. Unter Windows wird jetzt eine Named Pipe (`\\.\pipe\autodarts-hub-<id>`) verwendet, auf den anderen Plattformen wie bisher ein Socket-Pfad, nur mit plattformkorrektem Temp-Verzeichnis statt eines fest verdrahteten `/tmp`.
+- **Unklarer Fehler bei fehlendem Git oder Node.js**: Fehlten Git oder npm auf dem Rechner (in der Desktop-App nicht mitgeliefert), scheiterte eine Modul-Installation mit einer rohen "ENOENT"- bzw. (unter Windows) "ist nicht als interner oder externer Befehl erkannt"-Meldung. Zeigt jetzt einen klaren Hinweis, welches der beiden fehlt.
 
 ## [1.0.1-beta] - 2026-10-18
 
